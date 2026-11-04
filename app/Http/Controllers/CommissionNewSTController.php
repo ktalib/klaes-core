@@ -1301,6 +1301,14 @@ class CommissionNewSTController extends Controller
      * decommissioned_files, commissioning sheets and the EDMS folder, and this removes
      * all of them in one transaction.
      *
+     * A primary takes its units with it: every table is cleared for the primary number
+     * and each unit number. The land file's ST decommissioned flags are lifted with
+     * the handover log, and the prop_id allocations and ST print-label items go too.
+     *
+     * Refused (422) once the file has gone past commissioning: an ST / unit
+     * application, CofO, registered instrument, eRegistry entry or scans filed in EDMS
+     * (stMasterDeleteBlockers). Those are not erased by a file-number delete.
+     *
      * Two things are deliberately NOT touched:
      *  - a fileNumber row that existed before the ST file was attached to it (a direct
      *    allocation links to a land file) — only the ST columns are cleared;
@@ -1309,6 +1317,29 @@ class CommissionNewSTController extends Controller
      *
      * @param Request $request  requires confirm = the exact file number
      */
+    /**
+     * Besides Super Admin, these usernames may master-delete ST file numbers.
+     * NS Umar (UmarST, user 10013) commissions the ST files — granted 2026-11-04.
+     */
+    public const MASTER_DELETE_USERNAMES = ['UmarST'];
+
+    /** Who sees and may use the ST Master Delete (row menu + masterDestroy). */
+    public static function canMasterDelete($user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+        if (($user->assign_role ?? null) === 'Supper Admin') {
+            return true;
+        }
+
+        return in_array(
+            strtolower(trim((string) ($user->username ?? ''))),
+            array_map('strtolower', self::MASTER_DELETE_USERNAMES),
+            true
+        );
+    }
+
     public function masterDestroy(Request $request)
     {
         $validated = $request->validate([
@@ -1325,11 +1356,10 @@ class CommissionNewSTController extends Controller
             ], 422);
         }
 
-        $user = Auth::user();
-        if (($user->assign_role ?? null) !== 'Supper Admin') {
+        if (!self::canMasterDelete(Auth::user())) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only a Super Admin may delete a file number across all tables.',
+                'message' => 'You are not allowed to master-delete ST file numbers.',
             ], 403);
         }
 
@@ -1371,7 +1401,32 @@ class CommissionNewSTController extends Controller
                 }
             }
 
-            $deleted = $connection->transaction(function () use ($connection, $stRow, $fileNo, $isPrimary, $motherFileNo, $motherIsOurs) {
+            // A primary takes its units with it, so everything below runs over the
+            // primary number AND every unit number hanging off it.
+            $stNumbers = [$fileNo];
+            if ($isPrimary) {
+                foreach ($connection->table('st_file_numbers')->where('np_fileno', $fileNo)->where('file_no_type', '<>', 'PRIMARY')->pluck('fileno') as $unitNo) {
+                    if (trim((string) $unitNo) !== '') {
+                        $stNumbers[] = trim((string) $unitNo);
+                    }
+                }
+            }
+            $stNumbers = array_values(array_unique($stNumbers));
+            $indexedNumbers = array_values(array_filter(array_merge($stNumbers, [$motherIsOurs ? $motherFileNo : null])));
+
+            // Only what commissioning created is erased. Once the file has moved on (an
+            // application, CofO, registered instrument, eRegistry entry or filed scans)
+            // the delete is refused: those records are not ours to destroy silently.
+            if ($blockers = $this->stMasterDeleteBlockers($connection, $stNumbers, $indexedNumbers)) {
+                return response()->json([
+                    'success'  => false,
+                    'message'  => "{$fileNo} cannot be master-deleted: it already has " . implode('; ', $blockers)
+                        . '. Remove those records first.',
+                    'blockers' => $blockers,
+                ], 422);
+            }
+
+            $deleted = $connection->transaction(function () use ($connection, $stRow, $fileNo, $isPrimary, $motherFileNo, $motherIsOurs, $stNumbers, $indexedNumbers) {
                 $counts = [];
 
                 // Units hang off a primary by np_fileno; a unit deletes only itself.
@@ -1380,30 +1435,49 @@ class CommissionNewSTController extends Controller
                     : $connection->table('st_file_numbers')->where('id', $stRow->id);
                 $counts['st_file_numbers'] = $stQuery->delete();
 
-                $indexedNumbers = array_values(array_filter([$fileNo, $motherIsOurs ? $motherFileNo : null]));
                 $counts['file_indexings'] = $connection->table('file_indexings')
                     ->whereIn('file_number', $indexedNumbers)->delete();
 
                 $counts['related_file_number'] = $connection->table('related_file_number')
                     ->whereIn('file_number', $indexedNumbers)->delete();
 
-                $counts['decommissioned_files'] = $connection->table('decommissioned_files')
-                    ->where('successor_file_no', $fileNo)->delete();
+                // The ST handover log, and the decommissioned flags it put on the land
+                // file — unless another decommissioning of that file still stands.
+                $handovers = $connection->table('decommissioned_files')->whereIn('successor_file_no', $stNumbers)->get(['id', 'file_no']);
+                $counts['decommissioned_files'] = $handovers->isEmpty() ? 0
+                    : $connection->table('decommissioned_files')->whereIn('id', $handovers->pluck('id')->all())->delete();
+                $counts['land_file_recommissioned'] = 0;
+                foreach ($handovers->pluck('file_no')->map(fn ($v) => trim((string) $v))->filter()->unique() as $landFileNo) {
+                    if ($connection->table('decommissioned_files')->where('file_no', $landFileNo)->exists()) {
+                        continue;
+                    }
+                    $counts['land_file_recommissioned'] += $this->clearStDecommissionFlags($connection, $landFileNo, $stNumbers);
+                }
 
                 $counts['entities_staging'] = $connection->table('entities_staging')
-                    ->where('file_number', $fileNo)->delete();
+                    ->whereIn('file_number', $stNumbers)->delete();
                 $counts['customers_staging'] = $connection->table('customers_staging')
-                    ->where('file_number', $fileNo)->delete();
+                    ->whereIn('file_number', $stNumbers)->delete();
 
                 $counts['file_commissioning_sheets'] = $connection->table('file_commissioning_sheets')
                     ->whereIn('file_number', $indexedNumbers)->delete();
 
-                // fileNumber: drop rows this commissioning created, and unhook the ST
-                // columns from a land file that was here first.
+                $counts['PropID_Master'] = $connection->table('PropID_Master')
+                    ->whereIn('primary_file_number', $indexedNumbers)->delete();
+
+                $counts['st_print_label_batch_items'] = $connection->table('st_print_label_batch_items')
+                    ->whereIn('file_number', $stNumbers)->delete();
+
+                // fileNumber: drop rows this commissioning created (the CON mother it
+                // made, or an ST-only mirror carrying no land/KANGIS number), and unhook
+                // the ST columns from a land file that was here first.
                 $counts['fileNumber_deleted'] = 0;
                 $counts['fileNumber_unlinked'] = 0;
-                foreach ($connection->table('fileNumber')->where('st_file_no', $fileNo)->get() as $mirror) {
-                    $ours = $motherIsOurs && trim((string) $mirror->mlsfNo) === $motherFileNo;
+                foreach ($connection->table('fileNumber')->whereIn('st_file_no', $stNumbers)->get() as $mirror) {
+                    $stOnly = trim((string) ($mirror->mlsfNo ?? '')) === ''
+                        && trim((string) ($mirror->kangisFileNo ?? '')) === ''
+                        && trim((string) ($mirror->NewKANGISFileNo ?? '')) === '';
+                    $ours = $stOnly || ($motherIsOurs && trim((string) $mirror->mlsfNo) === $motherFileNo);
                     if ($ours) {
                         $connection->table('fileNumber')->where('id', $mirror->id)->delete();
                         $counts['fileNumber_deleted']++;
@@ -1426,7 +1500,10 @@ class CommissionNewSTController extends Controller
                 return $counts;
             });
 
-            $folderRemoved = $this->removeEdmsScanFolder($fileNo);
+            $folderRemoved = false;
+            foreach ($stNumbers as $number) {
+                $folderRemoved = $this->removeEdmsScanFolder($number) || $folderRemoved;
+            }
 
             Log::warning('ST file number master-deleted', [
                 'file_number'    => $fileNo,
@@ -1481,6 +1558,101 @@ class CommissionNewSTController extends Controller
         } catch (\Throwable $e) {
             return false;
         }
+    }
+
+    /**
+     * Records past commissioning that stop a Master Delete, as readable phrases.
+     * Empty when the file only carries what commissioning itself wrote.
+     *
+     * @param string[] $stNumbers      the ST number and, for a primary, its units
+     * @param string[] $indexedNumbers $stNumbers plus a CON mother this commissioning made
+     */
+    private function stMasterDeleteBlockers($connection, array $stNumbers, array $indexedNumbers): array
+    {
+        $count = function (string $table, array $columns, array $values) use ($connection): int {
+            try {
+                return $connection->table($table)->where(function ($q) use ($columns, $values) {
+                    foreach ($columns as $column) {
+                        $q->orWhereIn($column, $values);
+                    }
+                })->count();
+            } catch (\Throwable $e) {
+                Log::warning('ST master delete: blocker check failed', ['table' => $table, 'error' => $e->getMessage()]);
+
+                return 0;
+            }
+        };
+
+        $checks = [
+            'an ST application'           => $count('mother_applications', ['np_fileno'], $stNumbers),
+            'a unit application'          => $count('subapplications', ['fileno'], $stNumbers),
+            'a CofO record'               => $count('CofO', ['np_fileno', 'fileno', 'NewKANGISFileno'], $stNumbers),
+            'a registered instrument'     => $count('registered_instruments', ['StFileNo'], $stNumbers),
+            'an eRegistry entry'          => $count('eRegistry', ['npFileno', 'ST_fileNO'], $stNumbers),
+        ];
+
+        $linkedToApplication = $connection->table('st_file_numbers')
+            ->where(function ($q) use ($stNumbers) {
+                $q->whereIn('np_fileno', $stNumbers)->orWhereIn('fileno', $stNumbers);
+            })
+            ->where(function ($q) {
+                $q->whereNotNull('mother_application_id')->orWhereNotNull('subapplication_id');
+            })
+            ->count();
+        if ($linkedToApplication > 0 && $checks['an ST application'] === 0 && $checks['a unit application'] === 0) {
+            $checks['an application linked to the file number'] = $linkedToApplication;
+        }
+
+        try {
+            $checks['scanned pages filed in EDMS'] = $connection->table('scannings as s')
+                ->join('file_indexings as fi', 'fi.id', '=', 's.file_indexing_id')
+                ->whereIn('fi.file_number', $indexedNumbers)
+                ->count();
+        } catch (\Throwable $e) {
+            Log::warning('ST master delete: scan check failed', ['error' => $e->getMessage()]);
+        }
+
+        $blockers = [];
+        foreach ($checks as $label => $n) {
+            if ($n > 0) {
+                $blockers[] = $n > 1 ? "{$label} ({$n})" : $label;
+            }
+        }
+
+        return $blockers;
+    }
+
+    /**
+     * Undo the decommissioned flags an ST handover put on the land file's rows, once
+     * its decommissioned_files entry is gone. Only rows that name one of these ST
+     * numbers as successor are touched. Returns the number of rows cleared.
+     */
+    private function clearStDecommissionFlags($connection, string $landFileNo, array $stNumbers): int
+    {
+        $cleared = 0;
+        $targets = [
+            'fileNumber'     => fn ($q) => $q->where('mlsfNo', $landFileNo)->orWhere('kangisFileNo', $landFileNo),
+            'file_indexings' => fn ($q) => $q->where('file_number', $landFileNo)->orWhere('kangis_file_no', $landFileNo),
+        ];
+
+        foreach ($targets as $table => $match) {
+            $schema = Schema::connection('sqlsrv');
+            if (!$schema->hasColumn($table, 'is_decommissioned') || !$schema->hasColumn($table, 'successor_file_no')) {
+                continue;
+            }
+
+            $payload = ['is_decommissioned' => 0];
+            foreach (['decommissioned_at', 'decommissioning_date', 'decommissioned_by', 'decommissioning_reason', 'successor_file_no'] as $column) {
+                if ($schema->hasColumn($table, $column)) {
+                    $payload[$column] = null;
+                }
+            }
+            $payload['updated_at'] = now();
+
+            $cleared += $connection->table($table)->where($match)->whereIn('successor_file_no', $stNumbers)->update($payload);
+        }
+
+        return $cleared;
     }
 
     /**
@@ -1629,9 +1801,89 @@ class CommissionNewSTController extends Controller
     }
 
     /**
+     * Index a commissioned PuA / SuA unit in the ST Registry.
+     *
+     * Every commissioned ST file is also an indexed one (the dashboard's ST
+     * Indexed and Comm figures must agree). Units commissioned up to 2026-09-29
+     * got this row; the PuA / SuA paths later stopped writing it, which left
+     * ST-MIXED-2026-1-001..003 commissioned but unindexed. Same shape as those
+     * earlier unit rows, plus the location captured on the unit tab.
+     */
+    private function indexStUnit($connection, array $validated, string $unitFileNo, ?string $motherFileNo, ?int $fileNumberId, string $fileName, string $tra, ?string $landUse, $commissionedAt): void
+    {
+        $exists = $connection->table('file_indexings')
+            ->where('file_number', $unitFileNo)
+            ->where(function ($q) { $q->whereNull('is_deleted')->orWhere('is_deleted', 0); })
+            ->exists();
+        if ($exists) {
+            return;
+        }
+
+        $propId = null;
+        try {
+            $propId = app(\App\Services\PropertyIdAllocationService::class)
+                ->allocateOrRetrievePropId($unitFileNo, $unitFileNo);
+        } catch (\Throwable $e) {
+            Log::warning('Could not allocate prop_id for ST unit', ['file_number' => $unitFileNo, 'error' => $e->getMessage()]);
+        }
+
+        $motherPropId = $motherFileNo
+            ? $connection->table('file_indexings')
+                ->where('file_number', $motherFileNo)
+                ->where(function ($q) { $q->whereNull('is_deleted')->orWhere('is_deleted', 0); })
+                ->whereNotNull('prop_id')
+                ->orderByDesc('id')
+                ->value('prop_id')
+            : null;
+
+        $location = $this->propertyLocationColumns($validated);
+
+        $connection->table('file_indexings')->insert([
+            'st_fillno'          => $unitFileNo,
+            'file_number_id'     => $fileNumberId,
+            'file_number'        => $unitFileNo,
+            'file_title'         => $fileName,
+            'land_use_type'      => $landUse,
+            'plot_number'        => $location['property_plot_no'] ?? null,
+            'street_name'        => $location['property_street_name'] ?? null,
+            'district'           => $location['property_district'] ?? null,
+            'lga'                => $location['property_lga'] ?? null,
+            'location'           => $this->composeLocation($location['property_district'] ?? null, $location['property_lga'] ?? null),
+            'latitude'           => $location['latitude'],
+            'longitude'          => $location['longitude'],
+            'gender'             => $validated['gender'] ?? null,
+            'gender_source'      => !empty($validated['gender']) ? \App\Services\GenderNormalizer::SOURCE_CAPTURED : null,
+            'prop_id'            => $propId,
+            'parent_prop_id'     => $motherPropId,
+            'has_cofo'           => 0,
+            'is_merged'          => 0,
+            'is_problematic'     => 0,
+            'is_co_owned_plot'   => 0,
+            'is_updated'         => 0,
+            'has_qc_issues'      => 0,
+            'workflow_status'    => 'indexed',
+            'status'             => 'Indexed',
+            'registry'           => 'ST Registry',
+            'tracking_id'        => $tra,
+            'batch_generated'    => 0,
+            'is_deleted'         => 0,
+            'source'             => 'ST Dept',
+            'country_code'       => '+234',
+            'holders_backfilled' => 0,
+            'has_temp_file'      => 0,
+            'title_status'       => 0,
+            'pp_lands_matching'  => 0,
+            'is_decommissioned'  => 0,
+            'created_by'         => Auth::id(),
+            'created_at'         => $commissionedAt,
+            'updated_at'         => $commissionedAt,
+        ]);
+    }
+
+    /**
      * Map the Location Details fields captured on the PuA / SuA tabs onto the
-     * st_file_numbers columns. Unit file numbers get no file_indexings row of
-     * their own, so the property location is stored with the unit record.
+     * st_file_numbers columns. The unit's file_indexings row (indexStUnit) also
+     * takes its location from here.
      *
      * @param array $validated
      * @return array
@@ -1866,6 +2118,8 @@ class CommissionNewSTController extends Controller
                     'applicant_type' => ucfirst($validated['applicant_type'])
                 ]);
 
+                $this->indexStUnit($connection, $validated, $unitFileNo, $primaryFileNo, $fileNumberId ? (int) $fileNumberId : null, $fileName, $tra, $validated['land_use'] ?? null, $commissionedAt);
+
                 $syncResult = [
                     'sua_file_number_id' => $suaFileNumberId,
                     'file_number_id' => $fileNumberId,
@@ -2088,6 +2342,8 @@ class CommissionNewSTController extends Controller
                     'applicant_type' => ucfirst($validated['applicant_type'])
                 ]);
 
+                $this->indexStUnit(DB::connection('sqlsrv'), $validated, $unitFileNo, $validated['parent_file_number'], $fileNumberId ? (int) $fileNumberId : null, $fileName, $tra, $landUseFullName, $commissionedAt);
+
                 $syncResult = [
                     'pua_file_number_id' => $puaFileNumberId,
                     'file_number_id' => $fileNumberId,
@@ -2198,8 +2454,7 @@ class CommissionNewSTController extends Controller
                 ->first();
 
             if (!$indexing) {
-                // SuA / PuA units are allocated in st_file_numbers but get no
-                // file_indexings row of their own (only the primary NPFN does). An
+                // Fallback for a unit whose indexing row was not written. An
                 // unsaved stand-in carrying just the number still counts everything
                 // keyed BY FILE NUMBER — st_file_numbers, fileNumber, customer and
                 // entity staging — while the id-keyed rows correctly come back zero.

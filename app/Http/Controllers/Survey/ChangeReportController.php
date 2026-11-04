@@ -11,8 +11,11 @@ use App\Services\Survey\BeaconNumberCheck;
 use App\Services\Survey\SurveyDocuments;
 use App\Services\SurveyItsAnchors;
 use Illuminate\Http\Request;
+use App\Models\Survey\SurveyorListEntry;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Examination/Verification > Surveyors' Report (docs/KLAES-CORE Survey
@@ -57,7 +60,48 @@ class ChangeReportController extends Controller
             'report_date' => now()->toDateString(), 'examined_by' => Auth::user()?->name,
         ]);
 
-        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $line]);
+        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $line, 'surveyors' => $this->surveyorOptions()]);
+    }
+
+    /**
+     * "Plan prepared by" dropdown (user, 2026-11-03): Survey Department staff and the SURCON register,
+     * as on the Beacon Register, keyed "staff:<id>" / "surcon:<id>". "Other" is added by the view.
+     */
+    private function surveyorOptions(): array
+    {
+        $out = ['staff' => [], 'surcon' => []];
+        foreach (SurveyorListEntry::active()->orderBy('first_name')->orderBy('surname')->get() as $s) {
+            $out['staff']['staff:' . $s->id] = ['name' => $s->full_name, 'hint' => $s->rank];
+        }
+        $surcon = DB::connection('sqlsrv')->table('cadastral_surveyors')->whereNull('deleted_at')
+            ->when(\App\Services\Cadastral\SurveyStaffSync::installed(), fn ($q) => $q->whereNull('surveyors_list_id'))
+            ->orderBy('full_name')->get(['id', 'full_name', 'surcon_number']);
+        foreach ($surcon as $s) {
+            $out['surcon']['surcon:' . $s->id] = ['name' => trim($s->full_name), 'hint' => $s->surcon_number ? 'Reg. ' . $s->surcon_number : null];
+        }
+
+        return $out;
+    }
+
+    /** The stored name for the dropdown choice: read from the source table, or typed under Other. */
+    private function surveyorName(Request $r): ?string
+    {
+        $choice = (string) $r->input('surveyor_choice');
+        if ($choice === '') return null;
+        if ($choice === 'other') {
+            $name = trim(preg_replace('/\s+/u', ' ', (string) $r->input('surveyor_name_other')));
+            if ($name === '') throw ValidationException::withMessages(['surveyor_name_other' => "Type the name of the surveyor who prepared the plan."]);
+            return mb_substr($name, 0, 255);
+        }
+        [$src, $id] = array_pad(explode(':', $choice, 2), 2, null);
+        $name = match ($src) {
+            'staff'  => SurveyorListEntry::find((int) $id)?->full_name,
+            'surcon' => DB::connection('sqlsrv')->table('cadastral_surveyors')->whereNull('deleted_at')->where('id', (int) $id)->value('full_name'),
+            default  => null,
+        };
+        if (! $name) throw ValidationException::withMessages(['surveyor_choice' => 'Choose the surveyor who prepared the plan.']);
+
+        return trim($name);
     }
 
     public function store(Request $r)
@@ -76,7 +120,7 @@ class ChangeReportController extends Controller
 
     public function edit(CR $report)
     {
-        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $report->registerFile, 'records' => $this->records($report)]);
+        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $report->registerFile, 'records' => $this->records($report), 'surveyors' => $this->surveyorOptions()]);
     }
 
     public function update(Request $r, CR $report)
@@ -138,7 +182,8 @@ class ChangeReportController extends Controller
             'district'         => 'nullable|string|max:255',
             'lga'              => 'nullable|string|max:255',
             'plan_no'          => 'nullable|string|max:100',
-            'surveyor_name'    => 'nullable|string|max:255',
+            'surveyor_choice'  => 'nullable|string|max:50',
+            'surveyor_name_other' => 'nullable|string|max:255',
             'discrepancies'    => 'required|string|max:4000',
             'required_changes' => 'required|string|max:4000',
             'report_date'      => 'nullable|date',
@@ -148,6 +193,9 @@ class ChangeReportController extends Controller
             'discrepancies.required'    => 'Describe what does not match the records.',
             'required_changes.required' => 'List the changes required.',
         ]);
+
+        unset($data['surveyor_choice'], $data['surveyor_name_other']);
+        $data['surveyor_name'] = $this->surveyorName($r);
 
         // A report raised from a Register File line keeps that line's file.
         $lineId = $existing?->survey_register_file_id ?? ($data['survey_register_file_id'] ?? null);

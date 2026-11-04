@@ -408,6 +408,7 @@
                 <th class="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">Consent Type</th>
                 <th class="px-4 py-3 font-semibold text-slate-700">Party 1</th>
                 <th class="px-4 py-3 font-semibold text-slate-700">Party 2 (Unit Owner)</th>
+                <th class="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">Reg. No.</th>
               </tr>
             </thead>
             <tbody id="st-units-tbody" class="divide-y divide-slate-100">
@@ -461,7 +462,7 @@
         tbody.innerHTML = '';
 
         if (units.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-4 text-center text-slate-500 italic">No units found</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center text-slate-500 italic">No units found</td></tr>';
         } else {
           units.forEach((unit, idx) => {
             tbody.innerHTML += `
@@ -473,6 +474,7 @@
                   </td>
                   <td class="px-4 py-3 text-slate-600">${party1}</td>
                   <td class="px-4 py-3 text-slate-600">${unit.party2_name || 'N/A'}</td>
+                  <td class="px-4 py-3 font-bold font-mono" style="color:#0f766e;">${unit.registration_number || '<span class="text-slate-300 font-normal">—</span>'}</td>
                 </tr>
               `;
           });
@@ -766,7 +768,7 @@
         tbody.innerHTML = '';
 
         if (units.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-4 text-center text-slate-500 italic">No units found</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center text-slate-500 italic">No units found</td></tr>';
         } else {
           units.forEach((unit, idx) => {
             tbody.innerHTML += `
@@ -778,6 +780,7 @@
                               </td>
                               <td class="px-4 py-3 text-slate-600">${party1}</td>
                               <td class="px-4 py-3 text-slate-600">${unit.party2_name || 'N/A'}</td>
+                              <td class="px-4 py-3 font-bold font-mono" style="color:#0f766e;">${unit.registration_number || '<span class="text-slate-300 font-normal">—</span>'}</td>
                           </tr>
                       `;
           });

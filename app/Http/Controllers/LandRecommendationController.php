@@ -1890,42 +1890,9 @@ class LandRecommendationController extends Controller
 
     private function changeOfPurposeSuccessors(string $fileNumber): array
     {
-        $chain = [trim($fileNumber)];
-        $seen  = [mb_strtoupper(trim($fileNumber)) => true];
-
-        for ($hop = 0; $hop < 5; $hop++) {
-            $row = DB::connection('sqlsrv')->table('file_indexings')
-                ->where('file_number', end($chain))
-                ->where('is_decommissioned', 1)
-                ->whereNotNull('successor_file_no')
-                ->first(['successor_file_no']);
-
-            $successors = $row ? array_values(array_filter(array_map(
-                'trim',
-                explode(',', (string) $row->successor_file_no)
-            ))) : [];
-
-            if (count($successors) !== 1 || isset($seen[mb_strtoupper($successors[0])])) {
-                break;
-            }
-
-            $isChangeOfPurpose = DB::connection('sqlsrv')->table('mls_file_no')
-                ->where('full_file_number', $successors[0])
-                ->where('source', 'Change of Purpose')
-                ->where(function ($q) {
-                    $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
-                })
-                ->exists();
-
-            if (!$isChangeOfPurpose) {
-                break;
-            }
-
-            $chain[] = $successors[0];
-            $seen[mb_strtoupper($successors[0])] = true;
-        }
-
-        return $chain;
+        // Every rename, including a file put through Change of Purpose more than once
+        // (CON-AG-2010-110 → CON-RES-2026-4611 and CON-COM-2026-785); see the service.
+        return app(\App\Services\ChangeOfPurposeLineage::class)->successors($fileNumber);
     }
 
     /**

@@ -38,9 +38,9 @@ class CaseController extends Controller
 
     public function index(Request $r)
     {
-        // Lands Assessment and the Plot Showing Register (?view=showing) are both blank for now
-        // (user, 2026-11-02); the lands stay in the database and open by link. Remove this to bring the list back.
-        if (true) {
+        // The Plot Showing Register view (?view=showing) stays blank (user, 2026-11-02; the sidebar now opens
+        // Plot Confirmation). Farm Assessment's own list is back (user, 2026-11-03).
+        if ($r->query('view') === 'showing') {
             return view('survey_module.compensation.cases', ['blank' => true, 'detail' => null]);
         }
 
@@ -172,7 +172,7 @@ class CaseController extends Controller
             return $case;
         }));
 
-        $msg = "Case {$case->case_ref} registered under {$project->project_code} · scheme inherited: "
+        $msg = "Farm Assessment {$case->case_ref} registered under {$project->project_code} · scheme inherited: "
              . $this->schemeLabel($project->scheme_type) . '.';
 
         if ($r->boolean('submit_now')) {
@@ -205,7 +205,7 @@ class CaseController extends Controller
                 'survey_project_id' => "{$project->project_code} is a "
                     . $this->schemeLabel($project->scheme_type) . " project, but {$case->case_ref} was registered as "
                     . $this->schemeLabel($case->scheme_type)
-                    . '. A case cannot change scheme — register a new case under that project instead.',
+                    . '. A farm assessment cannot change scheme — capture a new one under that project instead.',
             ]);
         }
 
@@ -229,7 +229,7 @@ class CaseController extends Controller
 
         return redirect()
             ->route('survey-module.compensation.cases')
-            ->with('success', "Case {$case->case_ref} updated.");
+            ->with('success', "Farm Assessment {$case->case_ref} updated.");
     }
 
     public function destroy(SurveyCompCase $case)
@@ -243,13 +243,13 @@ class CaseController extends Controller
         if ($blockers) {
             return back()->with('error',
                 "{$case->case_ref} still has " . implode(', ', $blockers) . ' and cannot be deleted. '
-                . 'Detach or remove those first, or set the case status to Rejected instead.');
+                . 'Detach or remove those first, or set the farm assessment status to Rejected instead.');
         }
 
         $ref = $case->case_ref;
         $case->delete();
 
-        return back()->with('success', "Case {$ref} deleted.");
+        return back()->with('success', "Farm Assessment {$ref} deleted.");
     }
 
     /** The Preview step's Submit button posts here; moves the case to Pending Review. */
@@ -266,7 +266,7 @@ class CaseController extends Controller
 
         return redirect()
             ->route('survey-module.compensation.cases')
-            ->with('success', "Case {$case->case_ref} submitted — now Pending Review. "
+            ->with('success', "Farm Assessment {$case->case_ref} submitted — now Pending Review. "
                 . 'It moves through the OP workflow: Survey → GIS → Commissioner → Deeds → Land/OSS.');
     }
 
@@ -378,7 +378,7 @@ class CaseController extends Controller
         if (! $allocId) {
             if ($project->surveyors()->exists()) {
                 throw ValidationException::withMessages([
-                    'survey_project_surveyor_id' => "{$project->project_code} has surveyors assigned. Select the surveyor and the portion this case surveys (Step 1).",
+                    'survey_project_surveyor_id' => "{$project->project_code} has surveyors assigned. Select the surveyor and the portion this farm assessment surveys (Step 1).",
                 ]);
             }
             $data['survey_project_surveyor_id'] = null;
@@ -403,7 +403,7 @@ class CaseController extends Controller
         }
         if (in_array($no, $alloc->usedPortions($case?->id), true)) {
             throw ValidationException::withMessages([
-                'portion_no' => "Portion {$no} of {$alloc->surveyor_name}'s allocation already has a case.",
+                'portion_no' => "Portion {$no} of {$alloc->surveyor_name}'s allocation already has a farm assessment.",
             ]);
         }
 
@@ -453,10 +453,10 @@ class CaseController extends Controller
             return 'it has no beneficiaries (Step 2).';
         }
         if ($case->isMonetary() && ! $case->trees()->exists()) {
-            return 'a monetary case needs at least one economic tree line (Step 4).';
+            return 'a Monetary Compensation assessment needs at least one economic tree line (Step 4).';
         }
         if (! $case->isMonetary() && (int) $case->num_plots < 1 && ! $case->plots()->exists()) {
-            return 'a land-to-land case needs a plot count for the 50:50 split (Step 3).';
+            return 'a Land to Land assessment needs a plot count for the 50:50 split (Step 3).';
         }
 
         return null;
@@ -514,11 +514,11 @@ class CaseController extends Controller
         ] + AddressBuilder::rules('prop_');
 
         return $r->validate($rules, [
-            'survey_project_id.required'         => 'Select the project this case belongs to (Step 1).',
+            'survey_project_id.required'         => 'Select the project this farm assessment belongs to (Step 1).',
             'survey_project_id.exists'           => 'That project does not exist.',
-            'trees.required'                     => 'A monetary case needs at least one economic tree line (Step 4).',
-            'trees.min'                          => 'A monetary case needs at least one economic tree line (Step 4).',
-            'num_plots.required'                 => 'A land-to-land case needs the total number of plots for the 50:50 split (Step 3).',
+            'trees.required'                     => 'A Monetary Compensation assessment needs at least one economic tree line (Step 4).',
+            'trees.min'                          => 'A Monetary Compensation assessment needs at least one economic tree line (Step 4).',
+            'num_plots.required'                 => 'A Land to Land assessment needs the total number of plots for the 50:50 split (Step 3).',
             'beneficiaries.*.full_name.required' => 'Every beneficiary row needs a full name (Step 2).',
             'beneficiaries.*.status.required'    => 'Every beneficiary row needs a status (Step 2).',
             'trees.*.tree_type.required'         => 'Every tree line needs a tree type (Step 4).',

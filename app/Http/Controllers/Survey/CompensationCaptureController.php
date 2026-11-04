@@ -23,7 +23,14 @@ class CompensationCaptureController extends Controller
     public function create(Request $r)
     {
         return view('survey_module.compensation.capture_list', [
-            'projects'  => SurveyProject::orderByDesc('id')->get(['id', 'project_code', 'name', 'plan_no', 'scheme_type']),
+            // With the CO file, purpose and sharing ratio: picking a project shows them and feeds the plot calculator (user, 2026-11-03).
+            'projects'  => SurveyProject::with('coFile:id,co_file_no,title')->orderByDesc('id')
+                ->get(['id', 'project_code', 'name', 'plan_no', 'scheme_type', 'purpose', 'farmer_share_pct', 'survey_co_file_id']),
+            'rcPurposes' => \App\Services\Survey\ResettlementCalculator::purposes(),
+            'rcRates'    => \App\Models\Survey\SurveyResettlementRate::query()->where('is_active', 1)->orderBy('land_use')->orderBy('sort_order')
+                ->get(['land_use', 'purpose', 'density', 'plot_size_ha'])
+                ->map(fn ($x) => ['land_use' => $x->land_use, 'purpose' => $x->purpose, 'density' => $x->density, 'size' => (float) $x->plot_size_ha])->values(),
+            'defaultFarmerPct' => \App\Services\Survey\SurveySettings::defaultFarmerPct(),
             'surveyors' => SurveyorListEntry::all()->map->full_name
                 ->merge(SurveyProjectSurveyor::distinct()->pluck('surveyor_name'))
                 ->map(fn ($n) => CompensationListCapture::tidy($n))->filter()

@@ -97,6 +97,12 @@ class FilearchiveController extends Controller
                 'icon' => 'layers',
                 'text_muted' => 'text-emerald-100',
             ],
+            'survey' => [
+                'title' => 'SURVEY',
+                'bg' => 'bg-gradient-to-r from-pink-600 via-pink-500 to-pink-700',
+                'icon' => 'compass',
+                'text_muted' => 'text-pink-100',
+            ],
         ];
 
         return $themes[$normalized] ?? null;
@@ -1837,7 +1843,8 @@ class FilearchiveController extends Controller
 
     private function isStorageDemoMode(string $module): bool
     {
-        $allowed = ['kangis', 'sltr', 'dciv', 'cadastral'];
+        // Survey lists its scan folders as they are, without page typing for now (user, 2026-11-03).
+        $allowed = ['kangis', 'sltr', 'dciv', 'cadastral', 'survey'];
         return in_array(strtolower(trim($module)), $allowed, true);
     }
 
@@ -1848,6 +1855,7 @@ class FilearchiveController extends Controller
             'sltr' => 'SLTR_Registry',
             'dciv' => 'DCIV_Registry',
             'cadastral' => 'Cadastral_Registry',
+            'survey' => 'Survey_Registry',
         ];
         return $map[strtolower(trim($module))] ?? 'KANGIS_Registry';
     }
@@ -2132,6 +2140,13 @@ class FilearchiveController extends Controller
         }
 
         $roots[] = "EDMS/UPLOAD/{$folderName}";
+
+        // Survey also shows what is scanned but not yet page-typed (user, 2026-11-03): the blind scans
+        // (CO files and others, EDMS/BLIND_SCAN/Survey_Registry_Raw/<file no>/A4/...) and Survey uploads.
+        if (strtolower(trim($module)) === 'survey') {
+            $roots[] = "EDMS/BLIND_SCAN/{$folderName}_Raw";
+            $roots[] = "EDMS/SCAN_UPLOAD/{$folderName}";
+        }
 
         return array_values(array_unique($roots));
     }

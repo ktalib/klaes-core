@@ -107,7 +107,8 @@ class SurveySettings
         $exact = max(0.0, $exact);
         $whole = (int) floor($exact + 1e-9);
         $fraction = round($exact - $whole, 2);
-        $range = self::classmarks()->first(fn ($r) => $fraction >= (float) $r->from_fraction - 1e-9 && $fraction <= (float) $r->to_fraction + 1e-9);
+        // An exact whole number has no part plot to read (Survey's ranges, user 2026-11-03, start at 0).
+        $range = $fraction <= 0 ? null : self::classmarks()->first(fn ($r) => $fraction >= (float) $r->from_fraction - 1e-9 && $fraction <= (float) $r->to_fraction + 1e-9);
         $extra = $range ? (float) $range->plots : 0.0;
         $plots = $whole + $extra;
 

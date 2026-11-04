@@ -56,6 +56,14 @@ Route::prefix('/mls-fileno')->middleware(['auth'])->group(function () {
     Route::post('/commissioned-file-move', [\App\Http\Controllers\CommissionedFileMoveController::class, 'move'])->name('mls-fileno.commissioned-file-move');
 
     // These MUST be last because they use route parameters
+    // Draft mode for the Commission New File Number card (MLS FC), per officer.
+    // Declared before /{id} so "drafts" is not read as an id.
+    Route::get('/drafts', [\App\Http\Controllers\MlsCommissionDraftController::class, 'index'])->name('mls-fileno.drafts.index');
+    Route::post('/drafts', [\App\Http\Controllers\MlsCommissionDraftController::class, 'store'])->name('mls-fileno.drafts.store');
+    Route::get('/drafts/{draftKey}', [\App\Http\Controllers\MlsCommissionDraftController::class, 'show'])->where('draftKey', '[A-Za-z0-9-]{8,40}')->name('mls-fileno.drafts.show');
+    Route::delete('/drafts/{draftKey}', [\App\Http\Controllers\MlsCommissionDraftController::class, 'destroy'])->where('draftKey', '[A-Za-z0-9-]{8,40}')->name('mls-fileno.drafts.destroy');
+    Route::post('/drafts/{draftKey}/committed', [\App\Http\Controllers\MlsCommissionDraftController::class, 'committed'])->where('draftKey', '[A-Za-z0-9-]{8,40}')->name('mls-fileno.drafts.committed');
+
     Route::get('/{id}', [MlsFileNoController::class, 'show'])->name('mls-fileno.show');
     Route::put('/{id}', [MlsFileNoController::class, 'update'])->name('mls-fileno.update');
 });

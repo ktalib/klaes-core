@@ -328,7 +328,7 @@
                 <div class="pa-head"><i class="fas fa-tree"></i><span>Economic Trees (Monetary Compensation)</span></div>
                 <p class="pa-help">
                     The cash for economic trees on this project. Pick the tree and its Category; the rate per stand comes from the
-                    <a href="{{ route('survey-module.compensation.trees') }}">Farm Assessment</a> schedule (change it if needed).
+                    <a href="{{ route('survey-module.compensation.trees') }}">Farm Features</a> schedule (change it if needed).
                     Amount = stands × rate.
                 </p>
                 <div class="pa-box">
@@ -410,7 +410,7 @@
                 </div>
                 <div class="right">
                     <button class="btn btn-success" type="submit">
-                        <i class="fas fa-check"></i> {{ $editing ? 'Save Changes' : 'Create Project' }}
+                        <i class="fas fa-check"></i> {{ $editing ? 'Update Project' : 'Create Project' }}
                     </button>
                 </div>
             </div>

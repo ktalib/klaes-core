@@ -17,6 +17,13 @@
 @include('survey_module.partials._flash')
 @include('survey_module.partials._gov_private_tabs', ['route' => 'survey-module.gkn.computation-files', 'tab' => $tab])
 
+<div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-label">Government (LPKN)</div><div class="kpi-value">{{ number_format($stats['government']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Private (LPPL)</div><div class="kpi-value">{{ number_format($stats['private']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Commissioned this month</div><div class="kpi-value">{{ number_format($stats['month']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">With an I to S</div><div class="kpi-value">{{ number_format($stats['with_its']) }}</div></div>
+</div>
+
 @if ($tab === 'government')
 <div class="page-header">
     <div style="font-size:13px;color:var(--gray-500);">Numbered LPKN-serial (e.g. LPKN-123), one series for all years. The serial can be set to continue from the last one used, under Configurable Entities &gt; Serial Initialization.</div>
@@ -71,7 +78,18 @@
                 @endforeach
             </select>
         </div>
-        {{-- Instruction to Survey removed from this form (user, 2026-11-02): the I to S form picks the Computation File No. --}}
+        {{-- Instruction to Survey: removed 2026-11-02, back as optional (user, 2026-11-03). The I to S form can also pick the file. --}}
+        @php $itsSel = (string) old('survey_its_id', $editingIts ?? ''); @endphp
+        <div class="form-group span-2">
+            <label>Instruction to Survey</label>
+            <select name="survey_its_id" class="sv-searchable">
+                <option value="">None</option>
+                @foreach ($itsOptions as $i)
+                    <option value="{{ $i->id }}" @selected($itsSel === (string) $i->id)>{{ $i->its_number ?: $i->job_ref }} · {{ $i->file_number }}{{ $i->file_title ? ' · ' . \Illuminate\Support\Str::limit($i->file_title, 60) : '' }}</option>
+                @endforeach
+            </select>
+            <p class="helper-text">Optional.</p>
+        </div>
         <div class="form-group span-3"><label>Remarks</label><textarea name="remarks" maxlength="1000">{{ $v('remarks') }}</textarea></div>
     </div>
     <div class="form-actions">

@@ -3,8 +3,8 @@
 @php
   // Opened from the sidebar's Plot Showing Register (?view=showing, user 2026-11-02): same page, that title.
   $isShowingRegister = request('view') === 'showing';
-  $PageTitle = $isShowingRegister ? 'Plot Showing Register' : 'Lands Assessment';
-  $PageDescription = "Each farmer's land (formerly compensation cases)";
+  $PageTitle = $isShowingRegister ? 'Plot Showing Register' : 'Farm Assessment';
+  $PageDescription = "Each farmer's land (formerly compensation cases). Capture Land: Capture Farmer for a land assessed now, Update Farmers List for a record kept on paper.";
 @endphp
 
 @section('page-title', $PageTitle . ' — KLAES')
@@ -18,12 +18,7 @@
     <div class="page-header">
       <div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <a href="{{ route('survey-module.compensation.capture-list') }}" class="btn btn-secondary">
-          <i class="fas fa-clipboard-list"></i> Capture Compensation
-        </a>
-        <a href="{{ route('survey-module.compensation.cases.register') }}" class="btn btn-primary">
-          <i class="fas fa-plus"></i> Register
-        </a>
+        @include('survey_module.partials._capture_land_button')
       </div>
     </div>
     <div class="dash-card" style="text-align:center;padding:48px 16px;color:var(--gray-500);">

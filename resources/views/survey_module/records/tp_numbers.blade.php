@@ -7,17 +7,20 @@
   use App\Http\Controllers\Survey\TpNumberController as TPC;
 
   $PageTitle = 'Public Layout Plans';
-  $PageDescription = 'Layout plan TP numbers (e.g. TP/KNUPDA/338A), listed by serial number.';
+  $PageDescription = 'The Ministry register of layout drawings (KANO LAYOUTS), in drawing-number order, and TP numbers added here.';
   $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
   $field = 'border:1.5px solid var(--gray-300);border-radius:6px;padding:7px 8px;';
   $e = $editing;
   $v = fn ($k, $d = null) => old($k, $e ? $e->{$k} : $d);
   $open = $errors->any() || $e;
   $lgas = \App\Http\Controllers\Survey\LookupController::options('lgas');
-  $filtered = request()->hasAny(['q', 'prefix', 'lga']);
-  $curPrefix = $v('prefix', 'TP/KNUPDA');
-  $prefixIsListed = in_array($curPrefix, $prefixes, true);
+  $filtered = request()->hasAny(['q', 'prefix', 'lga', 'check']);
+  // Prefix (TP) + Sub Prefix (MB) + Serial No. (1) = TP No. TP/MB/1 (user, 2026-11-03).
+  [$heads, $subs] = $prefixParts;
+  [$curPrefix, $curSub] = $e ? TP::splitPrefix($e->prefix) : ['TP', ''];
+  $prefixIsListed = in_array($curPrefix, $heads, true);
   $pickedPrefix = old('prefix', $prefixIsListed ? $curPrefix : TP::OTHER);
+  $subLabel = fn ($p) => ([$h, $sb] = TP::splitPrefix($p)) && $sb !== '' ? ($h === 'TP' ? $sb : $sb . ' (' . $h . ')') : $h;
   $pickedLandUse = $v('land_use');
   $curPurpose = $e?->purpose;
   $pickedPurpose = old('purpose', $curPurpose);
@@ -27,25 +30,17 @@
 @include('survey_module.partials._flash')
 @include('survey_module.partials._table_ui')
 
-{{-- CR 30102026 item 33 (user, 2026-10-31): empty until the new TP lookup list replaces the old one;
-     see TpNumberController::LIST_PENDING. Adding is off meanwhile, as a new entry would not be listed. --}}
-@if (!empty($listPending))
-<div style="display:flex;gap:10px;align-items:flex-start;padding:12px 16px;margin-bottom:16px;border:1.5px solid #f59e0b;background:#fffbeb;border-radius:var(--radius-sm);color:#92400e;font-size:14px;">
-    <i class="fas fa-triangle-exclamation" style="margin-top:2px;"></i>
-    <div><strong>TP list pending.</strong> The TP Nos list is being replaced. It will show here once the new TP lookup table is loaded.</div>
-</div>
-@else
+{{-- From the KANO LAYOUTS register (user, 2026-11-03); the general TP lookup table is no longer used. --}}
 <div class="page-header">
     <div></div>
     <button type="button" class="btn btn-primary" onclick="document.getElementById('tpForm').classList.add('open')"><i class="fas fa-plus"></i> Add TP No.</button>
 </div>
-@endif
 
 <div class="kpi-grid">
     <div class="kpi-card"><div class="kpi-label">TP Nos</div><div class="kpi-value">{{ number_format($stats['total']) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Prefixes</div><div class="kpi-value">{{ number_format($stats['prefixes']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Sub Prefixes</div><div class="kpi-value">{{ number_format($stats['prefixes']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">With a compensation project</div><div class="kpi-value">{{ number_format($stats['linked']) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Plots</div><div class="kpi-value">{{ number_format($stats['plots']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Notes to check</div><div class="kpi-value" style="color:#b45309;">{{ number_format($stats['check']) }}</div></div>
 </div>
 
 {{-- Add / edit, as a modal (Survey entry forms are modals). --}}
@@ -59,14 +54,20 @@
         <div class="form-group">
             <label>Prefix <span class="required">*</span></label>
             <select name="prefix" id="tpPrefix">
-                @foreach ($prefixes as $p)<option value="{{ $p }}" @selected($pickedPrefix === $p)>{{ $p }}</option>@endforeach
+                @foreach ($heads as $p)<option value="{{ $p }}" @selected($pickedPrefix === $p)>{{ $p }}</option>@endforeach
                 <option value="{{ TP::OTHER }}" @selected($pickedPrefix === TP::OTHER)>Other</option>
             </select>
         </div>
         <div class="form-group" id="tpPrefixOtherBox" @unless ($pickedPrefix === TP::OTHER) style="display:none;" @endunless>
             <label>Specify Prefix <span class="required">*</span></label>
-            <input type="text" name="prefix_other" id="tpPrefixOther" maxlength="80" placeholder="e.g. TP/KNUPDA/UC/GZ"
+            <input type="text" name="prefix_other" id="tpPrefixOther" maxlength="80" placeholder="e.g. BLM"
                    value="{{ old('prefix_other', $prefixIsListed ? '' : $curPrefix) }}" @disabled($pickedPrefix !== TP::OTHER) />
+        </div>
+        <div class="form-group">
+            <label>Sub Prefix</label>
+            <input type="text" name="sub_prefix" id="tpSubPrefix" list="tpSubPrefixes" maxlength="80" placeholder="e.g. MB" value="{{ old('sub_prefix', $curSub) }}" />
+            <datalist id="tpSubPrefixes">@foreach ($subs as $sb)<option value="{{ $sb }}">@endforeach</datalist>
+            <p class="helper-text">Pick one or type it, e.g. MB, UDB, MLPP/KBT.</p>
         </div>
         <div class="form-group">
             <label>Serial No. <span class="required">*</span></label>
@@ -75,14 +76,19 @@
         <div class="form-group">
             <label>TP No.</label>
             <input type="text" id="tpPreview" readonly style="background:var(--gray-100);font-weight:700;" value="{{ $e?->tp_no }}" />
-            <p class="helper-text">Prefix / Serial No., as it will be saved.</p>
+            <p class="helper-text">Prefix / Sub Prefix / Serial No., as it will be saved.</p>
         </div>
     </div>
     <div class="form-grid cols-3">
         <div class="sv-group"><i class="fas fa-map"></i><span>Layout</span></div>
         <div class="form-group span-2">
-            <label>Layout Name <span class="required">*</span></label>
-            <input type="text" name="layout_name" value="{{ $v('layout_name') }}" maxlength="255" required placeholder="e.g. K/Inna" />
+            <label>Layout Name (Title)</label>
+            <input type="text" name="layout_name" value="{{ $v('layout_name') }}" maxlength="255" placeholder="e.g. New extension to Gwammaja settlement" />
+        </div>
+        <div class="form-group">
+            <label>Date (as written)</label>
+            <input type="text" name="drawing_date" value="{{ $v('drawing_date') }}" maxlength="40" placeholder="e.g. 23/04/70 or JUN-84" />
+            <p class="helper-text">The drawing's date as in the register.</p>
         </div>
         <div class="form-group">
             <label>Land Use</label>
@@ -127,9 +133,14 @@
     @include('survey_module.partials._address_builder', ['prefix' => 'prop_', 'mode' => 'property', 'model' => $e, 'legend' => 'Layout Location', 'fields' => ['district', 'lga', 'state']])
 
     <div class="form-grid">
-        <div class="form-group full">
-            <label>Remarks</label>
-            <textarea name="remarks" maxlength="2000">{{ $v('remarks') }}</textarea>
+        <div class="form-group">
+            <label>Scanned / Remarks</label>
+            <textarea name="remarks" rows="2" maxlength="2000">{{ $v('remarks') }}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Notes (check)</label>
+            <textarea name="check_note" rows="2" maxlength="500" placeholder="e.g. Number used 2 times; date looks wrong">{{ $v('check_note') }}</textarea>
+            <p class="helper-text">Clear it once checked against the original drawing.</p>
         </div>
     </div>
     <div class="form-actions">
@@ -140,11 +151,12 @@
 
 <div class="table-container" x-data>
     <div class="table-header">
-        <h3>TP Nos <span style="font-weight:400;font-size:13px;color:var(--gray-500);">· by serial number</span></h3>
+        <h3>Layout Drawings <span style="font-weight:400;font-size:13px;color:var(--gray-500);">· in drawing-number order</span></h3>
         <form method="GET" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-            <input type="text" name="q" value="{{ request('q') }}" placeholder="TP No., serial, layout, district…" style="{{ $field }}width:230px;">
-            <select name="prefix" style="{{ $field }}"><option value="">All prefixes</option>@foreach ($prefixes as $p)<option value="{{ $p }}" @selected(request('prefix') === $p)>{{ $p }}</option>@endforeach</select>
+            <input type="text" name="q" value="{{ request('q') }}" placeholder="Drawing no., title, date, remarks…" style="{{ $field }}width:230px;">
+            <select name="prefix" style="{{ $field }}"><option value="">All sub prefixes</option>@foreach (collect($prefixes)->sortBy(fn ($p) => mb_strtoupper($subLabel($p)), SORT_NATURAL) as $p)<option value="{{ $p }}" @selected(request('prefix') === $p)>{{ $subLabel($p) }}</option>@endforeach</select>
             <select name="lga" class="sv-searchable" data-width="180px" style="{{ $field }}"><option value="">All LGAs</option>@foreach ($lgas as $l)<option value="{{ $l }}" @selected(request('lga') === $l)>{{ $l }}</option>@endforeach</select>
+            <select name="check" style="{{ $field }}"><option value="">All rows</option><option value="1" @selected(request('check') === '1')>With a note to check</option></select>
             <button class="btn btn-secondary btn-sm" type="submit"><i class="fas fa-search"></i></button>
             @if ($filtered)<a class="btn btn-secondary btn-sm" href="{{ route('survey-module.records.tp-numbers') }}">Clear</a>@endif
         </form>
@@ -152,8 +164,8 @@
     <div class="table-scroll">
         <table class="sv-dt">
             <thead><tr>
-                <th>S/N</th><th>Prefix</th><th>Serial No.</th><th>TP No.</th><th>Layout Name</th><th>District</th><th>LGA</th>
-                <th>Land Use</th><th>Purpose</th><th class="num">Plots</th><th class="num">Area (ha)</th><th>Approval Date</th><th>Projects</th>
+                <th>S/N</th><th>Prefix</th><th>Sub Prefix</th><th>Serial No.</th><th>Drawing No. (TP No.)</th><th>Date</th><th>Title</th><th>Scanned / Remarks</th><th>Notes (check)</th>
+                <th>District</th><th>LGA</th><th>Land Use</th><th>Purpose</th><th>Projects</th>
                 <th>Created By</th><th>Date Created</th><th class="col-actions"></th>
             </tr></thead>
             <tbody>
@@ -161,17 +173,18 @@
                     @php $linked = $projects->get(TPC::key($x->tp_no), collect()); @endphp
                     <tr>
                         <td class="muted">{{ $tps->firstItem() + $loop->index }}</td>
-                        <td class="nowrap"><span class="tp">{{ $x->prefix }}</span></td>
-                        <td class="code">{{ $x->serial_no }}</td>
-                        <td><span class="tp">{{ $x->tp_no }}</span></td>
+                        <td class="nowrap">{!! $x->prefix_head !== '' ? e($x->prefix_head) : '<span class="muted">—</span>' !!}</td>
+                        <td class="nowrap">{!! $x->sub_prefix !== '' ? e($x->sub_prefix) : '<span class="muted">—</span>' !!}</td>
+                        <td class="nowrap">{!! trim((string) $x->serial_no) !== '' ? '<strong>' . e($x->serial_no) . '</strong>' : '<span class="muted">—</span>' !!}</td>
+                        <td class="nowrap">{!! $x->tp_no !== '' ? '<span class="tp">' . e($x->tp_no) . '</span>' : '<span class="muted">—</span>' !!}</td>
+                        <td class="nowrap">{!! $x->drawing_date ? e($x->drawing_date) : '<span class="muted">—</span>' !!}</td>
                         <td class="wide strong">{!! $x->layout_name ? e($x->layout_name) : '<span class="muted">—</span>' !!}</td>
+                        <td>{!! $x->remarks ? e($x->remarks) : '<span class="muted">—</span>' !!}</td>
+                        <td style="min-width:180px;">{!! $x->check_note ? '<span style="color:#b45309;font-size:12px;"><i class="fas fa-flag"></i> ' . e($x->check_note) . '</span>' : '<span class="muted">—</span>' !!}</td>
                         <td>{{ \App\Support\AddressBuilder::resolve($x->prop_district, $x->prop_district_other) ?: '—' }}</td>
                         <td>{{ \App\Support\AddressBuilder::resolve($x->prop_lga) ?: '—' }}</td>
                         <td>{!! $x->land_use ? e($x->land_use_label) : '<span class="muted">—</span>' !!}</td>
                         <td>{!! $x->purpose ? e($x->purpose) : '<span class="muted">—</span>' !!}</td>
-                        <td class="num">{!! $x->plot_count !== null ? number_format($x->plot_count) : '<span class="muted">—</span>' !!}</td>
-                        <td class="num">{!! $x->area_ha !== null ? rtrim(rtrim(number_format((float) $x->area_ha, 4), '0'), '.') : '<span class="muted">—</span>' !!}</td>
-                        <td class="nowrap">{!! $x->approval_date ? $x->approval_date->format('d M Y') : '<span class="muted">—</span>' !!}</td>
                         <td>
                             @forelse ($linked as $p)
                                 <a class="nowrap" href="{{ route('survey-module.compensation.projects', ['q' => $p->plan_no]) }}" title="{{ $p->display_name }}">{{ $p->project_code }}</a>@if (! $loop->last)<br>@endif
@@ -199,12 +212,12 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="16" style="text-align:center;padding:22px;color:var(--gray-500);">{{ !empty($listPending) ? 'TP list pending: the new TP lookup table will be loaded here.' : ($filtered ? 'No TP No. matches the filter.' : 'No TP Nos yet. Use Add TP No.') }}</td></tr>
+                    <tr><td colspan="17" style="text-align:center;padding:22px;color:var(--gray-500);">{{ $filtered ? 'No layout drawing matches the filter.' : 'No layout drawings yet. Use Add TP No.' }}</td></tr>
                 @endforelse
             </tbody>
         </table>
     </div>
-    <div class="table-footer"><span>{{ number_format($tps->total()) }} TP Nos, by serial number</span><div class="pagination">{{ $tps->links() }}</div></div>
+    <div class="table-footer"><span>{{ number_format($tps->total()) }} layout drawings, in drawing-number order</span><div class="pagination">{{ $tps->links() }}</div></div>
 </div>
 
 @include('survey_module.partials._searchable_selects')
@@ -212,17 +225,19 @@
 <script>
 (function () {
     var sel = document.getElementById('tpPrefix'), box = document.getElementById('tpPrefixOtherBox'),
-        other = document.getElementById('tpPrefixOther'), serial = document.getElementById('tpSerial'), preview = document.getElementById('tpPreview');
+        other = document.getElementById('tpPrefixOther'), serial = document.getElementById('tpSerial'), preview = document.getElementById('tpPreview'),
+        sub = document.getElementById('tpSubPrefix');
     // style.display, not hidden: the form-group styles override [hidden].
     function sync() {
         var on = sel.value === @json(TP::OTHER);
         box.style.display = on ? '' : 'none';
         other.disabled = !on;
         var p = (on ? other.value : sel.value).replace(/\s+/g, '').replace(/^\/+|\/+$/g, '');
+        var b = sub.value.replace(/\s+/g, '').replace(/^\/+|\/+$/g, '');
         var s = serial.value.replace(/\s+/g, '').replace(/^\/+|\/+$/g, '');
-        preview.value = p && s ? p + '/' + s : '';
+        preview.value = p && s ? p + (b ? '/' + b : '') + '/' + s : '';
     }
-    [sel, other, serial].forEach(function (el) { el.addEventListener('input', sync); el.addEventListener('change', sync); });
+    [sel, other, sub, serial].forEach(function (el) { el.addEventListener('input', sync); el.addEventListener('change', sync); });
     sync();
 
     // Land Use / Purpose: "Other" reveals a required box; any other choice hides, clears and disables it.

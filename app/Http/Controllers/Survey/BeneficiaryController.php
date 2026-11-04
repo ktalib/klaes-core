@@ -135,7 +135,7 @@ class BeneficiaryController extends Controller
             'bank_name_other.required'        => 'Please specify the bank.',
             'account_number.digits'           => 'The account number must be exactly 10 digits.',
             'full_name.required'              => "The beneficiary's full name is required.",
-            'survey_comp_case_id.exists'      => 'That compensation case does not exist.',
+            'survey_comp_case_id.exists'      => 'That farm assessment does not exist.',
             'addr_district.required'          => 'The district is required.',
             'addr_district_other.required_if' => 'Please specify the district.',
             'addr_street_other.required_if'   => 'Please specify the street.',

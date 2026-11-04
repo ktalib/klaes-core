@@ -272,12 +272,19 @@
                         <div class="flex flex-wrap items-end gap-2">
                             <div class="flex-1 min-w-0" style="min-width:16rem">
                                 <label class="block text-xs font-semibold text-gray-600 mb-1" x-text="mode === 'in' ? 'Or select a file pending receipt' : 'Or select a file held at your office'"></label>
-                                <select x-model="batch.pick" @change="addPicked()" :disabled="batch.running" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
-                                    <option value="" x-text="batchPickable().length ? '— Select a file —' : '— No more files to add —'"></option>
-                                    <template x-for="r in batchPickable()" :key="'bp-' + r.id">
-                                        <option :value="String(r.id)" x-text="(r.file_number || r.related_file_number || 'Document') + (r.file_title ? ' — ' + nice(r.file_title) : '')"></option>
-                                    </template>
-                                </select>
+                                {{-- Searchable (user, 2026-11-04): the same pick list as Log a file manually. --}}
+                                <div class="relative" x-data="fileLogPickList(() => batch.pick)" @click.outside="psClose()">
+                                    <select x-ref="sel" x-model="batch.pick" @change="addPicked()" :disabled="batch.running" class="hidden">
+                                        <option value=""></option>
+                                        <template x-for="r in batchPickable()" :key="'bp-' + r.id">
+                                            <option :value="String(r.id)" x-text="(r.file_number || r.related_file_number || 'Document') + (r.file_title ? ' — ' + nice(r.file_title) : '')"></option>
+                                        </template>
+                                    </select>
+                                    @include('secretariat_file_log.partials.pick_list', [
+                                        'model' => 'batch.pick',
+                                        'placeholder' => "batchPickable().length ? '— Search or select a file —' : '— No more files to add —'",
+                                    ])
+                                </div>
                             </div>
                             <button type="button" :disabled="batch.running || !batchPickable().length" @click="addAllPickable()"
                                     class="px-3 py-2 text-sm font-semibold rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50">

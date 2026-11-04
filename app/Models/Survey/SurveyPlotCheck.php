@@ -44,6 +44,12 @@ class SurveyPlotCheck extends SurveyModel
         self::OTHER,
     ];
 
+    /** The OP showing this check answers (user, 2026-11-03); none for a layout plot. */
+    public function showing(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(SurveyOpShowing::class, 'survey_op_showing_id');
+    }
+
     public function photos(): HasMany
     {
         return $this->hasMany(SurveyPlotCheckPhoto::class, 'survey_plot_check_id')->orderBy('id');

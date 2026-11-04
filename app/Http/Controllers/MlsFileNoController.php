@@ -2416,6 +2416,10 @@ class MlsFileNoController extends Controller
                 throw $e;
             }
 
+            if ($deletedRefusal = $this->deletedParcelUpdateRefusal($validated)) {
+                return response()->json(['success' => false, 'message' => $deletedRefusal], 422);
+            }
+
             // The TP picker's "Other (specify)" row is a UI sentinel, not a TP number. The
             // form replaces it with what the officer types, but a stale or scripted post can
             // still carry it through — and land_recommendations already holds rows where the
@@ -3004,6 +3008,7 @@ class MlsFileNoController extends Controller
                             ? ChangeOfPurposeApplication::find($validated['change_of_purpose_app_id'])
                             : ChangeOfPurposeApplication::where('file_no', $originalFileNo)
                                 ->whereIn('status', ['approved', 'processing'])
+                                ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
                                 ->orderByDesc('id')
                                 ->first();
 
@@ -4416,6 +4421,7 @@ class MlsFileNoController extends Controller
                         $extensionApp = \App\Models\PlotExtensionApplication::query()
                             ->where('id', $validated['extension_app_id'])
                             ->where('status', \App\Models\PlotExtensionApplication::STATUS_APPROVED)
+                            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
                             ->first();
                         if ($extensionApp && strcasecmp(trim((string) $extensionApp->file_no), trim((string) $oldFile)) !== 0) {
                             Log::warning('Extension application belongs to another file; not linked', [
@@ -4993,6 +4999,35 @@ class MlsFileNoController extends Controller
      * must have an approved Plot Extension application (the one the form linked, else the
      * newest approved one for that file). User, 2026-10-26.
      */
+    /**
+     * A parcel update application can be master-deleted while approved (Super Admin,
+     * 2026-11-02). The pickers stop offering it, but a form left open still carries its
+     * id, so commissioning against a deleted application is refused here.
+     */
+    private function deletedParcelUpdateRefusal(array $validated): ?string
+    {
+        $links = [
+            'subdivision_app_id'       => [PlotSubdivisionApplication::class, 'Plot Subdivision'],
+            'merger_app_id'            => [PlotMergerApplication::class, 'Plot Merger'],
+            'separation_app_id'        => [PlotSeparationApplication::class, 'Plot Separation'],
+            'extension_app_id'         => [PlotExtensionApplication::class, 'Plot Extension'],
+            'change_of_purpose_app_id' => [ChangeOfPurposeApplication::class, 'Change of Purpose'],
+        ];
+
+        foreach ($links as $field => [$class, $label]) {
+            if (empty($validated[$field])) {
+                continue;
+            }
+            $app = $class::find((int) $validated[$field]);
+            if ($app && (int) ($app->is_deleted ?? 0) === 1) {
+                return "The {$label} application for " . ($app->file_no ?? 'this file')
+                    . ' has been deleted. Reload the page and select an active application.';
+            }
+        }
+
+        return null;
+    }
+
     private function extensionApplicationRefusal(?string $fileNo, $appId = null): ?string
     {
         $fileNo = trim((string) $fileNo);
@@ -5005,6 +5040,7 @@ class MlsFileNoController extends Controller
             $app = PlotExtensionApplication::query()
                 ->where('id', (int) $appId)
                 ->where('status', PlotExtensionApplication::STATUS_APPROVED)
+                ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
                 ->first();
             if ($app && strcasecmp(trim((string) $app->file_no), $fileNo) !== 0) {
                 $app = null;   // linked to another file
@@ -5156,6 +5192,10 @@ class MlsFileNoController extends Controller
                 'op_batch_allottees' => ['nullable', 'string', 'max:20000'],
                 'op_batch' => 'nullable|string|max:50',
             ]);
+
+            if ($deletedRefusal = $this->deletedParcelUpdateRefusal($validated)) {
+                return response()->json(['success' => false, 'message' => $deletedRefusal], 422);
+            }
 
             // Extension in a batch: the same approved Plot Extension rule (2026-10-26).
             if (($validated['file_option'] ?? '') === 'extension') {

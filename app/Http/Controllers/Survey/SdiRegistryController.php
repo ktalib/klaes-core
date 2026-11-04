@@ -33,6 +33,13 @@ class SdiRegistryController extends Controller
             'mdas'       => $mdas,
             'categories' => SdiCategory::orderBy('sort_order')->get(['id', 'name']),
             'mapTypes'   => SdiMapType::withCount('requests')->orderBy('sort_order')->get(),
+            // Dashboard cards (user, 2026-11-03).
+            'stats'      => [
+                'mdas'         => SdiMda::count(),
+                'categories'   => SdiCategory::count(),
+                'types'        => SdiMapType::count(),
+                'with_request' => SdiMda::has('mapRequests')->count(),
+            ],
         ]);
     }
 

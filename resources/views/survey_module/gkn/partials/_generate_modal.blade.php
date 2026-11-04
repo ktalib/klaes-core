@@ -60,6 +60,17 @@
                                             <h2 class="font-bold text-sm text-slate-800 uppercase tracking-wide">File Details</h2>
                                         </div>
                                         <div class="p-5 space-y-4">
+                                            {{-- File Type first (user, 2026-11-03): Regular by default, or Temporary File, saved with (T), e.g. GKN-123(T).
+                                                 Replaces the Temporary (T) checkbox. Fixed once generated, so shown locked when editing. --}}
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">File Type <span class="text-red-500">*</span></label>
+                                                <select :value="(editMode ? String(formData.full_file_number || '').endsWith('(T)') : formData.temporary) ? 'temporary' : 'regular'"
+                                                        @change="formData.temporary = $event.target.value === 'temporary'" :disabled="editMode"
+                                                        class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm disabled:bg-slate-100 disabled:cursor-not-allowed">
+                                                    <option value="regular">Regular</option>
+                                                    <option value="temporary">Temporary File</option>
+                                                </select>
+                                            </div>
                                             <div>
                                                 <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Prefix <span class="text-red-500">*</span></label>
                                                 <select x-model="formData.type" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm">
@@ -132,9 +143,10 @@
                                                      <label class="block text-xs font-bold text-slate-600 mb-1 uppercase" x-text="(editMode ? 'Full File Number' : (batchMode ? 'Number Range' : 'Full File Number'))"></label>
                                                       <div class="px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg font-mono text-xs text-blue-700 font-bold shadow-inner"
                                                            :class="editMode ? 'opacity-50 select-none' : ''" 
-                                                           x-text="editMode ? formData.full_file_number : (batchMode ? (formData.prefix + formData.serial_number + ' - ' + formData.prefix + (parseInt(formData.serial_number) + parseInt(formData.quantity) - 1)) : (formData.prefix + formData.serial_number))"></div>
+                                                           x-text="editMode ? formData.full_file_number : !formData.type ? 'Select a prefix' : (batchMode ? (formData.prefix + formData.serial_number + (formData.temporary ? '(T)' : '') + ' - ' + formData.prefix + (parseInt(formData.serial_number) + parseInt(formData.quantity) - 1) + (formData.temporary ? '(T)' : '')) : (formData.prefix + formData.serial_number + (formData.temporary ? '(T)' : '')))"></div>
                                                  </div>
                                             </div>
+
  
                                             <div>
                                                 <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Tracking ID</label>

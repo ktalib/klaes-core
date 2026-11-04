@@ -23,6 +23,18 @@ class SurveyTpNumber extends SurveyModel
 
     public const OTHER = 'Other';
 
+    /**
+     * What Public Layout Plans lists (user, 2026-11-03): the Ministry's register of layout drawings
+     * (KANO LAYOUTS, survey:import-kano-layouts) and entries added on the page. Rows drawn earlier from
+     * the general TP lookup table (source NULL) are kept but no longer listed.
+     */
+    public const LISTED_SOURCES = ['kano_layouts', 'manual'];
+
+    public function scopeListed($q)
+    {
+        return $q->whereIn('source', self::LISTED_SOURCES);
+    }
+
     /** Land Use dropdown: the Private Layout list, plus "Other (specify)". */
     public const LAND_USES = SurveyPrivateLayout::LAND_USES;
 
@@ -36,7 +48,7 @@ class SurveyTpNumber extends SurveyModel
     public static function purposeOptions(): array
     {
         $out = [];
-        foreach (static::query()->whereNotNull('purpose')->distinct()->pluck('purpose')->all() as $p) {
+        foreach (static::query()->listed()->whereNotNull('purpose')->distinct()->pluck('purpose')->all() as $p) {
             $p = trim(preg_replace('/\s+/', ' ', (string) $p));
             if ($p !== '' && ! in_array(mb_strtoupper($p), array_map('mb_strtoupper', $out), true)) $out[] = $p;
         }
@@ -46,6 +58,44 @@ class SurveyTpNumber extends SurveyModel
     }
 
     /** TP No. as written: prefix/serial. */
+    /**
+     * The stored prefix in two parts (user, 2026-11-03: "TP/MB/1 should be TP, MB and then the serial number"):
+     * the first segment (TP) and the rest (MB; MLPP/KBT; K/UC/DKD). The full TP No. stays as stored.
+     *
+     * @return array{0:string, 1:string}
+     */
+    public static function splitPrefix(?string $prefix): array
+    {
+        $parts = explode('/', trim((string) $prefix, " /"), 2);
+
+        return [trim($parts[0] ?? ''), trim($parts[1] ?? '')];
+    }
+
+    public function getPrefixHeadAttribute(): string
+    {
+        return self::splitPrefix($this->prefix)[0];
+    }
+
+    public function getSubPrefixAttribute(): string
+    {
+        return self::splitPrefix($this->prefix)[1];
+    }
+
+    /** First parts (TP, BLM…) and sub prefixes (MB, UDB…) known to the register, each once, for the form and filter. */
+    public static function prefixParts(): array
+    {
+        $heads = [];
+        $subs = [];
+        foreach (self::prefixOptions() as $p) {
+            [$h, $sub] = self::splitPrefix($p);
+            if ($h !== '' && ! in_array(mb_strtoupper($h), array_map('mb_strtoupper', $heads), true)) $heads[] = $h;
+            if ($sub !== '' && ! in_array(mb_strtoupper($sub), array_map('mb_strtoupper', $subs), true)) $subs[] = $sub;
+        }
+        sort($subs, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return [$heads, $subs];
+    }
+
     public static function compose(string $prefix, string $serial): string
     {
         return rtrim(trim($prefix), '/') . '/' . ltrim(trim($serial), '/');
@@ -89,7 +139,7 @@ class SurveyTpNumber extends SurveyModel
     public static function prefixOptions(): array
     {
         $out = [];
-        foreach (array_merge(self::PREFIXES, static::query()->distinct()->pluck('prefix')->all()) as $p) {
+        foreach (array_merge(self::PREFIXES, static::query()->listed()->where('prefix', '!=', '')->distinct()->orderBy('prefix')->pluck('prefix')->all()) as $p) {
             $p = trim((string) $p);
             if ($p !== '' && ! in_array(mb_strtoupper($p), array_map('mb_strtoupper', $out), true)) $out[] = $p;
         }
@@ -97,10 +147,11 @@ class SurveyTpNumber extends SurveyModel
         return $out;
     }
 
-    /** Register order: by serial number, then serial text, then prefix. */
+    /** Register order: the drawing register's S/N, then (entries added on the page) serial number, serial text, prefix. */
     public function scopeSerialOrder($q)
     {
-        return $q->orderByRaw('CASE WHEN serial_sort IS NULL THEN 1 ELSE 0 END')
+        return $q->orderByRaw('CASE WHEN register_sn IS NULL THEN 1 ELSE 0 END')->orderBy('register_sn')
+            ->orderByRaw('CASE WHEN serial_sort IS NULL THEN 1 ELSE 0 END')
             ->orderBy('serial_sort')->orderBy('serial_no')->orderBy('prefix')->orderBy('id');
     }
 }

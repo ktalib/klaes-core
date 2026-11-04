@@ -136,16 +136,19 @@
             </a>
             <a href="{{ route('survey-module.compensation.trees') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.trees') ? 'active' : '' }}">
               <i data-lucide="tree-pine" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Farm Assessment</span>
+              {{-- The tree / cash crop rates page: Farm Assessment renamed Farm Features (user, 2026-11-03). --}}
+              <span>Farm Features</span>
             </a>
             {{-- Register Land is a button on the Lands page (Cases renamed Lands, 2026-10-29); so is
-                 Capture Compensation List (sidebar link removed 2026-10-30), which keeps this item lit. --}}
+                 Capture Compensation List (sidebar link removed 2026-10-30), which keeps this item lit.
+                 Lands Assessment renamed Farm Assessment (user, 2026-11-03). --}}
             <a href="{{ route('survey-module.compensation.cases') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.cases', 'survey-module.compensation.cases.register', 'survey-module.compensation.cases.show', 'survey-module.compensation.cases.edit', 'survey-module.compensation.capture-list') && request('view') !== 'showing' ? 'active' : '' }}">
               <i data-lucide="list" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Lands Assessment</span>
+              <span>Farm Assessment</span>
             </a>
-            {{-- The Resettlement Calculator now opens from the Land to Land calculator here (CR 30102026 item 10). --}}
-            <a href="{{ route('survey-module.compensation.calculator') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.calculator', 'survey-module.compensation.resettlement-calculator*') ? 'active' : '' }}">
+            {{-- The Resettlement Calculator now opens from the Land to Land calculator here (CR 30102026 item 10).
+                 Nested under Farm Assessment (user's marked-up sidebar, 2026-11-03); kept on the sidebar (user, 2026-11-03). --}}
+            <a href="{{ route('survey-module.compensation.calculator') }}" class="sidebar-item flex items-center gap-2 py-2 pl-8 pr-3 rounded-md transition-all duration-200 text-sm {{ request()->routeIs('survey-module.compensation.calculator', 'survey-module.compensation.resettlement-calculator*') ? 'active' : '' }}">
               <i data-lucide="calculator" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Compensation Calculator</span>
             </a>
@@ -162,24 +165,15 @@
           </div>
           <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-comp-resettlement">
             {{-- The Land to Land lands page (survey-module.compensation.land) is hidden from the menu (user, 2026-10-30).
-                 The page still works by its link. Plot Showing Register > OP, Letter of Grant (CR 30102026 item 19 and
-                 the sidebar outline, 2026-10-31); the Resettlement Calculator moved under the Land to Land calculator (item 10). --}}
-            <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-comp-showing">
-              <div class="flex items-center gap-2">
-                <i data-lucide="book-open" class="h-3.5 w-3.5 text-pink-400"></i>
-                <span>Plot Showing Register</span>
-              </div>
-              <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-comp-showing"></i>
-            </div>
-            <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-comp-showing">
-              <a href="{{ route('survey-module.compensation.op') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.op', 'survey-module.compensation.op.*') ? 'active' : '' }}">
-                <i data-lucide="file-signature" class="h-3.5 w-3.5 text-pink-400"></i>
-                <span>OP</span>
-              </a>
-              <a href="{{ route('survey-module.compensation.letter-of-grant') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.letter-of-grant') ? 'active' : '' }}">
-                <i data-lucide="scroll-text" class="h-3.5 w-3.5 text-pink-400"></i><span>Letter of Grant</span>
-              </a>
-            </div>
+                 The page still works by its link. OP and Letter of Grant sit directly here; the inner Plot Showing
+                 Register group was removed (user, 2026-11-03). --}}
+            <a href="{{ route('survey-module.compensation.op') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.op', 'survey-module.compensation.op.*') ? 'active' : '' }}">
+              <i data-lucide="file-signature" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>OP</span>
+            </a>
+            <a href="{{ route('survey-module.compensation.letter-of-grant') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.letter-of-grant') ? 'active' : '' }}">
+              <i data-lucide="scroll-text" class="h-3.5 w-3.5 text-pink-400"></i><span>Letter of Grant</span>
+            </a>
           </div>
 
           {{-- b.v Complaints --}}
@@ -270,11 +264,12 @@
             <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200 {{ $rptOn ? 'rotate-90' : '' }}" data-chevron="survey-gkn-reports"></i>
           </{{ $rptOn ? 'a' : 'div' }}>
           <div class="pl-6 mt-1 mb-1 space-y-0.5 {{ $rptOn ? '' : 'hidden' }}" data-content="survey-gkn-reports">
-            <a href="{{ route('survey-module.gkn.coordinates.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 text-sm {{ request()->routeIs('survey-module.gkn.coordinates.*') ? 'active' : '' }}">
-              <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i><span>List of Coordinates</span>
-            </a>
+            {{-- Beacon Nos before List of Coordinates (user, 2026-11-03). --}}
             <a href="{{ route('survey-module.gkn.beacons.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 text-sm {{ request()->routeIs('survey-module.gkn.beacons.*') ? 'active' : '' }}">
               <i data-lucide="locate-fixed" class="h-3.5 w-3.5 text-pink-400"></i><span>Beacon Nos</span>
+            </a>
+            <a href="{{ route('survey-module.gkn.coordinates.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 text-sm {{ request()->routeIs('survey-module.gkn.coordinates.*') ? 'active' : '' }}">
+              <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i><span>List of Coordinates</span>
             </a>
             <a href="{{ route('survey-module.gkn.observations.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 text-sm {{ request()->routeIs('survey-module.gkn.observations.*') ? 'active' : '' }}">
               <i data-lucide="calculator" class="h-3.5 w-3.5 text-pink-400"></i><span>Computation Field Observations</span>
@@ -308,13 +303,15 @@
             <i data-lucide="table" class="h-3.5 w-3.5 text-pink-400"></i>
             <span>Resettlement Plots (Production)</span>
           </a>
-          {{-- SDI (ported from ALAES, 2026-10-29): Map Request feeds the Production Unit. --}}
-          <div class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">SDI</div>
-          <a href="{{ route('survey-module.sdi.map-requests') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.sdi.map-requests*') || request()->routeIs('survey-module.sdi.registry*') ? 'active' : '' }}">
-            <i data-lucide="map" class="h-3.5 w-3.5 text-pink-400"></i>
-            <span>Map Request</span>
+          {{-- iii. Basemap (Satellite Imagery): the SDI maps on satellite imagery (user, 2026-11-03). --}}
+          <a href="{{ route('survey-module.sdi.basemap') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.sdi.basemap') ? 'active' : '' }}">
+            <i data-lucide="satellite" class="h-3.5 w-3.5 text-pink-400"></i>
+            <span>Basemap (Satellite Imagery)</span>
           </a>
-          <a href="{{ route('survey-module.sdi.production') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.sdi.production*') ? 'active' : '' }}">
+          {{-- SDI (ported from ALAES, 2026-10-29): Map Request feeds the Production Unit. Only Production Unit is on
+               the sidebar now; Map Request is a button on its page and keeps it lit (user, 2026-11-03). --}}
+          <div class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">SDI</div>
+          <a href="{{ route('survey-module.sdi.production') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.sdi.production*', 'survey-module.sdi.map-requests*', 'survey-module.sdi.registry*') ? 'active' : '' }}">
             <i data-lucide="factory" class="h-3.5 w-3.5 text-pink-400"></i>
             <span>Production Unit</span>
           </a>
@@ -404,8 +401,9 @@
             </a>
             {!! $exGroup('survey-exam-private', "Surveyor's Report (Private)", 'file-check', $prAll) !!}
             <div class="pl-6 mt-1 mb-1 space-y-0.5 {{ $prAll ? '' : 'hidden' }}" data-content="survey-exam-private">
-              {!! $exLink('List of Coordinates', route('survey-module.workflow.change-reports.index', ['records' => 'coordinates']), $prOn('coordinates', 'coordinates.*'), 'map-pin') !!}
+              {{-- Beacon Nos before List of Coordinates (user, 2026-11-03). --}}
               {!! $exLink('Beacon Nos', route('survey-module.workflow.change-reports.index', ['records' => 'beacons']), $prOn('beacons', 'beacons.*'), 'locate-fixed') !!}
+              {!! $exLink('List of Coordinates', route('survey-module.workflow.change-reports.index', ['records' => 'coordinates']), $prOn('coordinates', 'coordinates.*'), 'map-pin') !!}
               {!! $exLink('Computation Field Observations', route('survey-module.workflow.change-reports.index', ['records' => 'observations']), $prOn('observations', 'observations.*'), 'calculator') !!}
               {{-- 4. Sketch Plan: off the sidebar for now (user, 2026-10-30). --}}
             </div>

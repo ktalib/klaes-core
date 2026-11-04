@@ -30,10 +30,10 @@
     <div class="page-header">
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <a class="btn btn-secondary" href="{{ route('survey-module.compensation.cases', (request('view') === 'showing' ? ['view' => 'showing'] : [])) }}">
-                <i class="fas fa-arrow-left"></i> Back to Cases
+                <i class="fas fa-arrow-left"></i> Back to Farm Assessment
             </a>
             <a class="btn btn-primary" href="{{ route('survey-module.compensation.cases.edit', $detail) }}">
-                <i class="fas fa-edit"></i> Edit Case
+                <i class="fas fa-edit"></i> Edit Farm Assessment
             </a>
             @if ($detail->status !== 'Review')
                 <form method="POST" action="{{ route('survey-module.compensation.cases.submit', $detail) }}"
@@ -57,7 +57,7 @@
         <div class="form-body">
             <div class="preview-grid">
                 <div class="preview-item">
-                    <span class="label">Case No</span>
+                    <span class="label">Assessment No</span>
                     <span class="value">{{ $detail->case_ref }}</span>
                 </div>
                 <div class="preview-item">
@@ -135,7 +135,7 @@
                     </div>
                     <div class="comp-type-note" style="margin-top:16px;">
                         <i class="fas fa-info-circle"></i>
-                        Monetary Compensation only — no plots are allocated on this case.
+                        Monetary Compensation only — no plots are allocated on this farm assessment.
                     </div>
                 </div>
             @else
@@ -163,7 +163,7 @@
                     </div>
                     <div class="comp-type-note" style="margin-top:16px;">
                         <i class="fas fa-info-circle"></i>
-                        Land to Land only — no cash is paid for trees on this case. Assign plot and OP numbers under
+                        Land to Land only — no cash is paid for trees on this farm assessment. Assign plot and OP numbers under
                         <a href="{{ route('survey-module.tools.plot-allocation', ['case' => $detail->id]) }}">Plot Allocation</a>.
                     </div>
                 </div>
@@ -197,7 +197,7 @@
                             </div>
                         @empty
                             <div class="list-item" style="color:var(--gray-500);">
-                                <span>No beneficiaries recorded on this case yet.</span>
+                                <span>No beneficiaries recorded on this farm assessment yet.</span>
                             </div>
                         @endforelse
                     </div>
@@ -226,7 +226,7 @@
                                 </div>
                             @empty
                                 <div class="list-item" style="color:var(--gray-500);">
-                                    <span>No tree lines recorded — this monetary case has nothing to value yet.</span>
+                                    <span>No tree lines recorded — this Monetary Compensation assessment has nothing to value yet.</span>
                                 </div>
                             @endforelse
                             <div class="list-total">
@@ -259,12 +259,8 @@
     <div class="page-header">
         <div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <a href="{{ route('survey-module.compensation.capture-list') }}" class="btn btn-secondary">
-                <i class="fas fa-clipboard-list"></i> Capture Compensation
-            </a>
-            <a href="{{ route('survey-module.compensation.cases.register') }}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Register
-            </a>
+            {{-- One Capture Land button, New / Old (user, 2026-11-03); was Capture Compensation + Register. --}}
+            @include('survey_module.partials._capture_land_button')
         </div>
     </div>
 
@@ -414,8 +410,8 @@
                                     <a href="{{ route('survey-module.compensation.cases', ['origin' => $tab] + (request('view') === 'showing' ? ['view' => 'showing'] : [])) }}">Clear them</a>.
                                 @elseif ($tab === 'entered')
                                     No captured lands yet.
-                                    <a href="{{ route('survey-module.compensation.cases.register') }}">Register one</a> or
-                                    <a href="{{ route('survey-module.compensation.capture-list') }}">capture a compensation list</a>.
+                                    Use <strong>Capture Land</strong>: <a href="{{ route('survey-module.compensation.cases.register') }}">Capture Farmer</a> or
+                                    <a href="{{ route('survey-module.compensation.capture-list') }}">Update Farmers List (paper record)</a>.
                                 @else
                                     No imported lands.
                                 @endif

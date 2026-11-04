@@ -27,21 +27,31 @@ use Illuminate\Support\Facades\Schema;
 class IndexingDuplicateService
 {
     /**
-     * References that represent real work: documents, money, or a file in
-     * circulation. A duplicate carrying any of these is refused rather than
-     * silently destroyed.
+     * Scans, page typings, thumbnails and bills used to refuse the move and Master Delete.
+     * Since 2026-11-04 both take them with the file (user: "the movement should move
+     * everything", then "Master Delete, remove the block too").
      *
-     * scan_reassignment_logs is included because its two foreign keys on
-     * file_indexings are NO_ACTION — the delete would fail on the constraint anyway,
-     * and a clear message beats a rolled-back SQL error.
+     * Snapshotted into child_rows and deleted, children before parents (page typings and
+     * thumbnails point at scannings), with the scan_reassignment_logs rows whose
+     * file_indexings foreign keys are NO_ACTION. A move keeps the snapshot in
+     * indexing_duplicates; a Master Delete hands it to its audit entry. Files on disk are
+     * not touched.
      */
-    private const BLOCKING_REFERENCES = [
-        'scannings'              => 'scanned document(s)',
-        'blind_scannings'        => 'blind scan(s)',
-        'thumbnails'             => 'thumbnail(s)',
-        'pagetypings'            => 'page typing record(s)',
-        'file_indexing_bills'    => 'bill(s)',
-        'spa_applications'       => 'SPAS application(s)',
+    private const MOVE_ARCHIVED_REFERENCES = [
+        'pagetypings',
+        'thumbnails',
+        'file_indexing_bills',
+        'scannings',
+    ];
+
+    /**
+     * Detached, not deleted: a blind scan is the scan of a physical folder and a SPAS
+     * application carries notices, payments and certificates of its own, so they live on
+     * with file_indexing_id cleared (the old link is in the snapshot's detached_rows).
+     */
+    private const MOVE_DETACHED_REFERENCES = [
+        'blind_scannings'  => 'Blind scan(s) — unlinked, kept on the Blind Scan page',
+        'spa_applications' => 'SPAS application(s) — unlinked, application kept',
     ];
 
     /**
@@ -100,6 +110,19 @@ class IndexingDuplicateService
             'columns'     => ['mlsFNo', 'fileno', 'kangisFileNo', 'NewKANGISFileno'],
             'transaction' => true,
         ],
+        // The other transaction sources the Legal Search / Property Timeline report reads
+        // (user, 2026-11-04). Deeds on the file's own fileno only: a deed naming this file
+        // as its parent_fileno belongs to the child file.
+        'deed_registrations' => [
+            'label'       => 'Registered deeds / instruments',
+            'columns'     => ['fileno'],
+            'transaction' => true,
+        ],
+        'caveats' => [
+            'label'       => 'Caveats',
+            'columns'     => ['file_number_mlsf', 'file_number_kangis', 'file_number_new_kangis', 'file_number'],
+            'transaction' => true,
+        ],
         'file_tracker' => [
             'label'       => 'File tracker requests',
             'columns'     => ['file_number'],
@@ -127,6 +150,11 @@ class IndexingDuplicateService
         'entities_staging'  => 'Entity record(s)',
         'indexed_file_trackers' => 'File tracker record(s)',
         'file_trackings'        => 'File tracking movement(s)',
+        'scannings'             => 'Scanned page(s) (Digital Archive)',
+        'pagetypings'           => 'Page typing record(s)',
+        'thumbnails'            => 'Thumbnail(s)',
+        'file_indexing_bills'   => 'Bill(s)',
+        'scan_reassignment_logs' => 'Scan reassignment log(s)',
     ];
 
     /**
@@ -136,8 +164,10 @@ class IndexingDuplicateService
     private const SUMMARY_GROUPS = [
         'Indexing record'      => ['file_indexings', 'file_indexing_staging'],
         'File number registry' => ['fileNumber'],
-        'Property & title'     => ['pra', 'CofO_staging', 'file_history_staging'],
+        'Property & title'     => ['pra', 'CofO_staging', 'file_history_staging', 'deed_registrations', 'caveats'],
         'File tracking'        => ['indexed_file_trackers', 'file_trackings', 'file_tracker'],
+        'Scans & page typing'  => ['scannings', 'pagetypings', 'thumbnails', 'scan_reassignment_logs'],
+        'Bills'                => ['file_indexing_bills'],
         'Parties'              => ['customers_staging', 'entities_staging'],
     ];
 
@@ -156,7 +186,7 @@ class IndexingDuplicateService
             return ['status' => 'not_found'];
         }
 
-        $blocking = $this->countBlockingReferences($fileIndexingId);
+        $blocking = $this->countMoveBlockers($fileIndexingId);
         /** @var array<int,object> $fileNumberRows */
         $fileNumberRows = [];
         $numbers = $this->resolveNumbers($row, $fileNumberRows);
@@ -196,6 +226,19 @@ class IndexingDuplicateService
             }
         }
 
+        // Scans, page typings, thumbnails and bills go with the file; blind scans and SPAS
+        // applications are unlinked.
+        $scanTotal = 0;
+        $billTotal = 0;
+        foreach ($this->moveArchivedCounts($fileIndexingId) as $table => $count) {
+            $this->addPreviewRow($deletions, $table, $count);
+            if ($table === 'file_indexing_bills') {
+                $billTotal += $count;
+            } elseif ($table === 'scannings') {
+                $scanTotal += $count;
+            }
+        }
+
         // The only thing left in place: the commissioning row (see MLS_FILE_NO_COLUMNS).
         $retained = [];
         $this->addPreviewRow(
@@ -204,6 +247,11 @@ class IndexingDuplicateService
             count($this->findMlsFileNoRows($numbers)),
             'Commissioning record (file stays commissioned)'
         );
+        foreach (self::MOVE_DETACHED_REFERENCES as $table => $label) {
+            if (Schema::connection('sqlsrv')->hasTable($table)) {
+                $this->addPreviewRow($retained, $table, $conn->table($table)->where('file_indexing_id', (string) $fileIndexingId)->count(), $label);
+            }
+        }
 
         return [
             'status'                    => empty($blocking) ? 'ok' : 'blocked',
@@ -219,7 +267,81 @@ class IndexingDuplicateService
             // what the Master Delete dialog reads.
             'transaction_total'         => $deletedTransactionTotal,
             'deleted_transaction_total' => $deletedTransactionTotal,
+            // Move only: scanned pages and bills that go into the archive with the file.
+            'scan_total'                => $scanTotal,
+            'bill_total'                => $billTotal,
         ];
+    }
+
+    /**
+     * Rows a move archives from MOVE_ARCHIVED_REFERENCES, plus the scan reassignment log
+     * rows that point at this file or its scans (their file_indexings foreign keys are
+     * NO_ACTION, so they must go before the record does).
+     *
+     * @return array<string,int> table => count, only tables with rows
+     */
+    private function moveArchivedCounts(int $fileIndexingId): array
+    {
+        $out = [];
+        foreach ($this->moveArchivedQueries($fileIndexingId) as $table => $query) {
+            $count = $query->count();
+            if ($count > 0) {
+                $out[$table] = $count;
+            }
+        }
+
+        return $out;
+    }
+
+    /** @return array<string,\Illuminate\Database\Query\Builder> in deletion order */
+    private function moveArchivedQueries(int $fileIndexingId): array
+    {
+        $conn = DB::connection('sqlsrv');
+        $schema = Schema::connection('sqlsrv');
+        $id = (string) $fileIndexingId;
+        $queries = [];
+
+        if ($schema->hasTable('scan_reassignment_logs')) {
+            $queries['scan_reassignment_logs'] = $conn->table('scan_reassignment_logs')
+                ->where(function ($q) use ($id) {
+                    $q->where('from_file_indexing_id', $id)
+                        ->orWhere('to_file_indexing_id', $id)
+                        ->orWhereIn('scanning_id', function ($s) use ($id) {
+                            $s->select('id')->from('scannings')->where('file_indexing_id', $id);
+                        });
+                });
+        }
+        foreach (self::MOVE_ARCHIVED_REFERENCES as $table) {
+            if ($schema->hasTable($table)) {
+                $queries[$table] = $conn->table($table)->where('file_indexing_id', $id);
+            }
+        }
+
+        return $queries;
+    }
+
+    /**
+     * What still stops a MOVE: scans filed under another file that were derived from this
+     * file's scans (scannings.parent_scan_id is NO_ACTION, so the delete would fail).
+     *
+     * @return array<string,string>
+     */
+    private function countMoveBlockers(int $fileIndexingId): array
+    {
+        if (!Schema::connection('sqlsrv')->hasTable('scannings')) {
+            return [];
+        }
+        $id = (string) $fileIndexingId;
+        $count = DB::connection('sqlsrv')->table('scannings')
+            ->whereIn('parent_scan_id', function ($s) use ($id) {
+                $s->select('id')->from('scannings')->where('file_indexing_id', $id);
+            })
+            ->where(function ($q) use ($id) {
+                $q->whereNull('file_indexing_id')->orWhere('file_indexing_id', '!=', $id);
+            })
+            ->count();
+
+        return $count > 0 ? ['scannings' => $count . ' scan(s) in another file derived from this file\'s scans'] : [];
     }
 
     /**
@@ -401,10 +523,9 @@ class IndexingDuplicateService
      * The returned `snapshot` is the whole pre-delete record; the caller writes it to
      * the audit log, which is then the only surviving account of the file.
      *
-     * Still refuses a file carrying scans, page typings, bills or SPAS applications
-     * (BLOCKING_REFERENCES) — being a Supper Admin does not make destroying scanned
-     * documents safe, and scan_reassignment_logs' NO_ACTION foreign key would fail
-     * the delete anyway.
+     * Since 2026-11-04 (user) it no longer refuses files carrying scans, page typings,
+     * thumbnails or bills: they are deleted with the file and their full rows ride in the
+     * snapshot, hence in the audit entry. Blind scans and SPAS applications are unlinked.
      *
      * @return array{status:string, ...} status is 'purged', 'not_found' or 'blocked'
      */
@@ -444,7 +565,9 @@ class IndexingDuplicateService
             return ['status' => 'not_found'];
         }
 
-        $blocking = $this->countBlockingReferences($fileIndexingId);
+        // A move takes scans, page typings, thumbnails and bills with it and unlinks blind
+        // scans / SPAS applications; a purge (no archive) still refuses them.
+        $blocking = $this->countMoveBlockers($fileIndexingId);
         if (!empty($blocking)) {
             return [
                 'status' => 'blocked',
@@ -458,6 +581,25 @@ class IndexingDuplicateService
         $customerRows = $conn->table('customers_staging')->whereIn('file_number', $numbers)->get();
         $entityRows   = $conn->table('entities_staging')->whereIn('file_number', $numbers)->get();
         $cleanable    = $this->collectCleanableRows($fileIndexingId);
+
+        // Scans, page typings, thumbnails, bills (deleted) and blind scans / SPAS
+        // applications (unlinked): full rows into the snapshot first.
+        $detached = [];
+        foreach ($this->moveArchivedQueries($fileIndexingId) as $table => $query) {
+            $rows = $query->get();
+            if ($rows->isNotEmpty()) {
+                $cleanable[$table] = $rows->map(fn ($r) => (array) $r)->all();
+            }
+        }
+        foreach (array_keys(self::MOVE_DETACHED_REFERENCES) as $table) {
+            if (!Schema::connection('sqlsrv')->hasTable($table)) {
+                continue;
+            }
+            $rows = $conn->table($table)->where('file_indexing_id', (string) $fileIndexingId)->get();
+            if ($rows->isNotEmpty()) {
+                $detached[$table] = $rows->map(fn ($r) => (array) $r)->all();
+            }
+        }
 
         // Record rows keyed by file number that move with the record. Snapshotted
         // here, before the transaction deletes them.
@@ -481,6 +623,9 @@ class IndexingDuplicateService
             // file_indexing_staging — deleted with the record, full rows kept here
             // so the move stays restorable.
             'file_number_rows'  => $fileNumberRowsToDelete,
+            // Move only: blind scans / SPAS applications unlinked from the file (rows as
+            // they were, file_indexing_id included).
+            'detached_rows'     => $detached,
             'matched_numbers'   => $numbers,
             'mls_file_no_retained' => $retainedMls,
         ];
@@ -538,6 +683,30 @@ class IndexingDuplicateService
             // Child queue/link rows first, so nothing is left pointing at a
             // file_indexings row that is about to disappear.
             $childCounts = [];
+            $detachCounts = [];
+
+            // Scan reassignment logs, page typings, thumbnails, bills, then scans. Same
+            // queries the snapshot was taken from.
+            foreach ($this->moveArchivedQueries($fileIndexingId) as $table => $query) {
+                if ($table === 'scannings') {
+                    // Parent links inside this file first (parent_scan_id is NO_ACTION).
+                    $conn->table('scannings')->where('file_indexing_id', (string) $fileIndexingId)
+                        ->whereNotNull('parent_scan_id')->update(['parent_scan_id' => null]);
+                }
+                $deleted = $query->delete();
+                if ($deleted > 0) {
+                    $childCounts[$table] = $deleted;
+                }
+            }
+            foreach (array_keys(self::MOVE_DETACHED_REFERENCES) as $table) {
+                if (!Schema::connection('sqlsrv')->hasTable($table)) {
+                    continue;
+                }
+                $n = $conn->table($table)->where('file_indexing_id', (string) $fileIndexingId)->update(['file_indexing_id' => null]);
+                if ($n > 0) {
+                    $detachCounts[$table] = $n;
+                }
+            }
             foreach (self::CLEANABLE_REFERENCES as $table) {
                 if (!Schema::connection('sqlsrv')->hasTable($table)) {
                     continue;
@@ -570,6 +739,7 @@ class IndexingDuplicateService
                 'file_indexings'    => 0,
                 'child_rows'        => $childCounts,
                 'file_number_rows'  => $fileNumberCounts,
+                'detached'          => $detachCounts,
             ];
 
             $fileNumberIds = array_values(array_filter(array_map(fn ($r) => $r->id ?? null, $fileNumberRows)));
@@ -643,37 +813,6 @@ class IndexingDuplicateService
             // Only a purge needs this back — nothing else survives it.
             'snapshot' => $archive ? null : $snapshot,
         ];
-    }
-
-    /** @return array<string,string> table => human count, only for tables with hits */
-    private function countBlockingReferences(int $fileIndexingId): array
-    {
-        $conn = DB::connection('sqlsrv');
-        $found = [];
-
-        foreach (self::BLOCKING_REFERENCES as $table => $label) {
-            if (!Schema::connection('sqlsrv')->hasTable($table)) {
-                continue;
-            }
-
-            $count = $conn->table($table)->where('file_indexing_id', (string) $fileIndexingId)->count();
-            if ($count > 0) {
-                $found[$table] = $count . ' ' . $label;
-            }
-        }
-
-        // Two NO_ACTION foreign keys, on two different columns.
-        if (Schema::connection('sqlsrv')->hasTable('scan_reassignment_logs')) {
-            $count = $conn->table('scan_reassignment_logs')
-                ->where('from_file_indexing_id', $fileIndexingId)
-                ->orWhere('to_file_indexing_id', $fileIndexingId)
-                ->count();
-            if ($count > 0) {
-                $found['scan_reassignment_logs'] = $count . ' scan reassignment log(s)';
-            }
-        }
-
-        return $found;
     }
 
     /**
@@ -856,8 +995,8 @@ class IndexingDuplicateService
             }
         }
 
-        foreach (['child_rows', 'file_number_rows'] as $bucket) {
-            foreach ($snapshot[$bucket] as $table => $rows) {
+        foreach (['child_rows', 'file_number_rows', 'detached_rows'] as $bucket) {
+            foreach ($snapshot[$bucket] ?? [] as $table => $rows) {
                 foreach ($rows as $i => $r) {
                     $snapshot[$bucket][$table][$i]['moved_temp_file_no'] = $tempNo;
                 }

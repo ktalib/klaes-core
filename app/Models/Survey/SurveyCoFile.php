@@ -17,7 +17,12 @@ class SurveyCoFile extends SurveyModel
 
     protected $table = 'survey_co_files';
 
-    protected $casts = ['commission_date' => 'date'];
+    protected $casts = ['commission_date' => 'date', 'date_received' => 'date', 'fieldwork_from' => 'date', 'fieldwork_to' => 'date',
+        'plan_completed_on' => 'date', 'despatched_on' => 'date', 'paid_on' => 'date'];
+
+    /** The old CO register (1975/76 ledger) columns kept on a captured file (user, 2026-11-03). */
+    public const OLD_REGISTER_FIELDS = ['old_file_ref', 'approx_area_ha', 'farms_count', 'date_received', 'surveyors_list_id', 'surveyor_name',
+        'fieldwork_from', 'fieldwork_to', 'plan_completed_on', 'total_amount', 'financial_file_ref', 'despatched_on', 'paid_on'];
 
     /** Every status, for filters. A form offers only its mode's (statusesFor). */
     public const STATUSES = ['Draft', 'Commissioned', 'Captured', 'Active', 'Closed'];

@@ -221,7 +221,7 @@ class TreeController extends Controller
         $unit = $data['unit_price'] ?? $type->rate();
         if ($unit === null) {
             return back()->with('error',
-                "{$type->label} has no rate yet. Enter it in the Farm Assessment catalogue, or type a unit price on the line.");
+                "{$type->label} has no rate yet. Enter it in the Farm Features catalogue, or type a unit price on the line.");
         }
 
         // The name is snapshotted so the line still reads correctly if the

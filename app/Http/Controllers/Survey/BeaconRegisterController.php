@@ -209,6 +209,14 @@ class BeaconRegisterController extends Controller
                         throw ValidationException::withMessages(['surveyor_name_other' => "Type the surveyor's name."]);
                     }
                     [$data, $range] = $this->validated(Request::create('/', 'POST', $g + ['issue_date' => $r->input('issue_date')]));
+                    // The prefix must belong to the group's beacon type (user, 2026-11-03); a prefix with no type fits both.
+                    if (preg_match('/^([A-Za-z\/-]+)/', (string) ($g['beacon_from'] ?? ''), $pm)) {
+                        $ptype = \App\Services\Survey\SurveySettings::beaconPrefixes(false)
+                            ->first(fn ($p) => mb_strtoupper($p->prefix) === mb_strtoupper($pm[1]))?->beacon_type ?? null;
+                        if ($ptype && $ptype !== ($g['layout_type'] ?? null)) {
+                            throw ValidationException::withMessages(['layout_type' => mb_strtoupper($pm[1]) . " is a {$ptype} prefix; choose {$ptype} or another prefix."]);
+                        }
+                    }
                 } catch (ValidationException $e) {
                     throw ValidationException::withMessages(['groups' => $label . ': ' . collect($e->errors())->flatten()->first()]);
                 }

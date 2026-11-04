@@ -16,6 +16,9 @@
         /* Tailwind's preflight shrinks Leaflet's 256px tiles and leaves the map blank. */
         .survey-proto .sdi-map img, .survey-proto .sdi-map .leaflet-tile { max-width: none !important; max-height: none !important; }
         .survey-proto .sdi-map.leaflet-container { font: inherit; }
+        /* No light grid lines between tiles (user, 2026-11-03): Leaflet 1.9 adds tile edges together (plus-lighter), which shows
+           every seam as a bright line; tiles are drawn normally instead and overlap the next by half a pixel, so no gap opens at a browser zoom. */
+        .survey-proto .sdi-map img.leaflet-tile { mix-blend-mode: normal !important; width: 256.5px !important; height: 256.5px !important; }
         /* Tile credit kept (provider terms) but made small and quiet. */
         .survey-proto .sdi-map .leaflet-control-attribution { font-size: 9px; line-height: 1.4; padding: 0 5px; background: rgba(255,255,255,.55); color: #6b7280; }
         .survey-proto .sdi-map .leaflet-control-attribution a { color: #6b7280; }
@@ -38,14 +41,22 @@
 @php
     $sdiOpen = \App\Models\Sdi\SdiMapRequest::open()->count();
 @endphp
-<div class="sdi-nav" role="tablist">
-    <a href="{{ route('survey-module.sdi.map-requests') }}" class="{{ request()->routeIs('survey-module.sdi.map-requests*') ? 'on' : '' }}">
-        <i class="fas fa-map-marked-alt"></i> Map Request
-    </a>
-    <a href="{{ route('survey-module.sdi.production') }}" class="{{ request()->routeIs('survey-module.sdi.production*') ? 'on' : '' }}">
-        <i class="fas fa-industry"></i> Production Unit <span class="n">{{ number_format($sdiOpen) }} open</span>
-    </a>
-    <a href="{{ route('survey-module.sdi.registry') }}" class="{{ request()->routeIs('survey-module.sdi.registry*') ? 'on' : '' }}">
-        <i class="fas fa-building"></i> MDA &amp; Map Type Registry
-    </a>
+{{-- Map Request is a button, not a tab; MDAs and Map Types are separate tabs (user, 2026-11-03). --}}
+@php $sdiRegTab = request()->routeIs('survey-module.sdi.registry*') ? (request('tab') === 'types' ? 'types' : 'mdas') : null; @endphp
+<div style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px;">
+    <div class="sdi-nav" role="tablist" style="flex:1 1 auto;">
+        <a href="{{ route('survey-module.sdi.production') }}" class="{{ request()->routeIs('survey-module.sdi.production*') ? 'on' : '' }}">
+            <i class="fas fa-industry"></i> Production Unit <span class="n">{{ number_format($sdiOpen) }} open</span>
+        </a>
+        <a href="{{ route('survey-module.sdi.registry') }}" class="{{ $sdiRegTab === 'mdas' ? 'on' : '' }}">
+            <i class="fas fa-building"></i> MDAs
+        </a>
+        <a href="{{ route('survey-module.sdi.registry', ['tab' => 'types']) }}" class="{{ $sdiRegTab === 'types' ? 'on' : '' }}">
+            <i class="fas fa-layer-group"></i> Map Types
+        </a>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:18px;">
+        <a class="btn btn-outline btn-sm {{ request()->routeIs('survey-module.sdi.map-requests') ? 'active' : '' }}" href="{{ route('survey-module.sdi.map-requests') }}"><i class="fas fa-list"></i> All Map Requests</a>
+        <a class="btn btn-primary btn-sm" href="{{ route('survey-module.sdi.map-requests.create') }}"><i class="fas fa-map-marked-alt"></i> Map Request</a>
+    </div>
 </div>

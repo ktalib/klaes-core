@@ -337,6 +337,7 @@
                                                                 <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
                                                             </button>
                                                         @endif
+                                                        @include('deeds.parcel_update.partials.master_delete_item', ['mdType' => 'change-of-purpose', 'mdRecord' => $record])
                                                         </div>
                                                     </div>
                                                 </div>
@@ -519,6 +520,7 @@
                                                             <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
                                                         </button>
                                                     @endif
+                                                    @include('deeds.parcel_update.partials.master_delete_item', ['mdType' => 'change-of-purpose', 'mdRecord' => $record])
                                                     </div>
                                                 </div>
                                             </div>
@@ -1071,5 +1073,6 @@
 
 
 @include('partials.decommissioned_before', ['dbSource' => '#cop-file-no'])
+@include('deeds.parcel_update.partials.master_delete_script')
 @endsection
 

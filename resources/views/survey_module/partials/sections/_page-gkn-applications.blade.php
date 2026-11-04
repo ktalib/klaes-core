@@ -16,6 +16,13 @@
     </button>
 </div>
 
+<div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-label">Application Files</div><div class="kpi-value">{{ number_format($counts['all']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Commissioned in KLAES</div><div class="kpi-value">{{ number_format($counts['commissioned']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">From File Indexing</div><div class="kpi-value">{{ number_format($counts['all'] - $counts['commissioned']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Added this month</div><div class="kpi-value">{{ number_format($counts['month']) }}</div></div>
+</div>
+
 {{-- Type tabs: one table, coloured by type (transcript). --}}
 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
     <a href="{{ $tabLink(null) }}" class="btn {{ $tab === null ? 'btn-primary' : 'btn-outline' }} btn-sm">All <span style="opacity:.75;">({{ number_format($counts['all']) }})</span></a>

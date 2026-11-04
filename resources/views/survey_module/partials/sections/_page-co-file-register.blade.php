@@ -11,20 +11,27 @@
     $noSerial = old('co_serial', $noParts[1] ?? '');
     $noYear   = old('co_year', $noParts[2] ?? '');
     $noTemp   = (string) old('co_temporary', ! empty($noParts[3]) ? '1' : '0') === '1';
+    // Old CO Register (user, 2026-11-03): a collapsible section of Capture CO File, open when the file has ledger details.
+    $oldReg = $capture && (string) old('old_register', (request('register') === 'old'
+        || collect(SurveyCoFile::OLD_REGISTER_FIELDS)->contains(fn ($k) => $coFile->{$k} !== null && $coFile->{$k} !== '')) ? '1' : '0') === '1';
 @endphp
 
 @include('survey_module.partials._flash')
 
-{{-- Two modes (user, 2026-10-30): Commission a new CO file, or Capture an existing paper one. --}}
-@unless ($editing)
+{{-- Two modes (user, 2026-10-30): Commission a new CO file, or Capture an existing paper one. Not shown while editing:
+     its only use there was the Old CO Register switch, now a collapsible section (user, 2026-11-03). --}}
+@if (! $editing)
     <style>
         .survey-proto .co-modes { display:inline-flex; gap:4px; padding:4px; background:var(--gray-100,#f3f4f6); border-radius:10px; margin-bottom:14px; }
         .survey-proto .co-modes a { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:8px; font-weight:600; font-size:14px; color:var(--gray-600,#4b5563); text-decoration:none; }
         .survey-proto .co-modes a.on { background:#fff; color:var(--primary); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+        .survey-proto .co-modes button { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border:0; border-radius:8px; background:none; font-weight:600; font-size:14px; color:var(--gray-600,#4b5563); cursor:pointer; }
+        .survey-proto .co-modes button.on { background:#fff; color:var(--primary); box-shadow:0 1px 3px rgba(0,0,0,.12); }
     </style>
     {{-- Each form shows only its own mode (user, 2026-10-30): the two lists in the sidebar each open their own form. --}}
     <nav class="co-modes" aria-label="CO file mode">
         @if ($capture)
+            {{-- The Old CO Register is a collapsible section inside this form (user, 2026-11-03), no longer a switch here. --}}
             <a href="{{ route('survey-module.compensation.co-files.create', ['mode' => SurveyCoFile::SOURCE_CAPTURED]) }}" class="on" aria-current="page">
                 <i class="fas fa-keyboard"></i> Capture CO File
             </a>
@@ -34,7 +41,7 @@
             </a>
         @endif
     </nav>
-@endunless
+@endif
 
 <form method="POST"
       action="{{ $editing
@@ -45,6 +52,7 @@
     @unless ($editing)
         <input type="hidden" name="source" value="{{ $coFile->source }}" />
     @endunless
+    @if ($capture)<input type="hidden" name="old_register" id="coOldRegisterOn" value="{{ $oldReg ? '1' : '0' }}" />@endif
 
     <div class="form-container">
         <div class="form-body">
@@ -55,18 +63,28 @@
                 .survey-proto .co-idx { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
                 .survey-proto .co-idx.yes { background: #dcfce7; color: #166534; }
                 .survey-proto .co-idx.no { background: #fef3c7; color: #92400e; }
-                .survey-proto .co-top-row { display:grid; grid-template-columns:minmax(300px,1.1fr) minmax(200px,.9fr) minmax(310px,1.2fr); gap:16px; }
+                .survey-proto .co-top-row { display:grid; grid-template-columns:minmax(300px,1.2fr) minmax(200px,1fr) minmax(200px,1fr); gap:16px; }
+                /* Related files (user, 2026-11-03: "correct the related file layout"): a full-width row under the top row. */
+                .survey-proto .co-related-box { border:1px solid var(--gray-200); border-radius:8px; background:var(--gray-50,#f9fafb); padding:12px 14px; margin:4px 0 16px; }
+                .survey-proto .co-related-grid { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px 16px; }
+                .survey-proto .co-related-grid .co-rel label { font-size:12px; }
+                .survey-proto .co-rel-row { display:flex; gap:6px; align-items:stretch; }
+                .survey-proto .co-rel-row .co-rel-no { flex:1; min-width:0; font-weight:700; background:var(--gray-100); cursor:not-allowed; }
+                .survey-proto .co-rel-row .btn { white-space:nowrap; padding-left:10px; padding-right:10px; }
+                @media (max-width: 1200px) { .survey-proto .co-related-grid { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+                .survey-proto .co-rel-add { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; }
+                .survey-proto .co-rel-add select { width:auto; min-width:220px; padding:6px 10px; }
                 .survey-proto .co-sit-toggle { display:flex; align-items:center; gap:8px; min-height:38px; }
                 .survey-proto .co-sit-toggle input { width:auto; margin:0; }
                 .survey-proto .co-sit-toggle span { margin:0; }
                 .survey-proto .co-location-map { height:320px; border:1px solid var(--gray-300); border-radius:8px; overflow:hidden; background:var(--gray-100); }
                 .survey-proto .co-location-map img { max-width:none !important; max-height:none !important; }
-                @media (max-width: 900px) { .survey-proto .co-top-row { grid-template-columns:1fr 1fr; } .survey-proto .co-related-cell { grid-column:1 / -1; } }
-                @media (max-width: 680px) { .survey-proto .co-top-row { grid-template-columns:1fr; } .survey-proto .co-related-cell { grid-column:auto; } }
+                @media (max-width: 900px) { .survey-proto .co-top-row { grid-template-columns:1fr 1fr; } .survey-proto .co-no-cell { grid-column:1 / -1; } }
+                @media (max-width: 680px) { .survey-proto .co-top-row, .survey-proto .co-related-grid { grid-template-columns:1fr; } }
             </style>
 
             <div class="co-top-row">
-                <div class="form-group">
+                <div class="form-group co-no-cell">
                     <label>CO File No. @if ($capture)<span class="required">*</span>@endif</label>
                     <div class="co-no">
                         <div>
@@ -112,50 +130,68 @@
                     </p>
                 </div>
 
-            @php($hasSitFile = (string) old('has_sit_file', ($coFile->related_file_no || $coFile->related_sit_file_no || $coFile->related_gkn_file_no || $coFile->related_misckn_file_no) ? '1' : '0') === '1')
-            <div class="form-group co-related-cell">
-                <label for="coHasSitFile">Has Related File <span class="required">*</span></label>
-                <div class="co-sit-toggle">
-                    <input type="checkbox" name="has_sit_file" id="coHasSitFile" value="1" @checked($hasSitFile) />
-                    <span id="coHasSitFileAnswer">{{ $hasSitFile ? 'Yes' : 'No' }}</span>
+                <div class="form-group">
+                    <label>Commission Date @unless ($capture)<span class="required">*</span>@endunless</label>
+                    <input type="date" name="commission_date"
+                           value="{{ old('commission_date', optional($coFile->commission_date)->format('Y-m-d')) }}"
+                           @unless ($capture) required @endunless />
                 </div>
-            {{-- Related files, one field each for SIT, GKN and Misc KN (user, 2026-11-02; CR 30102026 item 1): picked from
-                 the global file number selector, indexed or not. With Has Related File = Yes at least one is required. --}}
-                <div id="coRelatedFields" @class(['hidden' => ! $hasSitFile])>
+
+                @php
+                    $hasSitFile = (string) old('has_sit_file', ($coFile->related_file_no || $coFile->related_sit_file_no || $coFile->related_gkn_file_no || $coFile->related_misckn_file_no || $coFile->related_rdkn_file_no || $coFile->related_mlpp_file_no) ? '1' : '0') === '1';
+                @endphp
+                <div class="form-group">
+                    <label for="coHasSitFile">Has Related File <span class="required">*</span></label>
+                    <div class="co-sit-toggle">
+                        <input type="checkbox" name="has_sit_file" id="coHasSitFile" value="1" @checked($hasSitFile) />
+                        <span id="coHasSitFileAnswer">{{ $hasSitFile ? 'Yes' : 'No' }}</span>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Related files, one field each for SIT, Misc KN, GKN, RDKN and MLPP (user, 2026-11-02, RDKN and MLPP 2026-11-03; CR 30102026
+                 item 1): picked from the global file number selector, indexed or not. With Has Related File = Yes at least one is required.
+                 Only SIT shows at first; Add more offers the other types in a dropdown (user, 2026-11-03), and a type that has a number shows. --}}
+            <div id="coRelatedFields" @class(['co-related-box', 'hidden' => ! $hasSitFile])>
                 <div id="coRelated" data-lookup="{{ route('survey-module.compensation.co-files.related-lookup') }}">
-                    <p class="helper-text" style="margin:0 0 8px;">Select at least one. An indexed file fills the plot, district and LGA below.</p>
+                    <p class="helper-text" style="margin:0 0 10px;"><strong>Related files</strong>: select at least one from the file number selector, indexed or not. An indexed file fills the plot, district and LGA below.</p>
+                    <div class="co-related-grid">
                     @foreach ([
                         'related_sit_file_no'    => ['SIT', 'sit', 'SIT-'],
-                        'related_gkn_file_no'    => ['GKN', 'gkn', 'GKN-'],
                         'related_misckn_file_no' => ['Misc KN', 'gkn', 'MISC KN '],
+                        'related_gkn_file_no'    => ['GKN', 'gkn', 'GKN-'],
+                        'related_rdkn_file_no'   => ['RDKN', 'gkn', 'RDKN-'],
+                        'related_mlpp_file_no'   => ['MLPP', 'mls', ''],
                     ] as $relCol => [$relLabel, $relTab, $relPrefix])
-                        <div class="co-rel" data-col="{{ $relCol }}" data-tab="{{ $relTab }}" data-prefix="{{ $relPrefix }}" data-label="{{ $relLabel }}" style="margin-bottom:10px;">
+                        @php
+                            $relFirst = $relCol === 'related_sit_file_no';
+                            $relShown = $relFirst || trim((string) old($relCol, $coFile->{$relCol})) !== '' || $errors->has($relCol);
+                        @endphp
+                        <div class="co-rel" data-col="{{ $relCol }}" data-tab="{{ $relTab }}" data-prefix="{{ $relPrefix }}" data-label="{{ $relLabel }}"
+                             data-optional="{{ $relFirst ? '0' : '1' }}" @unless ($relShown) style="display:none;" @endunless>
                             <label>{{ $relLabel }} File No.</label>
-                            <div style="display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;">
+                            <div class="co-rel-row">
                                 <input type="text" name="{{ $relCol }}" class="co-rel-no" readonly
                                        value="{{ old($relCol, $coFile->{$relCol}) }}"
-                                       placeholder="No {{ $relLabel }} file selected"
-                                       style="flex:1;min-width:160px;font-weight:700;background:var(--gray-100);cursor:not-allowed;" />
-                                <button type="button" class="btn btn-primary btn-sm co-rel-pick" style="white-space:nowrap;" aria-label="Select {{ $relLabel }} file">
+                                       placeholder="No {{ $relLabel }} file" />
+                                <button type="button" class="btn btn-primary btn-sm co-rel-pick" title="Select {{ $relLabel }} file" aria-label="Select {{ $relLabel }} file">
                                     <i class="fas fa-folder-open"></i> Select
                                 </button>
-                                <button type="button" class="btn btn-secondary btn-sm co-rel-clear" style="white-space:nowrap;" aria-label="Clear {{ $relLabel }} file">
-                                    <i class="fas fa-times"></i> Clear
+                                <button type="button" class="btn btn-secondary btn-sm co-rel-clear" title="{{ $relFirst ? 'Clear' : 'Remove' }}" aria-label="{{ $relFirst ? 'Clear' : 'Remove' }} {{ $relLabel }} file">
+                                    <i class="fas fa-times"></i>
                                 </button>
                             </div>
                             @error($relCol)<p class="helper-text" style="color:#b91c1c;">{{ $message }}</p>@enderror
                             <p class="helper-text co-rel-status" style="margin:2px 0 0;"></p>
                         </div>
                     @endforeach
-                </div>
-                </div>
-            </div>
-
-                <div class="form-group">
-                    <label>Commission Date @unless ($capture)<span class="required">*</span>@endunless</label>
-                    <input type="date" name="commission_date"
-                           value="{{ old('commission_date', optional($coFile->commission_date)->format('Y-m-d')) }}"
-                           @unless ($capture) required @endunless />
+                    </div>
+                    <div class="co-rel-add" id="coRelAdd">
+                        <button type="button" class="btn btn-secondary btn-sm" id="coRelAddBtn"><i class="fas fa-plus"></i> Add more</button>
+                        <select id="coRelAddKind" data-no-search style="display:none;" aria-label="Related file type to add">
+                            <option value="">Select the file type…</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -176,6 +212,142 @@
                     </select>
                 </div>
             </div>
+
+            {{-- Old CO Register (user, 2026-11-03): a collapsible section of Capture CO File, not a tab. The ledger's Job No. is the CO
+                 File No. above, its Description the File / Job Title and its Remarks the Remarks below; its other columns
+                 are here, all optional, copied as written. --}}
+            @if ($capture)
+                @php
+                    $ov = fn ($k) => old($k, $coFile->{$k} instanceof \Carbon\Carbon ? $coFile->{$k}->format('Y-m-d') : $coFile->{$k});
+                    $svName = trim((string) $coFile->surveyor_name);
+                    $svPick = $coFile->surveyors_list_id ? (string) $coFile->surveyors_list_id
+                        : ($svName !== '' ? (string) ($surveyors->first(fn ($s) => mb_strtolower($s->full_name) === mb_strtolower($svName))?->id ?? 'other') : '');
+                    $svPick = (string) old('surveyor', $svPick);
+                    $svOther = old('surveyor_other', $svPick === 'other' ? $svName : '');
+                @endphp
+                <style>
+                    /* Spaced off the Location card and tinted amber like an old ledger (user, 2026-11-03). */
+                    .survey-proto .co-old-wrap { margin:22px 0 24px; }
+                    .survey-proto .co-old-toggle { display:flex; align-items:center; gap:10px; width:100%; padding:12px 14px; border:1px solid #fcd34d;
+                        border-left:4px solid #d97706; border-radius:10px; background:#fffbeb; cursor:pointer; text-align:left; font:inherit; }
+                    .survey-proto .co-old-toggle:hover { background:#fef3c7; }
+                    .survey-proto .co-old-toggle .t { font-weight:700; font-size:13px; letter-spacing:.3px; text-transform:uppercase; color:#92400e; }
+                    .survey-proto .co-old-toggle .h { font-size:12.5px; color:#a16207; }
+                    .survey-proto .co-old-toggle .chev { margin-left:auto; color:#b45309; transition:transform .15s; }
+                    .survey-proto .co-old-toggle[aria-expanded="true"] { border-bottom-left-radius:0; border-bottom-right-radius:0; }
+                    .survey-proto .co-old-toggle[aria-expanded="true"] .chev { transform:rotate(180deg); }
+                    .survey-proto #coOldRegister { border:1px solid #fcd34d; border-left:4px solid #d97706; border-top:0; border-radius:0 0 10px 10px;
+                        padding:4px 14px 14px; background:#fffdf5; }
+                </style>
+                <div class="co-old-wrap">
+                <button type="button" class="co-old-toggle" id="coOldToggle" aria-controls="coOldRegister" aria-expanded="{{ $oldReg ? 'true' : 'false' }}">
+                    <i class="fas fa-book" style="color:#b45309;"></i>
+                    <span><span class="t">Old CO Register</span><br><span class="h">For a file from the old register books. Open to fill its ledger details.</span></span>
+                    <i class="fas fa-chevron-down chev"></i>
+                </button>
+                <div id="coOldRegister" @unless ($oldReg) hidden @endunless>
+                <div class="form-grid cols-3" style="margin-top:14px;">
+                    <p class="helper-text full" style="grid-column:1 / -1;margin:-4px 0 0;font-size:12.5px;color:var(--gray-500);">
+                        For a file from the old register books: the Job No. goes in CO File No. (CO/94/75 is serial 94, year 1975), the Description in File / Job Title.
+                        Fill what the book gives; everything here is optional.
+                    </p>
+                    <div class="form-group">
+                        <label>File Ref.</label>
+                        <input type="text" name="old_file_ref" value="{{ $ov('old_file_ref') }}" maxlength="150" placeholder="e.g. SUR/G23/Vol III/564" />
+                        <p class="helper-text">As written in the book.</p>
+                    </div>
+                    <div class="form-group">
+                        <label>Approx. Area (ha)</label>
+                        <input type="number" name="approx_area_ha" step="any" min="0" value="{{ $ov('approx_area_ha') !== null ? (float) $ov('approx_area_ha') : '' }}" placeholder="e.g. 0.52" />
+                    </div>
+                    <div class="form-group">
+                        <label>No. of Farms</label>
+                        <input type="number" name="farms_count" step="1" min="0" value="{{ $ov('farms_count') }}" placeholder="e.g. 2" />
+                    </div>
+                    <div class="form-group">
+                        <label>Date Received</label>
+                        <input type="date" name="date_received" value="{{ $ov('date_received') }}" />
+                    </div>
+                    <div class="form-group span-2">
+                        <label>Surveyor</label>
+                        <select name="surveyor" id="coOldSurveyor" class="sv-searchable">
+                            <option value="">— Select surveyor —</option>
+                            @foreach ($surveyors as $s)
+                                <option value="{{ $s->id }}" @selected($svPick === (string) $s->id)>{{ $s->full_name }}{{ $s->rank ? ' · ' . $s->rank : '' }}</option>
+                            @endforeach
+                            <option value="other" @selected($svPick === 'other')>Other (specify)</option>
+                        </select>
+                        <input type="text" name="surveyor_other" id="coOldSurveyorOther" maxlength="255" placeholder="Specify the surveyor's name *"
+                               value="{{ $svOther }}" style="margin-top:6px;{{ $svPick === 'other' ? '' : 'display:none;' }}" @if ($svPick === 'other') required @endif />
+                    </div>
+                    <div class="form-group">
+                        <label>Field Work From</label>
+                        <input type="date" name="fieldwork_from" value="{{ $ov('fieldwork_from') }}" />
+                    </div>
+                    <div class="form-group">
+                        <label>Field Work To</label>
+                        <input type="date" name="fieldwork_to" value="{{ $ov('fieldwork_to') }}" />
+                    </div>
+                    <div class="form-group">
+                        <label>Plan Completed</label>
+                        <input type="date" name="plan_completed_on" value="{{ $ov('plan_completed_on') }}" />
+                    </div>
+                    <div class="form-group">
+                        <label>Total Amount (₦)</label>
+                        <input type="number" name="total_amount" step="0.01" min="0" value="{{ $ov('total_amount') !== null ? (float) $ov('total_amount') : '' }}" placeholder="e.g. 41.60" />
+                    </div>
+                    <div class="form-group">
+                        <label>Financial File Reference</label>
+                        <input type="text" name="financial_file_ref" value="{{ $ov('financial_file_ref') }}" maxlength="100" placeholder="e.g. SUR/311/59/75-76" />
+                    </div>
+                    <div class="form-group">
+                        <label>Date Despatched</label>
+                        <input type="date" name="despatched_on" value="{{ $ov('despatched_on') }}" />
+                    </div>
+                    <div class="form-group">
+                        <label>Date Paid</label>
+                        <input type="date" name="paid_on" value="{{ $ov('paid_on') }}" />
+                    </div>
+                </div>
+                </div>
+                </div>
+                <script>
+                    // Opening the Old CO Register section turns it on; while it is closed its fields are disabled, so they
+                    // are not sent and a file's ledger details are left as they are.
+                    function coOldRegisterSwitch(on) {
+                        var box = document.getElementById('coOldRegister');
+                        box.hidden = !on;
+                        document.getElementById('coOldRegisterOn').value = on ? '1' : '0';
+                        box.querySelectorAll('input, select, textarea').forEach(function (el) { el.disabled = !on; });
+                        if (on) { var o = document.getElementById('coOldSurveyorOther'); if (o) o.disabled = document.getElementById('coOldSurveyor').value !== 'other'; }
+                        document.getElementById('coOldToggle').setAttribute('aria-expanded', on ? 'true' : 'false');
+                        coOldRegisterRequired(on);
+                    }
+                    // Old CO Register on: Has Related File, File / Job Title and District are not required (user, 2026-11-03).
+                    function coOldRegisterRequired(on) {
+                        var title = document.getElementById('coTitle'), sit = document.getElementById('coHasSitFile'), dist = document.querySelector('.ab-district');
+                        if (title) title.required = !on;
+                        [title, sit, dist].forEach(function (el) {
+                            var star = el && el.closest('.form-group') && el.closest('.form-group').querySelector('label .required');
+                            if (star) star.style.display = on ? 'none' : '';
+                        });
+                    }
+                    document.addEventListener('DOMContentLoaded', function () {
+                        var toggle = document.getElementById('coOldToggle');
+                        if (toggle) toggle.addEventListener('click', function () { coOldRegisterSwitch(toggle.getAttribute('aria-expanded') !== 'true'); });
+                        var box = document.getElementById('coOldRegister');
+                        if (box && box.hidden) box.querySelectorAll('input, select, textarea').forEach(function (el) { el.disabled = true; });
+                        if (box) coOldRegisterRequired(!box.hidden);
+                    });
+                    // Surveyor: Other reveals the required name box.
+                    document.addEventListener('DOMContentLoaded', function () {
+                        var sel = document.getElementById('coOldSurveyor'), other = document.getElementById('coOldSurveyorOther');
+                        if (!sel || !other) return;
+                        var sync = function () { var on = sel.value === 'other'; other.style.display = on ? '' : 'none'; other.required = on; other.disabled = !on; if (!on) other.value = ''; };
+                        if (window.jQuery) window.jQuery(sel).on('change', sync); else sel.addEventListener('change', sync);
+                    });
+                </script>
+            @endif
 
             {{-- Location: Plot No., District & LGA, State; the full location reads District, LGA, State (user, 2026-10-30). --}}
             @include('survey_module.partials._address_builder', [
@@ -198,7 +370,7 @@
             <div class="form-grid">
                 <div class="form-group full">
                     <label>Remarks</label>
-                    <textarea name="remarks" maxlength="4000" placeholder="Optional notes…">{{ old('remarks', $coFile->remarks) }}</textarea>
+                    <textarea name="remarks" maxlength="4000" placeholder="Optional notes… (the old register's Remarks column goes here too)">{{ old('remarks', $coFile->remarks) }}</textarea>
                 </div>
             </div>
 
@@ -315,12 +487,16 @@
         geocodeNext(queries, 0, district && lga ? 12 : (district ? 13 : 10), token);
     }
 
+    var WATCH = '[name="prop_district[]"], [name="prop_lga[]"], [name="prop_district_other"]';
+    function schedule() { window.clearTimeout(timer); timer = window.setTimeout(updateMap, 400); }
     form.addEventListener('change', function (event) {
-        if (event.target.matches('[name="prop_district[]"], [name="prop_lga[]"], [name="prop_district_other"]')) {
-            window.clearTimeout(timer);
-            timer = window.setTimeout(updateMap, 400);
-        }
+        if (event.target.matches(WATCH)) schedule();
     });
+    // The District and LGA boxes are select2, which reports a pick as a jQuery event only, so the
+    // listener above never heard it and the map did not pin the LGA (user, 2026-11-03).
+    if (window.jQuery) {
+        jQuery(form).on('change', WATCH, function (e) { if (!e.originalEvent) schedule(); });
+    }
     window.setTimeout(function () { map.invalidateSize(); updateMap(); }, 250);
 })();
 </script>
@@ -334,7 +510,8 @@
     var relatedFields = document.getElementById('coRelatedFields');
     var hasSitFileAnswer = document.getElementById('coHasSitFileAnswer');
     var blocks = Array.prototype.slice.call(root.querySelectorAll('.co-rel'));
-    var HINT = 'Pick from the file number selector, indexed or not.';
+    // The box's heading says how to pick; an empty field needs no line of its own (layout, 2026-11-03).
+    var HINT = '';
 
     function $j() { return window.jQuery && window.jQuery.fn && window.jQuery.fn.select2 ? window.jQuery : null; }
     function field(name) { return form.querySelector('[name="' + name + '"]'); }
@@ -426,6 +603,8 @@
             clearFilled();
             number.value = '';
             say(HINT);
+            // Misc KN, GKN, RDKN and MLPP are added with Add more, so × takes the field away again; SIT stays.
+            if (block.dataset.optional === '1') { block.style.display = 'none'; refreshAdd(); }
         });
         block.reset = function () { clearFilled(); number.value = ''; say(HINT); };
         if (number.value.trim()) lookup(number.value.trim(), false); else say(HINT);
@@ -440,14 +619,35 @@
     hasSitFile.addEventListener('change', function () { updateSitFileVisibility(true); });
     updateSitFileVisibility(false);
 
-    // Has Related File = Yes needs at least one of the three.
+    // Add more (user, 2026-11-03): a dropdown of the file types not yet on the form; picking one shows its field and opens the selector.
+    var addBtn = document.getElementById('coRelAddBtn'), addKind = document.getElementById('coRelAddKind'), addBox = document.getElementById('coRelAdd');
+    function hiddenBlocks() { return blocks.filter(function (b) { return b.style.display === 'none'; }); }
+    function refreshAdd() {
+        var rest = hiddenBlocks();
+        addKind.innerHTML = '<option value="">Select the file type…</option>';
+        rest.forEach(function (b) { var o = document.createElement('option'); o.value = b.dataset.col; o.textContent = b.dataset.label + ' File No.'; addKind.appendChild(o); });
+        addBox.style.display = rest.length ? '' : 'none';
+        addKind.style.display = 'none';
+        addBtn.style.display = '';
+    }
+    addBtn.addEventListener('click', function () { addBtn.style.display = 'none'; addKind.style.display = ''; addKind.focus(); });
+    addKind.addEventListener('change', function () {
+        var b = blocks.find(function (x) { return x.dataset.col === addKind.value; });
+        if (!b) return;
+        b.style.display = '';
+        refreshAdd();
+        b.querySelector('.co-rel-pick').click();
+    });
+    refreshAdd();
+
+    // Has Related File = Yes needs at least one of the four.
     form.addEventListener('submit', function (e) {
         if (!hasSitFile.checked) return;
         var any = blocks.some(function (b) { return b.querySelector('.co-rel-no').value.trim() !== ''; });
         if (!any) {
             e.preventDefault();
             var st = blocks[0].querySelector('.co-rel-status');
-            st.innerHTML = 'Has Related File is Yes: select at least one related file (SIT, GKN or Misc KN), or turn it off.';
+            st.innerHTML = 'Has Related File is Yes: select at least one related file (SIT, Misc KN, GKN, RDKN or MLPP), or turn it off.';
             st.style.color = '#b91c1c';
             blocks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
         }

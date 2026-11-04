@@ -624,6 +624,12 @@ Route::middleware(['auth'])->group(function () {
         ->where('type', 'subdivision|merger|extension|change-of-purpose')
         ->name('parcel-register.index');
 
+    // Master Delete on the six Parcel Update listings (Super Admin; also takes approved
+    // records, never commissioned ones). See App\Services\ParcelUpdateMasterDelete.
+    Route::delete('parcel-update/{type}/{id}/master-delete', \App\Http\Controllers\Deeds\ParcelUpdate\ParcelUpdateMasterDeleteController::class)
+        ->where(['type' => 'subdivision|merger|separation|extension|change-of-purpose|duplex', 'id' => '[0-9]+'])
+        ->name('parcel-update.master-delete');
+
     // "File Already Decommissioned Before" check shared by the SPU / APU / Legacy Parcel Update forms
     Route::get('parcel-update/decommissioned-before', \App\Http\Controllers\DecommissionedBeforeController::class)
         ->name('parcel-update.decommissioned-before');

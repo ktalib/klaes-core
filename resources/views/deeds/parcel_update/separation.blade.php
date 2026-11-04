@@ -302,8 +302,9 @@
                                                     @endif
                                                 </div>
                                                 <div class="py-1">
-                                                    @if($record->status === 'approved')
-                                                        <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="Approved applications cannot be deleted">
+                                                    @php $delBlocked = \App\Services\ParcelUpdateMasterDelete::commissionedReason('separation', $record); @endphp
+                                                    @if($record->status === 'approved' || $delBlocked)
+                                                        <button disabled class="flex items-center w-full px-4 py-2.5 text-sm text-slate-400 gap-2 cursor-not-allowed bg-slate-50/50" title="{{ $delBlocked ?: 'Approved applications cannot be deleted' }}">
                                                             <i data-lucide="trash-2" class="w-4 h-4 text-slate-300"></i> Delete
                                                         </button>
                                                     @else
@@ -311,6 +312,7 @@
                                                             <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
                                                         </button>
                                                     @endif
+                                                    @include('deeds.parcel_update.partials.master_delete_item', ['mdType' => 'separation', 'mdRecord' => $record])
                                                 </div>
                                             </div>
                                         </div>
@@ -1065,4 +1067,5 @@
     ],
 ])
 @include('partials.decommissioned_before', ['dbSource' => '#file_no'])
+@include('deeds.parcel_update.partials.master_delete_script')
 @endsection

@@ -24,20 +24,25 @@ class PrivateLayoutController extends Controller
         if (($term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')))) !== '') {
             $q->where(fn ($w) => $w->where('layout_ref', 'like', "%{$term}%")->orWhere('layout_no', 'like', "%{$term}%")
                 ->orWhere('layout_name', 'like', "%{$term}%")->orWhere('owner_name', 'like', "%{$term}%")
-                ->orWhere('surveyor_name', 'like', "%{$term}%")->orWhere('prop_district', 'like', "%{$term}%"));
+                ->orWhere('surveyor_name', 'like', "%{$term}%")->orWhere('prop_district', 'like', "%{$term}%")
+                ->orWhere('location_text', 'like', "%{$term}%")->orWhere('check_note', 'like', "%{$term}%")
+                ->orWhere('approval_year', ctype_digit($term) ? (int) $term : -1));
         }
+        if ($r->query('check') === '1') $q->whereNotNull('check_note');
         if (in_array($r->query('status'), PL::STATUSES, true)) $q->where('status', $r->query('status'));
         if ($lu = $r->query('land_use')) $q->where('land_use', $lu);
         if ($lga = $r->query('lga')) $q->where('prop_lga', 'like', "%{$lga}%");
 
         return view('survey_module.records.private_layouts', [
-            'layouts' => $q->orderByDesc('id')->paginate(15)->withQueryString(),
+            // Layouts added here first (newest first), then the Ministry list in its own S/N order (user, 2026-11-03).
+            'layouts' => $q->orderByRaw('CASE WHEN register_sn IS NULL THEN 0 ELSE 1 END')->orderBy('register_sn')->orderByDesc('id')
+                ->paginate(15)->withQueryString(),
             'editing' => $r->query('edit') ? PL::find($r->query('edit')) : null,
             'stats'   => [
                 'total'    => PL::count(),
                 'approved' => PL::where('status', 'Approved')->count(),
                 'pending'  => PL::whereIn('status', ['Submitted', 'Under Review'])->count(),
-                'plots'    => (int) PL::sum('plot_count'),
+                'check'    => PL::whereNotNull('check_note')->count(),
             ],
             'nextRef' => PL::nextRef('layout_ref', 'PVL', 4),
         ]);
@@ -76,10 +81,13 @@ class PrivateLayoutController extends Controller
 
     private function validated(Request $r, ?PL $existing = null): array
     {
+        // A layout from the Ministry list has no owner, and some no name or location: those are not forced
+        // when it is edited, and its year of approval stands in for the approval date (user, 2026-11-03).
+        $fromList = (bool) $existing?->source;
         $data = $r->validate([
             'layout_no'             => 'nullable|string|max:100',
-            'layout_name'           => 'required|string|max:255',
-            'owner_name'            => 'required|string|max:255',
+            'layout_name'           => [$fromList ? 'nullable' : 'required', 'string', 'max:255'],
+            'owner_name'            => [$fromList ? 'nullable' : 'required', 'string', 'max:255'],
             'owner_phone'           => 'nullable|string|max:50',
             'surveyor_name'         => 'nullable|string|max:255',
             'surveyor_registration' => 'nullable|string|max:100',
@@ -89,14 +97,17 @@ class PrivateLayoutController extends Controller
             'land_use_other'        => ['nullable', 'string', 'max:255', Rule::requiredIf(fn () => $r->input('land_use') === PL::OTHER)],
             'status'                => ['required', Rule::in(PL::STATUSES)],
             'submitted_on'          => 'nullable|date|before_or_equal:today',
-            'approved_on'           => ['nullable', 'date', 'before_or_equal:today', Rule::requiredIf(fn () => $r->input('status') === 'Approved')],
+            'approved_on'           => ['nullable', 'date', 'before_or_equal:today', Rule::requiredIf(fn () => $r->input('status') === 'Approved' && ! $r->filled('approval_year'))],
+            'approval_year'         => 'nullable|integer|min:1900|max:' . date('Y'),
+            'location_text'         => 'nullable|string|max:500',
+            'check_note'            => 'nullable|string|max:500',
             'remarks'               => 'nullable|string|max:2000',
             'plan'                  => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:20480',
-        ] + AddressBuilder::rules('prop_'), [
+        ] + AddressBuilder::rules('prop_', ! $fromList), [
             'layout_name.required'    => 'Give the layout name.',
             'owner_name.required'     => 'Give the owner or developer.',
             'land_use_other.required' => 'Specify the land use.',
-            'approved_on.required'    => 'An approved layout needs its approval date.',
+            'approved_on.required'    => 'An approved layout needs its approval date, or at least its year of approval.',
             'prop_district.required'  => 'The district is required.',
             'prop_lga.required'       => 'The LGA is required.',
             'plan.mimes'              => 'The plan must be a PDF, JPG or PNG.',
@@ -104,7 +115,7 @@ class PrivateLayoutController extends Controller
         unset($data['plan']);
 
         // Names and places: spacing tidied, case kept as typed. Plan numbers are identifiers: trimmed only.
-        foreach (['layout_name', 'owner_name', 'surveyor_name', 'land_use_other', 'remarks'] as $k) {
+        foreach (['layout_name', 'owner_name', 'surveyor_name', 'land_use_other', 'remarks', 'location_text', 'check_note'] as $k) {
             if (isset($data[$k])) $data[$k] = trim(preg_replace('/\s+/', ' ', $data[$k])) ?: null;
         }
         foreach (['layout_no', 'owner_phone', 'surveyor_registration'] as $k) {

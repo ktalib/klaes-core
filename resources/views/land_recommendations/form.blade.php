@@ -529,10 +529,10 @@
                                 <col id="batch-colgroup-src" style="width: 50px">
                                 <col style="width: 250px">
                                 <col style="width: 120px">
-                                <col style="width: 168px">
                                 <col style="width: 116px">
                                 <col style="width: 112px">
                                 <col style="width: 146px">
+                                <col style="width: 168px">
                                 <col style="width: 146px">
                                 <col style="width: 186px">
                             </colgroup>
@@ -544,12 +544,12 @@
                             <thead class="sticky top-0 z-10">
                                 <tr id="batch-band-header" class="bg-slate-100 border-b border-slate-200 text-[9px] font-black uppercase tracking-widest">
                                     <th class="bg-slate-100" colspan="3"></th>
-                                    <th class="px-2 py-2 bg-amber-100/80 text-amber-900 text-center whitespace-nowrap" colspan="5">
+                                    <th class="px-2 py-2 bg-amber-100/80 text-amber-900 text-center whitespace-nowrap" colspan="4">
                                         <span class="inline-flex items-center gap-1.5">
                                             <i data-lucide="lock" class="h-3 w-3"></i> Never copied
                                         </span>
                                     </th>
-                                    <th class="px-2 py-2 bg-sky-100/80 text-sky-900 text-center whitespace-nowrap batch-group-split" colspan="3">
+                                    <th class="px-2 py-2 bg-sky-100/80 text-sky-900 text-center whitespace-nowrap batch-group-split" colspan="4">
                                         <span class="inline-flex items-center gap-1.5">
                                             <i data-lucide="arrow-down-to-line" class="h-3 w-3"></i> Copied from the source row
                                         </span>
@@ -570,10 +570,9 @@
                                     <th id="batch-col-src" class="px-1 py-3 text-center w-10 bg-slate-50 text-violet-700" title="Which row Apply-to-all copies from">Src</th>
 
                                     {{-- Left bank: per-plot. Nothing here is copied by the
-                                         toolbar Apply-to-all — but four of these columns do
-                                         sometimes repeat across a whole batch (one address for
-                                         a family allocation, one plot series, one land use and
-                                         purpose for a whole layout), so each carries its own
+                                         toolbar Apply-to-all — but three of these columns do
+                                         sometimes repeat across a whole batch (one plot series,
+                                         one land use and purpose for a whole layout), so each carries its own
                                          opt-in Apply button, sitting above its label so the
                                          labels themselves stay on one line together. It only
                                          ever fires on a deliberate click, one column at a
@@ -593,10 +592,6 @@
                                         @include('land_recommendations.partials.batch_col_apply', ['f' => 'plot_number', 'label' => 'Plot No'])
                                         <span class="block min-h-[26px]">Plot No</span>
                                     </th>
-                                    <th class="px-2 py-3 align-bottom w-[168px] bg-amber-50/70 text-amber-900">
-                                        @include('land_recommendations.partials.batch_col_apply', ['f' => 'applicant_address', 'label' => 'Applicant Address'])
-                                        <span class="block min-h-[26px]">Applicant Address</span>
-                                    </th>
                                     <th class="px-2 py-3 align-bottom w-[116px] bg-amber-50/70 text-amber-900">
                                         @include('land_recommendations.partials.batch_col_apply', ['f' => 'land_use_id', 'label' => 'Land Use'])
                                         <span class="block min-h-[26px]">Land Use</span>
@@ -606,10 +601,16 @@
                                         <span class="block min-h-[26px]">Purpose</span>
                                     </th>
 
-                                    {{-- Right bank: copied. The two sky columns are copied only
-                                         into rows left blank, which the tint carries. --}}
+                                    {{-- Right bank: copied. Applicant Name, Applicant Address and
+                                         Location are copied only into rows left blank. Applicant
+                                         Address moved here from the left bank (user 2026-11-03):
+                                         the children of one mother share a correspondence address. --}}
                                     <th class="px-2 py-3 align-bottom w-[146px] bg-sky-50/70 text-sky-900 batch-group-split">
                                         Applicant Name
+                                        <span class="batch-copy-note block font-medium normal-case tracking-normal text-[9px] text-sky-600">if blank</span>
+                                    </th>
+                                    <th class="px-2 py-3 align-bottom w-[168px] bg-sky-50/70 text-sky-900">
+                                        Applicant Address
                                         <span class="batch-copy-note block font-medium normal-case tracking-normal text-[9px] text-sky-600">if blank</span>
                                     </th>
                                     <th class="px-2 py-3 align-bottom w-[146px] bg-sky-50/70 text-sky-900">
@@ -3252,7 +3253,6 @@ document.addEventListener('DOMContentLoaded', function () {
             + '</td>'
             // Left bank — this plot alone.
             + '<td class="' + ownCell + '"><input type="text" class="' + cell + ' batch-f font-mono" data-f="plot_number" name="children[' + i + '][plot_number]" value="' + esc(child.plot_number) + '" placeholder="Plot"></td>'
-            + '<td class="' + ownCell + '"><input type="text" required class="' + cell + ' batch-f' + (addressCorrection ? ' border-amber-400 bg-amber-50 focus:border-amber-500' : '') + '" data-f="applicant_address" name="children[' + i + '][applicant_address]" value="' + esc(child.applicant_address) + '" placeholder="Applicant address"' + (addressCorrection ? ' title="Enter the missing applicant address"' : '') + '></td>'
             + '<td class="' + ownCell + '"><select class="' + cell + ' batch-f batch-landuse cursor-pointer" data-f="land_use_id" name="children[' + i + '][land_use_id]">' + landUseOptions(child.land_use_id) + '</select></td>'
             + '<td class="' + ownCell + '">'
             +   '<div class="space-y-1">'
@@ -3264,6 +3264,7 @@ document.addEventListener('DOMContentLoaded', function () {
             + '</td>'
             // Right bank — copied from the source row.
             + '<td class="' + copiedCell + ' batch-group-split"><input type="text" required class="' + cell + ' batch-f" data-f="applicant_name" name="children[' + i + '][applicant_name]" value="' + esc(child.applicant_name) + '" placeholder="Applicant name"></td>'
+            + '<td class="' + copiedCell + '"><input type="text" required class="' + cell + ' batch-f' + (addressCorrection ? ' border-amber-400 bg-amber-50 focus:border-amber-500' : '') + '" data-f="applicant_address" name="children[' + i + '][applicant_address]" value="' + esc(child.applicant_address) + '" placeholder="Applicant address"' + (addressCorrection ? ' title="Enter the missing applicant address"' : '') + '></td>'
             + '<td class="' + copiedCell + '"><input type="text" class="' + cell + ' batch-f" data-f="location" name="children[' + i + '][location]" value="' + esc(child.location) + '" placeholder="Location"></td>'
             + '<td class="' + copiedCell + '">'
             +   '<div class="flex items-center gap-1">'
@@ -4146,6 +4147,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // RC-COM-… (recertification) are RES and COM. Files of different land uses carry different
     // terms, so copying one file's values onto the rest would give them the wrong terms. A mixed
     // batch is still allowed; each file is keyed on its own. Prefixes outside COM/RES/IND/AG are ignored.
+    // Regular-files batch only (user 2026-11-03): a mother-file batch (Subdivision, Merger, Regrant,
+    // Change of Purpose, …) keeps its Apply to all whatever its children's prefixes say.
     function landUseOfFile(fileNumber) {
         var parts = String(fileNumber || '').trim().toUpperCase().split('-');
         var code = (parts[0] === 'CON' || parts[0] === 'RC') ? parts[1] : parts[0];
@@ -4161,13 +4164,13 @@ document.addEventListener('DOMContentLoaded', function () {
         return Object.keys(seen);
     }
     function batchMixesLandUse() {
-        return batchLandUses().length > 1;
+        return isRegular() && batchLandUses().length > 1;
     }
     // Runs after the code that enables these buttons (updateCount, renderGrantStep), so it has the last word.
     // The RofO and Reasons card buttons have no enabling code of their own, so their state is put back on unlock.
     function applyMixedLandUseLock() {
         var uses = batchLandUses();
-        var mixed = uses.length > 1;
+        var mixed = batchMixesLandUse();
         var why = 'Off: the selected files mix land uses (' + uses.join(', ') + '), which carry different terms. Enter each file on its own.';
         var unmanaged = ['rofo-card-apply-all', 'reasons-card-apply-all'];
         var buttons = Array.prototype.slice.call(document.querySelectorAll('.batch-col-apply'));
@@ -5041,15 +5044,16 @@ document.addEventListener('DOMContentLoaded', function () {
         // over whatever is in the other rows.
         var COPY = ['page', 'page_2', 'page_3'];
 
-        // Applicant name and location are usually shared across a subdivision but
-        // not always, so they only fill rows left blank — copying over a filled cell
-        // would silently put the wrong name on a letter.
-        var FILL_IF_BLANK = ['applicant_name', 'location'];
+        // Applicant name, address and location are usually shared across a subdivision
+        // but not always, so they only fill rows left blank — copying over a filled cell
+        // would silently put the wrong name on a letter. Address joined this list on
+        // 2026-11-03 (user): the children of one mother share a correspondence address.
+        var FILL_IF_BLANK = ['applicant_name', 'applicant_address', 'location'];
 
-        // Deliberately copied by nothing: the child file number, applicant address,
-        // plot number, land use and purpose. Each identifies or describes that one
-        // plot — an address, a land use or a purpose carried across the batch is a
-        // wrong letter that reads as a correct one, which is the worst kind.
+        // Deliberately copied by nothing: the child file number, plot number, land
+        // use and purpose. Each identifies or describes that one plot — a land use
+        // or a purpose carried across the batch is a wrong letter that reads as a
+        // correct one, which is the worst kind.
 
         rows.forEach(function (tr) {
             if (tr === src) return;
@@ -5077,10 +5081,10 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // ── Per-column Apply-to-all (the "never copied" bank) ───────────────────
-    // Plot No, Applicant Address, Land Use and Purpose are per-plot by default
-    // and the toolbar Apply deliberately never touches them. They do repeat
-    // across a whole batch often enough to be worth keying once — one address
-    // for a family allocation, one land use and purpose for a whole layout — so
+    // Plot No, Land Use and Purpose are per-plot by default and the toolbar
+    // Apply deliberately never touches them. They do repeat across a whole
+    // batch often enough to be worth keying once — one land use and purpose
+    // for a whole layout — so
     // each gets its own button. It is opt-in in both senses: nothing happens without the click,
     // and a click that would overwrite values already keyed asks first.
     document.querySelectorAll('.batch-col-apply').forEach(function (btn) {

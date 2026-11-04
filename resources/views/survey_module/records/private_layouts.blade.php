@@ -6,7 +6,7 @@
   use App\Models\Survey\SurveyPrivateLayout as PL;
 
   $PageTitle = 'Private Layout';
-  $PageDescription = 'Privately owned layouts: the owner or developer, the surveyor who prepared the plan, and its approval.';
+  $PageDescription = 'Privately owned layouts: the Ministry list of private layouts and their locations, and layouts added here.';
   $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
   $field = 'border:1.5px solid var(--gray-300);border-radius:6px;padding:7px 8px;';
   $e = $editing;
@@ -14,7 +14,9 @@
   $open = $errors->any() || $e;
   $lgas = \App\Http\Controllers\Survey\LookupController::options('lgas');
   $statusClass = fn ($s) => ['Approved' => 'completed', 'Rejected' => 'rejected'][$s] ?? 'pending';
-  $filtered = request()->hasAny(['q', 'status', 'land_use', 'lga']);
+  $filtered = request()->hasAny(['q', 'status', 'land_use', 'lga', 'check']);
+  // A layout from the Ministry list (user, 2026-11-03) does not force a name, owner or location on edit.
+  $fromList = (bool) $e?->source;
 @endphp
 
 @section('survey-content')
@@ -30,13 +32,13 @@
     <div class="kpi-card"><div class="kpi-label">Private layouts</div><div class="kpi-value">{{ number_format($stats['total']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Approved</div><div class="kpi-value">{{ number_format($stats['approved']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Awaiting decision</div><div class="kpi-value">{{ number_format($stats['pending']) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Plots</div><div class="kpi-value">{{ number_format($stats['plots']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Notes to check</div><div class="kpi-value" style="color:#b45309;">{{ number_format($stats['check']) }}</div></div>
 </div>
 
 {{-- Register / edit, as a modal (Survey entry forms are modals). --}}
 <form method="POST" enctype="multipart/form-data" id="plForm"
       action="{{ $e ? route('survey-module.records.private-layouts.update', $e) : route('survey-module.records.private-layouts.store') }}"
-      class="farmer-entry-form {{ $open ? 'open' : '' }}" data-sv-modal="{{ $e ? 'Edit ' . $e->layout_name : 'Add Private Layout' }}">
+      class="farmer-entry-form {{ $open ? 'open' : '' }}" data-sv-modal="{{ $e ? 'Edit ' . ($e->layout_no ?: $e->layout_name ?: 'Private Layout') : 'Add Private Layout' }}">
     @csrf
     @if ($e) @method('PUT') @endif
     <div class="form-grid cols-3">
@@ -47,15 +49,23 @@
             <input type="text" name="layout_no" value="{{ $v('layout_no') }}" maxlength="100" placeholder="As written on the plan" />
         </div>
         <div class="form-group span-2">
-            <label>Layout Name <span class="required">*</span></label>
-            <input type="text" name="layout_name" value="{{ $v('layout_name') }}" maxlength="255" required />
+            <label>Layout Name @unless ($fromList)<span class="required">*</span>@endunless</label>
+            <input type="text" name="layout_name" value="{{ $v('layout_name') }}" maxlength="255" @unless ($fromList) required @endunless />
+        </div>
+        <div class="form-group span-2">
+            <label>Location (as written)</label>
+            <input type="text" name="location_text" value="{{ $v('location_text') }}" maxlength="500" placeholder="e.g. ZARA VILLAGE KUMBOTSO L.G.A" />
+        </div>
+        <div class="form-group">
+            <label>Year of Approval</label>
+            <input type="number" name="approval_year" min="1900" max="{{ date('Y') }}" value="{{ $v('approval_year') }}" placeholder="e.g. 2018" />
         </div>
     </div>
     <div class="form-grid cols-3">
         <div class="sv-group"><i class="fas fa-user-tie"></i><span>Owner and surveyor</span></div>
         <div class="form-group">
-            <label>Owner / Developer <span class="required">*</span></label>
-            <input type="text" name="owner_name" value="{{ $v('owner_name') }}" maxlength="255" required />
+            <label>Owner / Developer @unless ($fromList)<span class="required">*</span>@endunless</label>
+            <input type="text" name="owner_name" value="{{ $v('owner_name') }}" maxlength="255" @unless ($fromList) required @endunless />
         </div>
         <div class="form-group">
             <label>Owner Phone</label>
@@ -111,16 +121,21 @@
         <div class="form-group">
             <label>Approved On</label>
             <input type="date" name="approved_on" max="{{ now()->toDateString() }}" value="{{ old('approved_on', $e?->approved_on?->format('Y-m-d')) }}" />
-            <p class="helper-text">Required when the status is Approved.</p>
+            <p class="helper-text">Required when the status is Approved, unless the year is given.</p>
         </div>
         <div class="form-group">
             <label>Layout Plan (PDF / JPG / PNG)</label>
             <input type="file" name="plan" accept="application/pdf,image/jpeg,image/png" />
             @if ($e && $e->plan_path)<p class="helper-text">Current: {{ $e->plan_name }}. A new file replaces it.</p>@endif
         </div>
-        <div class="form-group span-2">
+        <div class="form-group">
             <label>Remarks</label>
-            <textarea name="remarks" maxlength="2000">{{ $v('remarks') }}</textarea>
+            <textarea name="remarks" rows="2" maxlength="2000">{{ $v('remarks') }}</textarea>
+        </div>
+        <div class="form-group span-2">
+            <label>Notes (check)</label>
+            <textarea name="check_note" rows="2" maxlength="500" placeholder="What is missing or odd in the list">{{ $v('check_note') }}</textarea>
+            <p class="helper-text">Clear it once checked against the plan.</p>
         </div>
     </div>
     <div class="form-actions">
@@ -133,31 +148,35 @@
     <div class="table-header">
         <h3>Private Layouts</h3>
         <form method="GET" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-            <input type="text" name="q" value="{{ request('q') }}" placeholder="Ref, plan no., name, owner, surveyor…" style="{{ $field }}width:230px;">
+            <input type="text" name="q" value="{{ request('q') }}" placeholder="Layout no., name, location, year…" style="{{ $field }}width:230px;">
             <select name="status" style="{{ $field }}"><option value="">All status</option>@foreach (PL::STATUSES as $s)<option value="{{ $s }}" @selected(request('status') === $s)>{{ $s }}</option>@endforeach</select>
             <select name="land_use" style="{{ $field }}"><option value="">All land uses</option>@foreach (array_merge(PL::LAND_USES, [PL::OTHER]) as $u)<option value="{{ $u }}" @selected(request('land_use') === $u)>{{ $u }}</option>@endforeach</select>
             <select name="lga" style="{{ $field }}"><option value="">All LGAs</option>@foreach ($lgas as $l)<option value="{{ $l }}" @selected(request('lga') === $l)>{{ $l }}</option>@endforeach</select>
+            <select name="check" style="{{ $field }}"><option value="">All rows</option><option value="1" @selected(request('check') === '1')>With a note to check</option></select>
             <button class="btn btn-secondary btn-sm" type="submit"><i class="fas fa-search"></i></button>
             @if ($filtered)<a class="btn btn-secondary btn-sm" href="{{ route('survey-module.records.private-layouts') }}">Clear</a>@endif
         </form>
     </div>
     <div class="table-scroll">
         <table>
-            <thead><tr><th>S/N</th><th>Plan No.</th><th>Layout Name</th><th>Owner / Developer</th><th>Surveyor</th><th>District</th><th>LGA</th><th>Plots</th><th>Area (ha)</th><th>Land Use</th><th>Status</th><th>Created By</th><th>Date Created</th><th></th></tr></thead>
+            <thead><tr><th>S/N</th><th>Layout No.</th><th>Layout Name</th><th>District</th><th>LGA</th><th>Location (as written)</th><th>Year of Approval</th><th>Status</th><th>Notes (check)</th><th>Owner / Developer</th><th>Surveyor</th><th>Plots</th><th>Area (ha)</th><th>Land Use</th><th>Created By</th><th>Date Created</th><th></th></tr></thead>
             <tbody>
                 @forelse ($layouts as $x)
                     <tr>
                         <td>{{ $layouts->firstItem() + $loop->index }}</td>
                         <td>{{ $x->layout_no ?: '—' }}</td>
-                        <td><strong>{{ $x->layout_name }}</strong></td>
-                        <td>{{ $x->owner_name }}@if ($x->owner_phone)<div style="font-size:12px;color:var(--gray-500);">{{ $x->owner_phone }}</div>@endif</td>
-                        <td>{{ $x->surveyor_name ?: '—' }}@if ($x->surveyor_registration)<div style="font-size:12px;color:var(--gray-500);">{{ $x->surveyor_registration }}</div>@endif</td>
+                        <td><strong>{{ $x->layout_name ?: '—' }}</strong></td>
                         <td>{{ \App\Support\AddressBuilder::resolve($x->prop_district, $x->prop_district_other) ?: '—' }}</td>
                         <td>{{ \App\Support\AddressBuilder::resolve($x->prop_lga) ?: '—' }}</td>
+                        <td style="min-width:160px;">{{ $x->location_text ?: '—' }}</td>
+                        <td style="text-align:center;">{{ $x->approval_year ?: ($x->approved_on?->format('Y') ?: '—') }}</td>
+                        <td><span class="status-badge {{ $statusClass($x->status) }}"><span class="dot"></span>{{ $x->status }}</span></td>
+                        <td style="min-width:180px;">{!! $x->check_note ? '<span style="color:#b45309;font-size:12px;"><i class="fas fa-flag"></i> ' . e($x->check_note) . '</span>' : '—' !!}</td>
+                        <td>{{ $x->owner_name ?: '—' }}@if ($x->owner_phone)<div style="font-size:12px;color:var(--gray-500);">{{ $x->owner_phone }}</div>@endif</td>
+                        <td>{{ $x->surveyor_name ?: '—' }}@if ($x->surveyor_registration)<div style="font-size:12px;color:var(--gray-500);">{{ $x->surveyor_registration }}</div>@endif</td>
                         <td>{{ $x->plot_count !== null ? number_format($x->plot_count) : '—' }}</td>
                         <td>{{ $x->area_ha !== null ? number_format((float) $x->area_ha, 4) : '—' }}</td>
                         <td>{{ $x->land_use_label ?: '—' }}</td>
-                        <td><span class="status-badge {{ $statusClass($x->status) }}"><span class="dot"></span>{{ $x->status }}</span></td>
                         @include('survey_module.partials._created_cells', ['row' => $x])
                         <td style="width:44px;">
                             <div x-data="{ open: false, top: 0, left: 0 }" class="relative">
@@ -172,7 +191,7 @@
                                     @if ($x->plan_path)
                                         <a class="{{ $svItem }}" href="{{ route('survey-module.records.private-layouts.plan', $x) }}" target="_blank" rel="noopener"><i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i> View Plan</a>
                                     @endif
-                                    <form method="POST" action="{{ route('survey-module.records.private-layouts.destroy', $x) }}" onsubmit="return confirm({{ json_encode('Delete ' . $x->layout_name . '?') }});">
+                                    <form method="POST" action="{{ route('survey-module.records.private-layouts.destroy', $x) }}" onsubmit="return confirm({{ json_encode('Delete ' . ($x->layout_name ?: $x->layout_no ?: 'this layout') . '?') }});">
                                         @csrf @method('DELETE')
                                         <button type="submit" class="{{ $svItem }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete</button>
                                     </form>
@@ -181,7 +200,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="14" style="text-align:center;padding:22px;color:var(--gray-500);">{{ $filtered ? 'No private layout matches the filter.' : 'No private layouts registered yet.' }}</td></tr>
+                    <tr><td colspan="17" style="text-align:center;padding:22px;color:var(--gray-500);">{{ $filtered ? 'No private layout matches the filter.' : 'No private layouts registered yet.' }}</td></tr>
                 @endforelse
             </tbody>
         </table>

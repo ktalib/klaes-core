@@ -217,7 +217,7 @@ class ConfigurableEntriesController extends Controller
         ],
         'survey' => [
             'label' => 'Survey — File numbers',
-            'where' => 'Survey → Generate New FileNo (GKNFileNo)',
+            'where' => 'Survey → Generate New FileNo (GKNFileNo); LPKN also numbers Survey → GKN → Computation Files',
             'model' => \App\Models\GknSerialControl::class,
             'table' => 'gkn_serial_control',
             'key' => 'prefix',
@@ -227,22 +227,9 @@ class ConfigurableEntriesController extends Controller
             'by' => 'id',
             'icon' => 'ruler',
         ],
-        // Computation Files (CR 30102026 items 13-14). LPKN (Survey, Government) is one series with no
-        // year, LPKN-<serial> (user, 2026-11-02), its counter kept at year 0; set it to the last serial
-        // Survey used to continue from it. LPPL (Cadastral, Private) is LPPL-<year>-<serial>.
-        'computation_lpkn' => [
-            'label' => 'Computation Files — Government (LPKN)',
-            'where' => 'Survey → GKN → Computation Files (LPKN-serial, all years)',
-            'model' => \App\Models\Survey\SurveyComputationSerial::class,
-            'table' => 'survey_computation_serials',
-            'key' => 'prefix',
-            'key_label' => 'Prefix',
-            'keys' => ['LPKN'],
-            'yearly' => false,
-            'fixed_year' => \App\Services\Survey\ComputationNumbers::ALL_YEARS,
-            'by' => 'id',
-            'icon' => 'folder-archive',
-        ],
+        // Computation Files (CR 30102026 items 13-14). LPKN (Survey, Government) shares the Survey file-number
+        // counter above (user, 2026-11-03: "both LPKN should share the same serial numbers"), so it has no
+        // counter of its own here. LPPL (Cadastral, Private) is LPPL-<year>-<serial>.
         'computation' => [
             'label' => 'Computation Files — Private (LPPL)',
             'where' => 'Cadastral → Computation Files (LPPL-year-serial)',

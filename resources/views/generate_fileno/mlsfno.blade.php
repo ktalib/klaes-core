@@ -140,6 +140,15 @@
                                     <span>Generate New  File Number</span>
                                 </button>
 
+                                {{-- Draft mode: the officer's half-filled commissioning cards. --}}
+                                <button type="button" id="mlsfMyDraftsBtn"
+                                    onclick="window.mlsfOpenDraftsModal()"
+                                    class="bg-white hover:bg-amber-50 text-amber-700 border border-amber-300 px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
+                                    <i data-lucide="file-pen-line" class="w-4 h-4"></i>
+                                    <span>My Drafts</span>
+                                    <span id="mlsfDraftsCount" style="min-width: 1.25rem;" class="hidden ml-1 inline-flex items-center justify-center h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-bold">0</span>
+                                </button>
+
                                 <button
                                     onclick="openBatchPrintModal()"
                                     class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
@@ -456,14 +465,33 @@
                             <div>
                                 <h3 id="modalTitle" class="text-xl font-semibold text-gray-900">Commission  New File Number</h3>
                                 <p class="text-sm text-gray-500 mt-1">Fill in the details to generate a new MLPP file number</p>
+                                {{-- Draft mode status, written by commission_draft_js. --}}
+                                <p id="mlsfDraftStatus" class="text-xs text-amber-700 mt-1 flex items-center gap-1">
+                                    <i data-lucide="file-pen-line" class="w-3 h-3"></i>
+                                    <span id="mlsfDraftStatusText">Draft mode: autosave starts once you fill something in</span>
+                                </p>
                             </div>
                             <div class="flex items-center gap-3">
-                                {{-- Starts the card over: clears everything entered and leaves it as a
-                                     freshly opened card (latest serials included). Asks first. --}}
+                                <button type="button" id="mlsfSaveDraftBtn"
+                                        onclick="window.mlsfSaveDraftNow()"
+                                        title="Save this card as a draft; resume it later from My Drafts"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors">
+                                    <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                                    Save Draft
+                                </button>
+                                {{-- Clear Form: wipes everything entered (no confirm). Refresh: re-reads
+                                     the latest serials and keeps what is typed. --}}
+                                <button type="button" id="commissionClearBtn"
+                                        onclick="window.clearCommissionCard()"
+                                        title="Clear everything entered and start fresh"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors">
+                                    <i data-lucide="eraser" class="w-3.5 h-3.5"></i>
+                                    Clear Form
+                                </button>
                                 <button type="button" id="duplexRefreshBtn"
                                         onclick="window.refreshCommissionCard()"
-                                        title="Clear the form and start fresh"
-                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-blue-700 hover:border-blue-200 transition-colors">
+                                        title="Reload the latest serial numbers; your entries are kept"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors">
                                     <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                                     Refresh
                                 </button>
@@ -1007,6 +1035,7 @@
                                             <div x-show="fileOption !== 'sit'" x-transition>
                                                 <label for="purpose" class="block text-xs font-medium text-gray-600 mb-1">
                                                     Purpose
+                                                    <span x-show="batchMode && fileOption === 'subdivision'" class="text-[10px] font-semibold text-blue-600">(this plot only)</span>
                                                 </label>
                                                  <select id="purpose" name="purpose_id" x-model="purpose" @change="$nextTick(() => { rememberEntryPurpose(); updatePreview(); })"
                                                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
@@ -2175,6 +2204,58 @@
                         </form>
                     </div>
                 </div>
+            </div>
+
+            <!-- My Drafts (draft mode for the Commission New File Number card) -->
+            <div id="mlsfDraftsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full" style="z-index: 60;"
+                 role="dialog" aria-modal="true" aria-labelledby="mlsfDraftsTitle">
+                <div class="relative top-10 mx-auto p-6 border w-full max-w-5xl shadow-2xl rounded-lg bg-white">
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+                        <div>
+                            <h3 id="mlsfDraftsTitle" class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                <i data-lucide="file-pen-line" class="w-5 h-5 text-amber-600"></i>
+                                My Commissioning Drafts
+                            </h3>
+                            <p class="text-xs text-gray-500 mt-1">Cards you started but have not generated. Nothing is reserved for a draft: the serial and tracking ID are read afresh when you resume, and the passport must be attached again.</p>
+                        </div>
+                        <button type="button" onclick="window.mlsfCloseDraftsModal()" class="text-gray-400 hover:text-gray-600 transition-colors" aria-label="Close">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+                    <div class="mb-3">
+                        <input type="search" id="mlsfDraftsSearch" placeholder="Search file title, file type, plot, district, LGA..."
+                               class="w-full md:w-80 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                    </div>
+                    <div class="overflow-x-auto border border-gray-200 rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">S/N</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">File Title</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">File Type</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Land Use</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Plot No.</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">District</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">LGA</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Last Saved</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase"><span class="sr-only">Actions</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="mlsfDraftsBody" class="bg-white divide-y divide-gray-100">
+                                <tr><td colspan="9" class="px-3 py-6 text-center text-gray-400">Loading drafts…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {{-- Row action menu for My Drafts; positioned (fixed) next to its trigger. --}}
+            <div id="mlsfDraftRowMenu" style="z-index: 70; min-width: 11rem;" class="hidden fixed py-1 bg-white border border-gray-200 rounded-lg shadow-xl" role="menu">
+                <button type="button" data-draft-action="resume" role="menuitem" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-amber-50">
+                    <i data-lucide="play" class="w-4 h-4 text-amber-600"></i> Resume
+                </button>
+                <button type="button" data-draft-action="discard" role="menuitem" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i> Discard
+                </button>
             </div>
 
             <!-- Batch Summary Modal -->
@@ -3822,6 +3903,9 @@
         <script>window.MLPP_SEND_TO_OSS_URL = @json(route('mls-fileno.send-to-oss-applications'));</script>
         <script src="{{ asset('js/send-to-oss-applications.js') }}?v={{ @filemtime(public_path('js/send-to-oss-applications.js')) }}"></script>
         @include('generate_fileno.mls_js')
+        {{-- Draft mode for the Commission New File Number card. This page only:
+             mls_js is shared with the OSS commission modal, which has no drafts. --}}
+        @include('generate_fileno.partials.commission_draft_js')
         @include('generate_fileno.view_batches')
         {{--
             Shared-number check on the applicant phone field. Cache-busted by

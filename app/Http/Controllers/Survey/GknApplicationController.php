@@ -17,13 +17,13 @@ use Illuminate\Support\Facades\DB;
  */
 class GknApplicationController extends Controller
 {
-    /** Tab => file-number prefixes (LIKE patterns) and chip colour. */
+    /** Tab => file-number prefixes (LIKE patterns) and chip colour. Order: Misc KN right after GKN, RDKN last (user, 2026-11-03). */
     public const TYPES = [
         'gkn'  => ['label' => 'GKN',     'like' => ['GKN%'],             'colour' => 'green'],
+        'misc' => ['label' => 'Misc KN', 'like' => ['MISC KN%', 'MISC-KN%', 'MISCKN%'], 'colour' => 'purple'],
         'lpkn' => ['label' => 'LPKN',    'like' => ['LPKN%'],            'colour' => 'blue'],
         'lppl' => ['label' => 'LPPL',    'like' => ['LPPL%'],            'colour' => 'yellow'],
         'rdkn' => ['label' => 'RDKN',    'like' => ['RDKN%', 'RD KN%', 'RD-KN%', 'RD/KN%'], 'colour' => 'red'],
-        'misc' => ['label' => 'Misc KN', 'like' => ['MISC KN%', 'MISC-KN%', 'MISCKN%'], 'colour' => 'purple'],
     ];
 
     public const COMMISSIONED_SOURCE = 'GKN FileNo Commissioning';
@@ -73,6 +73,9 @@ class GknApplicationController extends Controller
 
         $counts = ['all' => $base(null)->count()];
         foreach (array_keys(self::TYPES) as $k) $counts[$k] = $base($k)->count();
+        // Dashboard cards (user, 2026-11-03: "most of the survey pages did not have dashboard cards").
+        $counts['commissioned'] = $base(null)->where('source', self::COMMISSIONED_SOURCE)->count();
+        $counts['month'] = $base(null)->where('created_at', '>=', now()->startOfMonth())->count();
 
         return view('survey_module.gkn.applications', [
             'files'  => $q->orderByDesc('created_at')->orderByDesc('id')->paginate(25)->withQueryString(),

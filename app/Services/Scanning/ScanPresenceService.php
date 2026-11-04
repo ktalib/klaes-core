@@ -80,6 +80,11 @@ class ScanPresenceService
     {
         $name = preg_replace('/\s*-\s*copy(\s*\(\d+\))?\s*$/i', '', $name);
         $name = preg_replace('/\s*\((\d+|temp|t|copy)\)\s*$/i', '', (string) $name);
+        // "KN3547" (KANGIS) and "KN 3547" / "KN-3547" (land file) are different files:
+        // a KN joined straight to its digits keeps its own key.
+        if (preg_match('/^\s*KN(\d+)\s*$/i', (string) $name, $kn)) {
+            return 'KN' . (ltrim($kn[1], '0') === '' ? '0' : ltrim($kn[1], '0'));
+        }
         preg_match_all('/[A-Za-z]+|\d+/', (string) $name, $m);
         $parts = array_map(function ($p) {
             return ctype_digit($p) ? (ltrim($p, '0') === '' ? '0' : ltrim($p, '0')) : strtoupper($p);

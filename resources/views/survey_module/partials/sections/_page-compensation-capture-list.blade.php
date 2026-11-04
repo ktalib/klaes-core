@@ -20,6 +20,16 @@
     ];
     $oldRows = array_values(old('rows', []));
     $rowCount = max(15, count($oldRows));
+
+    // Picking a project shows its CO file, TP No., scheme and sharing ratio, and sets up the plot calculator (user, 2026-11-03).
+    $projectMeta = $projects->mapWithKeys(fn ($p) => [$p->id => [
+        'co'      => $p->coFile ? trim($p->coFile->co_file_no . ($p->coFile->title ? ' · ' . $p->coFile->title : '')) : '',
+        'tp'      => (string) $p->plan_no,
+        'scheme'  => $p->scheme_type,
+        'purpose' => (string) $p->purpose,
+        'farmer'  => $p->farmer_share_pct !== null ? (int) $p->farmer_share_pct : (int) $defaultFarmerPct,
+    ]])->all();
+    $calcLandUses = \App\Services\Survey\ResettlementCalculator::LAND_USES;
 @endphp
 
 @include('survey_module.partials._flash')
@@ -76,6 +86,19 @@
                         @endforeach
                     </select>
                     <p class="helper-text">Type to search. The list becomes a new land under this project.</p>
+                </div>
+                <div class="form-group">
+                    <label>CO File</label>
+                    <input type="text" id="capCoFile" readonly placeholder="Auto-filled from Project" style="background:var(--gray-100);color:var(--gray-700);" />
+                    <p class="helper-text" id="capCoFileNote" style="display:none;">This project has no CO file yet. Add it with Update on Project Management.</p>
+                </div>
+                <div class="form-group">
+                    <label>TP No.</label>
+                    <input type="text" id="capTp" readonly placeholder="Auto-filled from Project" style="background:var(--gray-100);color:var(--gray-700);" />
+                </div>
+                <div class="form-group">
+                    <label>Scheme</label>
+                    <input type="text" id="capScheme" readonly placeholder="Auto-filled from Project" style="background:var(--gray-100);color:var(--gray-700);" />
                 </div>
             </div>
 
@@ -155,13 +178,54 @@
                 (columns in this order). Empty rows are ignored. A row needs a farmer name or a plot number; write ABSENT etc. as on the list.
             </p>
 
+            {{-- The Land to Land calculator inside the form (user, 2026-11-03), as the Compensation Calculator works it: the
+                 plot size from Land Use > Purpose > Density (the purpose fixes the density where it names one), or typed
+                 as on the paper; Creatable = Area / plot size and the shares = Creatable x the project's sharing ratio,
+                 4 decimals like the lists. It only fills blank cells (or ones it filled); typed values are kept. --}}
+            <div id="capCalc" style="display:none;border:1px dashed var(--gray-300);border-radius:10px;padding:12px 14px;background:var(--gray-50,#f9fafb);margin-bottom:12px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+                    <div style="font-weight:600;"><i class="fas fa-calculator"></i> Plot Calculator (Land to Land)</div>
+                    <div style="font-size:13px;color:var(--gray-600);">Sharing (Farmer : Government): <b id="capRatio">50:50</b></div>
+                </div>
+                <div class="form-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));margin:0;">
+                    <div class="form-group">
+                        <label>Land Use</label>
+                        <select id="capLandUse" data-no-search>
+                            <option value="">Select…</option>
+                            @foreach ($calcLandUses as $lu)<option value="{{ $lu }}">{{ $lu }}</option>@endforeach
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Purpose</label>
+                        <select id="capPurpose" data-no-search disabled><option value="">Select land use first</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Density</label>
+                        <select id="capDensity" data-no-search disabled><option value="">Select purpose first</option></select>
+                        <p class="helper-text" id="capDensityNote" style="margin:4px 0 0;">SG plot sizes.</p>
+                    </div>
+                    <div class="form-group">
+                        <label>Plot Size (Ha)</label>
+                        <input type="number" id="capPlotSize" step="any" min="0" placeholder="e.g. 0.0454" />
+                        <p class="helper-text" style="margin:4px 0 0;">From the density, or type the list's own.</p>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px;">
+                    <label style="display:inline-flex;align-items:center;gap:6px;margin:0;font-weight:500;font-size:13px;">
+                        <input type="checkbox" id="capAutoFill" checked /> Fill Creatable and the shares from the Area as I type
+                    </label>
+                    <button type="button" class="btn btn-secondary btn-sm" id="capRecalc"><i class="fas fa-sync-alt"></i> Recalculate all rows</button>
+                    <span class="helper-text" id="capCalcNote" style="margin:0;">Creatable = Area ÷ plot size; Govt. and Farmer = Creatable × the sharing ratio.</span>
+                </div>
+            </div>
+
             <div class="cap-grid-wrap">
                 <table class="cap-grid" data-column-picker="off">
                     <thead>
                         <tr>
                             <th style="width:46px;text-align:right;">S/N</th>
                             @foreach ($cols as $f => [$label, $w])
-                                <th style="min-width:{{ $w }}px;">{{ $label }}</th>
+                                <th style="min-width:{{ $w }}px;" data-h="{{ $f }}">{{ $label }}</th>
                             @endforeach
                             <th style="width:36px;"></th>
                         </tr>
@@ -185,8 +249,8 @@
                 <span>Rows: <b data-t="rows">0</b></span>
                 <span>Farmers: <b data-t="farmers">0</b></span>
                 <span>Area: <b data-t="area">0</b> Ha</span>
-                <span>Govt. 50%: <b data-t="govt">0</b></span>
-                <span>Farmer 50%: <b data-t="farmer">0</b></span>
+                <span><span data-tl="govt">Govt. 50%</span>: <b data-t="govt">0</b></span>
+                <span><span data-tl="farmer">Farmer 50%</span>: <b data-t="farmer">0</b></span>
                 <span>Plots: <b data-t="plots">0</b></span>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -336,6 +400,148 @@
         renumber();
     });
 
+    /* Project details + Plot Calculator (user, 2026-11-03). */
+    var META = @json($projectMeta), RC_PURPOSES = @json($rcPurposes), RC_RATES = @json($rcRates), DEFAULT_FARMER = {{ (int) $defaultFarmerPct }};
+    var projSel = form.querySelector('select[name="survey_project_id"]'), schemeSel = form.querySelector('select[name="scheme_type"]');
+    var luSel = document.getElementById('capLandUse'), pSel = document.getElementById('capPurpose'), dSel = document.getElementById('capDensity');
+    var sizeIn = document.getElementById('capPlotSize'), autoBox = document.getElementById('capAutoFill');
+    var calc = { land: false, farmer: DEFAULT_FARMER };
+
+    function isNewMode() { var r = form.querySelector('input[name="project_mode"]:checked'); return r && r.value === 'new'; }
+    function opt(v, t) { var o = document.createElement('option'); o.value = v; o.textContent = t; return o; }
+    function purposeDensity(s) {
+        var m = String(s || '').toUpperCase().replace(/\s+/g, ' ').trim().match(/^(VERY HIGH|HIGH|MEDIUM|LOW) DENSITY$/);
+        return m ? m[1] : null;
+    }
+
+    // Land Use > Purpose > Density, as the Compensation Calculator: the purpose fixes the density where it names one.
+    function density(changed) {
+        var lu = luSel.value;
+        if (changed === 'landuse') {
+            pSel.innerHTML = ''; pSel.appendChild(opt('', lu ? 'Select purpose…' : 'Select land use first'));
+            (RC_PURPOSES[lu] || []).forEach(function (p) { pSel.appendChild(opt(p, p)); });
+            pSel.disabled = !lu;
+        }
+        if (changed === 'landuse' || changed === 'purpose') {
+            var purpose = pSel.value.toUpperCase();
+            var rows = RC_RATES.filter(function (r) { return r.land_use === lu; });
+            var own = rows.filter(function (r) { return r.purpose && r.purpose.toUpperCase() === purpose; });
+            rows = own.length ? own : rows.filter(function (r) { return !r.purpose; });
+            var fixed = purposeDensity(purpose);
+            if (fixed) rows = rows.filter(function (r) { return purposeDensity(r.density) === fixed; });
+            dSel.innerHTML = '';
+            if (!pSel.value) dSel.appendChild(opt('', 'Select purpose first'));
+            else if (!rows.length) dSel.appendChild(opt('', 'No SG plot size for this yet'));
+            else if (!fixed || rows.length > 1) dSel.appendChild(opt('', 'Select density…'));
+            if (pSel.value) rows.forEach(function (r) { dSel.appendChild(opt(r.size, (r.density || 'General') + ' · ' + r.size + ' ha a plot')); });
+            if (fixed && rows.length === 1) dSel.value = String(rows[0].size);
+            dSel.disabled = !pSel.value || !rows.length;
+            var locked = !!fixed && rows.length === 1;
+            dSel.style.pointerEvents = locked ? 'none' : ''; dSel.style.background = locked ? 'var(--gray-100)' : ''; dSel.tabIndex = locked ? -1 : 0;
+            document.getElementById('capDensityNote').textContent = locked ? 'Set by the purpose.' : 'SG plot sizes.';
+        }
+        if (dSel.value) sizeIn.value = dSel.value;
+        fillAll(false);
+    }
+
+    // The project's purpose (e.g. Residential Layout) picks the land use, and the purpose when it is on the list.
+    function presetPurpose(text) {
+        var want = String(text || '').toUpperCase().trim();
+        if (!want) return;
+        var lu = null, purpose = null;
+        Object.keys(RC_PURPOSES).forEach(function (k) {
+            (RC_PURPOSES[k] || []).forEach(function (p) { if (!purpose && p.toUpperCase() === want) { lu = k; purpose = p; } });
+        });
+        if (!lu) Object.keys(RC_PURPOSES).forEach(function (k) { if (!lu && want.indexOf(k.toUpperCase()) !== -1) lu = k; });
+        if (!lu) return;
+        luSel.value = lu; density('landuse');
+        if (purpose) { pSel.value = purpose; density('purpose'); }
+    }
+
+    function sharePct() { return { farmer: calc.farmer, govt: 100 - calc.farmer }; }
+    function labels() {
+        var s = sharePct();
+        document.getElementById('capRatio').textContent = s.farmer + ':' + s.govt;
+        var g = form.querySelector('th[data-h="govt50"]'), f = form.querySelector('th[data-h="farmer50"]');
+        if (g) g.textContent = 'Govt. ' + s.govt + '%';
+        if (f) f.textContent = 'Farmer ' + s.farmer + '%';
+        form.querySelector('[data-tl="govt"]').textContent = 'Govt. ' + s.govt + '%';
+        form.querySelector('[data-tl="farmer"]').textContent = 'Farmer ' + s.farmer + '%';
+    }
+
+    // Which project / scheme is in play, and what it shows.
+    function syncProject() {
+        var m = !isNewMode() && projSel ? META[projSel.value] : null;
+        var co = document.getElementById('capCoFile');
+        co.value = m ? m.co : '';
+        document.getElementById('capCoFileNote').style.display = m && !m.co ? '' : 'none';
+        document.getElementById('capTp').value = m ? m.tp : '';
+        document.getElementById('capScheme').value = m ? (m.scheme === 'land' ? 'Land to Land' : 'Monetary Compensation') : '';
+        var scheme = isNewMode() ? (schemeSel ? schemeSel.value : '') : (m ? m.scheme : '');
+        calc.land = scheme === 'land';
+        calc.farmer = m ? m.farmer : DEFAULT_FARMER;
+        document.getElementById('capCalc').style.display = calc.land ? '' : 'none';
+        labels();
+        if (m && m.purpose && !luSel.value) presetPurpose(m.purpose);
+        fillAll(false);
+    }
+
+    function round4(x) { return Math.round(x * 10000) / 10000; }
+    // One row: blank cells (or ones the calculator filled) take the worked figures; typed ones are kept unless forced.
+    // The shares follow the row's Creatable, worked out or typed as on the paper.
+    function fillRow(tr, force, typing) {
+        if (!calc.land) return;
+        var size = parseFloat(sizeIn.value), area = parseFloat(tr.querySelector('[data-f="area"]').value);
+        var cells = ['creatable', 'govt50', 'farmer50'].map(function (f) { return tr.querySelector('[data-f="' + f + '"]'); });
+        var mine = function (c) { return force || c.value.trim() === '' || c.dataset.auto === '1'; };
+        var put = function (c, v) { c.value = v; c.dataset.auto = '1'; c.style.color = 'var(--primary)'; };
+        var clear = function (c) { if (c.dataset.auto === '1') { c.value = ''; delete c.dataset.auto; c.style.color = ''; } };
+        var creatable = null;
+        if (mine(cells[0]) && !typing) {
+            if (size > 0 && area > 0) { creatable = round4(area / size); put(cells[0], creatable); } else clear(cells[0]);
+        } else {
+            creatable = parseFloat(cells[0].value);
+        }
+        var s = sharePct();
+        [[cells[1], s.govt], [cells[2], s.farmer]].forEach(function (x) {
+            if (!mine(x[0])) return;
+            if (creatable > 0) put(x[0], round4(creatable * x[1] / 100)); else clear(x[0]);
+        });
+    }
+    function fillAll(force) {
+        if (!force && !autoBox.checked) return;
+        rows().forEach(function (tr) { fillRow(tr, force); });
+        totals();
+    }
+
+    luSel.addEventListener('change', function () { density('landuse'); });
+    pSel.addEventListener('change', function () { density('purpose'); });
+    dSel.addEventListener('change', function () { density(); });
+    sizeIn.addEventListener('input', function () { fillAll(false); });
+    autoBox.addEventListener('change', function () { fillAll(false); });
+    document.getElementById('capRecalc').addEventListener('click', function () {
+        if (!(parseFloat(sizeIn.value) > 0)) { alert('Pick the density or type the plot size first.'); return; }
+        if (!confirm('Work out Creatable and both shares again for every row with an Area? Values typed in those columns will be replaced.')) return;
+        fillAll(true);
+    });
+    body.addEventListener('input', function (e) {
+        var f = e.target.dataset && e.target.dataset.f;
+        if (!f) return;
+        if (f === 'area') { if (autoBox.checked) fillRow(e.target.closest('tr'), false); totals(); }
+        else if (['creatable', 'govt50', 'farmer50'].indexOf(f) !== -1) {
+            delete e.target.dataset.auto; e.target.style.color = '';
+            // Clearing Creatable by hand leaves it blank (it is not worked out again while typing).
+            if (f === 'creatable' && autoBox.checked) { fillRow(e.target.closest('tr'), false, true); totals(); }
+        }
+    });
+    body.addEventListener('paste', function () { setTimeout(function () { fillAll(false); }, 0); });
+    if (projSel) projSel.addEventListener('change', function () { luSel.value = ''; density('landuse'); sizeIn.value = ''; syncProject(); });
+    if (schemeSel) schemeSel.addEventListener('change', syncProject);
+    form.querySelectorAll('input[name="project_mode"]').forEach(function (r) { r.addEventListener('change', syncProject); });
+    var newPurpose = form.querySelector('input[name="purpose"]');
+    if (newPurpose) newPurpose.addEventListener('change', function () { if (isNewMode() && !luSel.value) presetPurpose(newPurpose.value); });
+
+    syncProject();
     totals();
 })();
 </script>

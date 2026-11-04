@@ -115,7 +115,7 @@
                 </button>
             @endunless
             <button type="button" class="btn btn-sm br-btn-new" onclick="brOpenNew()">
-                <i class="fas fa-plus"></i> New Entry
+                <i class="fas fa-plus"></i> Capture Beacon No
             </button>
         @endif
     </div>
@@ -165,7 +165,7 @@
                     <div class="br-layout" id="brIssueType" role="radiogroup" aria-label="Beacon type">
                         @foreach ($layoutTypes as $key => $label)
                             <label class="br-layout-opt">
-                                <input type="radio" name="br_issue_type" value="{{ $key }}" onchange="document.getElementById('brIssueType').classList.remove('is-invalid')" />
+                                <input type="radio" name="br_issue_type" value="{{ $key }}" onchange="document.getElementById('brIssueType').classList.remove('is-invalid'); brIssueTypeChanged()" />
                                 <span><i class="fas {{ $key === 'Government' ? 'fa-landmark' : 'fa-user' }}"></i> {{ $label }}</span>
                             </label>
                         @endforeach
@@ -184,9 +184,10 @@
             <div class="bi-grid">
                 <div class="form-group">
                     <label>Beacon Prefix <span class="required">*</span></label>
-                    <select id="brIssuePrefix" onchange="brIssueNext()">
+                    {{-- Each prefix belongs to a beacon type, set in Configurable Entities > Survey (user, 2026-11-03: AAA, ABC Government). --}}
+                    <select id="brIssuePrefix" onchange="brIssuePrefixChanged()">
                         <option value="">Select prefix…</option>
-                        @foreach ($brPrefixes as $p)<option value="{{ $p->prefix }}">{{ $p->prefix }}{{ $p->description ? ' · ' . $p->description : '' }}</option>@endforeach
+                        @foreach ($brPrefixes as $p)<option value="{{ $p->prefix }}" data-type="{{ $p->beacon_type ?? '' }}">{{ $p->prefix }}{{ ($p->beacon_type ?? null) ? ' · ' . $p->beacon_type : '' }}{{ $p->description ? ' · ' . $p->description : '' }}</option>@endforeach
                     </select>
                 </div>
                 <div class="form-group">
@@ -248,6 +249,7 @@
 
         <div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin:0 0 14px;flex-wrap:wrap;">
             <span id="brIssueAddMsg" class="helper-text" style="color:var(--danger, #b91c1c);margin:0;"></span>
+            <button type="button" class="btn btn-secondary" onclick="brIssueClearForm()"><i class="fas fa-eraser"></i> Clear form</button>
             <button type="button" class="btn btn-primary" id="brIssueAdd" onclick="brIssueAdd()"><i class="fas fa-plus"></i> Add to table</button>
         </div>
 
@@ -282,7 +284,7 @@
   <div class="br-modal-backdrop" onclick="brClose()"></div>
   <div class="br-modal-dialog">
     <div class="br-modal-header">
-        <h4 id="brModalTitle">{{ $e ? 'Edit entry ' . $e->issued_range : 'New beacon issue' }}</h4>
+        <h4 id="brModalTitle">{{ $e ? 'Edit entry ' . $e->issued_range : 'Capture Beacon No' }}</h4>
         <button type="button" class="br-modal-x" aria-label="Close" onclick="brClose()">&times;</button>
     </div>
 <form method="POST" id="brForm" autocomplete="off"
@@ -620,6 +622,7 @@
                     <th>Teller No.</th>
                     <th>Amount (₦)</th>
                     <th>Date Received</th>
+                    <th>Created By</th>
                     <th>Date Created</th>
                     <th>Status</th>
                     <th style="width:48px;"></th>
@@ -655,6 +658,8 @@
                         </td>
                         <td style="text-align:right;">{{ $row->amount !== null ? number_format((float) $row->amount, 2) : '—' }}</td>
                         <td style="white-space:nowrap;">{{ optional($row->date_received)->format('d/m/Y') ?: '—' }}</td>
+                        {{-- Who entered it, in its own column (user, 2026-11-03), no longer under the status. --}}
+                        <td style="white-space:nowrap;">{{ $userName($row->creator) ?: '—' }}</td>
                         <td style="white-space:nowrap;">{{ $row->issue_date->format('d/m/Y') }}</td>
                         <td style="white-space:nowrap;">
                             @if ($row->audited_at)
@@ -664,7 +669,6 @@
                             @else
                                 <span class="status-badge pending"><span class="dot"></span>Entered</span>
                             @endif
-                            <div class="br-sub">by {{ $userName($row->creator) ?: '—' }}</div>
                         </td>
                         <td>
                             <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
@@ -737,6 +741,7 @@
                                 <td>{{ $row->teller_no ?: '—' }}</td>
                                 <td style="text-align:right;color:var(--gray-400);">—</td>
                                 <td style="white-space:nowrap;">{{ optional($row->date_received)->format('d/m/Y') ?: '—' }}</td>
+                                <td style="white-space:nowrap;">{{ $userName($row->creator) ?: '—' }}</td>
                                 <td style="white-space:nowrap;">{{ $row->issue_date->format('d/m/Y') }}</td>
                                 <td></td>
                                 <td></td>
@@ -745,7 +750,7 @@
                     @endif
                 @empty
                     <tr>
-                        <td colspan="21" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="23" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-map-pin" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             No beacon issues recorded{{ request()->hasAny(['q', 'layout', 'year', 'quarter', 'month', 'status']) ? ' for this selection' : ' yet' }}.
                             @if ($brCan['create'])<a href="#" onclick="brOpenNew();return false;">Record one</a>.@endif
@@ -1167,10 +1172,50 @@
                     // Location = District, LGA, State (user, 2026-11-02), as the entry's stored location.
                     location: [brIssueShow(a.district, a.district_other), a.lga.join(' & ').toUpperCase(), a.state].filter(Boolean).join(', ') }
         });
-        // Ready for the next group: same type, prefix and surveyor; the next serial; a fresh location.
-        brIssueAddrClear();
+        // A clear form for the next group (user, 2026-11-03), rather than carrying this group's choices over.
         brIssueRender();
+        brIssueClearForm();
+    }
+
+    // Empties the group form: type, prefix, numbers, surveyor and location. The table is kept.
+    function brIssueClearForm() {
+        Array.prototype.forEach.call(document.querySelectorAll('input[name="br_issue_type"]'), function (r) { r.checked = false; });
+        brIssueEl('brIssueType').classList.remove('is-invalid');
+        brIssueEl('brIssueSuffix').value = '';
+        brIssueEl('brIssueCount').value = 4;
+        brIssueEl('brIssueAuto').checked = true;
+        brIssueEl('brIssueStart').value = '';
+        brIssueSetSelect(brIssueEl('brIssueSurveyor'), '');
+        brIssueEl('brIssueSurveyorOther').value = '';
+        brIssueEl('brIssueSurveyorOtherWrap').style.display = 'none';
+        brIssueEl('brIssueAddMsg').textContent = '';
+        brIssueAddrClear();
+        brIssueTypeChanged();
+        brIssueSetSelect(brIssueEl('brIssuePrefix'), '');
         brIssueMode();
+        brIssueNext();
+    }
+
+    // Only the chosen type's prefixes can be picked; a prefix with no type is offered for both.
+    function brIssueTypeChanged() {
+        var t = document.querySelector('input[name="br_issue_type"]:checked'), type = t ? t.value : '';
+        var sel = brIssueEl('brIssuePrefix'), cleared = false;
+        Array.prototype.forEach.call(sel.options, function (o) {
+            if (!o.value) return;
+            var off = !!(type && o.dataset.type && o.dataset.type !== type);
+            o.disabled = off; o.hidden = off;
+            if (off && o.selected) cleared = true;
+        });
+        if (cleared) { brIssueSetSelect(sel, ''); brIssueNext(); }
+        else if (window.jQuery && jQuery(sel).data('select2')) jQuery(sel).trigger('change.select2');
+    }
+    // Picking a prefix first sets its beacon type.
+    function brIssuePrefixChanged() {
+        var sel = brIssueEl('brIssuePrefix'), o = sel.options[sel.selectedIndex];
+        if (o && o.dataset.type) {
+            var radio = document.querySelector('input[name="br_issue_type"][value="' + o.dataset.type + '"]');
+            if (radio && !radio.checked) { radio.checked = true; brIssueEl('brIssueType').classList.remove('is-invalid'); brIssueTypeChanged(); }
+        }
         brIssueNext();
     }
 
@@ -1248,6 +1293,7 @@
         brIssueGroups = brIssueGroups.filter(function (x) { return x.id !== gid; });
         var radio = document.querySelector('input[name="br_issue_type"][value="' + g.type + '"]');
         if (radio) radio.checked = true;
+        brIssueTypeChanged();
         brIssueEl('brIssueSuffix').value = g.suffix;
         brIssueEl('brIssueCount').value = g.count;
         brIssueEl('brIssueAuto').checked = false;

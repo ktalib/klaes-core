@@ -51,6 +51,8 @@
         'purpose'  => $p->purpose,
         'label'    => $p->scheme_label,
         'location' => $projectLocation($p),
+        // Picking a project shows its CO file (user, 2026-11-03).
+        'co'       => $p->coFile ? trim($p->coFile->co_file_no . ($p->coFile->title ? ' · ' . $p->coFile->title : '')) : '',
     ]])->all();
 
     // Catalogue rates per name and Category (Mature / Immature / Seedling, Kano schedule 2026-11-01), for the price
@@ -60,6 +62,10 @@
         $treePrices[$t->name][$t->maturity ?: 'Mature'] = $t->default_unit_price;
     }
     $treeMaturities = \App\Models\Survey\SurveyTreeType::MATURITIES;
+    // Names that are only Cash Crops (priced per m²), for the Area (m²) label on the tree line.
+    $cashCropNames = $treeTypes->groupBy('name')
+        ->filter(fn ($g) => $g->every(fn ($t) => $t->category === \App\Models\Survey\SurveyTreeType::CASH_CROP))
+        ->keys()->values()->all();
 
     // Rows already on the case, or whatever bounced back from validation.
     $benRows = old('beneficiaries', $editing
@@ -130,7 +136,7 @@
                 <div class="step-title">General Information</div>
                 <div class="step-subtitle">
                     Select a Project. The compensation scheme (Monetary Compensation or Land to Land, with its sharing ratio) is defined at
-                    Project level and cannot be changed on the case.
+                    Project level and cannot be changed on the farm assessment.
                 </div>
 
                 <div class="form-grid">
@@ -153,7 +159,7 @@
                             Active projects appear here. Create new ones under
                             <a href="{{ route('survey-module.compensation.projects') }}">Project Management</a>.
                             @if ($editing)
-                                A case keeps the scheme it was registered under, so projects on the other scheme are not selectable.
+                                A farm assessment keeps the scheme it was registered under, so projects on the other scheme are not selectable.
                             @endif
                         </p>
                     </div>
@@ -177,7 +183,7 @@
                                        value="{{ $case->portion_size_ha !== null ? (float) $case->portion_size_ha : '' }}" />
                             </div>
                         </div>
-                        <p class="helper-text">Each portion allocated to a surveyor on the project is surveyed on its own case. The size comes from the allocation.</p>
+                        <p class="helper-text">Each portion allocated to a surveyor on the project is surveyed on its own farm assessment. The size comes from the allocation.</p>
                     </div>
 
                     {{-- Scheme inherited from the project — read-only, and never posted. --}}
@@ -189,7 +195,7 @@
                                     <span class="dot"></span>
                                     {{ $isMonetary ? 'Monetary Compensation' : 'Land to Land (' . ($case->project?->share_label ?? '50:50') . ')' }}
                                 </span>
-                                <span style="font-size:13px;color:var(--gray-600);">Inherited from the project · cannot be changed on the case</span>
+                                <span style="font-size:13px;color:var(--gray-600);">Inherited from the project · cannot be changed on the farm assessment</span>
                             @endif
                         </div>
                         <div class="comp-type-note" style="margin-top:10px;" id="caseSchemeNote">
@@ -206,7 +212,7 @@
 
                     @if ($editing)
                         <div class="form-group">
-                            <label>Case No</label>
+                            <label>Assessment No</label>
                             <input type="text" value="{{ $case->case_ref }}" readonly
                                    style="background:var(--gray-100);color:var(--gray-700);" />
                             <p class="helper-text">Generated automatically; cannot be changed.</p>
@@ -219,6 +225,18 @@
                                style="background:var(--gray-100);color:var(--gray-700);"
                                placeholder="Auto-filled from Project"
                                value="{{ $case->survey_project_id ? ($projectMeta[$case->survey_project_id]['name'] ?? '') : '' }}" />
+                    </div>
+
+                    {{-- The project's CO file, filled when the project is picked (user, 2026-11-03). --}}
+                    <div class="form-group">
+                        <label>CO File</label>
+                        <input type="text" id="caseCoFile" readonly
+                               style="background:var(--gray-100);color:var(--gray-700);"
+                               placeholder="Auto-filled from Project"
+                               value="{{ $case->survey_project_id ? ($projectMeta[$case->survey_project_id]['co'] ?? '') : '' }}" />
+                        <p class="helper-text" id="caseCoFileNote" style="{{ $case->survey_project_id && empty($projectMeta[$case->survey_project_id]['co']) ? '' : 'display:none;' }}">
+                            This project has no CO file yet. Add it with Update on Project Management.
+                        </p>
                     </div>
 
                     <div class="form-group">
@@ -274,14 +292,14 @@
                     'prefix' => 'prop_',
                     'mode'   => 'property',
                     'model'  => $case,
-                    'legend' => 'Case Property Location',
+                    'legend' => 'Farm Location',
                 ])
             </div>
 
             <!-- STEP 2: BENEFICIARIES -->
             <div class="form-step" data-step="1">
                 <div class="step-title">Beneficiaries</div>
-                <div class="step-subtitle">Farmers and landowners affected by this case. They also appear in the Beneficiaries register.</div>
+                <div class="step-subtitle">Farmers and landowners affected by this farm assessment. They also appear in the Farmers list.</div>
 
                 <button type="button" class="btn btn-primary btn-sm" onclick="caseReg.toggle('caseBenForm')">
                     <i class="fas fa-user-plus"></i> Add Farmer
@@ -378,13 +396,13 @@
                     </div>
 
                     <div id="caseBenEmpty" style="padding:14px 0;color:var(--gray-500);@if(count($benRows)) display:none; @endif">
-                        No beneficiaries added yet. A case can be saved as a draft without them, but it cannot be submitted.
+                        No beneficiaries added yet. A farm assessment can be saved as a draft without them, but it cannot be submitted.
                     </div>
                 </div>
 
                 <div style="margin-top:12px;font-size:13px;color:var(--gray-500);">
                     <i class="fas fa-info-circle"></i> Total Beneficiaries: <span id="caseBenCount">{{ count($benRows) }}</span>
-                    · removing a row here detaches the person from the case; it does not delete their record.
+                    · removing a row here detaches the person from the farm assessment; it does not delete their record.
                 </div>
             </div>
 
@@ -418,11 +436,46 @@
                                oninput="caseReg.mirrorPlots()" @disabled($isMonetary) />
                         <p class="helper-text" id="caseNumPlotsHelp">
                             @if ($isMonetary)
-                                Not used — a monetary case allocates no plots.
+                                Not used — a Monetary Compensation assessment allocates no plots.
                             @else
                                 Drives the farmer / Government split on Step 5.
                             @endif
                         </p>
+                    </div>
+                    {{-- Plot calculator inside the form (user, 2026-11-03: the calculator is "supposed to be attached to this place",
+                         e.g. low density residential): Land Use > Purpose > Density from the Resettlement Calculator's SG plot
+                         sizes; plots = area / plot size, rounded down, as that calculator's defaults. Fills Number of Plots. --}}
+                    @php
+                        $rcPurposes = \App\Services\Survey\ResettlementCalculator::purposes();
+                        $rcRates = \App\Models\Survey\SurveyResettlementRate::query()->where('is_active', 1)->orderBy('land_use')->orderBy('sort_order')
+                            ->get(['land_use', 'purpose', 'density', 'plot_size_ha'])
+                            ->map(fn ($x) => ['land_use' => $x->land_use, 'purpose' => $x->purpose, 'density' => $x->density, 'size' => (float) $x->plot_size_ha])->values();
+                    @endphp
+                    <div class="form-group full" id="caseDensityCalc" @style(['display:none' => ! $isLand])>
+                        <div style="border:1px dashed var(--gray-300);border-radius:10px;padding:12px 14px;background:var(--gray-50,#f9fafb);">
+                            <div style="font-weight:600;margin-bottom:8px;"><i class="fas fa-calculator"></i> Plot Calculator (by density)</div>
+                            <div class="form-grid cols-3" style="margin:0;">
+                                <div class="form-group">
+                                    <label>Land Use</label>
+                                    <select id="calcLandUse" onchange="caseReg.densityCalc('landuse')">
+                                        <option value="">Select…</option>
+                                        @foreach (\App\Services\Survey\ResettlementCalculator::LAND_USES as $lu)<option value="{{ $lu }}">{{ $lu }}</option>@endforeach
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Purpose</label>
+                                    <select id="calcPurpose" onchange="caseReg.densityCalc('purpose')" disabled><option value="">Select land use first</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Density</label>
+                                    <select id="calcDensity" onchange="caseReg.densityCalc()" disabled><option value="">Select purpose first</option></select>
+                                </div>
+                            </div>
+                            <p class="helper-text" id="calcResult" style="margin:6px 0 0;">Area (Step 1) ÷ plot size for the density, rounded down.</p>
+                            <button type="button" class="btn btn-secondary btn-sm" id="calcUse" style="margin-top:8px;display:none;" onclick="caseReg.useDensityPlots()">
+                                <i class="fas fa-check"></i> Use <span id="calcUseN">0</span> plots
+                            </button>
+                        </div>
                     </div>
                     <div class="form-group full">
                         <label>Boundary File (Shapefile / KML / GeoJSON)</label>
@@ -439,9 +492,9 @@
                 <div class="step-title">Economic Trees</div>
                 <div class="step-subtitle" id="caseTreesSubtitle">
                     @if ($isLand)
-                        Not applicable — this case is compensated with plots, not cash.
+                        Not applicable — this farm assessment is compensated with plots, not cash.
                     @else
-                        List the economic trees on the affected land. Required for a Monetary Compensation case: Tree Type × Quantity × Unit Price.
+                        List the economic trees on the affected land. Required for a Monetary Compensation assessment: Tree Type × Quantity × Unit Price.
                     @endif
                 </div>
 
@@ -449,7 +502,7 @@
                 <div class="comp-type-note" id="caseTreesNA"
                      style="border-left:4px solid var(--gray-400);@if(! $isLand) display:none; @endif">
                     <i class="fas fa-ban"></i>
-                    <strong>Not applicable to this case.</strong>
+                    <strong>Not applicable to this farm assessment.</strong>
                     Land to Land compensation pays no cash for economic trees, so nothing is recorded on this step.
                     Compensation is the plot allocation (by the project's sharing ratio) on Step 5. Any tree line entered here is discarded on save.
                 </div>
@@ -467,8 +520,9 @@
                                 <input type="text" id="newTreeName" list="caseTreeCatalogue" placeholder="e.g. Palm Oil"
                                        oninput="caseReg.priceFor()" />
                                 <datalist id="caseTreeCatalogue">
+                                    {{-- Cash Crops and Economic Trees, labelled with their type (user, 2026-11-03). --}}
                                     @foreach ($treeTypes->unique('name') as $t)
-                                        <option value="{{ $t->name }}"></option>
+                                        <option value="{{ $t->name }}" label="{{ $t->category === \App\Models\Survey\SurveyTreeType::CASH_CROP ? 'Cash Crop · per m²' : 'Economic Tree · per stand' }}"></option>
                                     @endforeach
                                 </datalist>
                             </div>
@@ -479,7 +533,7 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Quantity <span class="required">*</span></label>
+                                <label><span id="newTreeQtyLabel">Quantity</span> <span class="required">*</span></label>
                                 <input type="number" min="1" step="1" id="newTreeQty" placeholder="e.g. 45" />
                             </div>
                             <div class="form-group">
@@ -555,7 +609,7 @@
                         </div>
 
                         <div id="caseTreeEmpty" style="padding:14px 0;color:var(--gray-500);@if(count($treeRows)) display:none; @endif">
-                            No tree lines yet. A monetary case needs at least one before it can be saved.
+                            No tree lines yet. A Monetary Compensation assessment needs at least one before it can be saved.
                         </div>
 
                         <div class="list-total">
@@ -598,7 +652,7 @@
                         </div>
                         <div class="comp-type-note" style="margin-top:16px;">
                             <i class="fas fa-info-circle"></i>
-                            <strong>Monetary Compensation only.</strong> No plots are allocated on this case.
+                            <strong>Monetary Compensation only.</strong> No plots are allocated on this farm assessment.
                             Line totals shown here are a preview; the stored values are recalculated on save.
                         </div>
                     </div>
@@ -643,7 +697,7 @@
                                 @if ($split)
                                     {{ $split['total'] }} plots · {{ $split['farmer'] }} Farmer : {{ $split['govt'] }} Government
                                 @else
-                                    Split is calculated when the case is saved
+                                    Split is calculated when the farm assessment is saved
                                 @endif
                             </span>
                         </div>
@@ -653,12 +707,12 @@
                              data-saved-plots="{{ $split['total'] ?? '' }}"
                              style="margin-top:16px;display:none;">
                             <i class="fas fa-sync"></i>
-                            The farmer / government figures come from the server. Save the case to recalculate them for the
+                            The farmer / government figures come from the server. Save the farm assessment to recalculate them for the
                             plot count entered on Step 3.
                         </div>
                         <div class="comp-type-note" style="margin-top:16px;">
                             <i class="fas fa-info-circle"></i>
-                            <strong>Land to Land only.</strong> No cash is paid for trees on this case. Individual plot and
+                            <strong>Land to Land only.</strong> No cash is paid for trees on this farm assessment. Individual plot and
                             OP numbers are assigned under
                             <a href="{{ route('survey-module.tools.plot-allocation') }}">Plot Allocation</a>.
                         </div>
@@ -729,7 +783,7 @@
                         <span class="value" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                             <span class="status-badge pending"><span class="dot"></span> <span id="pvStatus">Pending</span></span>
                             <span style="font-size:13px;color:var(--gray-500);">
-                                Submitting routes the case through Survey → GIS → Commissioner → Deeds → Land/OSS.
+                                Submitting routes the farm assessment through Survey → GIS → Commissioner → Deeds → Land/OSS.
                             </span>
                         </span>
                     </div>
@@ -746,18 +800,18 @@
                         {{-- Posts to CaseController::submit(); it saves no edits, hence the warning. --}}
                         <button class="btn btn-success" type="submit" form="caseSubmitForm"
                                 onclick="return confirm('Submit {{ $case->case_ref }} for review? Unsaved changes on this form are not included.');">
-                            <i class="fas fa-paper-plane"></i> Submit Case
+                            <i class="fas fa-paper-plane"></i> Submit Farm Assessment
                         </button>
                     @else
                         <button class="btn btn-success" type="submit" name="submit_now" value="1">
-                            <i class="fas fa-paper-plane"></i> Save &amp; Submit Case
+                            <i class="fas fa-paper-plane"></i> Save &amp; Submit Farm Assessment
                         </button>
                     @endif
                 </div>
 
                 <div style="margin-top:12px;font-size:13px;color:var(--gray-500);">
                     <i class="fas fa-info-circle"></i>
-                    A case needs at least one beneficiary before it can be submitted; a monetary case also needs at least one tree line.
+                    A farm assessment needs at least one beneficiary before it can be submitted; a Monetary Compensation assessment also needs at least one tree line.
                 </div>
             </div>
 
@@ -798,6 +852,8 @@
     // name in classic scripts would break both.
     var PROJECTS    = @json($projectMeta);
     var TREE_PRICES = @json($treePrices);
+    // Names that are only Cash Crops (priced per m²): Quantity is then the area in m² (user, 2026-11-03).
+    var CASH_CROPS = @json($cashCropNames);
     var autoPrice = null;   // the last price filled from the catalogue
     var TOTAL_STEPS = 6;
 
@@ -844,10 +900,49 @@
 
     /* ------------------------ scheme inheritance ---------------------- */
 
+    // Plot Calculator (by density) on Step 3 (user, 2026-11-03).
+    var RC_PURPOSES = @json($rcPurposes), RC_RATES = @json($rcRates), calcPlots = null;
+    function densityCalc(changed) {
+        var lu = qs('calcLandUse').value, pSel = qs('calcPurpose'), dSel = qs('calcDensity');
+        var opt = function (v, t) { var o = document.createElement('option'); o.value = v; o.textContent = t; return o; };
+        if (changed === 'landuse') {
+            pSel.innerHTML = ''; pSel.appendChild(opt('', lu ? 'Select purpose…' : 'Select land use first'));
+            (RC_PURPOSES[lu] || []).forEach(function (p) { pSel.appendChild(opt(p, p)); });
+            pSel.disabled = !lu;
+        }
+        if (changed === 'landuse' || changed === 'purpose') {
+            var purpose = pSel.value.toUpperCase();
+            var rows = RC_RATES.filter(function (r) { return r.land_use === lu; });
+            // A purpose's own sizes replace the general ones (as the Resettlement Calculator).
+            var own = rows.filter(function (r) { return r.purpose && r.purpose.toUpperCase() === purpose; });
+            rows = own.length ? own : rows.filter(function (r) { return !r.purpose; });
+            dSel.innerHTML = ''; dSel.appendChild(opt('', !pSel.value ? 'Select purpose first' : (rows.length ? 'Select density…' : 'No SG plot size for this yet')));
+            if (pSel.value) rows.forEach(function (r) { var o = opt(r.size, r.density + ' · ' + r.size + ' ha a plot'); dSel.appendChild(o); });
+            dSel.disabled = !pSel.value || !rows.length;
+        }
+        var size = Number(dSel.value) || 0, area = Number(qs('caseArea') ? qs('caseArea').value : 0) || 0;
+        var out = qs('calcResult'), use = qs('calcUse');
+        calcPlots = null;
+        if (!size) { out.textContent = 'Area (Step 1) ÷ plot size for the density, rounded down.'; use.style.display = 'none'; return; }
+        if (!area) { out.textContent = 'Enter the area on Step 1 first.'; use.style.display = 'none'; return; }
+        calcPlots = Math.floor(area / size + 1e-9);
+        out.textContent = area + ' ha ÷ ' + size + ' ha = ' + (area / size).toFixed(3) + ' → ' + calcPlots + ' plot' + (calcPlots === 1 ? '' : 's') + ' (rounded down).';
+        qs('calcUseN').textContent = calcPlots;
+        use.style.display = '';
+    }
+    function useDensityPlots() {
+        var input = qs('caseNumPlots');
+        if (calcPlots === null || !input || input.disabled) return;
+        input.value = calcPlots;
+        mirrorPlots();
+    }
+
     function applyScheme(next) {
         scheme = next || null;
         var isMonetary = scheme === 'monetary';
         var isLand     = scheme === 'land';
+        var calcBox = qs('caseDensityCalc');
+        if (calcBox) calcBox.style.display = isLand ? '' : 'none';
 
         var box = qs('caseSchemeBox');
         if (box) box.style.display = scheme ? '' : 'none';
@@ -857,7 +952,7 @@
             badge.innerHTML = '<span class="status-badge ' + (isMonetary ? 'active' : 'completed') +
                 '" style="font-size:14px;padding:6px 16px;"><span class="dot"></span>' +
                 (isMonetary ? 'Monetary Compensation' : 'Land to Land') + '</span>' +
-                '<span style="font-size:13px;color:var(--gray-600);">Inherited from the project · cannot be changed on the case</span>';
+                '<span style="font-size:13px;color:var(--gray-600);">Inherited from the project · cannot be changed on the farm assessment</span>';
         }
         var note = qs('caseSchemeNote');
         if (note && scheme) {
@@ -872,8 +967,8 @@
         if (active) active.style.display = isLand ? 'none' : '';
         if (sub) {
             sub.textContent = isLand
-                ? 'Not applicable — this case is compensated with plots, not cash.'
-                : 'List the economic trees on the affected land. Required for a Monetary Compensation case: Tree Type × Quantity × Unit Price.';
+                ? 'Not applicable — this farm assessment is compensated with plots, not cash.'
+                : 'List the economic trees on the affected land. Required for a Monetary Compensation assessment: Tree Type × Quantity × Unit Price.';
         }
 
         // Step 3 — plot count only means something under land-to-land.
@@ -881,7 +976,7 @@
         if (plots) plots.disabled = isMonetary;
         if (req)   req.style.display = isLand ? '' : 'none';
         if (help)  help.textContent = isMonetary
-            ? 'Not used — a monetary case allocates no plots.'
+            ? 'Not used — a Monetary Compensation assessment allocates no plots.'
             : 'Drives the farmer / Government split on Step 5.';
 
         // Step 5 — one panel, never two.
@@ -895,9 +990,9 @@
         var compSub = qs('caseCompSubtitle');
         if (compSub) {
             compSub.textContent = isLand
-                ? 'Land to Land: plots split by the project sharing ratio (Farmer : Government). No monetary compensation on this case.'
+                ? 'Land to Land: plots split by the project sharing ratio (Farmer : Government). No monetary compensation on this farm assessment.'
                 : (isMonetary
-                    ? 'Monetary Compensation: economic trees only (Tree × Quantity × Unit Price). No plots on this case.'
+                    ? 'Monetary Compensation: economic trees only (Tree × Quantity × Unit Price). No plots on this farm assessment.'
                     : 'The scheme is exclusive — monetary or land-to-land, never both.');
         }
     }
@@ -913,6 +1008,9 @@
 
         var name = qs('caseProjectName');
         if (name) name.value = meta ? meta.name : '';
+        var co = qs('caseCoFile'), coNote = qs('caseCoFileNote');
+        if (co) co.value = meta ? (meta.co || '') : '';
+        if (coNote) coNote.style.display = meta && !meta.co ? '' : 'none';
 
         var purpose = qs('casePurpose');
         if (meta && purpose && !purpose.value && meta.purpose) purpose.value = meta.purpose;
@@ -1057,6 +1155,7 @@
     function mirrorArea() {
         var src = qs('caseArea'), dst = qs('caseAreaMirror');
         if (src && dst) dst.value = src.value;
+        if (qs('calcDensity') && qs('calcDensity').value) densityCalc();
     }
 
     // The split numbers are produced by SurveyCompCase::plotSplit() on the server (project sharing ratio).
@@ -1080,7 +1179,7 @@
             var f = qs('caseLandFarmer'), g = qs('caseLandGovt'), t = qs('caseLandTotalLabel');
             if (f) f.textContent = '—';
             if (g) g.textContent = '—';
-            if (t) t.textContent = 'Split is calculated when the case is saved';
+            if (t) t.textContent = 'Split is calculated when the farm assessment is saved';
         }
     }
 
@@ -1146,12 +1245,16 @@
         lineTotal: lineTotal,
         mirrorArea: mirrorArea,
         mirrorPlots: mirrorPlots,
+        densityCalc: densityCalc,
+        useDensityPlots: useDensityPlots,
         // The catalogue rate for the tree and its category; replaces only a price this filled in.
         priceFor: function () {
             var name = (qs('newTreeName').value || '').trim();
             var price = qs('newTreePrice');
             var rates = TREE_PRICES[name] || {};
             var rate = rates[qs('newTreeMaturity').value || 'Mature'];
+            var qtyLabel = qs('newTreeQtyLabel');
+            if (qtyLabel) qtyLabel.textContent = CASH_CROPS.indexOf(name) >= 0 ? 'Area (m²)' : 'Quantity (stands)';
             if (!price) return;
             if (price.value === '' || price.value === autoPrice) {
                 price.value = rate == null ? '' : String(rate);

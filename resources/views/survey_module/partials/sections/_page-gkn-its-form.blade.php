@@ -22,10 +22,11 @@
 
     <div class="form-container">
         <div class="form-body">
-            <div class="form-grid">
+            {{-- Three columns so the fields are not page-wide (user, 2026-11-03: "the form fields are too long"). --}}
+            <div class="form-grid cols-3">
                 <div class="sv-group"><i class="fas fa-folder-open"></i><span>File</span></div>
                 {{-- The file comes from the global file number selector only (GKN, LPKN, Misc KN); a job keeps its file. --}}
-                <div class="form-group full" id="itsPicker" data-lookup="{{ route('survey-module.gkn.its.lookup') }}">
+                <div class="form-group span-2" id="itsPicker" data-lookup="{{ route('survey-module.gkn.its.lookup') }}">
                     <label>File Number <span class="required">*</span></label>
                     <div style="display:flex;gap:8px;align-items:stretch;">
                         <input type="text" name="file_number" id="itsFileNumber" readonly
@@ -43,15 +44,13 @@
                     </p>
                 </div>
 
-                @if ($editing)
-                    <div class="form-group">
-                        <label>Survey Job No.</label>
-                        <input type="text" value="{{ $its->job_ref }}" readonly style="{{ $ro }}" />
-                    </div>
-                @endif
-
                 {{-- The Computation File this instruction is for (user, 2026-11-02); picking one fills any empty details below. --}}
-                @php $cfPick = (string) old('survey_computation_file_id', $its->survey_computation_file_id); @endphp
+                {{-- Also LPKN files already in File Indexing (user, 2026-11-03), posted as idx:<file number>. --}}
+                @php
+                    $cfPick = (string) old('survey_computation_file_id', $its->survey_computation_file_id
+                        ?: ($its->computation_no ? 'idx:' . $its->computation_no : ''));
+                    $cfIdx = collect($indexedLpkn ?? []);
+                @endphp
                 <div class="form-group">
                     <label>Computation File No.</label>
                     <select name="survey_computation_file_id" id="itsComputation" @disabled($locked)>
@@ -63,18 +62,38 @@
                                 {{ $cf->computation_no }}{{ $cf->file_number ? ' · ' . $cf->file_number : '' }}{{ $cf->file_title ? ' · ' . \Illuminate\Support\Str::limit($cf->file_title, 40) : '' }}
                             </option>
                         @endforeach
-                        @if ($its->computation_no && ! collect($computationFiles ?? [])->contains('id', $its->survey_computation_file_id))
+                        @if ($cfIdx->isNotEmpty())
+                            <optgroup label="Existing LPKN files (File Indexing)">
+                                @foreach ($cfIdx as $fi)
+                                    <option value="idx:{{ $fi->file_number }}" @selected($cfPick === 'idx:' . $fi->file_number)
+                                            data-title="{{ $fi->file_title }}" data-plot="{{ $fi->plot_number }}" data-district="{{ $fi->district }}"
+                                            data-lga="{{ $fi->lga }}" data-surveyor="">
+                                        {{ $fi->file_number }}{{ $fi->file_title ? ' · ' . \Illuminate\Support\Str::limit($fi->file_title, 40) : '' }}
+                                    </option>
+                                @endforeach
+                            </optgroup>
+                        @endif
+                        @if ($its->computation_no && $its->survey_computation_file_id && ! collect($computationFiles ?? [])->contains('id', $its->survey_computation_file_id))
                             <option value="{{ $its->survey_computation_file_id }}" selected>{{ $its->computation_no }}</option>
+                        @elseif ($its->computation_no && ! $its->survey_computation_file_id && ! $cfIdx->contains('file_number', $its->computation_no))
+                            <option value="idx:{{ $its->computation_no }}" selected>{{ $its->computation_no }}</option>
                         @endif
                     </select>
                     @error('survey_computation_file_id')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
-                    <p class="helper-text">{{ collect($computationFiles ?? [])->isEmpty() ? 'No Computation Files commissioned yet (GKN > Computation Files).' : 'Optional. LPKN Computation Files commissioned by Survey.' }}</p>
+                    <p class="helper-text">Optional. LPKN Computation Files commissioned by Survey, and existing LPKN files from File Indexing.</p>
                 </div>
 
-                <div class="form-group full">
+                <div class="form-group span-2">
                     <label>File Title</label>
                     <input type="text" name="file_title" id="itsTitle" maxlength="500" value="{{ old('file_title', $its->file_title) }}" @disabled($locked) />
                 </div>
+
+                @if ($editing)
+                    <div class="form-group">
+                        <label>Survey Job No.</label>
+                        <input type="text" value="{{ $its->job_ref }}" readonly style="{{ $ro }}" />
+                    </div>
+                @endif
 
             </div>
 
@@ -96,7 +115,7 @@
 
             </div>
 
-            <div class="form-grid">
+            <div class="form-grid cols-3">
                 <div class="sv-group"><i class="fas fa-user-tie"></i><span>Assignment</span></div>
                 <div class="form-group">
                     <label>Surveyor <span class="required">*</span></label>
@@ -122,14 +141,14 @@
                     <p class="helper-text">Survey Department staff, or Other (specify). Needed before the instruction is issued.</p>
                 </div>
 
-                <div class="form-group full">
+                <div class="form-group">
                     <label>Job Scope</label>
-                    <textarea name="job_scope" maxlength="4000" placeholder="What the survey must cover…" @disabled($locked)>{{ old('job_scope', $its->job_scope) }}</textarea>
+                    <textarea name="job_scope" rows="3" maxlength="4000" placeholder="What the survey must cover…" @disabled($locked)>{{ old('job_scope', $its->job_scope) }}</textarea>
                 </div>
 
-                <div class="form-group full">
+                <div class="form-group">
                     <label>Remarks</label>
-                    <textarea name="remarks" maxlength="2000" @disabled($locked)>{{ old('remarks', $its->remarks) }}</textarea>
+                    <textarea name="remarks" rows="3" maxlength="2000" @disabled($locked)>{{ old('remarks', $its->remarks) }}</textarea>
                 </div>
             </div>
 
@@ -140,7 +159,7 @@
                 <div class="right">
                     @unless ($locked)
                         <button class="btn btn-success" type="submit">
-                            <i class="fas fa-check"></i> {{ $editing ? 'Save Changes' : 'Register Survey Job' }}
+                            <i class="fas fa-check"></i> {{ $editing ? 'Save Changes' : 'Issue I to S' }}
                         </button>
                     @endunless
                 </div>

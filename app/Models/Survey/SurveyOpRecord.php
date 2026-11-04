@@ -67,6 +67,23 @@ class SurveyOpRecord extends SurveyModel
      * A returned OP is removed outright, so its number is the one taken next; a deleted OP stays
      * soft-deleted and keeps its number, as before.
      */
+    /** OPs issued before and captured on the Existing tab (user, 2026-11-03). */
+    public function scopeExisting($q)
+    {
+        return $q->where('is_existing', 1);
+    }
+
+    /** OPs generated in KLAES (the New tab). */
+    public function scopeNew($q)
+    {
+        return $q->where(fn ($w) => $w->whereNull('is_existing')->orWhere('is_existing', 0));
+    }
+
+    public function project(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(SurveyProject::class, 'survey_project_id');
+    }
+
     public static function nextOpNumber(): string
     {
         $year = date('Y');

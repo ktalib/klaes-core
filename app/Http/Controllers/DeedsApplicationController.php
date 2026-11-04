@@ -165,6 +165,11 @@ class DeedsApplicationController extends Controller
             ? ConsentApplication::with('user')->whereIn('id', $consentIds)->get()->keyBy('id')
             : collect();
         $registered = $this->registeredInInstrument($full);
+        // Registration particulars, shown under Consent Type once an instrument is registered on the consent.
+        $registrations = $consentIds ? app(\App\Services\DeedsRegistrationLookup::class)->forConsentIds($consentIds) : [];
+        // ST Assignments are registered unit by unit (user, 2026-11-02).
+        $stUnitFiles = $page->where('kind', 'st')->flatMap(fn ($k) => collect($k->row->st_units ?? [])->pluck('unit_fileno'))->filter()->values()->all();
+        $stRegs = $stUnitFiles ? app(\App\Services\DeedsRegistrationLookup::class)->forStUnits($stUnitFiles) : [];
 
         $assignRoles = collect(explode(',', (string) (auth()->user()->assign_role ?? '')))->map(fn ($r) => trim($r))->filter();
         $isSupperAdmin = $assignRoles->contains(fn ($r) => strcasecmp($r, 'Supper Admin') === 0);
@@ -173,8 +178,25 @@ class DeedsApplicationController extends Controller
         $sn = $start;
         foreach ($page as $key) {
             $sn++;
+            $stRegistration = null;
             if ($key->kind === 'st') {
                 $application = $key->row;
+                // Each unit's registration number, for the row's Reg line and the View Units list.
+                $units = collect($application->st_units ?? [])->map(function ($u) use ($stRegs) {
+                    $reg = $stRegs[strtoupper(trim((string) ($u['unit_fileno'] ?? '')))] ?? null;
+
+                    return $u + ['registration_number' => $reg?->registration_number];
+                });
+                $application->setAttribute('st_units', $units->values()->toArray());
+                $registeredUnits = $units->filter(fn ($u) => !empty($u['registration_number']));
+                if ($registeredUnits->isNotEmpty()) {
+                    $stRegistration = [
+                        'count'   => $registeredUnits->count(),
+                        'total'   => $units->count(),
+                        'numbers' => $registeredUnits->map(fn ($u) => ($u['unit_fileno'] ?: 'Unit ' . $u['unit_number']) . ': ' . $u['registration_number'])->values()->all(),
+                        'single'  => $registeredUnits->count() === 1 ? $registeredUnits->first()['registration_number'] : null,
+                    ];
+                }
             } else {
                 $application = $full->get($key->id);
                 if (!$application) {
@@ -189,6 +211,8 @@ class DeedsApplicationController extends Controller
                 'application' => $application,
                 'sn' => $sn,
                 'isSupperAdmin' => $isSupperAdmin,
+                'registration' => $key->kind === 'st' ? null : ($registrations[$application->id] ?? null),
+                'stRegistration' => $stRegistration,
             ])->render();
 
             $cells = array_map('trim', explode('<!--cell-->', $html));

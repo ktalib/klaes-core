@@ -34,7 +34,7 @@ class ConsentApplicationController extends Controller
         $purposes = Purpose::query()->orderBy('name')->get(['id', 'landuseid', 'name']);
 
         // Registration particulars of the instrument each consent was registered as.
-        $registrations = app(\App\Services\DeedsRegistrationLookup::class)->forConsents();
+        $registrations = app(\App\Services\DeedsRegistrationLookup::class)->forConsents($applications);
 
         return view('consent_applications.index', compact('applications', 'states', 'lgas', 'districts', 'streetNames', 'landUseTypes', 'purposes', 'registrations'));
     }

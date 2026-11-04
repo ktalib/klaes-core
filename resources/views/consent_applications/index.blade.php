@@ -99,9 +99,10 @@
                                                 </span>
                                             @endif
                                         </button>
-                                        {{-- Registration particulars, once an instrument is registered on this consent. --}}
+                                        {{-- Registration particulars under the File Number, once an instrument is registered on this
+                                             consent; teal, a colour no consent-type badge uses (user, 2026-11-02). --}}
                                         @if(!empty($registrations[$app->id] ?? null))
-                                            <div class="mt-1 text-[11px] font-semibold text-blue-700"
+                                            <div class="mt-1 text-[11px] font-bold whitespace-nowrap" style="color:#0f766e;"
                                                 title="Registered as {{ $registrations[$app->id]->instrument_type }}">
                                                 Reg: <span class="font-mono">{{ $registrations[$app->id]->registration_number }}</span>
                                             </div>

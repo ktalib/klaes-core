@@ -110,7 +110,7 @@
                         <td class="code">
                             {{-- SIT, GKN and Misc KN, each with its title (user, 2026-11-02); older rows have only related_file_no. --}}
                             @php
-                                $relNos = array_values(array_unique(array_filter([$f->related_sit_file_no, $f->related_gkn_file_no, $f->related_misckn_file_no]) ?: array_filter([$f->related_file_no])));
+                                $relNos = array_values(array_unique(array_filter([$f->related_sit_file_no, $f->related_misckn_file_no, $f->related_gkn_file_no, $f->related_rdkn_file_no, $f->related_mlpp_file_no]) ?: array_filter([$f->related_file_no])));
                             @endphp
                             @forelse ($relNos as $relNo)
                                 <div @if (! $loop->first) style="margin-top:4px;" @endif>
@@ -169,30 +169,37 @@
                                 <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                      :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                                    {{-- Order: Create Project, View Project, Commissioning Sheet, View Uploaded Files, Edit;
-                                         Send to OP Verification hidden (user, 2026-11-02). --}}
+                                    {{-- Order: Create Project, View Projects, Commissioning Sheet, View Uploaded Files, Update;
+                                         Send to OP Verification hidden (user, 2026-11-02). Commissioning Sheet greyed out on
+                                         captured files, Edit renamed Update (user, 2026-11-03). --}}
                                     @if ($f->status !== 'Closed')
                                         <a href="{{ route('survey-module.compensation.projects.create', ['co_file' => $f->id]) }}" class="{{ $svItem }}">
                                             <i data-lucide="folder-plus" class="w-4 h-4 text-gray-500"></i> Create Project
                                         </a>
                                     @endif
                                     <a href="{{ route('survey-module.compensation.projects', ['co_file' => $f->id]) }}" class="{{ $svItem }}">
-                                        <i data-lucide="folders" class="w-4 h-4 text-gray-500"></i> View Project
+                                        <i data-lucide="folders" class="w-4 h-4 text-gray-500"></i> View Projects
                                     </a>
                                     @if (false)
                                     <a href="{{ route('survey-module.compensation.op-verification', ['co_file' => $f->id]) }}" class="{{ $svItem }}">
                                         <i data-lucide="check-check" class="w-4 h-4 text-gray-500"></i> Send to OP Verification
                                     </a>
                                     @endif
-                                    <a href="{{ route('survey-module.compensation.co-files.commissioning-sheet', $f) }}" class="{{ $svItem }}" target="_blank" rel="noopener">
-                                        <i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Commissioning Sheet
-                                    </a>
+                                    @if ($f->source === 'captured')
+                                        <span class="{{ $svItem }} opacity-50 cursor-not-allowed" aria-disabled="true" title="Captured file: it was not commissioned in KLAES.">
+                                            <i data-lucide="printer" class="w-4 h-4 text-gray-400"></i> Commissioning Sheet
+                                        </span>
+                                    @else
+                                        <a href="{{ route('survey-module.compensation.co-files.commissioning-sheet', $f) }}" class="{{ $svItem }}" target="_blank" rel="noopener">
+                                            <i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Commissioning Sheet
+                                        </a>
+                                    @endif
                                     {{-- The CO file's raw scanned pages, until it is page-typed; Doc-WARE is linked from there (CR 30102026 item 17). --}}
                                     <a href="{{ route('survey-module.compensation.co-files.uploaded-files', $f) }}" class="{{ $svItem }}">
                                         <i data-lucide="file-search" class="w-4 h-4 text-gray-500"></i> View Uploaded Files
                                     </a>
                                     <a href="{{ route('survey-module.compensation.co-files.edit', $f) }}" class="{{ $svItem }}">
-                                        <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
+                                        <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Update
                                     </a>
                                     @if ($f->projects_count === 0)
                                         <form method="POST" action="{{ route('survey-module.compensation.co-files.destroy', $f) }}"

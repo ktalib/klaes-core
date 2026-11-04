@@ -9,6 +9,14 @@
 
 @include('survey_module.partials._flash')
 
+{{-- Dashboard cards (user, 2026-11-03): the register as filtered below. --}}
+<div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-label">Plots</div><div class="kpi-value">{{ number_format($totals['total']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Government share</div><div class="kpi-value">{{ number_format($totals['govt']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Farmer share</div><div class="kpi-value">{{ number_format($totals['farmer']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">With an OP No.</div><div class="kpi-value">{{ number_format($entered['with_op']) }}</div></div>
+</div>
+
 <div class="page-header">
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button type="button" class="btn btn-primary btn-sm" onclick="togglePlotFarmerForm()">
@@ -174,7 +182,8 @@
                         $prevFarmer = $row->farmer_name ?: $prevFarmer;
                         $muted      = 'color:var(--gray-400);font-weight:300;';
                     @endphp
-                    <tr>
+                    {{-- Rows are read-only; Update in the row's menu opens that row only (user, 2026-11-03). --}}
+                    <tr x-data="{ edit: false }" :style="edit ? 'background:#fffbeb;' : ''">
                         <td class="col-sr">{{ $rows->firstItem() + $loop->index }}</td>
                         <td class="col-sr">{{ $row->sr }}</td>
                         <td class="col-fno" @if (! $isHead) style="{{ $muted }}" @endif>{{ $isHead ? $row->f_no : '↳' }}</td>
@@ -183,41 +192,42 @@
                         <td class="col-creetable" @if (! $isHead) style="{{ $muted }}" @endif>{{ $isHead ? $row->creetable : '↳' }}</td>
                         <td class="col-govt" @if (! $isHead) style="{{ $muted }}" @endif>{{ $isHead ? $row->govt_50 : '↳' }}</td>
                         <td class="col-farmer" @if (! $isHead) style="{{ $muted }}" @endif>{{ $isHead ? $row->farmer_50 : '↳' }}</td>
-                        <td class="col-plotno">
-                            <input type="text" class="form-control form-control-sm" name="plot_no"
-                                   form="paRow{{ $row->id }}" value="{{ $row->plot_no }}" />
-                        </td>
-                        <td class="col-opno">
-                            <input type="text" class="form-control form-control-sm" name="op_no"
-                                   form="paRow{{ $row->id }}" value="{{ $row->op_no }}" />
-                        </td>
-                        <td class="col-sign">
-                            <input type="text" class="form-control form-control-sm" name="sign"
-                                   form="paRow{{ $row->id }}" value="{{ $row->sign }}" style="max-width:60px;" />
-                        </td>
-                        <td class="col-remarks">
-                            <input type="text" class="form-control form-control-sm" name="remarks"
-                                   form="paRow{{ $row->id }}" value="{{ $row->remarks }}" />
-                        </td>
+                        @foreach (['plot_no' => [400, ''], 'op_no' => [50, ''], 'sign' => [100, 'max-width:60px;'], 'remarks' => [500, '']] as $col => [$max, $st])
+                            <td class="col-{{ str_replace('_', '', $col) }}">
+                                <span x-show="!edit">{{ $row->{$col} !== null && $row->{$col} !== '' ? $row->{$col} : '—' }}</span>
+                                <input x-show="edit" x-cloak :disabled="!edit" type="text" class="form-control form-control-sm"
+                                       name="{{ $col }}" form="paRow{{ $row->id }}" maxlength="{{ $max }}"
+                                       value="{{ $row->{$col} }}" style="{{ $st }}" />
+                            </td>
+                        @endforeach
                         @include('survey_module.partials._created_cells', ['row' => $row])
+                        {{-- Row actions in one menu (dev standard 4). While the row is open: Save / Cancel. --}}
                         <td class="col-action">
-                            <div style="display:flex;gap:4px;justify-content:center;">
-                                {{-- The four editable cells above post through this form via their form= attribute. --}}
-                                <form method="POST" action="{{ route('survey-module.tools.plot-allocation.update', [$row, ...$qs]) }}"
-                                      id="paRow{{ $row->id }}" style="display:inline;">
-                                    @csrf @method('PUT')
-                                    <button class="btn btn-success btn-xs" type="submit" title="Save this row">
-                                        <i class="fas fa-check"></i>
+                            <form method="POST" action="{{ route('survey-module.tools.plot-allocation.update', [$row, ...$qs]) }}" id="paRow{{ $row->id }}"
+                                  x-show="edit" x-cloak style="display:flex;gap:4px;justify-content:center;">
+                                @csrf @method('PUT')
+                                <button class="btn btn-success btn-xs" type="submit" title="Save this row" aria-label="Save"><i class="fas fa-check"></i></button>
+                                <button class="btn btn-secondary btn-xs" type="button" title="Cancel" aria-label="Cancel" @click="$el.form.reset(); edit = false"><i class="fas fa-times"></i></button>
+                            </form>
+                            <div x-show="!edit" class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
+                                <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
+                                        @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 200); open = !open"
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
+                                    <i data-lucide="more-vertical" class="w-5 h-5"></i>
+                                </button>
+                                <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
+                                     :style="'top:' + top + 'px; left:' + left + 'px'" class="fixed z-50 w-48 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left">
+                                    <button type="button" class="flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50" @click="open = false; edit = true">
+                                        <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Update
                                     </button>
-                                </form>
-                                <form method="POST" action="{{ route('survey-module.tools.plot-allocation.destroy', [$row, ...$qs]) }}"
-                                      style="display:inline;"
-                                      onsubmit="return confirm('Delete SR {{ $row->sr }}? The register will be renumbered.');">
-                                    @csrf @method('DELETE')
-                                    <button class="btn btn-danger btn-xs" type="submit" title="Delete row">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </form>
+                                    <form method="POST" action="{{ route('survey-module.tools.plot-allocation.destroy', [$row, ...$qs]) }}"
+                                          onsubmit="return confirm('Delete SR {{ $row->sr }}? The register will be renumbered.');">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-red-600 hover:bg-gray-50">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -264,6 +274,7 @@
         <div class="pagination">{{ $rows->links() }}</div>
     </div>
 </div>
+
 
 <script>
     // Own names: _scripts.blade.php defines toggleFarmerEntryForm()/renderFarmTable()

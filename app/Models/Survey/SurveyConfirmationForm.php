@@ -20,7 +20,15 @@ class SurveyConfirmationForm extends Model
         'printed_at' => 'datetime', 'captured_at' => 'datetime', 'voided_at' => 'datetime',
         'vendor_date' => 'date', 'chairman_date' => 'date', 'village_head_date' => 'date', 'compensation_head_date' => 'date',
         'vendor_signed' => 'boolean', 'chairman_signed' => 'boolean', 'village_head_signed' => 'boolean', 'compensation_head_signed' => 'boolean',
+        'guarantor_date' => 'date', 'guarantor_verified_date' => 'date', 'guarantor_signed' => 'boolean', 'guarantor_stamped' => 'boolean',
     ];
+
+    /** The Guarantor's Form (user, 2026-11-03): the identity documents its notice accepts; Other is specified. */
+    public const ID_TYPES = ["Driver's License", "Voter's Card", 'NIN Card', 'International Passport'];
+    public const OTHER = 'Other';
+    /** Who the Committee Chairman stands guarantor for: the form's land owner (default) or its vendor / agent. */
+    public const GUARANTOR_FOR = ['owner' => 'Land Owner', 'vendor' => 'Vendor / Agent'];
+    public const DEFAULT_RANK = 'Ward Committee Chairman';
 
     public const GENERATED = 'Generated';
     public const PRINTED   = 'Printed';
@@ -58,5 +66,18 @@ class SurveyConfirmationForm extends Model
     public function isOpen(): bool
     {
         return in_array($this->status, self::OPEN, true);
+    }
+
+    /** The Guarantor's Form applicant, from the form's own details: name, address, phone, NIN (none for a vendor). */
+    public function guarantorApplicant(): array
+    {
+        return $this->guarantor_for === 'vendor'
+            ? ['name' => $this->vendor_name, 'address' => $this->vendor_address, 'phone' => $this->vendor_gsm, 'nin' => null]
+            : ['name' => $this->land_owner_name, 'address' => $this->address, 'phone' => $this->gsm, 'nin' => $this->nin];
+    }
+
+    public function getGuarantorIdLabelAttribute(): ?string
+    {
+        return $this->guarantor_id_type === self::OTHER ? $this->guarantor_id_type_other : $this->guarantor_id_type;
     }
 }

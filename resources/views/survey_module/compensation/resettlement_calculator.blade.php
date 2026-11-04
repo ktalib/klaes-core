@@ -20,6 +20,13 @@
 @section('survey-content')
 @include('survey_module.partials._flash')
 <div style="margin-bottom:12px;"><a href="{{ route('survey-module.compensation.calculator', ['mode' => 'land']) }}" class="btn btn-outline btn-sm"><i class="fas fa-arrow-left"></i> Land to Land Calculator</a></div>
+{{-- Dashboard cards (user, 2026-11-03). --}}
+<div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-label">Plot sizes in use</div><div class="kpi-value">{{ number_format($rates->where('is_active', true)->count()) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Land uses with a size</div><div class="kpi-value">{{ number_format($rates->where('is_active', true)->pluck('land_use')->unique()->count()) }} <span style="font-size:14px;color:var(--gray-500);">of {{ count(\App\Services\Survey\ResettlementCalculator::LAND_USES) }}</span></div></div>
+    <div class="kpi-card"><div class="kpi-label">Retired sizes</div><div class="kpi-value">{{ number_format($rates->where('is_active', false)->count()) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Saved calculations</div><div class="kpi-value">{{ number_format($calcs->total()) }}</div></div>
+</div>
 @if ($errors->any())<div class="alert alert-danger" style="margin-bottom:12px;">{{ $errors->first() }}</div>@endif
 
 <style>
@@ -289,7 +296,7 @@
     // Mirrors SurveySettings::applyClassmark(): whole plots kept, the decimal part read to two places.
     function classmark(exact) {
         var whole = Math.floor(exact + 1e-9), frac = Math.round((exact - whole) * 100) / 100;
-        var r = CLASSMARKS.find(function (c) { return frac >= c.from - 1e-9 && frac <= c.to + 1e-9; });
+        var r = frac <= 0 ? null : CLASSMARKS.find(function (c) { return frac >= c.from - 1e-9 && frac <= c.to + 1e-9; });   // no part plot on a whole number
         var plots = whole + (r ? r.plots : 0), h = Math.round((plots - Math.floor(plots)) * 100), w = Math.floor(plots);
         var sign = { 25: '\u00bc', 50: '\u00bd', 75: '\u00be' }[h];
         return { plots: plots, frac: frac, label: h === 0 ? String(w) : (sign ? (w ? w : '') + sign : plots.toFixed(2)) };
@@ -300,12 +307,21 @@
         return m ? !!m.plotForPlot : split.checked;
     }
 
+    // "MEDIUM DENSITY", "Medium Density" -> "MEDIUM"; a purpose that is not a density -> null.
+    function densityOf(s) {
+        var m = String(s || '').toUpperCase().replace(/\s+/g, ' ').trim().match(/^(VERY HIGH|HIGH|MEDIUM|LOW) DENSITY$/);
+        return m ? m[1] : null;
+    }
+
     // The densities offered for the chosen purpose: its own plot sizes, or else the land use's general ones (no purpose).
+    // A purpose that names a density (MEDIUM DENSITY) decides it: only that plot size is offered (user, 2026-11-03).
     function ratesFor() {
         if (!lu.value || !pur.value) return [];
         var same = function (a, b) { return String(a || '').toUpperCase() === String(b || '').toUpperCase(); };
         var own = RATES.filter(function (r) { return r.landUse === lu.value && r.purpose && same(r.purpose, pur.value); });
-        return own.length ? own : RATES.filter(function (r) { return r.landUse === lu.value && !r.purpose; });
+        var list = own.length ? own : RATES.filter(function (r) { return r.landUse === lu.value && !r.purpose; });
+        var fixed = densityOf(pur.value);
+        return fixed ? list.filter(function (r) { return densityOf(r.density) === fixed; }) : list;
     }
 
     // Land Use -> its purposes; a purpose from the previous land use is cleared.

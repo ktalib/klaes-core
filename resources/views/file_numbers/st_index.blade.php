@@ -1277,7 +1277,7 @@
                                                 <i data-lucide="refresh-cw" class="h-4 w-4 mr-2"></i>
                                                 Confirmation Sheet (CS)
                                             </span>`}
-                                            @if(Auth::check() && Auth::user()->assign_role === 'Supper Admin')
+                                            @if(\App\Http\Controllers\CommissionNewSTController::canMasterDelete(Auth::user()))
                                             <div class="my-1 border-t border-gray-100"></div>
                                             <button type="button" onclick='masterDeleteStFile(${JSON.stringify(file).replace(/'/g, "&apos;")})'
                                                     class="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50">
@@ -1596,12 +1596,14 @@
 
                     const targets = [
                         'ST file number record' + (isPrimary ? ' <b>and all its unit files</b>' : ''),
-                        'File indexing record',
-                        'Legacy file number (fileNumber) link',
+                        'File indexing record' + (isPrimary ? 's of the primary and every unit' : ''),
+                        'Legacy file number (fileNumber) rows it created; a land file it was linked to is only unlinked',
                         'Customer &amp; entity staging records',
-                        'Related file links and decommissioning log',
-                        'Saved commissioning sheets'
+                        'Related file links and the decommissioning log &mdash; the land file is no longer shown as decommissioned',
+                        'Saved commissioning sheets, prop ID allocations and print-label entries'
                     ];
+                    // Refused by the server once the file has an application, CofO, registered
+                    // instrument, eRegistry entry or scans filed in EDMS.
                     if (isConversion) {
                         targets.push('The CON mother file <b>' + mlsFileNo + '</b> — only if this commissioning created it');
                     }
@@ -1615,6 +1617,7 @@
                                 <p style="margin-bottom:4px;font-weight:600">What will be removed:</p>
                                 <ul style="margin:0 0 10px 18px;list-style:disc">${targets.map(t => `<li>${t}</li>`).join('')}</ul>
                                 <p style="color:#b91c1c;font-weight:600;margin:0">Scanned documents are never deleted — the EDMS folder is kept if it holds any.</p>
+                                <p style="color:#475569;margin:6px 0 0">A file that already has an application, CofO, registered instrument, eRegistry entry or filed scans cannot be deleted here.</p>
                             </div>`,
                         showCancelButton: true,
                         confirmButtonColor: '#dc2626',

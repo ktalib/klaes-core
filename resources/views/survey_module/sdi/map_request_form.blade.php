@@ -145,7 +145,7 @@
             <div class="mrq-card">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                     <strong><i class="fas fa-draw-polygon" style="color:var(--primary);"></i> Area to be mapped <span class="required" style="color:var(--danger);">*</span></strong>
-                    <span class="sdi-chip" id="mrqBasemapLabel">Street map preview</span>
+                    <span class="sdi-chip" id="mrqBasemapLabel">Satellite imagery (drawing basemap)</span>
                 </div>
                 <div id="mrqMap" class="sdi-map"></div>
                 <p class="helper-text" id="mrqHint" style="margin-top:6px;">Use the rectangle or polygon tool to mark the area. Drawing a new shape replaces the previous one.</p>
@@ -187,12 +187,36 @@ document.addEventListener('DOMContentLoaded', function () {
     var basemaps = SdiMapRequestBasemaps(map), type = document.getElementById('mrqType'), label = document.getElementById('mrqBasemapLabel');
     // Land Use Map: indexed land use from File Indexing drawn over the map.
     var landuse = SdiLandUse(map, @json(route('survey-module.sdi.map-requests.land-use-points')), { summaryEl: document.getElementById('mrqLandUse') });
-    function basemap() {
+    // The area is drawn on satellite imagery (user, 2026-11-03: "the satellite imagery, where they can draw where
+    // they want the map"); Streets / Terrain are a switch on the map. The map type no longer changes the basemap.
+    var current = 'satellite';
+    function setBase(name) { current = name; label.textContent = basemaps.show(name) + ' (drawing basemap)'; }
+    var Switch = L.Control.extend({
+        options: { position: 'topright' },
+        onAdd: function () {
+            var box = L.DomUtil.create('div', 'leaflet-bar');
+            box.style.cssText = 'display:flex;background:#fff;overflow:hidden;';
+            [['satellite', 'Satellite'], ['streets', 'Streets'], ['terrain', 'Terrain']].forEach(function (x) {
+                var btn = L.DomUtil.create('a', '', box);
+                btn.href = '#'; btn.textContent = x[1]; btn.setAttribute('role', 'button');
+                btn.style.cssText = 'width:auto;padding:0 10px;font-size:12px;line-height:30px;height:30px;' + (x[0] === current ? 'background:#be185d;color:#fff;font-weight:600;' : '');
+                L.DomEvent.on(btn, 'click', function (e) {
+                    L.DomEvent.stop(e);
+                    setBase(x[0]);
+                    Array.prototype.forEach.call(box.children, function (c) { var on = c === btn; c.style.background = on ? '#be185d' : ''; c.style.color = on ? '#fff' : ''; c.style.fontWeight = on ? '600' : ''; });
+                });
+            });
+            L.DomEvent.disableClickPropagation(box);
+            return box;
+        }
+    });
+    map.addControl(new Switch());
+    setBase('satellite');
+    function overlay() {
         var o = type.options[type.selectedIndex];
-        label.textContent = basemaps.show(o && o.value ? o.dataset.basemap : 'streets') + ' preview';
         landuse.show(!!(o && o.dataset.landuse === '1'));
     }
-    type.addEventListener('change', basemap); basemap();
+    type.addEventListener('change', overlay); overlay();
 
     var drawn = new L.FeatureGroup().addTo(map);
     map.addControl(new L.Control.Draw({

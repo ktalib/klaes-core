@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Survey;
 use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyCompCase;
 use App\Models\Survey\SurveyProject;
+use App\Models\Survey\SurveyResettlementRate;
+use App\Services\Survey\ResettlementCalculator;
 use App\Models\Survey\SurveyTreeType;
 use App\Services\Survey\SurveySettings;
 use App\Services\SurveyCompensationSchedule;
@@ -117,7 +119,7 @@ class CalculatorController extends Controller
             $catalogue = $type->rateFor($unit);
             $rate = $blank($line['unit_price'] ?? null) ? $catalogue : (float) $line['unit_price'];
             if ($rate === null) {
-                $fail("{$type->label} has no rate per " . ($unit === 'hectare' ? 'hectare' : $type->unitLabel()) . ' yet. Enter it in the Farm Assessment catalogue, or type it on the line.');
+                $fail("{$type->label} has no rate per " . ($unit === 'hectare' ? 'hectare' : $type->unitLabel()) . ' yet. Enter it in the Farm Features catalogue, or type it on the line.');
             }
             $amount = round($qty * $rate, 2);
             $key = $crop ? 'cash' : 'trees';
@@ -183,8 +185,15 @@ class CalculatorController extends Controller
     /** Land to Land estimate: split by the sharing ratio, odd plot to whichever side the rule names. */
     private function calculateLand(Request $r): array
     {
+        // The Resettlement Calculator, united with this form (user, 2026-11-03): with a density and an area the
+        // creatable plots are worked out here (area less roads/open space, ÷ plot size, rounded as chosen).
+        $byArea = $r->filled('rate_id') && $r->filled('area_ha');
         $data = $r->validate([
-            'total_plots'         => 'required|integer|min:1|max:1000000',
+            'total_plots'         => [$byArea ? 'nullable' : 'required', 'integer', 'min:1', 'max:1000000'],
+            'rate_id'             => ['nullable', Rule::exists('sqlsrv.survey_resettlement_rates', 'id')->whereNull('deleted_at')->where('is_active', 1)],
+            'area_ha'             => 'nullable|numeric|gt:0|max:1000000',
+            'deduction_percent'   => 'nullable|numeric|min:0|max:90',
+            'rounding'            => ['nullable', Rule::in(array_keys(ResettlementCalculator::ROUNDINGS))],
             'odd_rule'            => ['nullable', Rule::in(self::ODD_RULES)],
             'farmer_pct'          => ['nullable', 'integer', Rule::in(SurveySettings::sharingRatios()->pluck('farmer_pct')->map(fn ($p) => (int) $p)->all())],
             'survey_comp_case_id' => 'nullable|integer',
@@ -193,7 +202,30 @@ class CalculatorController extends Controller
             'total_plots.required' => 'Enter the number of creatable plots.',
             'total_plots.min'      => 'There must be at least one plot to split.',
             'farmer_pct.in'        => 'Choose a sharing ratio from the list.',
+            'area_ha.gt'           => 'The area must be more than zero hectares.',
         ]);
+
+        $byPlotSize = null;
+        if ($byArea) {
+            $rate = SurveyResettlementRate::findOrFail($data['rate_id']);
+            $rounding = $data['rounding'] ?? ResettlementCalculator::DEFAULT_ROUNDING;
+            $res = app(ResettlementCalculator::class)->calculate((float) $data['area_ha'], (float) $rate->plot_size_ha,
+                (float) ($data['deduction_percent'] ?? 0), $rounding);
+            if ($res['plots'] < 1) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['area_ha' => 'That area is less than one plot of ' . (float) $rate->plot_size_ha . ' ha.']);
+            }
+            $data['total_plots'] = $res['plots'];
+            $byPlotSize = [
+                'label'     => $rate->label,
+                'plot_size' => (float) $rate->plot_size_ha,
+                'area'      => (float) $data['area_ha'],
+                'deduction' => (float) ($data['deduction_percent'] ?? 0),
+                'net_area'  => $res['net_area'],
+                'exact'     => $res['exact'],
+                'rounding'  => ResettlementCalculator::ROUNDINGS[$rounding],
+                'classmark' => $res['classmark'],
+            ];
+        }
 
         $total = (int) $data['total_plots'];
         $rule  = $data['odd_rule'] ?? 'govt';
@@ -227,6 +259,7 @@ class CalculatorController extends Controller
             'beneficiary_source'  => $source,
             'plots_per_farmer'    => $beneficiaries > 0 ? $split['farmer'] / $beneficiaries : null,
             'case_ref'            => $case?->case_ref,
+            'by_plot_size'        => $byPlotSize,
         ];
     }
 
@@ -273,7 +306,14 @@ class CalculatorController extends Controller
 
             'cases' => SurveyCompCase::with('project:id,farmer_share_pct')->withCount('beneficiaries')
                 ->orderByDesc('id')
-                ->get(['id', 'case_ref', 'scheme_type', 'num_plots', 'survey_project_id']),
+                ->get(['id', 'case_ref', 'scheme_type', 'num_plots', 'survey_project_id', 'area_ha', 'portion_size_ha']),
+
+            // The Resettlement Calculator's plot sizes, for the Land to Land form (user, 2026-11-03).
+            'rcPurposes' => ResettlementCalculator::purposes(),
+            'rcRates'    => SurveyResettlementRate::where('is_active', 1)->orderBy('land_use')->orderBy('sort_order')->orderBy('id')
+                ->get(['id', 'land_use', 'purpose', 'density', 'plot_size_ha'])
+                ->map(fn ($x) => ['id' => $x->id, 'land_use' => $x->land_use, 'purpose' => $x->purpose, 'density' => $x->density, 'size' => (float) $x->plot_size_ha])->values(),
+            'rcRoundings' => ResettlementCalculator::ROUNDINGS,
 
             // Sharing ratios (CR 30102026 item 11) and the Classmark (item 8), from Configurable Entities.
             'ratios'     => SurveySettings::sharingRatios(),

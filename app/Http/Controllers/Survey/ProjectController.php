@@ -93,11 +93,151 @@ class ProjectController extends Controller
             ->with('success', "Project {$project->project_code} created. Scheme is locked to {$project->scheme_label}.");
     }
 
-    public function edit(SurveyProject $project)
+    public function edit(Request $r, SurveyProject $project)
     {
         $project->load('surveyors', 'trees');
 
-        return view('survey_module.compensation.project_register', $this->formData($project));
+        // Under the Update form: the project's records, Farmer > Farm > Land (plots) > OP (user, 2026-11-03).
+        return view('survey_module.compensation.project_register', $this->formData($project) + [
+            'records' => $this->records($project, $r),
+        ]);
+    }
+
+    /**
+     * The records captured under a project, grouped by farmer (user, 2026-11-03: "records captured under
+     * that project grouped by the farmer; expand the farmer and his farms come"). A farm is one allocation
+     * line (F/No + area) on one of the project's lands; its plot numbers are the land produced, and its
+     * OP No. the OP. Farmers are matched by name, case and spacing ignored. 25 farmers a page, searchable.
+     */
+    private function records(SurveyProject $project, Request $r): array
+    {
+        $db = DB::connection('sqlsrv');
+        $term = trim(preg_replace('/\s+/', ' ', (string) $r->query('rq', '')));
+        $key = "UPPER(LTRIM(RTRIM(ISNULL(a.farmer_name, ''))))";
+        $has = fn (string $col) => "CASE WHEN LTRIM(RTRIM(ISNULL(a.{$col}, ''))) <> '' THEN 1 ELSE 0 END";
+
+        $base = fn () => $db->table('survey_plot_allocations as a')
+            ->join('survey_comp_cases as c', 'c.id', '=', 'a.survey_comp_case_id')
+            ->where('c.survey_project_id', $project->id)
+            ->whereNull('a.deleted_at')->whereNull('c.deleted_at');
+
+        $totals = $base()->selectRaw("COUNT(DISTINCT {$key}) farmers, COUNT(*) farms, SUM(TRY_CAST(a.acreage AS decimal(18,4))) area, "
+            . "SUM({$has('plot_no')}) plots, SUM({$has('op_no')}) ops")->first();
+        // Lands = the plot numbers the farms produced (user, 2026-11-03: Farmer > Farm > Land > OP).
+        $totals->lands = $base()->whereNotNull('a.plot_no')->pluck('a.plot_no')->sum(fn ($p) => count(self::plotList($p)));
+        $ops = $this->projectOps($project);
+        $totals->ops += $ops['count'];
+
+        $filtered = fn () => $base()->when($term !== '', function ($q) use ($term) {
+            $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
+            $q->where(fn ($w) => $w->where('a.farmer_name', 'like', $like)->orWhere('a.f_no', 'like', $like)
+                ->orWhere('a.plot_no', 'like', $like)->orWhere('a.op_no', 'like', $like));
+        });
+
+        $perPage = 25;
+        $page = max(1, (int) $r->query('rpage', 1));
+        $count = (int) ($filtered()->selectRaw("COUNT(DISTINCT {$key}) n")->value('n') ?? 0);
+        $groups = $filtered()
+            ->selectRaw("{$key} as k, MIN(a.farmer_name) as name, COUNT(*) as farms, SUM(TRY_CAST(a.acreage AS decimal(18,4))) as area, "
+                . "SUM({$has('plot_no')}) as plots, SUM({$has('op_no')}) as ops, MIN(ISNULL(TRY_CAST(a.f_no AS int), 2147483647)) as first_fno, MIN(a.id) as first_id")
+            ->groupByRaw($key)
+            ->orderBy('first_fno')->orderBy('first_id')
+            ->offset(($page - 1) * $perPage)->limit($perPage)->get();
+
+        // Each listed farmer's farms (all of them, not only those matching the search).
+        $farms = collect();
+        if ($groups->isNotEmpty()) {
+            $farms = $base()->whereIn(DB::raw($key), $groups->pluck('k')->all())
+                ->select('a.id', 'a.f_no', 'a.farmer_name', 'a.acreage', 'a.creetable', 'a.farmer_50', 'a.govt_50', 'a.plot_no', 'a.op_no', 'a.remarks',
+                    'c.id as case_id', 'c.case_ref', 'c.portion_no')
+                ->selectRaw("{$key} as k")
+                ->orderByRaw('ISNULL(TRY_CAST(a.f_no AS int), 2147483647)')->orderBy('a.id')
+                ->get()
+                ->each(function ($f) use ($ops) {
+                    // Each farm's lands, and each land's OP(s): an OP recorded against that plot number, else the
+                    // farm's own OP (the list's OP No., or one generated for the farmer on that land).
+                    $farmOps = collect();
+                    if (trim((string) $f->op_no) !== '') {
+                        $farmOps->push((object) ['op_number' => trim($f->op_no), 'status' => null, 'verification' => null, 'source' => 'On the list']);
+                    }
+                    $farmOps = $farmOps->merge($ops['byFarmer'][$f->case_id . '|' . self::nameKey($f->farmer_name)] ?? []);
+                    $f->lands = collect(self::plotList($f->plot_no))->map(fn ($plot) => (object) [
+                        'plot_no' => $plot,
+                        'ops'     => collect($ops['byPlot'][self::plotKey($plot)] ?? [])->whenEmpty(fn () => $farmOps),
+                    ]);
+                    $f->farm_ops = $farmOps;
+                    $f->op_count = $f->lands->isEmpty() ? $farmOps->count() : $f->lands->sum(fn ($l) => $l->ops->count());
+                })
+                ->groupBy('k');
+        }
+
+        $paginator = new \Illuminate\Pagination\LengthAwarePaginator($groups, $count, $perPage, $page, [
+            'path' => $r->url(), 'pageName' => 'rpage', 'query' => $r->query(), 'fragment' => 'records',
+        ]);
+
+        return ['totals' => $totals, 'farmers' => $paginator, 'farms' => $farms, 'term' => $term];
+    }
+
+    /**
+     * The project's OP records (generated, or existing ones captured on the OP page), indexed for the
+     * records tree: by plot number (existing OPs carry one), and by land + farmer (generated OPs).
+     *
+     * @return array{count:int, byPlot:array<string, array>, byFarmer:array<string, array>}
+     */
+    private function projectOps(SurveyProject $project): array
+    {
+        $caseIds = $project->cases()->pluck('id')->all();
+        $rows = \App\Models\Survey\SurveyOpRecord::query()
+            ->with('beneficiary:id,full_name')
+            ->where(fn ($q) => $q->where('survey_project_id', $project->id)->when($caseIds, fn ($w) => $w->orWhereIn('survey_comp_case_id', $caseIds)))
+            ->orderBy('id')
+            ->get(['id', 'op_number', 'survey_comp_case_id', 'survey_beneficiary_id', 'survey_project_id', 'plot_no', 'allottee_name',
+                'status', 'verification_status', 'is_existing']);
+
+        $byPlot = [];
+        $byFarmer = [];
+        foreach ($rows as $op) {
+            $item = (object) [
+                'op_number'    => $op->op_number,
+                'status'       => $op->status,
+                'verification' => $op->verificationStatus(),
+                'source'       => $op->is_existing ? 'Existing OP' : 'Generated',
+            ];
+            $plots = self::plotList($op->plot_no);
+            foreach ($plots as $p) $byPlot[self::plotKey($p)][] = $item;
+            $name = $op->beneficiary?->full_name ?: $op->allottee_name;
+            if (! $plots && $op->survey_comp_case_id && trim((string) $name) !== '') {
+                $byFarmer[$op->survey_comp_case_id . '|' . self::nameKey($name)][] = $item;
+            }
+        }
+
+        return ['count' => $rows->count(), 'byPlot' => $byPlot, 'byFarmer' => $byFarmer];
+    }
+
+    /** "145,146 & 150-152" -> [145, 146, 150, 151, 152], as the lists count them (CompensationListImport::countPlots). */
+    public static function plotList(?string $plots): array
+    {
+        $out = [];
+        foreach (preg_split('/\s*[,;&]\s*/', trim((string) $plots)) as $p) {
+            if ($p === '') continue;
+            if (preg_match('/^(\d+)\s*-\s*(\d+)$/', $p, $m) && $m[2] >= $m[1] && $m[2] - $m[1] < 500) {
+                foreach (range((int) $m[1], (int) $m[2]) as $n) $out[] = (string) $n;
+            } else {
+                $out[] = $p;
+            }
+        }
+
+        return $out;
+    }
+
+    private static function plotKey(string $plot): string
+    {
+        return mb_strtoupper(preg_replace('/\s+/', '', $plot));
+    }
+
+    private static function nameKey(?string $name): string
+    {
+        return mb_strtoupper(trim(preg_replace('/\s+/', ' ', (string) $name)));
     }
 
     public function update(Request $r, SurveyProject $project)

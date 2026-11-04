@@ -24,7 +24,7 @@
 <div class="page-header">
     <div></div>
     <button type="button" class="btn btn-primary" onclick="document.getElementById('beneficiaryPanel').classList.toggle('open')">
-        <i class="fas fa-user-plus"></i> {{ $editing ? 'Edit Beneficiary' : 'Add Beneficiary' }}
+        <i class="fas fa-user-plus"></i> {{ $editing ? 'Edit Beneficiary' : 'Add Farmer' }}
     </button>
 </div>
 
@@ -42,13 +42,13 @@
         <div class="kpi-value">{{ number_format($stats['pending']) }}</div>
     </div>
     <div class="kpi-card">
-        <div class="kpi-label">Linked to a Case</div>
+        <div class="kpi-label">Linked to a Farm Assessment</div>
         <div class="kpi-value">{{ number_format($stats['linked']) }}</div>
     </div>
 </div>
 
 <div class="farmer-entry-form {{ $panelOpen ? 'open' : '' }}" id="beneficiaryPanel"
-     data-sv-modal="{{ $editing ? 'Edit Beneficiary · ' . $beneficiary->full_name : 'Add Beneficiary' }}"
+     data-sv-modal="{{ $editing ? 'Edit Beneficiary · ' . $beneficiary->full_name : 'Add Farmer' }}"
      @if ($editing) data-sv-modal-close="{{ route('survey-module.compensation.beneficiaries', request()->only(['q', 'status', 'case'])) }}" @endif>
     <form method="POST"
           action="{{ $editing
@@ -82,11 +82,11 @@
                 </select>
             </div>
 
-            <div class="sv-group"><i class="fas fa-link"></i><span>Compensation case</span></div>
+            <div class="sv-group"><i class="fas fa-link"></i><span>Farm Assessment</span></div>
             <div class="form-group full">
-                <label>Linked Compensation Case</label>
+                <label>Linked Farm Assessment</label>
                 <select name="survey_comp_case_id">
-                    <option value="">— Not linked to a case —</option>
+                    <option value="">— Not linked to a farm assessment —</option>
                     @foreach ($cases as $c)
                         <option value="{{ $c->id }}"
                             @selected((string) old('survey_comp_case_id', $beneficiary->survey_comp_case_id) === (string) $c->id)>
@@ -163,7 +163,7 @@
             </div>
             <div class="right">
                 <button class="btn btn-success" type="submit">
-                    <i class="fas fa-check"></i> {{ $editing ? 'Save Changes' : 'Add Beneficiary' }}
+                    <i class="fas fa-check"></i> {{ $editing ? 'Save Changes' : 'Add Farmer' }}
                 </button>
             </div>
         </div>
@@ -172,7 +172,7 @@
 
 <form method="GET" class="table-toolbar">
     <div class="left">
-        <input type="text" name="q" value="{{ request('q') }}" placeholder="Search name, phone, NIN, case…"
+        <input type="text" name="q" value="{{ request('q') }}" placeholder="Search name, phone, NIN, assessment…"
                style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;width:250px;" />
         <select name="status" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;">
             <option value="">All Status</option>
@@ -204,7 +204,7 @@
                     <th>Account Name</th>
                     <th>Account No.</th>
                     <th>Status</th>
-                    <th>Case</th>
+                    <th>Farm Assessment</th>
                     <th>Scheme Type</th>
                     <th>Created By</th>
                     <th>Date Created</th>
@@ -267,10 +267,13 @@
                                     <a href="{{ route('survey-module.compensation.beneficiaries.edit', $b) }}" class="{{ $svItem }}">
                                         <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
                                     </a>
-                                    @if ($b->case)
-                                        <a href="{{ route('survey-module.compensation.cases.show', $b->case) }}" class="{{ $svItem }}">
-                                            <i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i> View Case
-                                        </a>
+                                    {{-- View Form(s) (user, 2026-11-03): the farmer's Confirmation Forms, found by name (farmers carry no NIN).
+                                         Hidden for now (user, 2026-11-03); set $showViewForms to bring it back. --}}
+                                    @php $showViewForms = false; @endphp
+                                    @if ($showViewForms)
+                                    <a href="{{ route('survey-module.compensation.plot-confirmations', ['tab' => 'confirmation', 'cfq' => $b->full_name]) }}" class="{{ $svItem }}">
+                                        <i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i> View Form(s)
+                                    </a>
                                     @endif
                                     <form method="POST" action="{{ route('survey-module.compensation.beneficiaries.destroy', $b) }}"
                                           onsubmit="return confirm('Delete {{ addslashes($b->full_name) }}? This cannot be undone.');">
@@ -291,7 +294,7 @@
                                 No beneficiaries match these filters.
                                 <a href="{{ route('survey-module.compensation.beneficiaries') }}">Clear them</a>.
                             @else
-                                No beneficiaries yet. Use <strong>Add Beneficiary</strong> above, or register them on
+                                No beneficiaries yet. Use <strong>Add Farmer</strong> above, or register them on
                                 <a href="{{ route('survey-module.compensation.cases.register') }}">Step 2 of a case</a>.
                             @endif
                         </td>

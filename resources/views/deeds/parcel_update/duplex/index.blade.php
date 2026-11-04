@@ -502,6 +502,7 @@
                                                 <button onclick="deleteDuplex({{ $record->id }})" @disabled(!$canDelete)
                                                     title="{{ $canDelete ? '' : 'A commissioned duplex cannot be deleted' }}"
                                                     class="menu-item text-red-600">Delete</button>
+                                                @include('deeds.parcel_update.partials.master_delete_item', ['mdType' => 'duplex', 'mdRecord' => $record, 'mdClass' => 'menu-item flex items-center gap-2'])
                                             </div>
                                         </div>
                                     </div>
@@ -597,4 +598,5 @@
     ],
 ])
 @include('partials.decommissioned_before', ['dbSource' => 'dxSourceFiles', 'dbSourceIsFunction' => true, 'dbAnchor' => '#dx-sources'])
+@include('deeds.parcel_update.partials.master_delete_script')
 @endsection

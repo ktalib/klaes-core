@@ -74,6 +74,11 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
             Route::post('/capture', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'capture'])->name('.capture');
             Route::post('/{form}', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'update'])->whereNumber('form')->name('.update');
             Route::post('/{form}/void', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'void'])->whereNumber('form')->name('.void');
+            // The Guarantor's Form, step 2 of capture, printed from the row menu (user, 2026-11-03).
+            Route::get('/{form}/guarantor', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'guarantorPrint'])->whereNumber('form')->name('.guarantor');
+            // Guarantor Forms: their own table and form under the Confirmation Forms tab (user, 2026-11-03).
+            Route::post('/guarantor', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'saveGuarantor'])->name('.guarantor.save');
+            Route::post('/{form}/guarantor/remove', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'removeGuarantor'])->whereNumber('form')->name('.guarantor.remove');
         });
 
         // CO files (CO-YYYY-0001), one to many projects (user, 2026-10-25)
@@ -104,6 +109,10 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Record Plot Showing from the office (user, 2026-11-02): the OP search and the save.
         Route::get('/plot-confirmations/op-search', [PlotConfirmationController::class, 'opSearch'])->name('plot-confirmations.op-search');
         Route::post('/plot-confirmations/showings', [PlotConfirmationController::class, 'storeShowing'])->name('plot-confirmations.showings.store');
+        // Old register entries (user, 2026-11-03): showings captured from the old book, no OP needed.
+        Route::post('/plot-confirmations/old', [PlotConfirmationController::class, 'storeOld'])->name('plot-confirmations.old.store');
+        Route::put('/plot-confirmations/old/{showing}', [PlotConfirmationController::class, 'updateOld'])->whereNumber('showing')->name('plot-confirmations.old.update');
+        Route::delete('/plot-confirmations/old/{showing}', [PlotConfirmationController::class, 'destroyOld'])->whereNumber('showing')->name('plot-confirmations.old.destroy');
 
         // Resettlement Calculator: plots = area ÷ plot size by land use / density (SG formulas, 2026-10-29).
         Route::get('/resettlement-calculator', [ResettlementCalculatorController::class, 'index'])->name('resettlement-calculator');
@@ -174,6 +183,10 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Occupancy Permits
         Route::get('/op', [OpController::class, 'index'])->name('op');
         Route::post('/op/generate', [OpController::class, 'generate'])->name('op.generate');
+        // Existing OPs, captured as issued (user, 2026-11-03): the Existing tab; no generator.
+        Route::post('/op/existing', [OpController::class, 'storeExisting'])->name('op.existing.store');
+        Route::put('/op/existing/{op}', [OpController::class, 'updateExisting'])->whereNumber('op')->name('op.existing.update');
+        Route::delete('/op/existing/{op}', [OpController::class, 'destroyExisting'])->whereNumber('op')->name('op.existing.destroy');
         Route::post('/op/{op}/advance', [OpController::class, 'advance'])->name('op.advance');
         Route::delete('/op/{op}', [OpController::class, 'destroy'])->name('op.destroy');
         // Return a generated OP made by mistake; its number is freed (CR 30102026 item 35).
@@ -423,6 +436,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::delete('/map-requests/{mapRequest}', [SdiMapRequestController::class, 'destroy'])->whereNumber('mapRequest')->name('map-requests.destroy');
         Route::get('/map-requests/{mapRequest}/map', [SdiMapRequestController::class, 'deliverable'])->whereNumber('mapRequest')->name('map-requests.deliverable');
 
+        // Geo-informatics > Basemap (Satellite Imagery) (user, 2026-11-03): the SDI maps on the satellite basemap.
+        Route::get('/basemap', [SdiMapRequestController::class, 'basemap'])->name('basemap');
         Route::get('/production', [SdiProductionController::class, 'index'])->name('production');
         Route::post('/production/{mapRequest}/start', [SdiProductionController::class, 'start'])->whereNumber('mapRequest')->name('production.start');
         Route::post('/production/{mapRequest}/fulfil', [SdiProductionController::class, 'fulfil'])->whereNumber('mapRequest')->name('production.fulfil');

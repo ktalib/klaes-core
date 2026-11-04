@@ -160,8 +160,8 @@
             $recordTypeSuffix = $recordType === 'fc' ? ' (FC)' : ($recordType === 'fefr' ? ' (FEFR)' : '');
         }
 
-        $pageTitle = $isChangeOfName 
-            ? 'OSS File Commissioning (Change of Ownership)' . $recordTypeSuffix
+        $pageTitle = $isChangeOfName
+            ? 'Generate FileNos (Change of Ownership)'
             : 'Applications (No Change of Ownership)';
         $pageDescription = $isChangeOfName
             ? 'Land One Stop Shop overview of Change of Ownership Occupancy Permit records' . ($recordType ? ' filtered by ' . strtoupper($recordType) : '') . '.'
@@ -266,6 +266,37 @@
                     </div>
                 </div>
             </div>
+
+            {{-- ── FC / FEFR tabs (Generate FileNos) ── --}}
+            @if($isChangeOfName && in_array($recordType ?? null, ['fc', 'fefr'], true))
+                @php
+                    $tabBase = array_merge(request()->only(['source', 'type', 'limit']), ['type' => 'change-of-name']);
+                    $recordTabs = [
+                        'fc' => ['label' => 'File Commissioning (FC)', 'icon' => 'file-plus-2', 'on' => 'border-blue-600 text-blue-700', 'dot' => 'bg-blue-500'],
+                        'fefr' => ['label' => 'Fetch Existing File Record (FEFR)', 'icon' => 'folder-search-2', 'on' => 'border-orange-600 text-orange-700', 'dot' => 'bg-orange-500'],
+                    ];
+                @endphp
+                <nav class="flex flex-wrap gap-1 border-b border-slate-200" role="tablist" aria-label="Generate FileNos">
+                    @foreach($recordTabs as $tabKey => $tab)
+                        @php $tabActive = $recordType === $tabKey; @endphp
+                        <a href="{{ url()->current() . '?' . http_build_query(array_merge($tabBase, ['record_type' => $tabKey])) }}"
+                            role="tab" aria-selected="{{ $tabActive ? 'true' : 'false' }}"
+                            class="inline-flex items-center gap-2 px-4 py-2.5 -mb-px border-b-2 text-sm font-semibold transition {{ $tabActive ? $tab['on'] . ' bg-white rounded-t-lg' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300' }}">
+                            <i data-lucide="{{ $tab['icon'] }}" class="w-4 h-4"></i>
+                            {{ $tab['label'] }}
+                            @if($tabActive)
+                                <span class="w-1.5 h-1.5 rounded-full {{ $tab['dot'] }}"></span>
+                            @endif
+                        </a>
+                    @endforeach
+                </nav>
+                @if(session('recordTypeSwitched'))
+                    <div class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50 text-sm text-blue-800">
+                        <i data-lucide="arrow-right-left" class="w-4 h-4 shrink-0"></i>
+                        <span>{{ session('recordTypeSwitched') }}</span>
+                    </div>
+                @endif
+            @endif
 
             {{-- ── Filter Bar ── --}}
             <div id="op-filter-bar" class="hidden">

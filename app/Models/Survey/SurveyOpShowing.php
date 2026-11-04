@@ -41,9 +41,18 @@ class SurveyOpShowing extends SurveyModel
 
     public const REASONS = ['Change of Ownership', 'Verification'];
 
+    /** Plot Showing Register (Old): copied from the old register book, no OP (user, 2026-11-03). */
+    public const SOURCE_OLD = 'old';
+
     public function op(): BelongsTo
     {
         return $this->belongsTo(SurveyOpRecord::class, 'survey_op_record_id');
+    }
+
+    /** Ground checks made in the field in response to this showing (user, 2026-11-03). */
+    public function groundChecks(): HasMany
+    {
+        return $this->hasMany(SurveyPlotCheck::class, 'survey_op_showing_id');
     }
 
     public function photos(): HasMany

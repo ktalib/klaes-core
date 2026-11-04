@@ -1429,6 +1429,10 @@ class DuplexParcelUpdateController extends Controller
     {
         $duplex = DuplexParcelUpdate::with(['stageRows.files', 'files'])->findOrFail($id);
 
+        if ((int) ($duplex->is_deleted ?? 0) === 1) {
+            return response()->json(['success' => false, 'message' => 'This duplex has been deleted.'], 422);
+        }
+
         // A 2000-plot subdivision stage is ten batch runs in this one request. Raise the
         // limit only if it is currently lower (public/.htaccess narrows web requests to
         // 600); set_time_limit() sets the ceiling outright, so never cut a higher one.

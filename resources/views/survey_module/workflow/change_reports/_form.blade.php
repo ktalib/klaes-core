@@ -3,6 +3,17 @@
     $locked = $report->isIssued();
     $fromLine = (bool) ($line ?? null);
     $ro = 'background:var(--gray-100);color:var(--gray-700);';
+    // Plan prepared by: a surveyor from the list, or Other (user, 2026-11-03). Only the name is stored, so a
+    // saved report opens on the listed surveyor of that name, otherwise on Other with the name filled.
+    $svPick = ''; $svOther = '';
+    if ($savedSv = trim((string) $report->surveyor_name)) {
+        foreach (array_merge($surveyors['staff'], $surveyors['surcon']) as $key => $s) {
+            if (mb_strtolower($s['name']) === mb_strtolower($savedSv)) { $svPick = $key; break; }
+        }
+        if ($svPick === '') { $svPick = 'other'; $svOther = $savedSv; }
+    }
+    $svPick = (string) old('surveyor_choice', $svPick);
+    $svOther = old('surveyor_name_other', $svOther);
 @endphp
 
 @include('survey_module.partials._flash')
@@ -44,7 +55,24 @@
             <div class="form-grid">
                 <div class="sv-group"><i class="fas fa-drafting-compass"></i><span>Plan</span></div>
                 <div class="form-group"><label>Plan No.</label><input type="text" name="plan_no" maxlength="100" value="{{ old('plan_no', $report->plan_no) }}" /></div>
-                <div class="form-group"><label>Plan prepared by (surveyor)</label><input type="text" name="surveyor_name" maxlength="255" value="{{ old('surveyor_name', $report->surveyor_name) }}" /></div>
+                <div class="form-group"><label>Plan prepared by (surveyor)</label>
+                    <select name="surveyor_choice" id="crSurveyor" class="sv-searchable" data-placeholder="Search surveyor…">
+                        <option value=""></option>
+                        @if (count($surveyors['staff']))
+                            <optgroup label="Survey Department staff">
+                                @foreach ($surveyors['staff'] as $key => $s)<option value="{{ $key }}" @selected($svPick === $key)>{{ $s['name'] }}{{ $s['hint'] ? ' — ' . $s['hint'] : '' }}</option>@endforeach
+                            </optgroup>
+                        @endif
+                        @if (count($surveyors['surcon']))
+                            <optgroup label="Registered surveyors (SURCON)">
+                                @foreach ($surveyors['surcon'] as $key => $s)<option value="{{ $key }}" @selected($svPick === $key)>{{ $s['name'] }}{{ $s['hint'] ? ' — ' . $s['hint'] : '' }}</option>@endforeach
+                            </optgroup>
+                        @endif
+                        <option value="other" @selected($svPick === 'other')>Other (specify)</option>
+                    </select>
+                    <input type="text" name="surveyor_name_other" id="crSurveyorOther" maxlength="255" placeholder="Specify the surveyor's name *"
+                           value="{{ $svOther }}" style="margin-top:6px;{{ $svPick === 'other' ? '' : 'display:none;' }}" @if ($svPick === 'other') required @endif />
+                </div>
             </div>
             <div class="form-grid">
                 <div class="sv-group"><i class="fas fa-search"></i><span>Findings</span></div>
@@ -67,6 +95,18 @@
     </div>
     </fieldset>
 </form>
+<script>
+// Other under Plan prepared by reveals the required name box.
+(function () {
+    var by = document.getElementById('crSurveyor'), other = document.getElementById('crSurveyorOther');
+    if (!by || !other) return;
+    by.addEventListener('change', function () {
+        var on = by.value === 'other';
+        other.style.display = on ? '' : 'none'; other.required = on;
+        if (on) other.focus(); else other.value = '';
+    });
+})();
+</script>
 
 @if ($editing && isset($records))
     @php

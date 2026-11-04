@@ -321,6 +321,12 @@ window.secretariatFileLog = function (config) {
             });
             let data = {};
             try { data = await res.json(); } catch (e) { data = {}; }
+            if (res.status === 401 || res.status === 419) {
+                // Logged out (session ended): say so instead of showing empty lists (user, 2026-11-02).
+                const err = new Error('Your login has ended. Refresh the page (F5) and log in again.');
+                err.sessionExpired = true;
+                throw err;
+            }
             if (!res.ok || data.success === false) {
                 const errors = data.errors ? Object.values(data.errors).flat().join(' ') : '';
                 const err = new Error(data.message || errors || ('Request failed (' + res.status + ')'));
@@ -361,7 +367,11 @@ window.secretariatFileLog = function (config) {
                 this.lists = { pending, held, sent: data.sent || [], memo, elsewhere };
                 this.lastRefreshed = new Date();
             } catch (e) {
-                if (silent) console.warn('[File Movement] auto refresh failed:', e.message);
+                if (e.sessionExpired) {
+                    // Once, even on an automatic refresh or a search.
+                    if (!this._sessionWarned) this.notify('error', e.message);
+                    this._sessionWarned = true;
+                } else if (silent) console.warn('[File Movement] auto refresh failed:', e.message);
                 else this.notify('error', e.message);
             } finally {
                 this.listsLoading = false;
@@ -441,11 +451,11 @@ window.secretariatFileLog = function (config) {
         },
         // Plus, while the Filter box searches, matching files that are not at this office
         // (user, 2026-11-02): under every sub-tab, read only, whatever the date range.
+        // Shown on Files and Mails alike (user, 2026-11-02: a mail searched from the Files tab showed
+        // "Nothing here"); the Type column says which it is.
         elsewhereRows() {
             if (!this.outgoingSearch()) return [];
-            const isMemo = (r) => r.file_type === 'NON_FILE';
-            const rows = (this.lists.elsewhere || []).filter(r => (this.tab === 'memo') === isMemo(r));
-            return this.memoTyped(this.searched(rows));
+            return this.memoTyped(this.searched(this.lists.elsewhere || []));
         },
         memoTyped(rows) {
             return this.tab === 'memo' && this.memoFilter ? rows.filter(r => this.memoMatches(r, this.memoFilter)) : rows;
@@ -538,10 +548,12 @@ window.secretariatFileLog = function (config) {
         // The Filter box: case-insensitive, over everything the row shows (and its ids), on every
         // tab and sub-tab. Several words must all match, in any column.
         searched(rows) {
-            const words = this.filter.trim().toLowerCase().split(/\s+/).filter(Boolean);
+            // A run of I / l / 1 matches any mix of them (TV.III typed TV.IIl), as the server search does.
+            const roman = (t) => t.replace(/[il1]{2,}/g, (m) => 'i'.repeat(m.length));
+            const words = this.filter.trim().toLowerCase().split(/\s+/).filter(Boolean).map(roman);
             if (!words.length) return rows;
             return rows.filter(r => {
-                const text = this.rowSearchText(r);
+                const text = roman(this.rowSearchText(r));
                 return words.every(w => text.includes(w));
             });
         },
@@ -916,7 +928,7 @@ window.secretariatFileLog = function (config) {
         },
 
         openRow(row, startSend = false) {
-            this.profile.match = { file_number: row.file_number, tracking_id: row.tracking_id, file_title: row.file_title, tracker: row.id ? { id: row.id } : null };
+            this.profile.match = { file_number: row.file_number, related_file_number: row.related_file_number, tracking_id: row.tracking_id, file_title: row.file_title, tracker: row.id ? { id: row.id } : null };
             this.profile.readOnly = !!row.elsewhere;
             this.send = blankSend();
             this.loadProfile({ tracker_id: row.id || '', file_number: row.file_number || '' }).then(() => {
@@ -1156,6 +1168,9 @@ window.secretariatFileLog = function (config) {
             const d = this.profile.data;
             if (d && d.file.file_number) return d.file.file_number;
             if (this.profile.match && this.profile.match.file_number) return this.profile.match.file_number;
+            // A mail/letter/memo has no file_number of its own; the list shows the file it relates to.
+            if (d && d.file.related_file_number) return d.file.related_file_number;
+            if (this.profile.match && this.profile.match.related_file_number) return this.profile.match.related_file_number;
             return (d && d.file.file_title) || 'Document';
         },
 
@@ -1196,7 +1211,7 @@ window.secretariatFileLog = function (config) {
             const t = d.tracker || {};
             const regs = { 1: 'Registry 1', 2: 'Registry 2', 3: 'Registry 3' };
             const rows = [
-                { label: 'File number', value: f.file_number },
+                { label: 'File number', value: f.file_number || f.related_file_number },
                 { label: 'File title', value: nice(f.file_title) },
                 { label: 'Plot no.', value: nice(f.plot_number) },
                 { label: 'Plot size', value: f.plot_size },

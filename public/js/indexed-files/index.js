@@ -290,7 +290,7 @@ function renderRows(rows) {
         ${col('registry', `<td class="${standardCellClass}">${escapeHtml(getRegistryDisplayValue(row))}</td>`)}
         ${col('file_number', `<td class="p-3 whitespace-nowrap">
           ${fileNumberBadge}
-          ${tableVariant === 'main' ? `<div class="mt-1"><button type="button" class="edms-view-files-btn inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 hover:text-emerald-800 hover:underline transition-colors" data-id="${row.id}" data-file-number="${escapeHtml(row.file_number)}" data-registry-folder="Lands_Registry"><i data-lucide="folder-open" class="w-3 h-3"></i><span>View Files</span></button></div>` : ''}
+          ${tableVariant === 'main' ? `<div class="mt-1"><button type="button" class="edms-view-files-btn inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 hover:text-emerald-800 hover:underline transition-colors" data-id="${row.id}" data-file-number="${escapeHtml(row.file_number || row.temp_file_no || '')}" data-registry-folder="Lands_Registry" data-blind-scan title="Open the scanned pages in the Blind Scan folder"><i data-lucide="folder-open" class="w-3 h-3"></i><span>View Files</span></button></div>` : ''}
         </td>`)}
         ${col('corresponding_fileno', `<td class="${standardCellClass}">${row.corresponding_fileno ? `<span class="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200">${escapeHtml(row.corresponding_fileno)}</span>` : '<span class="text-gray-400">-</span>'}</td>`)}
         ${col('pp_lands_fileno', `<td class="${standardCellClass}">${row.pp_lands_fileno ? `<span class="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">${escapeHtml(row.pp_lands_fileno)}</span>` : '<span class="text-gray-400">-</span>'}</td>`)}
@@ -491,6 +491,15 @@ function buildActionsMenu(row, viewUrl) {
   const viewButton = `<button type="button" class="view-file-btn block w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors" data-file-id="${id}" data-view-url="${escapeHtml(viewUrl || '')}">
           <i data-lucide="eye" class="h-4 w-4 mr-2.5 inline text-blue-500"></i>
           View Details
+        </button>`;
+
+  // Opens the Blind Scan folder in the scanned-page viewer (openScannedFile). Only where
+  // the page loads the viewer (config.scanCheckUrl), i.e. the main Files table.
+  const scannedFileNumber = String(row.file_number || row.temp_file_no || '').trim();
+  const hasScannedTarget = scannedFileNumber !== '' && scannedFileNumber !== '-';
+  const viewScannedButton = !config.scanCheckUrl ? '' : `<button type="button" class="view-scanned-file-btn flex items-start gap-2.5 w-full text-left px-4 py-2.5 text-sm ${hasScannedTarget ? 'text-emerald-700 hover:bg-emerald-50' : 'text-gray-400 cursor-not-allowed opacity-40'} transition-colors" data-file-id="${id}" data-file-number="${escapeHtml(scannedFileNumber)}" ${hasScannedTarget ? '' : 'disabled="disabled"'}>
+          <i data-lucide="scan-line" class="h-4 w-4 mt-0.5 shrink-0 ${hasScannedTarget ? 'text-emerald-600' : 'text-gray-300'}"></i>
+          <span class="leading-snug">View Scanned File</span>
         </button>`;
 
   // config.canEdit / canPrint come from the blade component and mirror the module
@@ -706,6 +715,7 @@ function buildActionsMenu(row, viewUrl) {
              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">File Actions</p>
           </div>
           ${viewButton}
+          ${viewScannedButton}
           ${viewTransactionsButton}
           ${moveTransactionButton}
           ${viewRelatedFilesButton}
@@ -979,12 +989,26 @@ function handleTableBodyClick(event) {
     return;
   }
 
+  const scannedBtn = event.target.closest('.view-scanned-file-btn');
+  if (scannedBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeAllActionMenus();
+    openScannedFile(scannedBtn.getAttribute('data-file-number'));
+    return;
+  }
+
   const edmsViewBtn = event.target.closest('.edms-view-files-btn');
   if (edmsViewBtn) {
     event.preventDefault();
     event.stopPropagation();
     const id = edmsViewBtn.getAttribute('data-id');
     const fileNumber = edmsViewBtn.getAttribute('data-file-number');
+    // Main Files table: the link opens the Blind Scan folder (user, 2026-11-04).
+    if (edmsViewBtn.hasAttribute('data-blind-scan')) {
+      openScannedFile(fileNumber);
+      return;
+    }
     const registryFolder = edmsViewBtn.getAttribute('data-registry-folder') || 'Cadastral_Registry';
     openEdmsFilesModal(id, fileNumber, registryFolder);
   }
@@ -1416,6 +1440,88 @@ function openRelatedFilesModal(id, options) {
     .catch(err => {
       console.error(err);
       tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-sm text-red-500 font-medium">Error loading related files. Please try again.</td></tr>';
+    });
+}
+
+/**
+ * View Scanned File / the main table's View Files link (user, 2026-11-04): open the file's
+ * Blind Scan folder (EDMS/BLIND_SCAN/<Registry>_Raw/<file no.>) in the shared scanned-page
+ * viewer. The folder is found by the scan check Create File Index and Legal Search use, so
+ * spelling variants match the same way. With no Blind Scan folder it falls back to the
+ * other scanned copies the check knows (upload folders, raw scans on the records server,
+ * then the Digital Archive).
+ */
+const SCAN_SOURCE_ORDER = ['blind_scan', 'scan_upload', 'upload', 'records_server'];
+
+function openScannedFile(fileNumber) {
+  fileNumber = String(fileNumber || '').trim();
+  const notify = (icon, title, text) => (window.Swal ? Swal.fire({ icon, title, text }) : alert(title + '\n\n' + text));
+  if (!fileNumber || fileNumber === '-') {
+    notify('info', 'No file number', 'This record has no file number to look up.');
+    return;
+  }
+  if (!window.KlaesScanViewer) {
+    notify('info', 'Viewer unavailable', 'The scanned-page viewer is not available on this page.');
+    return;
+  }
+
+  if (window.Swal) {
+    Swal.fire({ title: 'Finding scanned file…', text: fileNumber, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+  }
+
+  const url = (config.scanCheckUrl || '/scan-check') + '?file_number=' + encodeURIComponent(fileNumber);
+  fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' } })
+    .then(r => r.json().then(d => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => {
+      if (!ok || !d.success) throw new Error(d.message || 'The scan check failed.');
+
+      const sources = Array.isArray(d.sources) ? d.sources : [];
+      const folders = sources
+        .filter(s => s.token && SCAN_SOURCE_ORDER.includes(s.source))
+        .sort((a, b) => (SCAN_SOURCE_ORDER.indexOf(a.source) - SCAN_SOURCE_ORDER.indexOf(b.source)) || ((b.pages || 0) - (a.pages || 0)));
+      const blind = folders.filter(s => s.source === 'blind_scan');
+      const archive = sources.find(s => s.source === 'digital_archive' && s.view_url);
+
+      if (window.Swal) Swal.close();
+
+      const openSource = s => window.KlaesScanViewer.open({
+        token: s.token,
+        title: fileNumber + ' — ' + (s.label || 'Scanned'),
+        subtitle: (s.folder || '') + ' · ' + (s.pages || 0) + ' page(s)',
+      });
+
+      const choices = blind.length ? blind : folders;
+      if (choices.length === 1) {
+        openSource(choices[0]);
+        return;
+      }
+      if (choices.length > 1 && window.Swal) {
+        // Several folders (e.g. "<file no.>" and "<file no.> - Copy"): let the user pick.
+        const inputOptions = {};
+        choices.forEach((s, i) => { inputOptions[i] = `${s.label}: ${s.folder} (${s.pages} page${s.pages === 1 ? '' : 's'})`; });
+        Swal.fire({
+          title: 'Choose a scanned folder',
+          input: 'radio',
+          inputOptions,
+          inputValue: '0',
+          showCancelButton: true,
+          confirmButtonText: 'Open',
+        }).then(res => { if (res.isConfirmed) openSource(choices[Number(res.value) || 0]); });
+        return;
+      }
+      if (choices.length) {
+        openSource(choices[0]);
+        return;
+      }
+      if (archive) {
+        window.open(archive.view_url, '_blank');
+        return;
+      }
+      notify('info', 'No scanned file found', d.message || `No scanned pages were found for ${fileNumber}.`);
+    })
+    .catch(err => {
+      if (window.Swal) Swal.close();
+      notify('error', 'Could not open the scanned file', err.message || 'Please try again.');
     });
 }
 
@@ -3576,9 +3682,22 @@ async function handleMoveToIndexingDuplicates(button) {
   const deletedTransactionTotal = Number(preview.deleted_transaction_total || 0);
   const deletedTransactionWarning = deletedTransactionTotal > 0
     ? `<p class="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded p-2 mt-3 text-left">
-         <strong>${deletedTransactionTotal.toLocaleString()}</strong> property / CofO / file history record(s) will be
+         <strong>${deletedTransactionTotal.toLocaleString()}</strong> property / CofO / file history / deed / caveat record(s) will be
          <strong>deleted</strong> along with this file (archived in the snapshot).
          A file with real dealings is usually the original — make sure this is the duplicate.
+       </p>`
+    : '';
+
+  // Scans and bills move with the file too (user, 2026-11-04). Image files on disk stay.
+  const scanTotal = Number(preview.scan_total || 0);
+  const billTotal = Number(preview.bill_total || 0);
+  const scanBillParts = [];
+  if (scanTotal > 0) scanBillParts.push(`<strong>${scanTotal.toLocaleString()}</strong> scanned page(s)`);
+  if (billTotal > 0) scanBillParts.push(`<strong>${billTotal.toLocaleString()}</strong> bill(s)`);
+  const scanBillWarning = scanBillParts.length
+    ? `<p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 mt-3 text-left">
+         ${scanBillParts.join(' and ')} will move with this file into the archive and leave the live
+         Digital Archive / billing. The image files on disk are not deleted.
        </p>`
     : '';
 
@@ -3613,6 +3732,7 @@ async function handleMoveToIndexingDuplicates(button) {
           ${deletionSummary}
           ${renderMovePreviewTable('Kept', retained, 'keep')}
           ${deletedTransactionWarning}
+          ${scanBillWarning}
           <div class="mt-4 text-left">
             <p class="text-[11px] font-bold uppercase tracking-wider text-slate-600">Duplicate of</p>
             <div class="mt-1 flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2">

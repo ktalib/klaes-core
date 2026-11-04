@@ -42,7 +42,13 @@ class OpController extends Controller
 
     public function index(Request $r)
     {
-        $q = SurveyOpRecord::query()->with(['case', 'beneficiary', 'steps']);
+        // Two tabs (user, 2026-11-03): Existing (OPs issued before, captured as written) and New (generated here).
+        $tab = $r->query('tab') === 'new' ? 'new' : 'existing';
+        if ($tab === 'existing') {
+            return $this->existingIndex($r);
+        }
+
+        $q = SurveyOpRecord::query()->new()->with(['case', 'beneficiary', 'steps']);
 
         if ($term = trim((string) $r->query('q', ''))) {
             $q->where(function ($w) use ($term) {
@@ -58,17 +64,160 @@ class OpController extends Controller
         $ops = $q->orderByDesc('id')->paginate(15)->withQueryString();
 
         $stats = [
-            'total'  => SurveyOpRecord::count(),
-            'draft'  => SurveyOpRecord::where('status', self::STATUS_DRAFT)->count(),
-            'ready'  => SurveyOpRecord::where('status', self::STATUS_READY)->count(),
-            'issued' => SurveyOpRecord::where('status', self::STATUS_ISSUED)->count(),
+            'total'  => SurveyOpRecord::new()->count(),
+            'draft'  => SurveyOpRecord::new()->where('status', self::STATUS_DRAFT)->count(),
+            'ready'  => SurveyOpRecord::new()->where('status', self::STATUS_READY)->count(),
+            'issued' => SurveyOpRecord::new()->where('status', self::STATUS_ISSUED)->count(),
         ];
 
         return view('survey_module.compensation.op', [
+            'tab'        => 'new',
+            'counts'     => ['existing' => $this->existingQuery()->count(), 'new' => $stats['total']],
             'ops'        => $ops,
             'stats'      => $stats,
             'candidates' => $this->candidates(),
         ]);
+    }
+
+    /**
+     * Existing tab (user, 2026-11-03: "let the Existing tab show the existing OPs"): the OPs already issued,
+     * read from Deeds as the Plot Showing search reads them (OpLookup: instrument_capture OPs + the older
+     * standalone pra OPs), plus any typed in here with Capture Existing OP. Deeds rows are read-only here.
+     */
+    private function existingIndex(Request $r)
+    {
+        $term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')));
+        $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
+        $kind = in_array($r->query('kind'), self::OP_KINDS, true) ? $r->query('kind') : null;
+
+        $ops = $this->existingQuery()
+            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('serial', 'like', $like)->orWhere('allottee', 'like', $like)
+                ->orWhere('plot_no', 'like', $like)->orWhere('file_no', 'like', $like)->orWhere('district', 'like', $like)->orWhere('lga', 'like', $like)))
+            ->when($kind, fn ($q) => $q->where('op_kind', $kind))
+            ->when($r->query('project'), fn ($q, $p) => $q->where('project_id', (int) $p))
+            ->orderByRaw('CASE WHEN issued IS NULL THEN 1 ELSE 0 END, issued DESC, rid DESC')
+            ->paginate(20)->withQueryString();
+
+        $totals = $this->existingQuery()->selectRaw("COUNT(*) total, SUM(CASE WHEN op_kind = 'Resettlement' THEN 1 ELSE 0 END) resettlement, "
+            . "SUM(CASE WHEN op_kind = 'Direct Allocation' THEN 1 ELSE 0 END) direct, SUM(CASE WHEN src = 'klaes' THEN 1 ELSE 0 END) captured")->first();
+
+        return view('survey_module.compensation.op', [
+            'tab'      => 'existing',
+            'counts'   => ['existing' => (int) $totals->total, 'new' => SurveyOpRecord::new()->count()],
+            'ops'      => $ops,
+            'kinds'    => self::OP_KINDS,
+            'projects' => SurveyProject::orderBy('name')->get(['id', 'project_code', 'name']),
+            'editing'  => $r->query('edit') ? SurveyOpRecord::existing()->find((int) $r->query('edit')) : null,
+            // Dashboard cards (user, 2026-11-03).
+            'stats'    => [
+                'total'        => (int) $totals->total,
+                'resettlement' => (int) $totals->resettlement,
+                'direct'       => (int) $totals->direct,
+                'captured'     => (int) $totals->captured,
+            ],
+        ]);
+    }
+
+    /** OP types as the Existing tab groups them; Deeds writes them as "OP Resettlement" / "Resettlement" etc. */
+    private const OP_KINDS = ['Resettlement', 'Direct Allocation'];
+
+    /** Every existing OP in one shape: Deeds (capture + standalone pra) and the ones captured on this page. */
+    private function existingQuery(): \Illuminate\Database\Query\Builder
+    {
+        $db = \Illuminate\Support\Facades\DB::connection('sqlsrv');
+        $op = 'Occupancy Permit (OP)';
+        $t = fn ($col, $n = 255) => "CAST(NULLIF(LTRIM(RTRIM(CAST({$col} AS NVARCHAR({$n})))), '') AS NVARCHAR({$n}))";
+        // An OP with no type in Deeds counts as Direct Allocation (user, 2026-11-03); Deeds itself is not changed.
+        $kind = fn ($col) => "CASE WHEN {$col} LIKE '%Resettlement%' THEN 'Resettlement' ELSE 'Direct Allocation' END";
+        $live = fn ($alias) => fn ($q) => $q->whereNull("{$alias}.is_deleted")->orWhere("{$alias}.is_deleted", 0);
+
+        $capture = $db->table('instrument_capture as ic')->where('ic.instrument_type', $op)->where($live('ic'))
+            ->selectRaw("'capture' AS src, ic.id AS rid, {$t('ic.op_serial_number', 50)} AS serial, {$kind('ic.op_type')} AS op_kind, "
+                . "{$t('ic.party_2_name')} AS allottee, {$t('ic.plot_number', 100)} AS plot_no, {$t('ic.district', 150)} AS district, {$t('ic.lga', 150)} AS lga, "
+                . "COALESCE({$t('ic.property_location', 500)}, {$t('ic.property_description', 500)}) AS location, COALESCE({$t('ic.mlsFNo', 100)}, {$t('ic.temp_fileno', 100)}) AS file_no, "
+                . "TRY_CAST(ic.reg_date AS date) AS issued, CAST(NULL AS int) AS project_id, CAST(NULL AS NVARCHAR(2000)) AS remarks");
+
+        $pra = $db->table('pra as p')->where('p.instrument_type', $op)->whereNull('p.instrument_capture_id')->where($live('p'))
+            ->selectRaw("'pra' AS src, p.id AS rid, {$t('p.op_serial_number', 50)} AS serial, {$kind('p.op_type')} AS op_kind, "
+                . "{$t('p.Grantee')} AS allottee, {$t('p.plot_no', 100)} AS plot_no, {$t('p.districtName', 150)} AS district, CAST(NULL AS NVARCHAR(150)) AS lga, "
+                . "COALESCE({$t('p.location', 500)}, {$t('p.property_description', 500)}) AS location, COALESCE({$t('p.mlsFNo', 100)}, {$t('p.temp_fileno', 100)}) AS file_no, "
+                . "TRY_CAST(p.reg_date AS date) AS issued, CAST(NULL AS int) AS project_id, CAST(NULL AS NVARCHAR(2000)) AS remarks");
+
+        $klaes = $db->table('survey_op_records as o')->where('o.is_existing', 1)->whereNull('o.deleted_at')
+            ->selectRaw("'klaes' AS src, o.id AS rid, {$t('o.op_number', 50)} AS serial, 'Resettlement' AS op_kind, "
+                . "{$t('o.allottee_name')} AS allottee, {$t('o.plot_no', 100)} AS plot_no, {$t('o.district', 150)} AS district, {$t('o.lga', 150)} AS lga, "
+                . "CAST(NULL AS NVARCHAR(500)) AS location, CAST(NULL AS NVARCHAR(100)) AS file_no, "
+                . "TRY_CAST(o.issued_at AS date) AS issued, o.survey_project_id AS project_id, {$t('o.remarks', 2000)} AS remarks");
+
+        return $db->query()->fromSub($capture->unionAll($pra)->unionAll($klaes), 'x');
+    }
+
+    public function storeExisting(Request $r)
+    {
+        $op = SurveyOpRecord::create($this->existingValues($r) + [
+            'is_existing' => true,
+            'status'      => self::STATUS_ISSUED,
+            'created_by'  => auth()->id(),
+        ]);
+
+        return redirect()->route('survey-module.compensation.op', ['tab' => 'existing'])->with('success', "Existing OP {$op->op_number} captured.");
+    }
+
+    public function updateExisting(Request $r, SurveyOpRecord $op)
+    {
+        abort_unless($op->is_existing, 404);
+        $op->update($this->existingValues($r, $op) + ['updated_by' => auth()->id()]);
+
+        return redirect()->route('survey-module.compensation.op', ['tab' => 'existing'])->with('success', "Existing OP {$op->op_number} updated.");
+    }
+
+    public function destroyExisting(SurveyOpRecord $op)
+    {
+        abort_unless($op->is_existing, 404);
+        $op->update(['updated_by' => auth()->id()]);
+        $op->delete();
+
+        return redirect()->route('survey-module.compensation.op', ['tab' => 'existing'])->with('success', "Existing OP {$op->op_number} removed.");
+    }
+
+    private function existingValues(Request $r, ?SurveyOpRecord $existing = null): array
+    {
+        $d = $r->validate([
+            'op_number'         => 'required|string|max:50',
+            'allottee_name'     => 'required|string|max:255',
+            'survey_project_id' => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('sqlsrv.survey_projects', 'id')],
+            'plot_no'           => 'nullable|string|max:100',
+            'district'          => 'nullable|string|max:150',
+            'lga'               => 'nullable|string|max:150',
+            'issued_at'         => 'nullable|date|before_or_equal:today',
+            'scheme_type'       => ['nullable', \Illuminate\Validation\Rule::in([SurveyProject::SCHEME_MONETARY, SurveyProject::SCHEME_LAND])],
+            'remarks'           => 'nullable|string|max:2000',
+        ], [
+            'op_number.required'     => 'Enter the OP number as it is on the OP.',
+            'allottee_name.required' => 'Enter the allottee.',
+        ]);
+        $clean = fn ($v) => ($v = trim(preg_replace('/\s+/u', ' ', (string) $v))) === '' ? null : $v;
+        // An identifier: exactly as on the OP. The same number twice (any case or spacing) is refused.
+        $no = $clean($d['op_number']);
+        $taken = SurveyOpRecord::withTrashed()->whereRaw("UPPER(REPLACE(op_number, ' ', '')) = ?", [mb_strtoupper(str_replace(' ', '', $no))])
+            ->when($existing, fn ($q) => $q->where('id', '!=', $existing->id))->exists();
+        if ($taken) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['op_number' => "OP {$no} is already recorded."]);
+        }
+        $project = ! empty($d['survey_project_id']) ? SurveyProject::find($d['survey_project_id']) : null;
+
+        return [
+            'op_number'         => $no,
+            'allottee_name'     => $clean($d['allottee_name']),
+            'survey_project_id' => $project?->id,
+            'scheme_type'       => $d['scheme_type'] ?? $project?->scheme_type,
+            'plot_no'           => $clean($d['plot_no'] ?? null),
+            'plot_or_cash_ref'  => $clean($d['plot_no'] ?? null),
+            'district'          => $clean($d['district'] ?? null),
+            'lga'               => $clean($d['lga'] ?? null),
+            'issued_at'         => $d['issued_at'] ?? null,
+            'remarks'           => $clean($d['remarks'] ?? null),
+        ];
     }
 
     /**

@@ -1453,6 +1453,12 @@ class FileIndexingController extends Controller
 
             DB::connection('sqlsrv')->transaction(function () use (&$validated, $id, $existingRecord, $request, $resolvedTestControl, $requestHasCofo, $normalizedPropId, $skipEntityCustomerUpdates, $isKangisRegistry) {
                 $updatePayload = Arr::only($validated, FileIndexing::columnWhitelist());
+                // The Registry box is auto-filled in the browser and often posts blank on an
+                // edit. A blank must never wipe the stored registry: from 2026-10-19 every
+                // edited SLTR file lost 'SLTR' and fell off the SLTR Indexed count.
+                if (array_key_exists('registry', $updatePayload) && trim((string) $updatePayload['registry']) === '' && trim((string) ($existingRecord->registry ?? '')) !== '') {
+                    $updatePayload['registry'] = $existingRecord->registry;
+                }
                 // The KANGIS Indexed Files page lists by registry; KN files arrive with none.
                 if (array_key_exists('registry', $updatePayload) && trim((string) $updatePayload['registry']) === '' && ($validated['general_registry'] ?? null) === KangisBlockIndexing::REGISTRY) {
                     $updatePayload['registry'] = 'KANGIS';
@@ -2879,6 +2885,17 @@ class FileIndexingController extends Controller
     /**
      * Check if a file number has already been indexed
      */
+    /**
+     * A plain KN number ("KN 3547" / "KN3547", no ML/GP letters), uppercased with its
+     * spacing kept (runs of spaces collapsed to one); null for anything else.
+     */
+    public static function strictKnFileNumber(?string $fileno): ?string
+    {
+        $value = strtoupper(trim((string) $fileno));
+
+        return preg_match('/^KN\s*\d+$/', $value) ? preg_replace('/\s+/', ' ', $value) : null;
+    }
+
     public function checkIndexed(Request $request)
     {
         $fileno = trim((string) $request->query('fileno', ''));
@@ -2898,6 +2915,13 @@ class FileIndexingController extends Controller
             return preg_replace('/[^A-Z0-9]/', '', strtoupper((string) $value));
         }, $variants);
         $normalizedVariants = array_values(array_unique(array_filter($normalizedVariants)));
+
+        // "KN 3547" (land file) and "KN3547" (KANGIS) are different files, so a plain KN
+        // number matches with its spacing intact, never by the separator-stripped key.
+        if ($strictKn = self::strictKnFileNumber($fileno)) {
+            $variants = [$strictKn];
+            $normalizedVariants = [];
+        }
 
         try {
             $query = DB::connection('sqlsrv')->table('file_indexings');

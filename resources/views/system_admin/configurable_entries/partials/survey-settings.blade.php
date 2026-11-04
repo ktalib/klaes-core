@@ -8,7 +8,7 @@
     use App\Http\Controllers\SystemAdmin\SurveySettingsController as SS;
     use App\Services\Survey\SurveySettings as Settings;
 
-    $fmtFrac = fn ($v) => '.' . str_pad((string) round((float) $v * 100), 2, '0', STR_PAD_LEFT);
+    $fmtFrac = fn ($v) => (float) $v >= 1 ? '1.00' : '.' . str_pad((string) round((float) $v * 100), 2, '0', STR_PAD_LEFT);
     $cards = [
         'ratios' => ['title' => 'Sharing Ratios', 'icon' => 'scale', 'tone' => 'blue', 'rows' => $svRatios,
             'sub' => 'Farmer : Government plots on Land to Land. The default is the general ratio; a project picks one when it is set up, and only its own cases use it.',
@@ -20,8 +20,8 @@
             'sub' => 'Fills each land line in the Monetary Compensation calculator (rate × land size); the officer can still change it on the line.',
             'cols' => ['Name', 'Rate', 'Unit', 'Default', 'Status']],
         'beacon-prefixes' => ['title' => 'Beacon Prefixes', 'icon' => 'map-pin', 'tone' => 'red', 'rows' => $svPrefixes,
-            'sub' => 'Offered when a beacon number is issued on the Beacon Register.',
-            'cols' => ['Prefix', 'Description', 'Status']],
+            'sub' => 'Offered when a beacon number is issued on the Beacon Register, for its beacon type.',
+            'cols' => ['Prefix', 'Beacon Type', 'Description', 'Status']],
     ];
     // Hidden for now (user, 2026-11-01): the Monetary calculator values land by each crop's / tree's cost of
     // production per hectare (Kano schedule), so this list is unused. Rows, routes and saving are kept.
@@ -72,6 +72,7 @@
                                         @break
                                     @case('beacon-prefixes')
                                         <td class="font-medium text-gray-900" style="font-family:monospace">{{ $row->prefix }}</td>
+                                        <td>{{ ($row->beacon_type ?? null) ?: 'Both' }}</td>
                                         <td>{{ $row->description ?: '—' }}</td>
                                         @break
                                 @endswitch
@@ -144,8 +145,8 @@
                                 @break
                             @case('classmarks')
                                 <div class="iw-grid" style="gap:12px">
-                                    <div class="iw-field"><label class="iw-label">Part plot from <span class="req">*</span></label><input type="number" step="0.01" min="0" max="0.99" name="from_fraction" value="{{ $row ? number_format((float) $row->from_fraction, 2) : '' }}" required class="iw-input" placeholder="e.g. 0.10"></div>
-                                    <div class="iw-field"><label class="iw-label">to <span class="req">*</span></label><input type="number" step="0.01" min="0" max="0.99" name="to_fraction" value="{{ $row ? number_format((float) $row->to_fraction, 2) : '' }}" required class="iw-input" placeholder="e.g. 0.24"></div>
+                                    <div class="iw-field"><label class="iw-label">Part plot from <span class="req">*</span></label><input type="number" step="0.01" min="0" max="1" name="from_fraction" value="{{ $row ? number_format((float) $row->from_fraction, 2) : '' }}" required class="iw-input" placeholder="e.g. 0.10"></div>
+                                    <div class="iw-field"><label class="iw-label">to <span class="req">*</span></label><input type="number" step="0.01" min="0" max="1" name="to_fraction" value="{{ $row ? number_format((float) $row->to_fraction, 2) : '' }}" required class="iw-input" placeholder="e.g. 0.24"></div>
                                 </div>
                                 <div class="iw-field"><label class="iw-label">Gives <span class="req">*</span></label>
                                     <select name="plots" required class="iw-input">
@@ -170,6 +171,14 @@
                                 @break
                             @case('beacon-prefixes')
                                 <div class="iw-field"><label class="iw-label">Prefix <span class="req">*</span></label><input type="text" name="prefix" value="{{ $row?->prefix }}" maxlength="20" required class="iw-input" style="text-transform:uppercase" placeholder="e.g. PBB"></div>
+                                <div class="iw-field"><label class="iw-label">Beacon Type</label>
+                                    <select name="beacon_type" class="iw-input">
+                                        <option value="">Both (Government and Private)</option>
+                                        @foreach (\App\Models\Survey\SurveyBeaconRegister::LAYOUT_TYPES as $btKey => $btLabel)
+                                            <option value="{{ $btKey }}" @selected(($row?->beacon_type ?? null) === $btKey)>{{ $btLabel }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
                                 <div class="iw-field"><label class="iw-label">Description</label><input type="text" name="description" value="{{ $row?->description }}" maxlength="255" class="iw-input" placeholder="Optional"></div>
                                 @break
                         @endswitch

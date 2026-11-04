@@ -1391,8 +1391,10 @@
         const hasFile = Boolean(state.selectedIndexedFile);
         const hasMethod = Boolean(state.selectedUploadMethod);
         const hasRegistry = blindScanElements.registry ? Boolean(blindScanElements.registry.value) : true;
-        const blindScanReady = state.selectedUploadMethod !== 'blind'
-            || (!state.blindScan.loading && !state.blindScan.error && state.blindScan.files.length > 0);
+        // Blind scan only waits for the folder lookup. An empty or missing folder
+        // (its pages were already moved into the file) warns on Load Documents
+        // instead of blocking, so Upload More still works with LF scans or local files.
+        const blindScanReady = state.selectedUploadMethod !== 'blind' || !state.blindScan.loading;
 
         elements.confirmFileSelectBtn.disabled = !(hasFile && hasMethod && hasRegistry && blindScanReady);
     }
@@ -6716,6 +6718,30 @@
         await loadSelectedFilePagePreview();
     }
 
+    /**
+     * Blind scan found no new pages for the file, usually because they were
+     * already uploaded. A warning only: the operator carries on uploading more.
+     */
+    function warnNoNewBlindScanPages(selectedFile) {
+        const fileNumber = selectedFile?.fileNumber || 'this file';
+        const existing = Number(selectedFile?.scans_count) || 0;
+        const pages = (state.uploadDocuments || []).length;
+        const message = [
+            existing
+                ? `${fileNumber} already has ${existing} uploaded document(s), and its blind-scan folder has no new pages.`
+                : `No blind-scan pages were found for ${fileNumber}.`,
+            pages
+                ? `The ${pages} page(s) already added will be uploaded to the file.`
+                : 'Add pages on the upload screen (browse or drop files), or use Browse Large-Format Scans.'
+        ].join(' ');
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'warning', title: 'No new blind-scan pages', text: message });
+        } else {
+            alert(message);
+        }
+    }
+
     function selectIndexedFile() {
         const selectedFile = findIndexedFileById(state.selectedIndexedFile);
 
@@ -6738,26 +6764,22 @@
                 return;
             }
 
-            if (state.blindScan.error) {
-                alert(state.blindScan.error);
-                return;
-            }
-
-            if (!state.blindScan.files.length) {
-                alert('No blind scan documents were found for this file number.');
-                return;
-            }
-
-            // "Next" in the Blind Scan dialog is what stages the files.
-            // If the operator confirmed without going through it, stage them here
-            // rather than losing their selection.
-            if (!(state.blindScan.stagedFiles || []).length) {
+            if (state.blindScan.error || !state.blindScan.files.length) {
+                // Nothing new in the blind-scan folder: warn, don't block. Pages
+                // already added (LF scans) carry on, and the upload screen
+                // accepts files from this workstation.
+                closeBlindScanModal();
+                warnNoNewBlindScanPages(selectedFile);
+            } else if (!(state.blindScan.stagedFiles || []).length) {
+                // "Next" in the Blind Scan dialog is what stages the files.
+                // If the operator confirmed without going through it, stage them here
+                // rather than losing their selection.
                 stageBlindScanFiles();
                 return;
+            } else {
+                // Confirmed: only now do the staged pages reach the upload screen.
+                commitStagedBlindScanFiles();
             }
-
-            // Confirmed: only now do the staged pages reach the upload screen.
-            commitStagedBlindScanFiles();
         }
 
         state.showFileSelector = false;

@@ -279,6 +279,8 @@ class PlotSeparationController extends Controller
     {
         $record = PlotSeparationApplication::where('file_no', $fileNo)
             ->where('status', PlotSeparationApplication::STATUS_APPROVED)
+            // A master-deleted approval keeps its status, so it is excluded here.
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
             ->orderByDesc('created_at')
             ->first();
 
@@ -292,6 +294,11 @@ class PlotSeparationController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $record = PlotSeparationApplication::findOrFail($id);
+
+        // Never once anything has been commissioned off it (user, 2026-11-02).
+        if ($why = \App\Services\ParcelUpdateMasterDelete::commissionedReason('separation', $record)) {
+            return response()->json(['success' => false, 'message' => $why . ' It cannot be deleted.'], 403);
+        }
 
         if ($record->status === PlotSeparationApplication::STATUS_APPROVED) {
             return response()->json(['success' => false, 'message' => 'Approved applications cannot be deleted.'], 403);

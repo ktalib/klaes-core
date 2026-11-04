@@ -37,7 +37,7 @@ class ComputationFileController extends Controller
                     ->orderByDesc('commissioned_at')->orderByDesc('id')->paginate(25)->withQueryString()
                 : new \Illuminate\Pagination\LengthAwarePaginator([], 0, 25);
 
-            return view('survey_module.gkn.computation_files', compact('tab', 'rows', 'term'));
+            return view('survey_module.gkn.computation_files', compact('tab', 'rows', 'term') + ['stats' => $this->stats()]);
         }
 
         $rows = CF::query()->with('commissioner:id,first_name,last_name')
@@ -55,12 +55,35 @@ class ComputationFileController extends Controller
             }
         }
 
-        return view('survey_module.gkn.computation_files', compact('tab', 'rows', 'term', 'its') + [
-            'editing'   => $r->query('edit') ? CF::find($r->query('edit')) : null,
+        $editing = $r->query('edit') ? CF::find($r->query('edit')) : null;
+
+        return view('survey_module.gkn.computation_files', compact('tab', 'rows', 'term', 'its', 'editing') + [
+            'stats'     => $this->stats(),
+            // Instruction to Survey is back on this form as an optional pick (user, 2026-11-03): Survey's own
+            // I to S that name no other Computation File. On edit it shows the one already linked either way.
+            'itsOptions' => SurveyIts::query()->where('status', '!=', SurveyIts::CANCELLED)
+                ->where(fn ($q) => $q->whereNull('survey_computation_file_id')->when($editing, fn ($w) => $w->orWhere('survey_computation_file_id', $editing->id)))
+                ->orderByDesc('id')->limit(1000)->get(['id', 'its_number', 'job_ref', 'file_number', 'file_title']),
+            'editingIts' => $editing ? (SurveyIts::where('survey_computation_file_id', $editing->id)->orderBy('id')->value('id') ?: $editing->survey_its_id) : null,
             // Shown on the Commission form; the number itself is given on save (user, 2026-11-02).
             'nextNo'    => ComputationNumbers::peek(CF::PREFIX),
             'surveyors' => SurveyorListEntry::query()->where('is_active', true)->orderBy('first_name')->orderBy('surname')->get(['id', 'first_name', 'surname', 'other_name', 'rank']),
         ]);
+    }
+
+    /** Dashboard cards for both tabs (user, 2026-11-03: "most of the survey pages did not have dashboard cards"). */
+    private function stats(): array
+    {
+        $private = Schema::connection('sqlsrv')->hasTable('cadastral_field_jackets')
+            ? \App\Models\CadastralDept\CadastralFieldJacket::query()->count() : 0;
+
+        return [
+            'government' => CF::count(),
+            'private'    => $private,
+            'month'      => CF::where('commissioned_at', '>=', now()->startOfMonth())->count(),
+            'with_its'   => CF::whereIn('id', SurveyIts::whereNotNull('survey_computation_file_id')->select('survey_computation_file_id'))
+                ->orWhereNotNull('survey_its_id')->count(),
+        ];
     }
 
     public function store(Request $r)
@@ -73,13 +96,16 @@ class ComputationFileController extends Controller
             $year = (int) date('Y');
             $serial = (int) substr(strrchr($no, '-'), 1);
 
-            return CF::create($data + [
+            $cf = CF::create($data + [
                 'computation_no'  => $no,
                 'year'            => (int) $year,
                 'serial'          => (int) $serial,
                 'commissioned_by' => Auth::id(),
                 'commissioned_at' => now(),
             ]);
+            $this->linkIts($cf);
+
+            return $cf;
         });
 
         return redirect()->route('survey-module.gkn.computation-files')->with('success', "Computation File {$cf->computation_no} commissioned.");
@@ -87,9 +113,25 @@ class ComputationFileController extends Controller
 
     public function update(Request $r, CF $computationFile)
     {
-        $computationFile->update($this->validated($r) + ['updated_by' => Auth::id()]);
+        DB::connection('sqlsrv')->transaction(function () use ($r, $computationFile) {
+            $computationFile->update($this->validated($r) + ['updated_by' => Auth::id()]);
+            $this->linkIts($computationFile);
+        });
 
         return redirect()->route('survey-module.gkn.computation-files')->with('success', "Computation File {$computationFile->computation_no} updated.");
+    }
+
+    /**
+     * The I to S picked here also names this Computation File on its own form, when it names none yet,
+     * so both screens agree. An I to S that already names another file is left as it is.
+     */
+    private function linkIts(CF $cf): void
+    {
+        if (! $cf->survey_its_id) {
+            return;
+        }
+        SurveyIts::whereKey($cf->survey_its_id)->whereNull('survey_computation_file_id')
+            ->update(['survey_computation_file_id' => $cf->id, 'computation_no' => $cf->computation_no]);
     }
 
     private function validated(Request $r): array
@@ -103,8 +145,10 @@ class ComputationFileController extends Controller
             'location'          => 'nullable|string|max:500',
             'surveyors_list_id' => ['required', Rule::exists('sqlsrv.surveyors_list', 'id')],
             'remarks'           => 'nullable|string|max:1000',
+            'survey_its_id'     => ['nullable', 'integer', Rule::exists('sqlsrv.survey_its', 'id')],
         ], [
             'surveyors_list_id.required' => 'Choose the surveyor.',
+            'survey_its_id.exists'       => 'That Instruction to Survey no longer exists. Pick another.',
         ]);
         $surveyor = SurveyorListEntry::find($d['surveyors_list_id']);
         $clean = fn ($v) => ($v = trim(preg_replace('/\s+/u', ' ', (string) $v))) === '' ? null : $v;
@@ -119,7 +163,8 @@ class ComputationFileController extends Controller
             'location'          => $clean($d['location'] ?? null),
             'surveyors_list_id' => $surveyor->id,
             'surveyor_name'     => $surveyor->full_name,
-            // survey_its_id is no longer set here (user, 2026-11-02); an old link stays as it was.
+            // Optional again (user, 2026-11-03; it was taken off on 2026-11-02).
+            'survey_its_id'     => ! empty($d['survey_its_id']) ? (int) $d['survey_its_id'] : null,
             'remarks'           => Normalise::text($d['remarks'] ?? null) ?: null,
         ];
     }

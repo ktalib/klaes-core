@@ -609,6 +609,7 @@ class PlotMergerController extends Controller
     {
         $search = trim((string) $request->input('search'));
         $records = PlotMergerApplication::where('status', PlotMergerApplication::STATUS_APPROVED)
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('temp_file_no', 'LIKE', "%{$search}%")
@@ -726,6 +727,8 @@ class PlotMergerController extends Controller
                   ->orWhere('temp_file_no', $fileNo);
             })
             ->where('status', PlotMergerApplication::STATUS_APPROVED)
+            // A master-deleted approval keeps its status, so it is excluded here.
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
             ->orderByDesc('created_at')
             ->first();
 
@@ -745,6 +748,11 @@ class PlotMergerController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $record = PlotMergerApplication::findOrFail($id);
+
+        // Never once anything has been commissioned off it (user, 2026-11-02).
+        if ($why = \App\Services\ParcelUpdateMasterDelete::commissionedReason('merger', $record)) {
+            return response()->json(['success' => false, 'message' => $why . ' It cannot be deleted.'], 403);
+        }
         
         if ($record->status === PlotMergerApplication::STATUS_APPROVED) {
             return response()->json(['success' => false, 'message' => 'Approved applications cannot be deleted.'], 403);

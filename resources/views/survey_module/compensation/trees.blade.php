@@ -1,10 +1,10 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'Farm Assessment — KLAES')
+@section('page-title', 'Farm Features — KLAES')
 
 @php
   // Was Economic Trees Assessment; tabs Economic Trees / Cash Crops (CR 30102026 item 6).
-  $PageTitle = 'Farm Assessment';
+  $PageTitle = 'Farm Features';
   $PageDescription = 'Valuation catalogue for Monetary Compensation schemes only · Tree × Qty × Unit Price';
 @endphp
 

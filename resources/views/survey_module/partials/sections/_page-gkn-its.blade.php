@@ -15,7 +15,7 @@
     <div></div>
     {{-- Survey issues Government jobs only; the Private tab lists Cadastral's jobs, read-only. --}}
     @if ($tab === 'government')
-        <a href="{{ route('survey-module.gkn.its.create') }}" class="btn btn-primary"><i class="fas fa-plus"></i> Create I to S</a>
+        <a href="{{ route('survey-module.gkn.its.create') }}" class="btn btn-primary"><i class="fas fa-plus"></i> Issue I to S</a>
     @endif
 </div>
 

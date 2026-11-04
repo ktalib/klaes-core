@@ -33,6 +33,24 @@
         </span>
     @endif
 </button>
+{{-- Registration particulars under the File Number, once an instrument is registered on this consent;
+     teal, a colour no consent-type badge uses (user, 2026-11-02). --}}
+@if (!empty($registration))
+  <div class="mt-1 text-[11px] font-bold whitespace-nowrap" style="color:#0f766e;" title="Registered as {{ $registration->instrument_type }}">
+    Reg: <span class="font-mono">{{ $registration->registration_number }}</span>
+  </div>
+@endif
+{{-- ST Assignment: registered unit by unit; one unit shows its number, several show how many (each in View Units). --}}
+@if (!empty($stRegistration))
+  <div class="mt-1 text-[11px] font-bold whitespace-nowrap" style="color:#0f766e;" title="{{ implode("
+", $stRegistration['numbers']) }}">
+    @if ($stRegistration['total'] === 1 && $stRegistration['single'])
+      Reg: <span class="font-mono">{{ $stRegistration['single'] }}</span>
+    @else
+      Reg: {{ $stRegistration['count'] }} of {{ $stRegistration['total'] }} units
+    @endif
+  </div>
+@endif
 <!--cell-->
 @php
 $badgeClass = match($application->consent_type) {

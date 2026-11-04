@@ -1,10 +1,11 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'MDA & Map Type Registry — SDI — KLAES')
+@section('page-title', (request('tab') === 'types' ? 'Map Types' : 'MDAs') . ' — SDI — KLAES')
 
 @php
-    $PageTitle = 'SDI · MDA & Map Type Registry';
-    $PageDescription = 'Kano MDAs that request maps, and the map types the GIS unit produces. Retired, never deleted.';
+    // MDAs and Map Types are separate tabs in the SDI bar (user, 2026-11-03).
+    $PageTitle = $tab === 'types' ? 'SDI · Map Types' : 'SDI · MDAs';
+    $PageDescription = $tab === 'types' ? 'The map types the GIS unit produces. Retired, never deleted.' : 'Kano MDAs that request maps. Retired, never deleted.';
     $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
     $inputStyle = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;';
     $field = 'width:100%;border:1.5px solid var(--gray-300);border-radius:6px;padding:8px;';
@@ -20,12 +21,16 @@
     <div class="alert alert-danger" style="margin-bottom:12px;">{{ $errors->first() }}</div>
 @endif
 
+<div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-label">MDAs</div><div class="kpi-value">{{ number_format($stats['mdas']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Categories</div><div class="kpi-value">{{ number_format($stats['categories']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Map Types</div><div class="kpi-value">{{ number_format($stats['types']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">MDAs that requested maps</div><div class="kpi-value">{{ number_format($stats['with_request']) }}</div></div>
+</div>
+
 <div x-data="{ mda: null, type: null }">
     <div class="page-header">
-        <div class="sdi-nav" style="border:0;margin:0;">
-            <a href="{{ route('survey-module.sdi.registry') }}" class="{{ $tab === 'mdas' ? 'on' : '' }}">MDAs <span class="n">{{ number_format($mdas->total()) }}</span></a>
-            <a href="{{ route('survey-module.sdi.registry', ['tab' => 'types']) }}" class="{{ $tab === 'types' ? 'on' : '' }}">Map Types <span class="n">{{ $mapTypes->count() }}</span></a>
-        </div>
+        <div style="color:var(--gray-600);font-size:14px;">{{ $tab === 'types' ? number_format($mapTypes->count()) . ' map types' : number_format($mdas->total()) . ' MDAs' }}</div>
         @if ($tab === 'mdas')
             <button type="button" class="btn btn-primary" @click.stop="mda = @js($blankMda)"><i class="fas fa-plus"></i> Add MDA</button>
         @else

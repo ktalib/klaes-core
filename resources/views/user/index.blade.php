@@ -274,6 +274,7 @@
                                    placeholder="{{ __('Search name, username, email, phone or role...') }}"
                                    class="search-input w-full rounded-lg border-gray-300 pl-9 pr-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                         </div>
+                        @if ($activeTab !== 'mdc')
                         <div class="flex items-center gap-2">
                             <label for="department" class="text-sm text-gray-600 whitespace-nowrap">{{ __('Department') }}</label>
                             <select id="department" name="department" onchange="this.form.submit()"
@@ -284,6 +285,7 @@
                                 @endforeach
                             </select>
                         </div>
+                        @endif
                         <div class="flex items-center gap-2">
                             <label for="per_page" class="text-sm text-gray-600 whitespace-nowrap">{{ __('Show') }}</label>
                             <select id="per_page" name="per_page" onchange="this.form.submit()"

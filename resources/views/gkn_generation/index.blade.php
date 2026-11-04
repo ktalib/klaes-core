@@ -183,7 +183,7 @@
                                                      <label class="block text-xs font-bold text-slate-600 mb-1 uppercase" x-text="(editMode ? 'Full File Number' : (batchMode ? 'Number Range' : 'Full File Number'))"></label>
                                                       <div class="px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg font-mono text-xs text-blue-700 font-bold shadow-inner"
                                                            :class="editMode ? 'opacity-50 select-none' : ''" 
-                                                           x-text="editMode ? formData.full_file_number : (batchMode ? (formData.prefix + formData.serial_number + ' - ' + formData.prefix + (parseInt(formData.serial_number) + parseInt(formData.quantity) - 1)) : (formData.prefix + formData.serial_number))"></div>
+                                                           x-text="editMode ? formData.full_file_number : !formData.type ? 'Select a prefix' : (batchMode ? (formData.prefix + formData.serial_number + ' - ' + formData.prefix + (parseInt(formData.serial_number) + parseInt(formData.quantity) - 1)) : (formData.prefix + formData.serial_number))"></div>
                                                  </div>
                                             </div>
  

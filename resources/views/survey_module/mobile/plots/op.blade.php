@@ -129,6 +129,8 @@
                         @if ($s->photos->isNotEmpty())
                             <div class="thumbs">@foreach ($s->photos as $ph)<a href="{{ route('survey-module.mobile.plots.showings.photos.show', $ph) }}"><img src="{{ route('survey-module.mobile.plots.showings.photos.show', $ph) }}" alt="{{ $s->label }} photo" loading="lazy"></a>@endforeach</div>
                         @endif
+                        {{-- Step 2: the field response to this showing (user, 2026-11-03). --}}
+                        <a class="btn btn-ghost btn-sm" style="margin-top:6px;" href="{{ route('survey-module.mobile.plots.checks.create', ['op' => $op['key'], 'showing' => $s->id]) }}"><i class="fas fa-map-location-dot"></i> Ground-check this showing</a>
                     </div>
                 </div>
             @empty

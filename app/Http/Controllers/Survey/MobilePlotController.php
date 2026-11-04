@@ -186,8 +186,13 @@ class MobilePlotController extends Controller
     {
         $op = $r->query('op') ? $this->ops->find((string) $r->query('op')) : null;
 
+        // The OP's showings: the check answers one of them (user, 2026-11-03), the latest unless chosen.
+        $opShowings = $op ? Showing::where('op_source', $op['source'])->where('op_source_id', $op['id'])->orderByDesc('showing_no')->get() : collect();
+
         return view('survey_module.mobile.plots.check_form', [
             'op'        => $op,
+            'opShowings' => $opShowings,
+            'showingId' => (int) $r->query('showing') ?: $opShowings->first()?->id,
             'layouts'   => SurveyLpkn::orderBy('lpkn_number')->get(['id', 'lpkn_number', 'layout_name', 'prop_district', 'prop_lga']),
             'surveyors' => $this->surveyors(),
             'me'        => $this->myStaffId(),
@@ -222,6 +227,7 @@ class MobilePlotController extends Controller
             'latitude'          => 'nullable|numeric|between:-90,90',
             'longitude'         => 'nullable|numeric|between:-180,180|required_with:latitude',
             'accuracy_m'        => 'nullable|numeric|min:0|max:100000',
+            'showing'           => 'nullable|integer',
         ], [
             'op.required_if'                => 'Find the OP whose plot you are checking.',
             'layout.required_if'            => 'Choose the layout plan.',
@@ -241,6 +247,14 @@ class MobilePlotController extends Controller
         if ($data['target_type'] === Check::TARGET_OP) {
             $op = $this->ops->find($data['op']);
             if (! $op) throw ValidationException::withMessages(['op' => 'That OP was not found.']);
+            // Against which showing (user, 2026-11-03): the one picked, else the OP's latest. An OP never
+            // shown cannot be ground-checked yet: the showing is the record the check answers.
+            $showings = Showing::where('op_source', $op['source'])->where('op_source_id', $op['id']);
+            $against = ! empty($data['showing']) ? (clone $showings)->whereKey((int) $data['showing'])->first() : (clone $showings)->orderByDesc('showing_no')->first();
+            if (! $against) {
+                throw ValidationException::withMessages(['op' => 'Record the OP showing first: the ground check is the response to a showing.']);
+            }
+            $target['survey_op_showing_id'] = $against->id;
             $target += ['op_source' => $op['source'], 'op_source_id' => $op['id'], 'op_serial' => $op['serial'], 'holder_name' => $op['allottee'],
                         'plot_no' => $op['plot_no'], 'district' => $op['district'], 'lga' => $op['lga'], 'layout_no' => $op['layout'],
                         'location' => $op['location'] ? mb_substr($op['location'], 0, 500) : null];

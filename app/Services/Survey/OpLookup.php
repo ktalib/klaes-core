@@ -53,6 +53,32 @@ class OpLookup
             ->take($limit)->values()->all();
     }
 
+    /**
+     * Up to $limit OPs by serial number only (Record Plot Showing, user 2026-11-03: "find OP should be
+     * OP serial number only, don't include plot no."): the serial contains what was typed, exact first.
+     */
+    public function searchSerial(string $term, int $limit = 30): array
+    {
+        $term = preg_replace('/\s+/', '', $term);
+        if (mb_strlen($term) < 2) {
+            return [];
+        }
+        $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
+        $order = fn ($col) => "CASE WHEN CAST({$col} AS NVARCHAR(50)) = ? THEN 0 ELSE 1 END";
+
+        $capture = $this->captureQuery()
+            ->whereRaw('CAST(ic.op_serial_number AS NVARCHAR(50)) LIKE ?', [$like])
+            ->orderByRaw($order('ic.op_serial_number'), [$term])->orderByDesc('ic.id')->limit($limit)->get();
+        $pra = $this->praQuery()
+            ->whereRaw('CAST(p.op_serial_number AS NVARCHAR(50)) LIKE ?', [$like])
+            ->orderByRaw($order('p.op_serial_number'), [$term])->orderByDesc('p.id')->limit($limit)->get();
+
+        return $capture->map(fn ($r) => $this->fromCapture($r))
+            ->merge($pra->map(fn ($r) => $this->fromPra($r)))
+            ->sortBy(fn ($op) => (string) $op['serial'] === $term ? 0 : 1)
+            ->take($limit)->values()->all();
+    }
+
     public function find(string $key): ?array
     {
         if (! preg_match('/^(capture|pra)-(\d+)$/', $key, $m)) {

@@ -514,3 +514,22 @@ GKN, unit indexing, FileIndexingService) and by both OSS raw inserts.
 **109 left**, `storage/app/propid-remediation/propid-held-for-review-20261019.csv`. 58 are "id taken":
 PropID_Master and the file's PRA rows give it the id, but its old KANGIS file holds it. The proposed
 fix is a SWAP, not yet approved.
+
+### 2026-11-04: "id taken" SWAP, 40 of 58 done
+
+Approved by the user after a read-only preview (`propid-swap-preview-20261104-071536.csv`, one row per
+file, with the verdict and reason; `-children-` lists every parent link). New command `propid:swap-taken`
+(dry-run by default, `--only=`, `--rollback=<run>`): the file takes its master id; the old KANGIS holder
+copies its own PropID_Master id if it has one, otherwise gets a new one from the allocator (`skip_lookup`, one
+new master row, aliases untouched); the holder's own transactions follow it; every `parent_prop_id` that
+meant the holder is re-pointed and `ancestral_prop_id` recomputed. One transaction per file; backup in
+`propid_swap_backup` (694 rows). Tested apply + rollback in an outer transaction first (0 differences).
+
+- Run `20261104-114158`: **40 swapped**, 0 errors, 80 ids written, 0 now shared. 39 holders minted
+  (310687–310728), KNML 2855 copied its own master id 164033. Log `swap-applied-20261104-114158.csv`.
+- Undo: `php artisan propid:swap-taken --rollback=20261104-114158`.
+- Skipped: **COM-2005-616**. Its indexing row is an empty shell, KNML 66's own fileNumber row names 147103 as its
+  parent, and child COM-2022-519 belongs to MLKN 3673.
+- **17 still held** (preview verdict REVIEW): 8 where the holder is a stranger with no link (likely ordinal
+  collisions), 4 KANGIS pairs with one stray third-file transaction on the id, 3 ids held by several files,
+  2 new 2026 RES/COM pairs with no recorded link (change of purpose?).

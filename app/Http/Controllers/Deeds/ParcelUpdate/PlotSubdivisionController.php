@@ -848,6 +848,8 @@ class PlotSubdivisionController extends Controller
     {
         $record = PlotSubdivisionApplication::where('file_no', $fileNo)
             ->where('status', PlotSubdivisionApplication::STATUS_APPROVED)
+            // A master-deleted approval keeps its status, so it is excluded here.
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
             ->orderByDesc('created_at')
             ->first();
 
@@ -877,6 +879,11 @@ class PlotSubdivisionController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $record = PlotSubdivisionApplication::findOrFail($id);
+
+        // Never once anything has been commissioned off it (user, 2026-11-02).
+        if ($why = \App\Services\ParcelUpdateMasterDelete::commissionedReason('subdivision', $record)) {
+            return response()->json(['success' => false, 'message' => $why . ' It cannot be deleted.'], 403);
+        }
         
         if ($record->status === PlotSubdivisionApplication::STATUS_APPROVED) {
             Log::warning('Blocked delete of approved subdivision application', [

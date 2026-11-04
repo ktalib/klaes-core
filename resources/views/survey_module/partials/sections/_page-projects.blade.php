@@ -116,8 +116,8 @@
                         <td class="ctr">@if ($portions){{ number_format($portions) }}@else<span class="muted">—</span>@endif</td>
                         <td class="ctr">
                             @if ($p->cases_count)
-                                <button type="button" class="pj-lands-btn" onclick="pjToggleLands({{ $p->id }}, this)" aria-expanded="false"
-                                        title="Show this project's lands">{{ number_format($p->cases_count) }} <i class="fas fa-chevron-down"></i></button>
+                                <button type="button" class="pj-lands-btn" onclick="pjShowLands({{ $p->id }})"
+                                        title="Show this project's lands">{{ number_format($p->cases_count) }} <i class="fas fa-external-link-alt"></i></button>
                             @else
                                 <span class="muted">0</span>
                             @endif
@@ -147,20 +147,21 @@
                                 <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                      :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                    {{-- Menu wording from the user's notes (2026-11-03): Capture Farmer, Update Farmers List, View Lands, Update Project. --}}
                                     <a href="{{ route('survey-module.compensation.cases.register', ['project' => $p->id]) }}" class="{{ $svItem }}">
-                                        <i data-lucide="plus-circle" class="w-4 h-4 text-gray-500"></i> Register Case
+                                        <i data-lucide="user-plus" class="w-4 h-4 text-gray-500"></i> Capture Farmer
                                     </a>
                                     <a href="{{ route('survey-module.compensation.capture-list', ['project' => $p->id]) }}" class="{{ $svItem }}">
-                                        <i data-lucide="clipboard-list" class="w-4 h-4 text-gray-500"></i> Capture List
+                                        <i data-lucide="clipboard-list" class="w-4 h-4 text-gray-500"></i> Update Farmers List
                                     </a>
                                     @if ($p->cases_count)
-                                        {{-- The project's lands, listed under its row (user, 2026-11-02). --}}
-                                        <button type="button" class="{{ $svItem }}" @click="open = false; pjToggleLands({{ $p->id }}, $el.closest('tr').querySelector('.pj-lands-btn'))">
+                                        {{-- The project's lands, in a modal (user, 2026-11-03). --}}
+                                        <button type="button" class="{{ $svItem }}" @click="open = false; pjShowLands({{ $p->id }})">
                                             <i data-lucide="list" class="w-4 h-4 text-gray-500"></i> View Lands
                                         </button>
                                     @endif
                                     <a href="{{ route('survey-module.compensation.projects.edit', $p) }}" class="{{ $svItem }}">
-                                        <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
+                                        <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Update Project
                                     </a>
                                     @if ($p->cases_count === 0)
                                         <form method="POST" action="{{ route('survey-module.compensation.projects.destroy', $p) }}"
@@ -176,10 +177,11 @@
                         </td>
                     </tr>
                     @if ($p->cases->isNotEmpty())
-                        {{-- Lands grouped under their project (user, 2026-11-02). Property order: Plot No., District, LGA, Location. --}}
-                        <tr class="pj-lands-row" data-parent="{{ $p->id }}" hidden>
+                        {{-- The project's lands (user, 2026-11-02), never shown in the table: View Lands copies them into the
+                             modal (user, 2026-11-03). Property order: Plot No., District, LGA, Location. --}}
+                        <tr class="pj-lands-row" data-parent="{{ $p->id }}" data-title="{{ $p->project_code }} · {{ $p->display_name }}" data-count="{{ $p->cases_count }}" hidden>
                             <td colspan="17">
-                                <div class="pj-lands">
+                                <div class="pj-lands" data-column-picker="off">
                                     <table>
                                         <thead><tr><th>S/N</th><th>Land Ref</th><th>Surveyor</th><th class="ctr">Portion</th><th class="num">Area (Ha)</th>
                                             <th class="ctr">Farmers</th><th class="ctr">Plots</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Status</th></tr></thead>
@@ -225,7 +227,7 @@
     <div class="table-footer">
         <span>
             Showing {{ $projects->firstItem() ?? 0 }}–{{ $projects->lastItem() ?? 0 }}
-            of {{ number_format($projects->total()) }} projects · the number beside a surveyor is how many portions they surveyed · click a Lands number to list them
+            of {{ number_format($projects->total()) }} projects · the number beside a surveyor is how many portions they surveyed · click a Lands number to open them
         </span>
         <div class="pagination">{{ $projects->links() }}</div>
     </div>
@@ -235,23 +237,53 @@
     .survey-proto .pj-lands-btn { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--primary-100, #dbeafe);
         background: var(--primary-50, #eff6ff); color: var(--primary, #2563eb); font-weight: 600; font-size: 13px; cursor: pointer; }
     .survey-proto .pj-lands-btn i { font-size: 10px; }
-    .survey-proto tr.pj-lands-row > td { background: var(--gray-50, #f9fafb); padding: 8px 12px 12px 40px; }
-    .survey-proto .pj-lands { border: 1px solid var(--gray-200, #e5e7eb); border-left: 3px solid var(--primary, #2563eb); border-radius: 8px; overflow: auto; background: #fff; }
+    .survey-proto .pj-lands { border: 1px solid var(--gray-200, #e5e7eb); border-radius: 8px; overflow: auto; background: #fff; }
+    .pj-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 23, 42, .45); }
+    .pj-modal[hidden] { display: none; }
+    .pj-modal-box { background: #fff; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,.25); width: min(1100px, 100%); max-height: 88vh; display: flex; flex-direction: column; }
+    .pj-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #e5e7eb; }
+    .pj-modal-head h3 { margin: 0; font-size: 16px; font-weight: 700; color: #111827; }
+    .pj-modal-head .sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    .pj-modal-close { border: 0; background: transparent; width: 32px; height: 32px; border-radius: 999px; font-size: 16px; color: #4b5563; cursor: pointer; }
+    .pj-modal-close:hover { background: #f3f4f6; }
+    .pj-modal-body { padding: 14px 18px 18px; overflow: auto; }
     .survey-proto .pj-lands table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .survey-proto .pj-lands th { text-align: left; padding: 7px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--gray-600, #4b5563); background: var(--gray-50, #f9fafb); border-bottom: 1px solid var(--gray-200, #e5e7eb); white-space: nowrap; }
     .survey-proto .pj-lands td { padding: 6px 10px; border-bottom: 1px solid var(--gray-100, #f3f4f6); }
     .survey-proto .pj-lands .num { text-align: right; }
     .survey-proto .pj-lands .ctr { text-align: center; }
 </style>
+<div class="pj-modal" id="pjLandsModal" data-column-picker="off" role="dialog" aria-modal="true" aria-labelledby="pjLandsTitle" hidden>
+    <div class="pj-modal-box">
+        <div class="pj-modal-head">
+            <div><h3 id="pjLandsTitle">Lands</h3><div class="sub" id="pjLandsSub"></div></div>
+            <button type="button" class="pj-modal-close" onclick="pjCloseLands()" aria-label="Close"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="pj-modal-body survey-proto" id="pjLandsBody"></div>
+    </div>
+</div>
 <script>
-    // Show / hide a project's lands under its row.
-    function pjToggleLands(id, btn) {
+    // View Lands: a project's lands in a modal (user, 2026-11-03), copied from its hidden row.
+    function pjShowLands(id) {
         var row = document.querySelector('tr.pj-lands-row[data-parent="' + id + '"]');
-        if (!row) return;
-        row.hidden = !row.hidden;
-        if (btn) {
-            btn.setAttribute('aria-expanded', row.hidden ? 'false' : 'true');
-            var i = btn.querySelector('i'); if (i) i.className = row.hidden ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
-        }
+        var modal = document.getElementById('pjLandsModal');
+        if (!row || !modal) return;
+        var n = parseInt(row.dataset.count || '0', 10);
+        document.getElementById('pjLandsTitle').textContent = row.dataset.title || 'Lands';
+        document.getElementById('pjLandsSub').textContent = n + (n === 1 ? ' land' : ' lands');
+        document.getElementById('pjLandsBody').innerHTML = row.querySelector('.pj-lands').outerHTML;
+        if (modal.parentNode !== document.body) document.body.appendChild(modal);   // above the layout's stacking
+        modal.hidden = false;
+        document.body.style.overflow = 'hidden';
+        modal.querySelector('.pj-modal-close').focus();
     }
+    function pjCloseLands() {
+        var modal = document.getElementById('pjLandsModal');
+        if (!modal || modal.hidden) return;
+        modal.hidden = true;
+        document.body.style.overflow = '';
+        document.getElementById('pjLandsBody').innerHTML = '';
+    }
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') pjCloseLands(); });
+    document.addEventListener('click', function (e) { if (e.target && e.target.id === 'pjLandsModal') pjCloseLands(); });
 </script>

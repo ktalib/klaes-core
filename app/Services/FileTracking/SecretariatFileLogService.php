@@ -538,10 +538,13 @@ class SecretariatFileLogService
         $search = trim((string) $search);
         $matchedIds = [];
         if ($search !== '' && !$from && !$to) {
-            $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $search) . '%';
+            $like = self::searchLike($search);
+            $metaLike = self::metaLike($search);
             $matched = FileTracker::where('movement_log', 'like', $needle)
-                ->where(function ($q) use ($like) {
-                    $q->where('file_number', 'like', $like)->orWhere('file_title', 'like', $like);
+                ->where(function ($q) use ($like, $metaLike) {
+                    $q->where('file_number', 'like', $like)->orWhere('file_title', 'like', $like)
+                        // A mail's reference / related file number (user, 2026-11-02).
+                        ->orWhere('module_meta', 'like', $metaLike);
                 })
                 ->orderByDesc('updated_at')
                 ->limit(200)
@@ -616,9 +619,13 @@ class SecretariatFileLogService
         $words = preg_split('/\s+/', $search, -1, PREG_SPLIT_NO_EMPTY);
         $query = FileTracker::query();
         foreach ($words as $word) {
-            $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $word) . '%';
-            $query->where(function ($q) use ($like) {
-                $q->where('file_number', 'like', $like)->orWhere('file_title', 'like', $like)->orWhere('tracking_id', 'like', $like);
+            $like = self::searchLike($word);
+            $metaLike = self::metaLike($word);
+            $query->where(function ($q) use ($like, $metaLike) {
+                $q->where('file_number', 'like', $like)->orWhere('file_title', 'like', $like)->orWhere('tracking_id', 'like', $like)
+                    // A mail's reference, related file number or sender, kept in module_meta (user, 2026-11-02:
+                    // MRA/ADM/02/TV.III at another office did not show).
+                    ->orWhere('module_meta', 'like', $metaLike);
             });
         }
         $matched = $query
@@ -685,6 +692,27 @@ class SecretariatFileLogService
         }
 
         return $out;
+    }
+
+    /**
+     * A LIKE pattern for text inside module_meta, which is JSON: "/" is stored as "\/", so
+     * MRA/ADM/02 is matched as MRA\/ADM\/02.
+     */
+    private static function metaLike(string $text): string
+    {
+        return self::searchLike(str_replace('/', '\/', $text));
+    }
+
+    /**
+     * A LIKE pattern for a search word. A run of two or more I / l / 1 (Roman numerals such as
+     * TV.III typed as TV.IIl or TV.ll1) matches any mix of the three (user, 2026-11-02).
+     */
+    private static function searchLike(string $text): string
+    {
+        $escaped = str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $text);
+        $escaped = preg_replace_callback('/[IiLl1]{2,}/', fn ($m) => str_repeat('[il1]', strlen($m[0])), $escaped);
+
+        return '%' . $escaped . '%';
     }
 
     /**

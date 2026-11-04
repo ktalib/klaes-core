@@ -51,6 +51,9 @@ class PlotAllocationController extends Controller
             'farmer' => (float) (clone $q)->sum('farmer_50'),
         ];
 
+        // Dashboard cards (user, 2026-11-03), over the same filtered register.
+        $entered['with_op'] = (clone $q)->whereNotNull('op_no')->where('op_no', '!=', '')->count();
+
         // Plot allocation is a Land to Land instrument; monetary cases are not offered.
         $landCases = SurveyCompCase::where('scheme_type', SurveyProject::SCHEME_LAND)
             ->withCount('plots')
@@ -126,14 +129,16 @@ class PlotAllocationController extends Controller
     /** Inline edit of the four columns the register keeps editable. */
     public function update(Request $r, SurveyPlotAllocation $plot)
     {
+        // One row at a time, from Update in its menu (user, 2026-11-03). plot_no holds lists ("145,146"): 400 chars.
         $data = $r->validate([
-            'plot_no' => 'nullable|string|max:50',
+            'plot_no' => 'nullable|string|max:400',
             'op_no'   => 'nullable|string|max:50',
             'sign'    => 'nullable|string|max:100',
             'remarks' => 'nullable|string|max:500',
         ]);
+        $clean = fn ($v) => ($v = trim(preg_replace('/\s+/u', ' ', (string) $v))) === '' ? null : $v;
 
-        $plot->update($data);
+        $plot->update(array_map($clean, $data) + ['updated_by' => auth()->id()]);
 
         return $this->backToRegister($r, "Row SR {$plot->sr} updated.");
     }

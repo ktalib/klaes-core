@@ -20,7 +20,8 @@ class SurveyPrivateLayout extends SurveyModel
     ];
 
     public const STATUSES  = ['Submitted', 'Under Review', 'Approved', 'Rejected'];
-    public const LAND_USES = ['Residential', 'Commercial', 'Industrial', 'Agricultural', 'Institutional', 'Mixed'];
+    /** The 4 land uses (user, 2026-11-03), as the Resettlement Calculator has them; anything else goes under Other. */
+    public const LAND_USES = \App\Services\Survey\ResettlementCalculator::LAND_USES;
     public const OTHER = 'Other';
 
     public const DISK = 'local';

@@ -22,16 +22,20 @@ class CoFileController extends Controller
 {
     /** CO Files: the captured (existing) files only (user, 2026-10-30). */
     /** Related file numbers a CO file may carry: SIT, GKN or Misc KN, optionally temporary. */
-    public const RELATED_FILE_PATTERN = '/^(SIT-\d{4}-\d+|GKN-\d+|MISC KN \d+)( ?\(T\))?$/i';
+    public const RELATED_FILE_PATTERN = '/^(SIT-\d{4}-\d+|GKN-\d+|MISC KN \d+|RDKN-\d+)( ?\(T\))?$/i';
 
     /**
      * One related-file field per kind (user, 2026-11-02): column => [label, pattern, example].
-     * With Has Related File = Yes at least one is required.
+     * With Has Related File = Yes at least one is required. RDKN added and the order set to
+     * SIT, Misc KN, GKN, RDKN (user's Survey Flow sheet, 2026-11-03).
      */
     public const RELATED_KINDS = [
         'related_sit_file_no'    => ['SIT', '/^SIT-\d{4}-\d+( ?\(T\))?$/i', 'SIT-2024-15'],
-        'related_gkn_file_no'    => ['GKN', '/^GKN-\d+( ?\(T\))?$/i', 'GKN-120'],
         'related_misckn_file_no' => ['Misc KN', '/^MISC KN \d+( ?\(T\))?$/i', 'MISC KN 45'],
+        'related_gkn_file_no'    => ['GKN', '/^GKN-\d+( ?\(T\))?$/i', 'GKN-120'],
+        'related_rdkn_file_no'   => ['RDKN', '/^RDKN-\d+( ?\(T\))?$/i', 'RDKN-12'],
+        // A land file (user, 2026-11-03): an MLPP number from the selector's MLPP tab, e.g. RES-2019-123, kept as picked.
+        'related_mlpp_file_no'   => ['MLPP', '/^[A-Z][A-Z0-9 \/-]*\d[A-Z0-9 \/-]*( ?\(T\))?$/i', 'RES-2019-123'],
     ];
 
     public function index(Request $r)
@@ -66,6 +70,10 @@ class CoFileController extends Controller
                   ->orWhere('related_sit_file_no', 'like', "%$term%")
                   ->orWhere('related_gkn_file_no', 'like', "%$term%")
                   ->orWhere('related_misckn_file_no', 'like', "%$term%")
+                  ->orWhere('related_rdkn_file_no', 'like', "%$term%")
+                  ->orWhere('related_mlpp_file_no', 'like', "%$term%")
+                  ->orWhere('old_file_ref', 'like', "%$term%")->orWhere('financial_file_ref', 'like', "%$term%")
+                  ->orWhere('surveyor_name', 'like', "%$term%")
                   ->orWhereHas('projects', fn ($p) => $p->where('name', 'like', "%$term%")
                                                         ->orWhere('project_code', 'like', "%$term%")
                                                         ->orWhere('plan_no', 'like', "%$term%"));
@@ -82,7 +90,7 @@ class CoFileController extends Controller
         // file-number string, else its fileNumber row, as relatedLookup() does.
         $relatedTitles = [];
         $numbers = $coFiles->getCollection()
-            ->flatMap(fn ($f) => [$f->related_file_no, $f->related_sit_file_no, $f->related_gkn_file_no, $f->related_misckn_file_no])
+            ->flatMap(fn ($f) => [$f->related_file_no, $f->related_sit_file_no, $f->related_gkn_file_no, $f->related_misckn_file_no, $f->related_rdkn_file_no, $f->related_mlpp_file_no])
             ->filter()->unique()->values()->all();
         if ($numbers) {
             $db = DB::connection('sqlsrv');
@@ -119,8 +127,9 @@ class CoFileController extends Controller
         ]);
 
         return view('survey_module.compensation.co_file_register', [
-            'coFile'   => $coFile,
-            'nextNo'   => SurveyCoFile::nextNumber(),
+            'coFile'    => $coFile,
+            'nextNo'    => SurveyCoFile::nextNumber(),
+            'surveyors' => $capture ? $this->surveyors() : collect(),
         ]);
     }
 
@@ -154,7 +163,8 @@ class CoFileController extends Controller
 
     public function edit(SurveyCoFile $coFile)
     {
-        return view('survey_module.compensation.co_file_register', ['coFile' => $coFile, 'nextNo' => null]);
+        return view('survey_module.compensation.co_file_register', ['coFile' => $coFile, 'nextNo' => null,
+            'surveyors' => $coFile->source === SurveyCoFile::SOURCE_CAPTURED ? $this->surveyors() : collect()]);
     }
 
     public function update(Request $r, SurveyCoFile $coFile)
@@ -261,16 +271,19 @@ class CoFileController extends Controller
     private function validated(Request $r, ?SurveyCoFile $existing, bool $capture): array
     {
         $hasSitFile = $r->boolean('has_sit_file');
+        // Old CO Register on (user, 2026-11-03): no validation on Has Related File, File / Job Title or District;
+        // the old books often lack them.
+        $oldReg = $capture && $r->boolean('old_register');
         $kinds = array_keys(self::RELATED_KINDS);
         if (! $hasSitFile) {
             $r->merge(array_fill_keys(array_merge(['related_file_no'], $kinds), null));
         }
         // At least one of SIT, GKN and Misc KN when Has Related File is Yes (user, 2026-11-02).
-        if ($hasSitFile && ! collect($kinds)->contains(fn ($k) => trim((string) $r->input($k)) !== '')) {
-            throw ValidationException::withMessages(['related_sit_file_no' => 'Has Related File is Yes: select at least one related file (SIT, GKN or Misc KN), or turn it off.']);
+        if (! $oldReg && $hasSitFile && ! collect($kinds)->contains(fn ($k) => trim((string) $r->input($k)) !== '')) {
+            throw ValidationException::withMessages(['related_sit_file_no' => 'Has Related File is Yes: select at least one related file (SIT, Misc KN, GKN, RDKN or MLPP), or turn it off.']);
         }
         $rules = [
-            'title'           => 'required|string|max:255',
+            'title'           => ($oldReg ? 'nullable' : 'required') . '|string|max:255',
             'commission_date' => $capture ? 'nullable|date' : 'required|date',
             'status'          => ['required', Rule::in(SurveyCoFile::statusesFor($capture ? SurveyCoFile::SOURCE_CAPTURED : SurveyCoFile::SOURCE_COMMISSIONED))],
             'remarks'         => 'nullable|string|max:4000',
@@ -279,6 +292,7 @@ class CoFileController extends Controller
             // GKN-SERIAL / MISC KN SERIAL from the Survey tab (CR 30102026 item 1).
         ] + collect(self::RELATED_KINDS)->map(fn ($k) => ['nullable', 'string', 'max:50', 'regex:' . $k[1]])->all()
           + AddressBuilder::rules('prop_');
+        if ($oldReg) $rules['prop_district'] = 'nullable|array';
 
         if ($capture) {
             // The paper file's own number: Prefix CO + Serial No + Year (checked below).
@@ -290,6 +304,22 @@ class CoFileController extends Controller
             $rules['co_file_no'] = ['required', 'string', 'max:50'];
             $rules['co_serial'] = ['nullable', 'regex:/^\d{1,7}$/'];
             $rules['co_year'] = ['nullable', 'integer', 'min:' . SurveyCoFile::FIRST_YEAR, 'max:' . date('Y')];
+            // Old CO Register section (user, 2026-11-03): the ledger's other columns, all optional, as written.
+            $rules += [
+                'old_file_ref'       => 'nullable|string|max:150',
+                'approx_area_ha'     => 'nullable|numeric|min:0|max:99999999',
+                'farms_count'        => 'nullable|integer|min:0|max:1000000',
+                'date_received'      => 'nullable|date',
+                'surveyor'           => 'nullable|string|max:20',
+                'surveyor_other'     => ['nullable', 'string', 'max:255', Rule::requiredIf(fn () => $r->input('surveyor') === 'other')],
+                'fieldwork_from'     => 'nullable|date',
+                'fieldwork_to'       => 'nullable|date',
+                'plan_completed_on'  => 'nullable|date',
+                'total_amount'       => 'nullable|numeric|min:0|max:999999999999',
+                'financial_file_ref' => 'nullable|string|max:100',
+                'despatched_on'      => 'nullable|date',
+                'paid_on'            => 'nullable|date',
+            ];
         }
 
         $data = $r->validate($rules, [
@@ -300,10 +330,16 @@ class CoFileController extends Controller
             'related_sit_file_no.regex'       => 'The SIT field takes a SIT file number, e.g. SIT-2024-15.',
             'related_gkn_file_no.regex'       => 'The GKN field takes a GKN file number, e.g. GKN-120.',
             'related_misckn_file_no.regex'    => 'The Misc KN field takes a Misc KN file number, e.g. MISC KN 45.',
+            'related_rdkn_file_no.regex'      => 'The RDKN field takes an RDKN file number, e.g. RDKN-12.',
+            'related_mlpp_file_no.regex'      => 'The MLPP field takes an MLPP file number, e.g. RES-2019-123.',
             'prop_district.required'          => 'The district is required.',
             'prop_district_other.required_if' => 'Please specify the district.',
             'prop_street_other.required_if'   => 'Please specify the street.',
             'prop_lga.required'               => 'The LGA is required.',
+            'surveyor_other.required'         => 'Old CO Register: type the surveyor\'s name.',
+            'approx_area_ha.numeric'          => 'Old CO Register: the approx. area is a number of hectares, e.g. 0.52.',
+            'farms_count.integer'             => 'Old CO Register: the number of farms is a whole number.',
+            'total_amount.numeric'            => 'Old CO Register: the total amount is a number, e.g. 41.60.',
         ]);
 
         if ($capture) {
@@ -320,18 +356,62 @@ class CoFileController extends Controller
             $data['co_file_no'] = $no;
         }
         unset($data['co_serial'], $data['co_year'], $data['co_temporary']);
+        if ($capture) $data = $this->oldRegisterValues($data);
         unset($data['has_sit_file']);
-        $data['title'] = trim(preg_replace('/\s+/', ' ', $data['title']));
+        // The column cannot be empty: an untitled old-register file is stored with a blank title.
+        $data['title'] = trim(preg_replace('/\s+/', ' ', (string) ($data['title'] ?? '')));
         // Identifiers: exact format, upper-case prefix only. related_file_no keeps the first of the
         // three for what already reads it (listing title, commissioning sheet, search).
         foreach ($kinds as $k) {
             $v = trim((string) ($data[$k] ?? ''));
             $data[$k] = $hasSitFile && $v !== ''
-                ? preg_replace(['/^sit-/i', '/^gkn-/i', '/^misc kn /i', '/\(t\)$/'], ['SIT-', 'GKN-', 'MISC KN ', '(T)'], $v)
+                ? preg_replace(['/^sit-/i', '/^gkn-/i', '/^misc kn /i', '/^rdkn-/i', '/\(t\)$/'], ['SIT-', 'GKN-', 'MISC KN ', 'RDKN-', '(T)'], $v)
                 : null;
         }
-        $data['related_file_no'] = $data['related_sit_file_no'] ?? $data['related_gkn_file_no'] ?? $data['related_misckn_file_no'];
+        $data['related_file_no'] = $data['related_sit_file_no'] ?? $data['related_gkn_file_no'] ?? $data['related_misckn_file_no'] ?? $data['related_rdkn_file_no'] ?? $data['related_mlpp_file_no'];
 
         return $data;
+    }
+
+    /**
+     * Old CO Register section: references kept as written (spaces tidied), empty values stored as NULL (an empty
+     * date would read as 1900-01-01), and the surveyor from the list or typed under Other (taken as that staff
+     * member if the name is on the list; the 1970s surveyors mostly are not).
+     */
+    private function oldRegisterValues(array $data): array
+    {
+        foreach (SurveyCoFile::OLD_REGISTER_FIELDS as $k) {
+            if (! array_key_exists($k, $data)) continue;
+            $v = is_string($data[$k]) ? trim(preg_replace('/\s+/', ' ', $data[$k])) : $data[$k];
+            $data[$k] = $v === '' ? null : $v;
+        }
+        // The section switched off sends nothing: the file's ledger details stay as they are.
+        if (! array_key_exists('surveyor', $data)) {
+            unset($data['surveyor_other']);
+
+            return $data;
+        }
+        $choice = (string) ($data['surveyor'] ?? '');
+        [$staffId, $name] = [null, null];
+        if ($choice === 'other') {
+            $name = trim(preg_replace('/\s+/', ' ', (string) ($data['surveyor_other'] ?? '')));
+            $match = \App\Models\Survey\SurveyorListEntry::all()->first(fn ($s) => mb_strtolower($s->full_name) === mb_strtolower($name));
+            [$staffId, $name] = [$match?->id, $match?->full_name ?? $name];
+        } elseif ($choice !== '') {
+            $s = \App\Models\Survey\SurveyorListEntry::find((int) $choice);
+            if (! $s) throw ValidationException::withMessages(['surveyor' => 'Old CO Register: choose the surveyor from the list, or Other.']);
+            [$staffId, $name] = [$s->id, $s->full_name];
+        }
+        unset($data['surveyor'], $data['surveyor_other']);
+        $data['surveyors_list_id'] = $staffId;
+        $data['surveyor_name'] = $name;
+
+        return $data;
+    }
+
+    private function surveyors()
+    {
+        return \App\Models\Survey\SurveyorListEntry::query()->where(fn ($q) => $q->whereNull('is_active')->orWhere('is_active', 1))
+            ->orderBy('first_name')->orderBy('surname')->get(['id', 'first_name', 'surname', 'other_name', 'rank']);
     }
 }

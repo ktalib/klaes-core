@@ -108,7 +108,8 @@ class UserController extends Controller
         // Department filter (Change Request 22102026, item 19): e.g. all Cadastral staff.
         $departments = Department::where('is_active', 1)->orderBy('name')->get(['id', 'name']);
         $departmentId = (int) $request->query('department', 0);
-        if (!$departments->contains('id', $departmentId)) {
+        // MDC users are not filtered by department, so the filter only applies on the MLPP tab.
+        if ($activeTab === 'mdc' || !$departments->contains('id', $departmentId)) {
             $departmentId = 0;
         }
 
@@ -188,8 +189,10 @@ class UserController extends Controller
 
         $tabCounts = (array) $scope()
             ->selectRaw('SUM(CASE WHEN ' . self::TAB_PREDICATES['mdc'] . ' THEN 1 ELSE 0 END) as mdc')
-            ->selectRaw('SUM(CASE WHEN ' . self::TAB_PREDICATES['mlpp'] . ' THEN 1 ELSE 0 END) as mlpp')
-            ->when($departmentId, fn ($query) => $query->where('department_id', $departmentId))
+            ->selectRaw(
+                'SUM(CASE WHEN ' . self::TAB_PREDICATES['mlpp'] . ($departmentId ? ' AND [department_id] = ?' : '') . ' THEN 1 ELSE 0 END) as mlpp',
+                $departmentId ? [$departmentId] : []
+            )
             ->first()
             ->getAttributes();
 

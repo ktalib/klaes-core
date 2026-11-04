@@ -599,10 +599,15 @@
     {{-- The File Snapshot card, reused by the action menu's "View Details" item so
          it shows the same card the indexing form shows after a save. --}}
     <script src="{{ asset('js/fileindexing/file-snapshot-card.js') }}?v={{ @filemtime(public_path('js/fileindexing/file-snapshot-card.js')) }}"></script>
+    {{-- Scanned-page viewer for the View Files link and the action menu's "View Scanned File"
+         (opens the Blind Scan folder; same viewer as Create File Index and Legal Search). --}}
+    <script>window.KLAES_SCAN_PAGES_URL = @json(route('scan-check.pages'));</script>
+    <script src="{{ asset('js/scanning/scan-viewer.js') }}?v={{ @filemtime(public_path('js/scanning/scan-viewer.js')) }}"></script>
 
     <script>
         window.indexedFilesConfig = {
             tableVariant: 'main',
+            scanCheckUrl: @json(route('scan-check.check')),
             listUrl: @json(route('indexed-files.api.list')),
             viewListUrl: @json(route('indexed-files.api.view-list')),
             filterOptionsUrl: @json(route('indexed-files.api.filter-options')),

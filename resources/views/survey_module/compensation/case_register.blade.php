@@ -1,9 +1,10 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'Register Land — KLAES')
+@section('page-title', 'Capture Farmer — KLAES')
 
 @php
-  $PageTitle = 'Register Land';
+  // "You are capturing the land, not registering it" (user, 2026-11-03): Capture Land (New).
+  $PageTitle = 'Capture Farmer'; // was Capture Land (New) (user, 2026-11-03)
   $PageDescription = 'Select a Project first. The compensation scheme (Monetary Compensation or Land to Land) is inherited from the Project and drives the rest of the form.';
 @endphp
 

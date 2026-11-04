@@ -130,8 +130,9 @@ class SurveySettingsController extends Controller
     private function classmarkValues(Request $r, ?int $id): array
     {
         $d = $r->validate([
-            'from_fraction' => 'required|numeric|min:0|max:0.99',
-            'to_fraction'   => 'required|numeric|min:0|max:0.99|gte:from_fraction',
+            // Up to 1.00: Survey's last range is 0.60 to 1.00 (user, 2026-11-03).
+            'from_fraction' => 'required|numeric|min:0|max:1',
+            'to_fraction'   => 'required|numeric|min:0|max:1|gte:from_fraction',
             'plots'         => ['required', Rule::in(array_keys(self::CLASSMARK_PLOTS))],
         ], [
             'to_fraction.gte' => 'The range must end at or after where it starts.',
@@ -177,6 +178,8 @@ class SurveySettingsController extends Controller
             // Letters only: a beacon number is the prefix, then the serial digits (SurveyBeaconRegister::parseBeacon).
             'prefix'      => ['required', 'string', 'max:20', 'regex:/^[A-Za-z\/-]+$/'],
             'description' => 'nullable|string|max:255',
+            // Government or Private (user, 2026-11-03); blank = offered for both.
+            'beacon_type' => ['nullable', \Illuminate\Validation\Rule::in(array_keys(\App\Models\Survey\SurveyBeaconRegister::LAYOUT_TYPES))],
         ], [
             'prefix.regex' => 'A prefix is letters only, e.g. PBB: the serial number follows it.',
         ]);
@@ -186,7 +189,7 @@ class SurveySettingsController extends Controller
             ->when($id, fn ($q) => $q->where('id', '<>', $id))->exists();
         if ($clash) throw \Illuminate\Validation\ValidationException::withMessages(['prefix' => "{$prefix} is already in the list."]);
 
-        return ['prefix' => $prefix, 'description' => trim((string) ($d['description'] ?? '')) ?: null];
+        return ['prefix' => $prefix, 'description' => trim((string) ($d['description'] ?? '')) ?: null, 'beacon_type' => $d['beacon_type'] ?? null];
     }
 
     /** As ConfigurableEntriesController: Super Admin or the System Settings role. */

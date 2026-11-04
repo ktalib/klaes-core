@@ -36,11 +36,11 @@ class DashboardController extends Controller
         ];
 
         // The most recently touched permit drives the workflow strip.
-        $op = SurveyOpRecord::with(['steps', 'case'])
+        $op = SurveyOpRecord::new()->with(['steps', 'case'])
             ->where('status', '!=', 'Issued')
             ->orderByDesc('updated_at')
             ->first()
-            ?? SurveyOpRecord::with(['steps', 'case'])->orderByDesc('id')->first();
+            ?? SurveyOpRecord::new()->with(['steps', 'case'])->orderByDesc('id')->first();
 
         $sections = [
             'compensation' => SurveyCompCase::whereIn('status', ['Pending', 'Review'])->count(),

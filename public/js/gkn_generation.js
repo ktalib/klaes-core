@@ -19,8 +19,8 @@ function gknGeneratorFixed(config) {
             full_file_number: '',
             customer_type: '',
             other_customer_type: '',
-            type: 'GKN',
-            prefix: 'GKN-',
+            type: '',      // "Select Prefix" until one is picked (user, 2026-11-03), was GKN
+            prefix: '',
             serial_number: '',
             file_title: '',
             land_use_id: '',
@@ -30,7 +30,8 @@ function gknGeneratorFixed(config) {
             district_id: '',
             district_other: '',
             lga_id: '',
-            quantity: 1
+            quantity: 1,
+            temporary: false
         },
         locationEntries: [],
         currentEntryIndex: 0,
@@ -101,7 +102,7 @@ function gknGeneratorFixed(config) {
                     'LPPL': 'LPPL-',
                     'RDKN': 'RDKN-'
                 };
-                this.formData.prefix = prefixes[val] || 'GKN-';
+                this.formData.prefix = prefixes[val] || '';
                 this.fetchNextGkn();
             });
 
@@ -607,8 +608,8 @@ function gknGeneratorFixed(config) {
                 full_file_number: '',
                 customer_type: '',
                 other_customer_type: '',
-                type: 'GKN',
-                prefix: 'GKN-',
+                type: '',
+                prefix: '',
                 serial_number: '',
                 file_title: '',
                 land_use_id: '',
@@ -618,7 +619,8 @@ function gknGeneratorFixed(config) {
                 district_id: '',
                 district_other: '',
                 lga_id: '',
-                quantity: 1
+                quantity: 1,
+                temporary: false
             };
             this.locationEntries = [];
             this.currentEntryIndex = 0;

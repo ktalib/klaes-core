@@ -381,6 +381,7 @@ class ChangeOfPurposeController extends Controller
     {
         $record = ChangeOfPurposeApplication::query()
             ->where('status', ChangeOfPurposeApplication::STATUS_APPROVED)
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
             ->findOrFail($id);
 
         $newFileNo = trim((string) $request->input('new_file_no', ''));
@@ -424,9 +425,14 @@ class ChangeOfPurposeController extends Controller
         // engine, which opens their tracking exactly as for any other batch.
         $meta += $request->only(ChangeOfPurposeBatchCommitService::DESTINATION_FIELDS);
 
+        $application = ChangeOfPurposeApplication::findOrFail($id);
+        if ((int) ($application->is_deleted ?? 0) === 1) {
+            return response()->json(['success' => false, 'message' => 'This Change of Purpose application has been deleted.'], 422);
+        }
+
         try {
             $result = app(ChangeOfPurposeBatchCommitService::class)
-                ->commit(ChangeOfPurposeApplication::findOrFail($id), $meta);
+                ->commit($application, $meta);
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -688,6 +694,7 @@ class ChangeOfPurposeController extends Controller
         }
 
         $application = ChangeOfPurposeApplication::where('file_no', $fileNo)
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
             ->orderByDesc('created_at')
             ->first();
 
@@ -955,6 +962,11 @@ class ChangeOfPurposeController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $record = ChangeOfPurposeApplication::findOrFail($id);
+
+        // Never once anything has been commissioned off it (user, 2026-11-02).
+        if ($why = \App\Services\ParcelUpdateMasterDelete::commissionedReason('change-of-purpose', $record)) {
+            return response()->json(['success' => false, 'message' => $why . ' It cannot be deleted.'], 403);
+        }
 
         if ($record->status === ChangeOfPurposeApplication::STATUS_APPROVED) {
             return response()->json(['success' => false, 'message' => 'Approved applications cannot be deleted.'], 403);

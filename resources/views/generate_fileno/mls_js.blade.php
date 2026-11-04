@@ -80,6 +80,9 @@
     
     function openGeneratorModalMain() {
         console.log('openGeneratorModalMain() called');
+        // Draft mode (MLS FC page only): keep whatever the last card held, then give
+        // this fresh card a draft of its own.
+        if (typeof window.mlsfDraftStartFresh === 'function') window.mlsfDraftStartFresh();
         const modalEl = document.getElementById('generateModal');
         if (modalEl) {
             modalEl.classList.remove('hidden');
@@ -2804,6 +2807,8 @@
     });
 
     function closeGenerateModal() {
+        // Draft mode: closing (Cancel / X) saves what is on the card, so it can be resumed.
+        if (typeof window.mlsfDraftFlush === 'function') window.mlsfDraftFlush();
         document.getElementById('generateModal').classList.add('hidden');
     }
 
@@ -4239,6 +4244,10 @@
                     if (typeof window.autoCommissioningChecklist === 'function') {
                         window.autoCommissioningChecklist([generatedFileNumberValue]);
                     }
+                    // Draft mode (MLS FC page only): the card's draft is now generated.
+                    if (typeof window.mlsfDraftCommitted === 'function') {
+                        window.mlsfDraftCommitted([generatedFileNumberValue]);
+                    }
 
                     Swal.fire({
                         width: '650px',
@@ -4440,6 +4449,9 @@
                             hideGlobalLoading();
                             if (submitBtn) hideLoadingButton(submitBtn, originalText);
                             if (retryData.success) {
+                                if (typeof window.mlsfDraftCommitted === 'function') {
+                                    window.mlsfDraftCommitted([retryData.data?.file_number || suggestedNo]);
+                                }
                                 getNextSerialNumber();
                                 fetch('{{ route("file-numbers.clear-cache") }}', {
                                     method: 'POST',
@@ -5171,6 +5183,9 @@
         if (typeof alpineData.saveCurrentApplicantToEntry === 'function') {
             alpineData.saveCurrentApplicantToEntry();
         }
+        if (typeof alpineData.carryEntryPurposesForward === 'function') {
+            alpineData.carryEntryPurposesForward();
+        }
 
         // Ensure location entries are synced if "Apply to All" is checked but not triggered
         if (alpineData.applyLocationToAll && alpineData.locationEntries.length > 0) {
@@ -5428,6 +5443,9 @@
                     // Confirm every file in the batch got all its rows.
                     if (typeof window.autoCommissioningChecklist === 'function' && Array.isArray(data.files)) {
                         window.autoCommissioningChecklist(data.files);
+                    }
+                    if (typeof window.mlsfDraftCommitted === 'function') {
+                        window.mlsfDraftCommitted(Array.isArray(data.files) ? data.files : []);
                     }
 
                     let batchSuccessTitle = 'Batch Generated!';
@@ -10603,11 +10621,18 @@
              | Change of Purpose's COM), so each file keeps its OWN Purpose. Without this
              | the one shared box was cleared every time the next file's land use loaded
              | its purpose list, wiping the choice already made for the first file.
+             | A Plot Subdivision batch does the same: the plots cut from one mother can
+             | be put to different purposes, so moving to the next plot must not rewrite
+             | the Purpose already chosen for the previous one (user, 2026-11-02).
              | Ordinary batches keep one Purpose for the whole batch, as before.
              */
+            purposeIsPerFile() {
+                return !!this.duplexRecordId || (this.batchMode && this.fileOption === 'subdivision');
+            },
+
             rememberEntryPurpose() {
                 const entry = this.locationEntries[this.currentEntryIndex];
-                if (this.duplexRecordId && entry) entry.purpose_id = this.purpose || '';
+                if (this.purposeIsPerFile() && entry) entry.purpose_id = this.purpose || '';
                 // Which file the Purpose on screen belongs to, so the next file of the
                 // SAME stage can take it over (see restoreEntryPurpose).
                 this._purposeFromEntry = this.currentEntryIndex;
@@ -10626,9 +10651,17 @@
              */
             restoreEntryPurpose(freshList = true) {
                 const entry = this.locationEntries[this.currentEntryIndex];
-                if (!this.duplexRecordId || !entry) return;
+                if (!this.purposeIsPerFile() || !entry) return;
 
                 const inList = id => id && (this.purposes || []).some(p => String(p.id) === String(id));
+
+                // A subdivision has one land use for every plot, so a fresh list means the
+                // land use changed and every plot's saved Purpose is stale, not just this one.
+                if (freshList && !this.duplexRecordId) {
+                    this.locationEntries.forEach(e => {
+                        if (e && e.purpose_id && !inList(e.purpose_id)) e.purpose_id = '';
+                    });
+                }
                 const from = this._purposeFromEntry;
                 const sameStage = from !== undefined && from !== null && from !== this.currentEntryIndex
                     && this.duplexStageFor(from) === this.duplexStageFor(this.currentEntryIndex);
@@ -10645,6 +10678,21 @@
                 this.$nextTick(() => {
                     const sel = document.getElementById('purpose');
                     if (sel) sel.value = this.purpose || '';
+                });
+            },
+
+            /**
+             * At submit: a subdivision plot the officer never stepped to has no Purpose of
+             * its own, so it takes the one before it — what stepping through would have
+             * given it — rather than whichever plot happened to be on screen last.
+             */
+            carryEntryPurposesForward() {
+                if (!this.purposeIsPerFile() || this.duplexRecordId) return;
+                let last = '';
+                (this.locationEntries || []).forEach(e => {
+                    if (!e) return;
+                    if (e.purpose_id) last = e.purpose_id;
+                    else if (last) e.purpose_id = last;
                 });
             },
 
@@ -14621,31 +14669,37 @@
     };
 
     /**
-     * The header's Refresh: start the card over.
+     * The header's two buttons (user, 2026-11-03: two buttons, no confirm card).
      *
-     * Clears everything entered — file type, selections (subdivision, merger, CoP,
-     * duplex), applicant, location, purpose, batch entries — and leaves the card
-     * exactly as a freshly opened one, latest serials included. It used to re-read
-     * the serials only, which left the officer's half-filled form in place when what
-     * they wanted was a clean card. Asks first, because nothing typed comes back.
+     * Refresh — re-read the latest serials (someone else may have commissioned in the
+     * same series) and, for a duplex, its plan. Everything typed stays.
      */
     window.refreshCommissionCard = async function () {
-        if (window.Swal) {
-            const ok = await Swal.fire({
-                icon: 'question',
-                title: 'Clear this form?',
-                text: 'Everything entered on this card will be cleared and it will start fresh.',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, clear it',
-                cancelButtonText: 'Keep my entries',
-                confirmButtonColor: '#2563eb',
-                reverseButtons: true,
-            });
-            if (!ok.isConfirmed) return;
-        }
-
         const btn = document.getElementById('duplexRefreshBtn');
         if (btn) btn.classList.add('opacity-50', 'pointer-events-none');
+
+        try {
+            if (window._duplexRecordId && typeof window.refreshDuplexPlan === 'function') {
+                await window.refreshDuplexPlan();
+            } else if (typeof getNextSerialNumber === 'function') {
+                await getNextSerialNumber();
+            }
+        } finally {
+            if (btn) btn.classList.remove('opacity-50', 'pointer-events-none');
+        }
+    };
+
+    /**
+     * Clear Form — start the card over: file type, selections (subdivision, merger,
+     * CoP, duplex), applicant, location, purpose, batch entries, leaving it exactly as
+     * a freshly opened card, latest serials included. No confirm, by the user's choice.
+     */
+    window.clearCommissionCard = async function () {
+        const btn = document.getElementById('commissionClearBtn');
+        if (btn) btn.classList.add('opacity-50', 'pointer-events-none');
+
+        // Draft mode: what was on the card stays in My Drafts; the cleared card is a new draft.
+        if (typeof window.mlsfDraftStartFresh === 'function') window.mlsfDraftStartFresh();
 
         try {
             // The same fresh start opening the modal gives, without re-showing it.
@@ -15112,6 +15166,9 @@
         if (typeof window.autoCommissioningChecklist === 'function') {
             window.autoCommissioningChecklist(files);
         }
+        if (typeof window.mlsfDraftCommitted === 'function') {
+            window.mlsfDraftCommitted(files);
+        }
         // A duplex can issue 2000 numbers; past a screenful, say how many and the range.
         const fileList = files.length > 20
             ? `${files.length} files: ${files[0]} … ${files[files.length - 1]}`
@@ -15200,6 +15257,9 @@
             : '';
         if (typeof window.autoCommissioningChecklist === 'function') {
             window.autoCommissioningChecklist(files);
+        }
+        if (typeof window.mlsfDraftCommitted === 'function') {
+            window.mlsfDraftCommitted(files);
         }
         await Swal.fire({
             icon: 'success',

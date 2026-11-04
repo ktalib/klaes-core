@@ -17,7 +17,8 @@
 
 <div class="page-header">
     <div></div>
-    <a href="{{ route('survey-module.workflow.change-reports.create') }}" class="btn btn-primary"><i class="fas fa-plus"></i> Create Report</a>
+    {{-- "Capture Observation" on the Computation Field Observations view (user, 2026-11-03). --}}
+    <a href="{{ route('survey-module.workflow.change-reports.create') }}" class="btn btn-primary"><i class="fas fa-plus"></i> {{ request('records') === 'observations' ? 'Capture Observation' : 'Create Report' }}</a>
 </div>
 
 <div class="kpi-grid">
@@ -27,11 +28,7 @@
     <div class="kpi-card"><div class="kpi-label">Awaiting a report</div><div class="kpi-value">{{ number_format($waiting->count()) }}</div></div>
 </div>
 
-@if ($recordMode)
-    <div class="comp-type-note" style="margin-bottom:16px;display:block;">
-        <i class="fas fa-hand-point-right"></i> Choose a report below to open its <strong>{{ $recordMode[0] }}</strong>{{ request('records') === 'sketch' ? ' (uploaded on Computation Field Observations)' : '' }}.
-    </div>
-@endif
+{{-- No "Choose a report below" hint on the record views (user, 2026-11-03). --}}
 
 @if ($waiting->isNotEmpty())
     <div class="comp-type-note" style="margin-bottom:16px;display:block;">

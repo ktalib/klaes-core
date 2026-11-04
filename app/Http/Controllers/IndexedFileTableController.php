@@ -2057,6 +2057,8 @@ class IndexedFileTableController extends Controller
                 'retained'          => $preview['retained'],
                 'transaction_total' => $preview['transaction_total'],
                 'deleted_transaction_total' => $preview['deleted_transaction_total'],
+                'scan_total'        => $preview['scan_total'],
+                'bill_total'        => $preview['bill_total'],
             ],
         ]);
     }
@@ -2066,8 +2068,9 @@ class IndexedFileTableController extends Controller
      * to it (indexing, file number, PRA, CofO, FH, file tracking, parties, linked
      * rows) and remove it from the live tables.
      *
-     * Refused when the file carries scans, page typings, bills or SPAS
-     * applications — see IndexingDuplicateService::BLOCKING_REFERENCES.
+     * Scans, page typings, thumbnails and bills go with the file; blind scans and SPAS
+     * applications are unlinked and kept (user, 2026-11-04) — see
+     * IndexingDuplicateService::MOVE_ARCHIVED_REFERENCES / MOVE_DETACHED_REFERENCES.
      */
     public function moveToIndexingDuplicates(Request $request, $id, IndexingDuplicateService $service): JsonResponse
     {
@@ -2163,10 +2166,11 @@ class IndexedFileTableController extends Controller
      * wrong, not duplicated, and must not resurface on the Indexing Duplicates
      * screen. The audit entry is all that survives.
      *
-     * Three gates, in order: super admin, the file number typed back, and the
-     * service refusing a file that carries scans, page typings, bills or SPAS
-     * applications. The UI hides the entry from non-admins as a courtesy; this is
-     * the gate that counts, because the endpoint is reachable directly.
+     * Two gates, in order: super admin, and the file number typed back. Since
+     * 2026-11-04 (user) scans, page typings, thumbnails and bills no longer block: they
+     * are deleted with the file (full rows in the audit entry); blind scans and SPAS
+     * applications are unlinked. The UI hides the entry from non-admins as a courtesy;
+     * this is the gate that counts, because the endpoint is reachable directly.
      */
     public function masterDelete(Request $request, $id, IndexingDuplicateService $service): JsonResponse
     {

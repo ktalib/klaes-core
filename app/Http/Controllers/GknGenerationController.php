@@ -301,9 +301,12 @@ class GknGenerationController extends Controller
             'location_entries.*.lga_id' => 'nullable|integer',
             'location_entries.*.location' => 'nullable|string',
             'customer_type' => 'required|string',
+            // A temporary file (user, 2026-11-03): its number carries (T), e.g. GKN-123(T), as the register writes it.
+            'temporary' => 'nullable|boolean',
         ]);
 
         $batchMode = $validated['batch_mode'];
+        $temporary = (bool) ($validated['temporary'] ?? false);
         $quantity = $batchMode ? $validated['quantity'] : 1;
         $lga = Lga::find($validated['lga_id']);
 
@@ -378,7 +381,7 @@ class GknGenerationController extends Controller
             $entity = Entity::updateOrCreate(
                 [
                     'entity_name' => $entityName,
-                    'file_number' => $gknRecords->first()->{$column} ?? $gknRecords->first()->number
+                    'file_number' => ($gknRecords->first()->{$column} ?? $gknRecords->first()->number) . ($temporary ? '(T)' : '')
                 ],
                 [
                     'entity_type' => 'Individual',
@@ -413,6 +416,7 @@ class GknGenerationController extends Controller
 
             // Determine the file number (prefer dynamic column if structured, fallback to constructed)
             $gknNumber = ($gkn->{$column} ?? null) ?: $prefix . $gkn->number;
+            if ($temporary) $gknNumber .= '(T)';
             $trackingId = $gkn->tracking_id;
 
             // 2. Update the specific grouping table

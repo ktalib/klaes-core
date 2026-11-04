@@ -96,6 +96,30 @@ class SdiMapRequestController extends Controller
             ->with('success', "Map request {$mapRequest->request_ref} updated.");
     }
 
+    /**
+     * Geo-informatics > Basemap (Satellite Imagery) (user, 2026-11-03): Kano on satellite imagery (streets and
+     * terrain as alternatives), with the area of every SDI map request that has one drawn.
+     */
+    public function basemap()
+    {
+        $areas = SdiMapRequest::with(['mda:id,name,abbreviation', 'mapType:id,name'])
+            ->whereNotNull('geometry_geojson')->orderByDesc('id')->limit(2000)
+            ->get(['id', 'request_ref', 'map_name', 'mda_id', 'requester_other', 'map_type_id', 'status', 'geometry_geojson', 'received_date'])
+            ->map(fn ($m) => [
+                'geometry' => json_decode($m->geometry_geojson),
+                'ref'      => $m->request_ref,
+                'name'     => $m->map_name,
+                'mda'      => $m->mda ? $m->mda->name . ($m->mda->abbreviation ? " ({$m->mda->abbreviation})" : '') : $m->requester_other,
+                'type'     => $m->mapType?->name,
+                'status'   => $m->status,
+                'label'    => $m->statusLabel(),
+                'date'     => optional($m->received_date)->format('d M Y'),
+                'url'      => route('survey-module.sdi.map-requests.show', $m),
+            ])->filter(fn ($a) => $a['geometry'])->values();
+
+        return view('survey_module.sdi.basemap', compact('areas'));
+    }
+
     public function show(SdiMapRequest $mapRequest)
     {
         return view('survey_module.sdi.map_request_show', [

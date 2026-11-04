@@ -245,6 +245,10 @@ class OpResettlementApplicationController extends Controller
         $offset = ($page - 1) * $limit;
         $isChangeOfName = trim((string) $request->query('type')) === 'change-of-name';
         $recordType = $request->query('record_type'); // fc or fefr
+        // Generate FileNos shows FC and FEFR as tabs; a bare link opens the FC tab.
+        if ($isChangeOfName && !in_array($recordType, ['fc', 'fefr'], true)) {
+            $recordType = 'fc';
+        }
 
         // OP Batch Commissioning view: only records flagged with op_batch, grouped by
         // batch_no. These were commissioned through the Batch Mode that was enabled by
@@ -669,8 +673,8 @@ class OpResettlementApplicationController extends Controller
         // adding a WHERE on its column forces SQL Server to materialize that MAX for every
         // candidate row of p — turning a ~1s query into a minutes-long one. The EXISTS
         // form is a plain indexed seek on mls_file_no.full_file_number.
-        if ($recordType === 'fc') {
-            $query->whereExists(function ($q) {
+        $applyRecordType = function ($builder, string $type) {
+            $mlsRow = function ($q) {
                 $q->select(DB::raw(1))
                     ->from('mls_file_no as mfn_flt')
                     ->whereRaw("mfn_flt.full_file_number = COALESCE(NULLIF(p.mlsFNo, ''), p.fileno)")
@@ -679,14 +683,16 @@ class OpResettlementApplicationController extends Controller
                     // BIGINT, causing the listing to fail. A row that matches the
                     // correlated file-number expression is sufficient here.
                     ->whereNotNull('mfn_flt.full_file_number');
-            });
-        } elseif ($recordType === 'fefr') {
-            $query->whereNotExists(function ($q) {
-                $q->select(DB::raw(1))
-                    ->from('mls_file_no as mfn_flt')
-                    ->whereRaw("mfn_flt.full_file_number = COALESCE(NULLIF(p.mlsFNo, ''), p.fileno)")
-                    ->whereNotNull('mfn_flt.full_file_number');
-            });
+            };
+            $type === 'fc' ? $builder->whereExists($mlsRow) : $builder->whereNotExists($mlsRow);
+        };
+
+        // The listing before the FC/FEFR split, for the search that finds nothing on this
+        // tab: it checks the other tab and sends the user there (user, 2026-11-04).
+        $untabbedQuery = ($recordType === 'fc' || $recordType === 'fefr') && !$opBatchMode ? clone $query : null;
+
+        if ($recordType === 'fc' || $recordType === 'fefr') {
+            $applyRecordType($query, $recordType);
         }
 
         // OP Batch Commissioning: restrict to op_batch-flagged files. Uses EXISTS for the
@@ -701,7 +707,8 @@ class OpResettlementApplicationController extends Controller
             });
         }
 
-        if ($search = trim((string) $request->input('search'))) {
+        $search = trim((string) $request->input('search'));
+        $applySearch = function ($query) use ($search, $praFileNoExpr, $resolvedCustomerTypeSql) {
             $query->where(function ($builder) use ($search, $praFileNoExpr, $resolvedCustomerTypeSql) {
                 $builder
                     ->whereRaw("$praFileNoExpr LIKE ?", ["%{$search}%"])
@@ -719,6 +726,9 @@ class OpResettlementApplicationController extends Controller
                     ->orWhere('mfn.land_use', 'LIKE', "%{$search}%")
                     ->orWhere('p.land_use', 'LIKE', "%{$search}%");
             });
+        };
+        if ($search !== '') {
+            $applySearch($query);
         }
 
         // For fc/fefr, the full cloned query is too expensive to count (many LEFT JOINs +
@@ -892,6 +902,24 @@ class OpResettlementApplicationController extends Controller
                     'scenario_type' => 'standard', // placeholder; overwritten below
                 ];
             });
+
+        // Searched on FC for a file that sits in FEFR (or the other way round): nothing
+        // here, so look in the other tab with the same search and take the user there
+        // (user, 2026-11-04). Only on a first page with no rows, so it costs nothing else.
+        if ($untabbedQuery && $search !== '' && $offset === 0 && $records->isEmpty()) {
+            $otherType = $recordType === 'fc' ? 'fefr' : 'fc';
+            $probe = clone $untabbedQuery;
+            $applyRecordType($probe, $otherType);
+            $applySearch($probe);
+            if ($probe->reorder()->exists()) {
+                $otherLabel = $otherType === 'fc' ? 'File Commissioning (FC)' : 'Fetch Existing File Record (FEFR)';
+                $params = array_merge($request->except(['page', 'record_type']), ['record_type' => $otherType]);
+
+                return redirect()->to(url()->current() . '?' . http_build_query($params))
+                    ->with('recordTypeSwitched', "\"{$search}\" is not under " . strtoupper($recordType)
+                        . " — showing it under {$otherLabel}.");
+            }
+        }
 
         // ── Detect OP→ToT scenario type for each record ──
         // Subdivision: same op_serial_number produced > 1 ToT rows on this page.
@@ -4310,6 +4338,26 @@ class OpResettlementApplicationController extends Controller
      * Loads the standalone Update OP form page with pre-populated data
      * from fileNumber, mls_file_no, instrument_capture & PRA tables.
      */
+    /**
+     * Where Update OP's Cancel goes: back to the Generate FileNos tab (FC/FEFR), page and
+     * search the user came from, else the FC tab.
+     */
+    private function generateFileNosReturnUrl(): string
+    {
+        $listing = route('lands-one-stop-shop.applications.index');
+        $previous = url()->previous();
+
+        if (strpos($previous, $listing . '?') === 0 && strpos($previous, 'type=change-of-name') !== false) {
+            return $previous;
+        }
+
+        return $listing . '?' . http_build_query([
+            'source' => 'lands-one-stop-shop',
+            'type' => 'change-of-name',
+            'record_type' => 'fc',
+        ]);
+    }
+
     public function captureEdit(string $id): View
     {
         // Support fileNumber.id (numeric), pra-{praId}, and ic-{icId} formats
@@ -4605,7 +4653,7 @@ class OpResettlementApplicationController extends Controller
 
             $PageTitle = 'Update OP';
             $PageDescription = 'Update Occupancy Permit for ' . ($mlsfNo ?: 'record');
-            $returnUrl = route('lands-one-stop-shop.applications.index') . '?source=lands-one-stop-shop&type=change-of-name';
+            $returnUrl = $this->generateFileNosReturnUrl();
             $fileNumberId = 'ic-' . $icDirectId;
 
             // The applicant's photograph is filed against the FILE, not against any one
@@ -4724,7 +4772,7 @@ class OpResettlementApplicationController extends Controller
 
             $PageTitle = 'Update OP';
             $PageDescription = 'Update Occupancy Permit for ' . ($mlsfNo ?: 'record');
-            $returnUrl = route('lands-one-stop-shop.applications.index') . '?source=lands-one-stop-shop&type=change-of-name';
+            $returnUrl = $this->generateFileNosReturnUrl();
             $fileNumberId = 'pra-' . $praId;
 
             // The applicant's photograph is filed against the FILE, not against any one
@@ -4919,7 +4967,7 @@ class OpResettlementApplicationController extends Controller
 
         $PageTitle = 'Update OP';
         $PageDescription = 'Update Occupancy Permit for ' . ($base->mlsfNo ?: 'record');
-        $returnUrl = route('lands-one-stop-shop.applications.index') . '?source=lands-one-stop-shop&type=change-of-name';
+        $returnUrl = $this->generateFileNosReturnUrl();
         $fileNumberId = $id;
 
         // The applicant's photograph is filed against the FILE, not against any one
