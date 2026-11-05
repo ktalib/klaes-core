@@ -1719,6 +1719,7 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'blind-scanning'], fu
     Route::post('/create-folder', [App\Http\Controllers\BlindScanningController::class, 'createFolder'])->name('blind-scanning.create-folder');
     Route::post('/store', [App\Http\Controllers\BlindScanningController::class, 'store'])->name('blind-scanning.store');
     Route::get('/list', [App\Http\Controllers\BlindScanningController::class, 'apiList'])->name('blind-scanning.list');
+    Route::get('/folder-summary', [App\Http\Controllers\BlindScanningController::class, 'folderSummary'])->name('blind-scanning.folder-summary');
     Route::get('/logs', [App\Http\Controllers\BlindScanningController::class, 'apiLogs'])->name('blind-scanning.logs');
     Route::post('/sync-migrations', [App\Http\Controllers\BlindScanningController::class, 'syncMigrationLog'])->name('blind-scanning.sync-migrations');
     Route::post('/save-image', [App\Http\Controllers\BlindScanningController::class, 'apiSaveImage'])->name('blind-scanning.save-image');

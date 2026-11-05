@@ -56,7 +56,7 @@ class MobileFileSearchController extends Controller
             return response()->json(['success' => false, 'message' => 'Provide a file number.'], 422);
         }
 
-        $result = $resolver->resolve($q);
+        $result = $resolver->resolveForSearch($q);
         $resolver->persist($result);
 
         $dcivInfo = $resolver->dcivInfoFor($result['file_number'], $result['indexing'] ?? null, $result['registry'] ?? null);
@@ -233,6 +233,10 @@ class MobileFileSearchController extends Controller
                 // The reverse: land file(s) kept inside this KANGIS file.
                 'land_files'         => $resolver->landFilesFor($result['file_number'], $result['indexing'] ?? null),
                 'file_title'       => $fileTitle,
+                // Old file numbers, as on web Quick Search.
+                'searched_old_number' => $result['searched_old_number'] ?? null,
+                'old_number_of'       => $result['old_number_of'] ?? [],
+                'old_file_numbers'    => $result['old_file_numbers'] ?? [],
                 'status'           => $result['status'],
                 // In-Transit / Requested / DIIT for the open movement cycle (null when none).
                 'request_type'     => $resolver->requestTypeFor($tracker),

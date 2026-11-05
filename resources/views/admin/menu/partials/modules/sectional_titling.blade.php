@@ -115,7 +115,7 @@
             <span>Payments</span>
           </a>
           <a href="{{route('programmes.payments')}}?url=report"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('programmes.payments') && request()->query('url') === 'report' ? 'active' : '' }}">
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('programmes.payments') && request()->query('url') === 'report' && !request()->query('source') ? 'active' : '' }}">
             <i data-lucide="file-bar-chart" class="h-3.5 w-3.5 text-blue-400"></i>
             <span>Payments Report</span>
           </a>

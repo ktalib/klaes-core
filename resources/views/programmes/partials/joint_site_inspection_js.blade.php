@@ -175,6 +175,102 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // --- Conversion File Number dropdown -------------------------------------------
+    // Conversion JSIs pick their file from a searchable list of CON- files from File
+    // Indexing (no global selector). The pick fills the hidden file_number field.
+    const conversionFileOptionsUrl = '{{ route('physical-planning.conversion.jsi.file-options') }}';
+
+    function initConversionFileSelect() {
+        const select = window.jQuery ? jQuery('#jsiConversionFileSelect') : null;
+        if (!select || !select.length || typeof select.select2 !== 'function') return null;
+        if (select.data('select2')) return select;
+
+        select.select2({
+            width: '100%',
+            placeholder: select.data('placeholder') || 'Search Conversion (CON-) file number',
+            allowClear: true,
+            dropdownParent: jQuery('#jsiConversionFileWrapper'),
+            minimumInputLength: 0,
+            ajax: {
+                url: conversionFileOptionsUrl,
+                dataType: 'json',
+                delay: 250,
+                data: params => ({ q: params.term || '', page: params.page || 1 }),
+                processResults: data => data,
+            },
+            templateResult: item => {
+                if (!item.id || !item.file_title) return item.text;
+                const wrap = document.createElement('div');
+                const no = document.createElement('div');
+                no.className = 'font-semibold text-xs';
+                no.textContent = item.text;
+                const title = document.createElement('div');
+                title.className = 'text-[11px] text-gray-500';
+                title.textContent = item.file_title;
+                wrap.append(no, title);
+                return wrap;
+            },
+        });
+
+        select.on('select2:select', e => applyConversionFilePick(e.params.data || {}));
+        select.on('select2:clear', () => applyConversionFilePick(null));
+        return select;
+    }
+
+    // Fill the form from the picked file; a new pick (or a clear) replaces the previous file's values.
+    function applyConversionFilePick(file) {
+        const fileNumber = file && file.id ? String(file.id).toUpperCase() : '';
+
+        const fileNumberField = document.getElementById('jointInspectionFileNumber');
+        if (fileNumberField) {
+            fileNumberField.value = fileNumber;
+            fileNumberField.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        jsiContext.fileNumber = fileNumber;
+
+        const modalAppField = document.getElementById('modal_application_id');
+        if (modalAppField) {
+            modalAppField.value = file && file.application_id ? String(file.application_id) : '';
+            currentApplicationId = modalAppField.value;
+            window.currentApplicationId = currentApplicationId;
+        }
+
+        const applicantField = document.getElementById('jointInspectionApplicant');
+        if (applicantField) {
+            applicantField.value = file && file.file_title ? toTitleCase(file.file_title) : '';
+        }
+
+        const lknField = document.getElementById('jointInspectionLkn');
+        if (lknField) {
+            lknField.value = file && file.lpkn_no ? file.lpkn_no : '';
+        }
+
+        const stateField = document.getElementById('locationState');
+        setAddressComponents('location', {
+            plot_number: file ? (file.plot_number || '') : '',
+            district: file ? (file.district || '') : '',
+            lga: file ? (file.lga || '') : '',
+            state: stateField ? stateField.value : '',
+        });
+    }
+
+    // Show the current file_number value in the dropdown (modal open / existing report).
+    function syncConversionFileSelect() {
+        if (!jsiContext.isConversion) return;
+        const select = initConversionFileSelect();
+        if (!select) return;
+        const value = (document.getElementById('jointInspectionFileNumber')?.value || '').trim().toUpperCase();
+        select.empty();
+        if (value) {
+            select.append(new Option(value, value, true, true));
+        }
+        // A saved report keeps its file (the save refuses a different application).
+        let savedReport = false;
+        try { savedReport = Boolean(jsiWorkflowState && jsiWorkflowState.recordId); } catch (e) { savedReport = false; }
+        select.prop('disabled', savedReport && value !== '');
+        select.trigger('change.select2');
+    }
+
     function toggleConversionUi(isConversion) {
         const conversionSection = document.getElementById('conversionFieldsSection');
         const sectionsCountGroup = document.getElementById('sectionsCountGroup');
@@ -220,13 +316,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const fileNumberHint = document.getElementById('jsiFileNumberHint');
         const fileNumberField = document.getElementById('jointInspectionFileNumber');
 
+        // Conversion: the text field + Select button give way to the CON- dropdown.
         if (selectFileBtn) {
-            selectFileBtn.classList.toggle('hidden', !isConversion);
+            selectFileBtn.classList.add('hidden');
+        }
+        document.getElementById('jsiFileNumberRow')?.classList.toggle('hidden', isConversion);
+        document.getElementById('jsiConversionFileWrapper')?.classList.toggle('hidden', !isConversion);
+        if (isConversion) {
+            syncConversionFileSelect();
         }
 
         if (fileNumberHint) {
             fileNumberHint.textContent = isConversion
-                ? 'Use the Select button to pick a file number.'
+                ? 'Search and pick a Conversion (CON-) file. The list comes from File Indexing.'
                 : 'File number is locked to the current application.';
         }
 
@@ -2780,6 +2882,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (fileNumberField) {
             fileNumberField.value = normalizedFileNumber || '';
         }
+        syncConversionFileSelect();
 
         // Hide shared areas section
         const sharedAreasSection = document.getElementById('sharedAreasSection');
@@ -2915,6 +3018,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         fileNumberField.value = String(fileNumber).toUpperCase();
                     }
                     lockFieldIfValue(fileNumberField);
+                    syncConversionFileSelect();
                 }
 
                 // Set applicant name from owner_name if available
@@ -3580,6 +3684,8 @@ document.addEventListener('DOMContentLoaded', function() {
             applyConversionReservationFromReport(report);
             resetMeasurementEntriesUI();
         }
+
+        syncConversionFileSelect();
     }
 
     function hydrateJointInspectionFromSavedReport(savedReport) {
@@ -4362,6 +4468,11 @@ document.addEventListener('DOMContentLoaded', function() {
             window.GlobalFileNoModal.open({
                 targetFields: ['#jointInspectionFileNumber'],
                 autoPopulateGenericFields: false,
+                // Conversion JSI: Conversion (CON-) files only, all on the MLS tab.
+                allowedTabs: ['mls'],
+                initialTab: 'mls',
+                includePrefixes: ['CON-'],
+                includePrefixMessage: 'Only Conversion (CON-) file numbers can be used for a Conversion Joint Site Inspection Report.',
                 callback: function(data) {
                     if (!data || !data.fileNumber) return;
 

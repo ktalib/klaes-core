@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Concerns\ExecutesMasterDelete;
+use App\Services\Edms\ParcelDocumentIngestService;
+use App\Services\PhysicalPlanningBillSources;
 use App\Services\RofoRecommendationPurgeService;
 
 class ProgrammesController extends Controller
@@ -179,10 +181,10 @@ class ProgrammesController extends Controller
         $PageTitle = 'Bills Management';
         $PageDescription = 'Manage Initial Bills, Betterment Bills, and Bill Balance';
 
-        // ── Conversion Applications (source=pp_conversion) ──────────────
+        // ── Physical Planning betterment bills (SLTR / Conversion / Master JSI) ──
         $sourceParam = $request->get('source');
-        if ($sourceParam === 'pp_conversion') {
-            return $this->conversionBills($request);
+        if (PhysicalPlanningBillSources::has($sourceParam)) {
+            return $this->conversionBills($request, $sourceParam);
         }
 
         // ── Special Assignment Bills (?url=spa) ──────────────────────────
@@ -405,34 +407,19 @@ class ProgrammesController extends Controller
     }
 
     /**
-     * Bills view for Conversion Applications (source=pp_conversion).
-     * Loads file numbers from JSI reports and betterment bills from billing table.
+     * Betterment bills for a central Physical Planning source (SLTR, Conversion, Master JSI).
+     * Loads file numbers from its inspection reports and its bills from the billing table.
      */
-    private function conversionBills(Request $request)
+    private function conversionBills(Request $request, string $sourceKey = 'pp_conversion')
     {
-        $PageTitle = 'Conversion Applications - Betterment Bills';
-        $PageDescription = 'Manage betterment bills for conversion applications';
+        $source = PhysicalPlanningBillSources::get($sourceKey);
+        $PageTitle = $source['label'] . ' - Betterment Bills';
+        $PageDescription = 'Manage betterment bills for ' . $source['label'] . ' applications';
 
-        // Load JSI conversion files for the dropdown
-        $jsiFiles = DB::connection('sqlsrv')
-            ->table('joint_site_inspection_reports')
-            ->whereNull('sub_application_id')
-            ->where(function ($q) {
-                $q->where('source', 'Conversion Applications')
-                  ->orWhere('file_number', 'LIKE', 'CON-%');
-            })
-            ->select(
-                'id',
-                'file_number',
-                'applicant_name',
-                'applied_land_use',
-                'application_id',
-                'existing_site_area',
-                'existing_site_length',
-                'existing_site_width',
-                'existing_site_measurement_entries'
-            )
-            ->orderBy('file_number')
+        // Load the source's inspection reports for the dropdown
+        $jsiFiles = app(PhysicalPlanningBillSources::class)
+            ->reports($sourceKey)
+            ->orderBy('jsi.file_number')
             ->get();
 
         $parseAreaFromText = function ($value): ?float {
@@ -465,7 +452,7 @@ class ProgrammesController extends Controller
             return null;
         };
 
-        $allFiles = $jsiFiles->map(function ($item) use ($parseAreaFromText) {
+        $allFiles = $jsiFiles->map(function ($item) use ($parseAreaFromText, $source) {
             $existingStructureTotal = 0.0;
             $resolvedExistingSiteArea = is_numeric($item->existing_site_area ?? null)
                 ? (float) $item->existing_site_area
@@ -543,25 +530,26 @@ class ProgrammesController extends Controller
                 'fileno'     => $item->file_number ?? ('JSI-' . $item->id),
                 'owner_name' => $item->applicant_name ?? 'N/A',
                 'type'       => 'conversion',
+                'type_label' => $source['label'],
                 'unit_type'  => null,
                 'existing_site_area' => ($resolvedExistingSiteArea && $resolvedExistingSiteArea > 0) ? round($resolvedExistingSiteArea, 2) : null,
                 'existing_structure_total' => $existingStructureTotal,
             ];
         })->sortBy('fileno');
 
-        // Load betterment bills for conversion (source = PP_BETTERMENT_BILL)
+        // Load this source's betterment bills
         $bettermentBills = DB::connection('sqlsrv')
             ->table('billing')
-            ->leftJoin('joint_site_inspection_reports', function ($join) {
-                $join->on('billing.source_id', '=', DB::raw('CAST(joint_site_inspection_reports.id AS NVARCHAR(50))'));
-            })
-            ->where('billing.source', 'PP_BETTERMENT_BILL')
+            ->leftJoin($source['report_table'] . ' as jsi', 'billing.source_id', '=', 'jsi.id')
+            ->where('billing.source', $source['billing_source'])
             ->select(
                 'billing.*',
-                'joint_site_inspection_reports.file_number as jsi_file_number',
-                'joint_site_inspection_reports.applicant_name as jsi_applicant_name',
-                'joint_site_inspection_reports.applied_land_use as jsi_land_use',
-                'joint_site_inspection_reports.id as jsi_id'
+                'jsi.file_number as jsi_file_number',
+                'jsi.applicant_name as jsi_applicant_name',
+                $sourceKey === 'pp_master_jsi'
+                    ? DB::raw('COALESCE(jsi.recommended_land_use, jsi.existing_land_use) as jsi_land_use')
+                    : 'jsi.applied_land_use as jsi_land_use',
+                'jsi.id as jsi_id'
             )
             ->get();
 
@@ -582,7 +570,7 @@ class ProgrammesController extends Controller
             ->orderBy('category')
             ->get();
 
-        // No initial or final bills for conversion
+        // No initial or final bills on these sources
         $initialBills = [];
         $finalBills = [];
 
@@ -838,20 +826,18 @@ class ProgrammesController extends Controller
             return $this->spaPayments($request);
         }
 
-        // ── Conversion Applications (source=pp_conversion) ──────────────
+        // ── Physical Planning betterment payments (SLTR / Conversion / Master JSI) ──
         $sourceParam = $request->get('source');
-        $isConversion = ($sourceParam === 'pp_conversion');
         $isReport = ($request->get('url') === 'report');
 
-        if ($isConversion) {
-            $PageTitle = $isReport
-                ? 'Conversion Applications - Payment Reports'
-                : 'Conversion Applications - Payments';
+        if (PhysicalPlanningBillSources::has($sourceParam)) {
+            $sourceLabel = PhysicalPlanningBillSources::get($sourceParam)['label'];
+            $PageTitle = $sourceLabel . ($isReport ? ' - Payment Reports' : ' - Payments');
             $PageDescription = $isReport
-                ? 'Summary of conversion betterment payment records'
-                : 'View payment records for conversion betterment bills';
+                ? 'Summary of ' . $sourceLabel . ' betterment payment records'
+                : 'View payment records for ' . $sourceLabel . ' betterment bills';
 
-            $paymentData = $this->getConversionPaymentData($request);
+            $paymentData = $this->getConversionPaymentData($request, $sourceParam);
 
             return view('programmes.payments', array_merge(
                 $paymentData,
@@ -865,8 +851,9 @@ class ProgrammesController extends Controller
         $PageTitle = 'Payments';
         $PageDescription = '';
 
-        // Get payment data
-        $paymentData = $this->getPaymentData();
+        // Get payment data. Units pay no betterment, so the central Physical Planning
+        // area works on primary applications only.
+        $paymentData = $this->getPaymentData(null, PhysicalPlanningBillSources::isCentral($request));
 
         return view('programmes.payments', array_merge(
             $paymentData,
@@ -890,13 +877,13 @@ class ProgrammesController extends Controller
             'payment_status' => 'nullable|string'
         ]);
 
-        // Handle conversion source
-        if ($request->get('source') === 'pp_conversion') {
-            return response()->json($this->getConversionPaymentData($request));
+        // Handle the Physical Planning sources
+        if (PhysicalPlanningBillSources::has($request->get('source'))) {
+            return response()->json($this->getConversionPaymentData($request, $request->get('source')));
         }
 
         // Get filtered payment data
-        $paymentData = $this->getPaymentData($request);
+        $paymentData = $this->getPaymentData($request, PhysicalPlanningBillSources::isCentral($request));
 
         return response()->json($paymentData);
     }
@@ -904,7 +891,7 @@ class ProgrammesController extends Controller
     /**
      * Get payment data with optional filters - NEW STRUCTURE
      */
-    private function getPaymentData(Request $request = null)
+    private function getPaymentData(Request $request = null, bool $primaryOnly = false)
     {
         // Query 1: Primary Application Payments (from mother_applications + billing for betterment charges)
         $primaryQuery = DB::connection('sqlsrv')->table('mother_applications')
@@ -944,8 +931,11 @@ class ProgrammesController extends Controller
                 'mother_applications.Payment_Status',
                 'mother_applications.created_at',
                 'mother_applications.sys_date',
+                'billing.ID as billing_id',
                 'billing.Betterment_Charges',
                 'billing.Betterment_receipt',
+                'billing.Betterment_amount_paid',
+                'billing.Betterment_evidence_path',
                 'billing.Penalty_Fees'
             )
             ->where(function ($query) {
@@ -954,6 +944,9 @@ class ProgrammesController extends Controller
                     ->orWhereNotNull('mother_applications.site_plan_fee')
                     ->orWhereNotNull('billing.Betterment_Charges');
             })
+            // Newest first, by the date the table shows.
+            ->orderByDesc('mother_applications.created_at')
+            ->orderByDesc('mother_applications.id')
             ->get();
 
         // Query 2: Unit Application Payments (from subapplications + final_bills for additional fees)
@@ -1016,6 +1009,9 @@ class ProgrammesController extends Controller
                     ->orWhereNotNull('final_bills.bill_balance')
                     ->orWhereNotNull('billing.Penalty_Fees');
             })
+            // Newest first, by the date the table shows.
+            ->orderByDesc('subapplications.created_at')
+            ->orderByDesc('subapplications.id')
             ->get();
 
         // Format owner names for primary payments
@@ -1033,6 +1029,10 @@ class ProgrammesController extends Controller
         }
 
         // Combined payments for the main summary section
+        if ($primaryOnly) {
+            $unitPayments = collect();
+        }
+
         $payments = collect($primaryPayments)->merge($unitPayments);
 
         // Calculate general payment statistics
@@ -1146,17 +1146,17 @@ class ProgrammesController extends Controller
     }
 
     /**
-     * Get payment data specifically for Conversion Applications (source=PP_BETTERMENT_BILL).
+     * Get payment data for a Physical Planning betterment source (SLTR, Conversion, Master JSI).
      * Returns the same shape as getPaymentData() so the existing payments blade works.
      */
-    private function getConversionPaymentData(Request $request = null)
+    private function getConversionPaymentData(Request $request = null, string $sourceKey = 'pp_conversion')
     {
+        $source = PhysicalPlanningBillSources::get($sourceKey);
+
         $query = DB::connection('sqlsrv')
             ->table('billing')
-            ->leftJoin('joint_site_inspection_reports as jsi', function ($join) {
-                $join->on('billing.source_id', '=', DB::raw('CAST(jsi.id AS NVARCHAR(50))'));
-            })
-            ->where('billing.source', 'PP_BETTERMENT_BILL');
+            ->leftJoin($source['report_table'] . ' as jsi', 'billing.source_id', '=', 'jsi.id')
+            ->where('billing.source', $source['billing_source']);
 
         // Date filters
         if ($request && $request->filled('start_date')) {
@@ -1178,14 +1178,22 @@ class ProgrammesController extends Controller
             'billing.Betterment_Charges',
             'billing.Betterment_receipt',
             'billing.receipt_date',
+            'billing.Betterment_amount_paid',
+            'billing.Betterment_evidence_path',
             'billing.Payment_Status',
             'billing.property_value',
             'billing.created_at',
             'billing.source_id',
             'jsi.applicant_name',
-            'jsi.applied_land_use',
+            $sourceKey === 'pp_master_jsi'
+                ? DB::raw('COALESCE(jsi.recommended_land_use, jsi.existing_land_use) as applied_land_use')
+                : 'jsi.applied_land_use',
             'jsi.file_number as jsi_file_number'
-        )->get();
+        )
+            // Newest first, by the date the table shows (receipt date, else bill date).
+            ->orderByRaw('COALESCE(TRY_CONVERT(datetime, billing.receipt_date), billing.created_at) DESC')
+            ->orderByDesc('billing.id')
+            ->get();
 
         // Format for the payments view
         foreach ($bills as $bill) {
@@ -3156,48 +3164,87 @@ class ProgrammesController extends Controller
         try {
             // Validate the request
             $request->validate([
-                'file_no' => 'required|string',
-                'receipt_number' => 'required|string',
+                'bill_id' => 'nullable|integer',
+                'file_no' => 'required_without:bill_id|nullable|string',
+                'receipt_number' => 'required|string|max:255',
                 'receipt_date' => 'required|date',
+                'amount_paid' => 'required|numeric|min:0',
+                'evidence' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240',
                 'notes' => 'nullable|string'
             ]);
 
             $fileNo = $request->input('file_no');
-
-            // Find the billing record for this file number - check both mother_applications and subapplications
-            $billingRecord = DB::connection('sqlsrv')->table('billing')
-                ->leftJoin('mother_applications', 'billing.application_id', '=', 'mother_applications.id')
-                ->leftJoin('subapplications', 'billing.sub_application_id', '=', 'subapplications.id')
-                ->where(function ($q) use ($fileNo) {
-                    $q->where('mother_applications.fileno', $fileNo)
-                        ->orWhere('subapplications.fileno', $fileNo);
-                })
+            $billQuery = DB::connection('sqlsrv')->table('billing')
                 ->whereNotNull('billing.Betterment_Charges')
-                ->select('billing.id')
-                ->first();
+                ->select('billing.*');
 
-            if (!$billingRecord) {
+            if ($request->filled('bill_id')) {
+                $bill = $billQuery->where('billing.ID', $request->input('bill_id'))->first();
+            } else {
+                // Find the billing record for this file number - check both mother_applications and subapplications
+                $bill = $billQuery
+                    ->leftJoin('mother_applications', 'billing.application_id', '=', 'mother_applications.id')
+                    ->leftJoin('subapplications', 'billing.sub_application_id', '=', 'subapplications.id')
+                    ->where(function ($q) use ($fileNo) {
+                        $q->where('mother_applications.fileno', $fileNo)
+                            ->orWhere('subapplications.fileno', $fileNo);
+                    })
+                    ->first();
+            }
+
+            if (!$bill) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No betterment bill found for file number: ' . $fileNo
                 ]);
             }
 
+            if (!empty($bill->Betterment_receipt)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'A betterment receipt has already been entered for this bill.'
+                ], 422);
+            }
+
+            // The evidence lives in the file's EDMS record, as Payment Evidence > Receipts.
+            $evidence = $request->file('evidence');
+            $evidencePath = app(ParcelDocumentIngestService::class)->ingest(
+                $evidence,
+                $bill->Sectional_Title_File_No ?: $fileNo,
+                'payment_evidence',
+                'payment_evidence/betterment',
+                'BETTERMENT-RECEIPT-' . $bill->ID . '-' . now()->format('YmdHis') . '.' . strtolower($evidence->getClientOriginalExtension()),
+                auth()->id()
+            );
+
+            $billAmount = floatval($bill->Betterment_Charges ?? 0);
+            $amountPaid = round(floatval($request->input('amount_paid')), 2);
+
             // Update the billing record with receipt information
             $updateData = [
                 'Betterment_receipt' => $request->input('receipt_number'),
                 'Betterment_receipt_date' => $request->input('receipt_date'),
                 'Betterment_receipt_notes' => $request->input('notes'),
+                'Betterment_amount_paid' => $amountPaid,
+                'Betterment_evidence_path' => $evidencePath,
                 'updated_at' => now()
             ];
 
+            // On these bills Betterment is the only charge, so it decides the bill's status.
+            // An ST billing row also carries other fees: its status is left alone.
+            if (PhysicalPlanningBillSources::keyForBillingSource($bill->source)) {
+                $updateData['receipt_date'] = $request->input('receipt_date');
+                $updateData['Payment_Status'] = $amountPaid >= $billAmount ? 'Paid' : 'Partial';
+            }
+
             DB::connection('sqlsrv')->table('billing')
-                ->where('id', $billingRecord->id)
+                ->where('ID', $bill->ID)
                 ->update($updateData);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Betterment bill receipt saved successfully'
+                'message' => 'Betterment bill receipt saved successfully',
+                'difference' => round($amountPaid - $billAmount, 2)
             ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {

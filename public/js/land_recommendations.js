@@ -392,15 +392,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 setSubmitBusy('Checking...');
                 checkDuplicateFileNo(fileNoInput.value).then(dup => {
                     dupCheckPending = false;
-                    // Blocked or not, the button comes back here; a submit that
-                    // goes through sets it busy again below.
-                    resetSubmitBtn();
                     if (dup) {
+                        resetSubmitBtn();
                         blockDuplicate(dup);
                         return;
                     }
                     dupConfirmed = true; // nothing to confirm — let the next submit through
-                    form.requestSubmit ? form.requestSubmit() : form.submit();
+                    // A later turn, not here. An edit with its file number unchanged skips
+                    // the server, so this runs while the click's own submit event is still
+                    // being dispatched, and the browser silently ignores requestSubmit()
+                    // then. That was the Update button needing a second click.
+                    setTimeout(function () {
+                        // The button comes back here; a submit that goes through sets
+                        // it busy again below, in the same breath.
+                        resetSubmitBtn();
+                        form.requestSubmit ? form.requestSubmit() : form.submit();
+                    }, 0);
                 });
                 return;
             }

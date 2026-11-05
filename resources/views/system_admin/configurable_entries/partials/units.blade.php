@@ -18,8 +18,8 @@
             <div>
                 <div class="iw-card-title"><span class="iw-icon-tile" style="background:#f3e8ff;color:#7e22ce"><i data-lucide="network" class="h-5 w-5"></i></span> File Movement units</div>
                 <div class="iw-card-sub">
-                    Units inside a department. When a file is sent on File Movement, the unit is optional; one not listed here is typed under Other (specify).
-                    A send between two offices of the same department shows as In-Unit; to another department, In Transit.
+                    Units inside a department. On File Movement, In-Unit sends a file to one of these and anyone in that department can receive it; one not listed here is typed under Other (specify).
+                    A send inside the same department shows as In-Unit; to another department, In Transit.
                 </div>
             </div>
             <div class="flex items-center gap-2">

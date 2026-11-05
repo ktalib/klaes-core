@@ -32,11 +32,6 @@
         Back
       </button>
       @endif
-      <div class="relative">
-        <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"></i>
-        <input type="text" placeholder="Search applications..."
-          class="pl-10 pr-4 py-2 border border-gray-200 rounded-md w-64 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      </div>
       <div class="relative" id="file-tracker-header-notifications" data-sound-url="{{ asset('sound/sound.wav') }}"
         data-endpoint="{{ route('file-tracker-dashboard.notifications', ['scope' => 'all']) }}"
         data-fallback-endpoint="{{ url('api/file-tracker-dashboard/notifications?scope=all') }}"
@@ -341,7 +336,7 @@
 @if ($accountSetupCardsApply && Auth::user()->needs_phone_verification)
   @include('profile.partials.phone-verification-card')
 @endif
-<script src="{{ asset('js/auto-logout.js') }}" defer></script>
+<script src="{{ asset('js/auto-logout.js') }}?v={{ filemtime(public_path('js/auto-logout.js')) }}" defer></script>
 <script src="{{ asset('js/user-profile-dropdown.js') }}" defer></script>
 @php
   // Stamped by AuthenticatedSessionController on login. The fallback covers

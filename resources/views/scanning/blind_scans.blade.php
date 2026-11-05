@@ -415,12 +415,36 @@
               </div>
 
               <div>
+                <label class="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                  <input id="uploadTypeCheck" type="checkbox" required class="h-4 w-4" />
+                  <span>Choose upload type <span class="text-red-500">*</span></span>
+                </label>
+                <div id="uploadTypeOptions" class="hidden mt-2 border rounded-md px-3 py-2 bg-white space-y-2">
+                  <label class="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="radio" name="uploadType" value="full" class="h-4 w-4" />
+                    <span>Full file (A4 / A3 folders)</span>
+                  </label>
+                  <label class="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="radio" name="uploadType" value="lf" class="h-4 w-4" />
+                    <span>LF Scan only (large format, A3)</span>
+                  </label>
+                </div>
+                <p id="uploadTypeHint" class="text-xs text-muted-foreground mt-1">Required before a folder can be picked.</p>
+              </div>
+
+              <div>
                 <label class="block text-sm font-medium mb-1">Pick local folder</label>
                 <input id="folderInput" type="file" webkitdirectory directory multiple
                   class="w-full border rounded-md px-3 py-2" />
-                <p class="text-xs text-muted-foreground mt-1">
+                <p id="folderHint" class="text-xs text-muted-foreground mt-1">
                   Use Chrome/Edge on desktop. The folder name should match the File Number.
                 </p>
+              </div>
+
+              <div id="lfFilesWrap" class="hidden">
+                <label class="block text-sm font-medium mb-1">Or pick the LF images</label>
+                <input id="lfFilesInput" type="file" multiple accept=".jpg,.jpeg,.png,.tif,.tiff,.bmp,.gif,.webp,.pdf"
+                  class="w-full border rounded-md px-3 py-2" />
               </div>
 
               <div id="status" class="text-sm text-muted-foreground">No folder selected.</div>

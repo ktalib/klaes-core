@@ -1,0 +1,6 @@
+id,department,name,is_active,created_by,updated_by,created_at,updated_at
+25,"Special Duty","Director Special Assignment",1,,,"2026-11-04 17:23:46.543","2026-11-04 17:23:46.543"
+26,"Special Duty","Deputy Director Special Assignment",1,,,"2026-11-04 17:23:46.543","2026-11-04 17:23:46.543"
+27,"Special Duty",Fieldwork,1,,,"2026-11-04 17:23:46.543","2026-11-04 17:23:46.543"
+28,"Special Duty",Bills,1,,,"2026-11-04 17:23:46.543","2026-11-04 17:23:46.543"
+29,"Special Duty",Notice,1,,,"2026-11-04 17:23:46.543","2026-11-04 17:23:46.543"

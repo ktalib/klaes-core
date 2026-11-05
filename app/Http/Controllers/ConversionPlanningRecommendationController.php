@@ -27,10 +27,10 @@ class ConversionPlanningRecommendationController extends Controller
         $statsBaseQuery = DB::connection('sqlsrv')
             ->table('joint_site_inspection_reports as jsi')
             ->whereNull('jsi.sub_application_id')
+            // Same scope as getData(): Conversion files only, never direct (RES-) files.
             ->where(function ($q) {
                 $q->where('jsi.source', 'Conversion Applications')
-                    ->orWhere('jsi.file_number', 'LIKE', 'CON-%')
-                    ->orWhere('jsi.file_number', 'LIKE', 'RES-%');
+                    ->orWhere('jsi.file_number', 'LIKE', 'CON-%');
             });
 
         $stats = [
@@ -395,6 +395,71 @@ class ConversionPlanningRecommendationController extends Controller
     /**
      * Print final recommendation for a conversion application.
      */
+    /**
+     * Select2 options for the Conversion JSI File Number dropdown: Conversion (CON-)
+     * files from File Indexing only, searchable. application_id is the matching
+     * fileNumber row's id, the key the conversion approval/print pages look up.
+     */
+    public function jsiFileOptions(Request $request)
+    {
+        $term = trim((string) $request->query('q', ''));
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = 20;
+
+        $query = DB::connection('sqlsrv')
+            ->table('file_indexings')
+            ->where('file_number', 'LIKE', 'CON-%')
+            ->where(function ($q) {
+                $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+            });
+
+        if ($term !== '') {
+            $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], strtoupper($term)) . '%';
+            $query->where(function ($q) use ($like) {
+                $q->whereRaw('UPPER(file_number) LIKE ?', [$like])
+                    ->orWhereRaw('UPPER(file_title) LIKE ?', [$like]);
+            });
+        }
+
+        $rows = $query
+            ->orderBy('file_number')
+            ->offset(($page - 1) * $perPage)
+            ->limit($perPage + 1)
+            ->get(['id', 'file_number', 'file_title', 'plot_number', 'district', 'lga', 'location', 'tp_no', 'lpkn_no']);
+
+        $more = $rows->count() > $perPage;
+        $rows = $rows->take($perPage);
+
+        // One file can have several fileNumber rows; take the live one per number.
+        $fileNumberIds = DB::connection('sqlsrv')
+            ->table('fileNumber')
+            ->whereIn('mlsfNo', $rows->pluck('file_number')->filter()->unique()->values()->all())
+            ->where(function ($q) {
+                $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+            })
+            ->orderBy('id')
+            ->get(['id', 'mlsfNo'])
+            ->groupBy('mlsfNo')
+            ->map(fn ($g) => $g->first()->id);
+
+        $results = $rows->unique('file_number')->map(fn ($r) => [
+            'id' => $r->file_number,
+            'text' => $r->file_number,
+            'file_title' => $r->file_title,
+            'plot_number' => $r->plot_number,
+            'district' => $r->district,
+            'lga' => $r->lga,
+            'location' => $r->location,
+            'lpkn_no' => $r->lpkn_no ?: $r->tp_no,
+            'application_id' => $fileNumberIds[$r->file_number] ?? null,
+        ])->values();
+
+        return response()->json([
+            'results' => $results,
+            'pagination' => ['more' => $more],
+        ]);
+    }
+
     public function printRecommendation($applicationId)
     {
         $report = DB::connection('sqlsrv')

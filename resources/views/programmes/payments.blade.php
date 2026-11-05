@@ -5,6 +5,12 @@
 @endsection
 
 @section('content')
+  @php
+    // Physical Planning > Bills & Payments: one central area, a tab per application type.
+    $ppCentral = \App\Services\PhysicalPlanningBillSources::isCentral(request());
+    $ppSource = \App\Services\PhysicalPlanningBillSources::has(request()->get('source')) ? request()->get('source') : null;
+    $ppLabel = $ppSource ? \App\Services\PhysicalPlanningBillSources::get($ppSource)['label'] : null;
+  @endphp
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -23,6 +29,10 @@
 
     <!-- Main Content -->
     <div class="p-6">
+      @if($ppCentral)
+        @include('programmes.partials.pp_bills_tabs', ['ppTabsPage' => request()->get('url') === 'report' ? 'reports' : 'payments'])
+      @endif
+
       <!-- Filter Form -->
       <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6">
         <div class="flex items-center justify-between mb-4">
@@ -76,7 +86,7 @@
                 <select id="payment-type" name="payment_type"
                   class="w-full pl-10 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 appearance-none transition-all">
                   <option value="all">All Payments</option>
-                  @if(request()->get('source') === 'pp_conversion')
+                  @if($ppSource)
                     <option value="betterment">Betterment Charges</option>
                   @else
                     <option value="initial">Initial Bill</option>
@@ -209,13 +219,13 @@
           <div class="flex">
             <!-- Remove inline onclick attributes -->
             <button id="primary-tab" class="px-6 py-3 tab-active border-t border-l border-r">
-              @if(request()->get('source') === 'pp_conversion')
-                Conversion Applications ({{ count($primaryPayments) }})
+              @if($ppSource)
+                {{ $ppLabel }} Applications ({{ count($primaryPayments) }})
               @else
                 Primary Applications ({{ count($primaryPayments) }})
               @endif
             </button>
-            @if(request()->get('url') !== 'phycal_plan' && request()->get('source') !== 'pp_conversion')
+            @if(!$ppCentral)
               <button id="unit-tab" class="px-6 py-3 tab-inactive">
                 Unit Applications ({{ count($unitPayments) }})
               </button>
@@ -227,14 +237,20 @@
         <div id="primary-content" class="p-6">
           <div class="flex justify-between items-center mb-6">
             <h2 class="text-xl font-bold">
-              @if(request()->get('source') === 'pp_conversion')
-                Conversion Application Payments
+              @if($ppSource)
+                {{ $ppLabel }} Application Payments
               @else
                 Primary Application Payments
               @endif
             </h2>
 
             <div class="flex items-center space-x-4">
+              <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"></i>
+                <input type="search" id="primary-search" placeholder="Search file no., name, receipt..." aria-label="Search payments"
+                  class="pl-9 pr-3 py-2 w-64 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              </div>
+
               <div class="relative">
                 <select id="primary-filter"
                   class="pl-4 pr-8 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
@@ -255,93 +271,14 @@
             </div>
           </div>
 
-          @if(request()->get('source') === 'pp_conversion')
-          {{-- Conversion-specific payments table (simplified) --}}
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File No</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ref ID</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Land Use</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Area (m²)</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Betterment Charges</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receipt No</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                @forelse($primaryPayments as $payment)
-                  @php
-                    $betterment = floatval($payment->Betterment_Charges ?? 0);
-                    $area = floatval($payment->property_value ?? 0);
-                    $status = $payment->Payment_Status ?? 'Pending';
-                    $statusClass = match(strtolower($status)) {
-                      'paid', 'complete' => 'bg-green-100 text-green-800',
-                      'partial' => 'bg-yellow-100 text-yellow-800',
-                      default => 'bg-red-100 text-red-800',
-                    };
-                    $paymentDate = $payment->receipt_date ?? $payment->created_at;
-                    $paymentDateDisplay = $paymentDate ? \Carbon\Carbon::parse($paymentDate)->format('M d, Y') : 'N/A';
-                  @endphp
-                  <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      <div class="flex items-center">
-                        <i data-lucide="file-text" class="w-4 h-4 text-gray-400 mr-2"></i>
-                        {{ $payment->Sectional_Title_File_No ?? $payment->jsi_file_number ?? 'N/A' }}
-                      </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-xs text-blue-700 font-semibold">
-                      {{ $payment->ref_id ?? '—' }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {{ ucwords(strtolower($payment->owner_name ?? 'N/A')) }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {{ $payment->applied_land_use ?? '—' }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {{ $area > 0 ? number_format($area, 2) : '—' }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                      ₦{{ number_format($betterment, 2) }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-600">
-                      @if(!empty($payment->Betterment_receipt))
-                        <span class="inline-block px-2 py-0.5 bg-green-50 text-green-700 text-xs font-bold rounded border border-green-200 uppercase w-fit">Rec: {{ $payment->Betterment_receipt }}</span>
-                      @else
-                        —
-                      @endif
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-600">
-                      {{ $paymentDateDisplay }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <span class="px-2 py-1 text-xs font-medium rounded-full {{ $statusClass }}">
-                        {{ $status }}
-                      </span>
-                    </td>
-                  </tr>
-                @empty
-                  <tr>
-                    <td colspan="9" class="px-6 py-8 text-center text-gray-500">
-                      <div class="flex flex-col items-center">
-                        <i data-lucide="inbox" class="w-12 h-12 text-gray-300 mb-2"></i>
-                        <p class="text-sm">No conversion payment records found</p>
-                      </div>
-                    </td>
-                  </tr>
-                @endforelse
-              </tbody>
-            </table>
-          </div>
+          @if($ppSource)
+            @include('programmes.partials.pp_betterment_payments_table')
           @else
           <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
               <thead class="bg-gray-50">
                 <tr>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S/N</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File No</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NP File No
                   </th>
@@ -484,7 +421,8 @@
                       'groups' => $primaryFeeGroups,
                     ];
                   @endphp
-                  <tr class="hover:bg-gray-50 transition-colors">
+                  <tr class="hover:bg-gray-50 transition-colors" data-payment-row>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500" data-sn>{{ $loop->iteration }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       <div class="flex items-center">
                         <i data-lucide="file-text" class="w-4 h-4 text-gray-400 mr-2"></i>
@@ -549,6 +487,7 @@
                         @if(!empty($payment->Betterment_receipt))
                           <span class="inline-block mt-1 px-1.5 py-0.5 bg-green-50 text-green-700 text-xs font-bold rounded border border-green-200 uppercase w-fit">Rec: {{ $payment->Betterment_receipt }}</span>
                         @endif
+                        @include('programmes.partials.pp_betterment_paid', ['billAmount' => $payment->Betterment_Charges ?? 0, 'amountPaid' => $payment->Betterment_amount_paid ?? null])
                       </div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
@@ -580,15 +519,16 @@
                       </div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div class="relative inline-block text-left" x-data="{ open: false }">
-                        <button type="button" @click="open = !open"
-                          class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                          <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                      <div class="relative inline-block text-left" @click.away="open = false"
+                        x-data="{ open: false, top: 0, left: 0, toggle(e) { const r = e.currentTarget.getBoundingClientRect(); this.top = r.bottom + 4; this.left = Math.max(8, r.right - 224); this.open = !this.open; } }">
+                        <button type="button" aria-label="Actions" @click="toggle($event)"
+                          class="inline-flex items-center px-2 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                          <i data-lucide="more-vertical" class="w-4 h-4"></i>
 
                         </button>
 
-                        <div x-show="open" @click.away="open = false" x-transition
-                          class="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:within:outline-none z-10">
+                        <div x-show="open" x-transition :style="{ top: top + 'px', left: left + 'px' }" style="display: none;"
+                          class="fixed w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:within:outline-none z-50">
                           <div class="py-1" role="menu">
                             <button type="button" @click="viewInitialBillReceipt('{{ $payment->Sectional_Title_File_No }}')"
                               class="group flex items-center px-3 py-1 text-xs text-gray-700 hover:bg-gray-100 hover:text-gray-900 w-full text-left">
@@ -613,13 +553,27 @@
                               $hasBettermentReceipt = !empty($payment->Betterment_receipt);
                             @endphp
                             <button type="button"
-                              @click="enterBettermentBillReceipt('{{ $payment->Sectional_Title_File_No }}', '{{ number_format(floatval($payment->Betterment_Charges ?? 0), 2) }}')"
+                              @click="enterBettermentBillReceipt('{{ $payment->Sectional_Title_File_No }}', '{{ number_format(floatval($payment->Betterment_Charges ?? 0), 2) }}', '{{ $payment->billing_id ?? '' }}')"
                               class="group flex items-center px-3 py-1 text-xs w-full text-left {{ $hasBettermentReceipt ? 'text-gray-400 cursor-not-allowed bg-gray-50' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900' }}"
                               {{ $hasBettermentReceipt ? 'disabled' : '' }}>
                               <i data-lucide="plus-circle"
                                 class="mr-2 h-3.5 w-3.5 {{ $hasBettermentReceipt ? 'text-gray-300' : 'text-gray-400 group-hover:text-gray-500' }}"></i>
                               {{ $hasBettermentReceipt ? 'Betterment Receipt Entered' : 'Enter Betterment Receipt' }}
                             </button>
+                            @if(!empty($payment->billing_id) && floatval($payment->Betterment_Charges ?? 0) > 0)
+                              <a href="{{ route('physical-planning.bills.print', ['id' => $payment->billing_id, 'download' => 1]) }}"
+                                class="group flex items-center px-3 py-1 text-xs text-gray-700 hover:bg-gray-100 hover:text-gray-900 w-full text-left">
+                                <i data-lucide="download" class="mr-2 h-3.5 w-3.5 text-gray-400 group-hover:text-gray-500"></i>
+                                Download Betterment Bill
+                              </a>
+                            @endif
+                            @if(!empty($payment->Betterment_evidence_path))
+                              <a href="{{ \App\Services\PhysicalPlanningBillSources::evidenceUrl($payment->Betterment_evidence_path) }}" target="_blank" rel="noopener"
+                                class="group flex items-center px-3 py-1 text-xs text-gray-700 hover:bg-gray-100 hover:text-gray-900 w-full text-left">
+                                <i data-lucide="paperclip" class="mr-2 h-3.5 w-3.5 text-gray-400 group-hover:text-gray-500"></i>
+                                View Evidence of Payment
+                              </a>
+                            @endif
                           </div>
                         </div>
                       </div>
@@ -627,7 +581,7 @@
                   </tr>
                 @empty
                   <tr>
-                    <td colspan="12" class="px-6 py-8 text-center text-gray-500">
+                    <td colspan="13" class="px-6 py-8 text-center text-gray-500">
                       <div class="flex flex-col items-center">
                         <i data-lucide="inbox" class="w-12 h-12 text-gray-300 mb-2"></i>
                         <p class="text-sm">No primary application payment records found</p>
@@ -647,6 +601,12 @@
             <h2 class="text-xl font-bold">Unit Application Payments</h2>
 
             <div class="flex items-center space-x-4">
+              <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"></i>
+                <input type="search" id="unit-search" placeholder="Search file no., name, receipt..." aria-label="Search payments"
+                  class="pl-9 pr-3 py-2 w-64 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              </div>
+
               <div class="relative">
                 <select id="unit-filter"
                   class="pl-4 pr-8 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
@@ -670,6 +630,7 @@
             <table class="min-w-full divide-y divide-gray-200">
               <thead class="bg-gray-50">
                 <tr>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">S/N</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File No</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Owner
                   </th>
@@ -845,7 +806,8 @@
                       'groups' => $unitFeeGroups,
                     ];
                   @endphp
-                  <tr class="hover:bg-gray-50 transition-colors">
+                  <tr class="hover:bg-gray-50 transition-colors" data-payment-row>
+                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500" data-sn>{{ $loop->iteration }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       <div class="flex items-center">
                         <i data-lucide="file-text" class="w-4 h-4 text-gray-400 mr-2"></i>
@@ -966,14 +928,15 @@
                       </div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div class="relative inline-block text-left" x-data="{ open: false }">
-                        <button type="button" @click="open = !open"
-                          class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                          <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                      <div class="relative inline-block text-left" @click.away="open = false"
+                        x-data="{ open: false, top: 0, left: 0, toggle(e) { const r = e.currentTarget.getBoundingClientRect(); this.top = r.bottom + 4; this.left = Math.max(8, r.right - 224); this.open = !this.open; } }">
+                        <button type="button" aria-label="Actions" @click="toggle($event)"
+                          class="inline-flex items-center px-2 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                          <i data-lucide="more-vertical" class="w-4 h-4"></i>
                         </button>
 
-                        <div x-show="open" @click.away="open = false" x-transition
-                          class="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:within:outline-none z-10">
+                        <div x-show="open" x-transition :style="{ top: top + 'px', left: left + 'px' }" style="display: none;"
+                          class="fixed w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:within:outline-none z-50">
                           <div class="py-1" role="menu">
                             <button type="button" @click="viewInitialBillReceipt('{{ $payment->Sectional_Title_File_No }}')"
                               class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 w-full text-left">
@@ -1027,7 +990,7 @@
                   </tr>
                 @empty
                   <tr>
-                    <td colspan="14" class="px-6 py-8 text-center text-gray-500">
+                    <td colspan="15" class="px-6 py-8 text-center text-gray-500">
                       <div class="flex flex-col items-center">
                         <i data-lucide="inbox" class="w-12 h-12 text-gray-300 mb-2"></i>
                         <p class="text-sm">No unit application payment records found</p>
@@ -1078,8 +1041,10 @@
         // Update tab styles
         primaryTab.classList.remove('tab-inactive');
         primaryTab.classList.add('tab-active');
-        unitTab.classList.remove('tab-active');
-        unitTab.classList.add('tab-inactive');
+        if (unitTab) {
+          unitTab.classList.remove('tab-active');
+          unitTab.classList.add('tab-inactive');
+        }
 
         // Show/hide content
         primaryContent.classList.remove('hidden');
@@ -1101,18 +1066,21 @@
 
       // Add event listeners
       primaryTab.addEventListener('click', showPrimaryTab);
-      unitTab.addEventListener('click', showUnitTab);
+      if (unitTab) {
+        unitTab.addEventListener('click', showUnitTab);
+      }
 
       // Set default tab (primary)
       showPrimaryTab();
 
       // Filter functionality
-      document.getElementById('primary-filter').addEventListener('change', function () {
-        filterTable('primary', this.value);
-      });
-
-      document.getElementById('unit-filter').addEventListener('change', function () {
-        filterTable('unit', this.value);
+      ['primary', 'unit'].forEach(function (type) {
+        document.getElementById(type + '-filter').addEventListener('change', function () {
+          filterTable(type);
+        });
+        document.getElementById(type + '-search').addEventListener('input', function () {
+          filterTable(type);
+        });
       });
 
       // Print functionality
@@ -1133,26 +1101,28 @@
       }
     });
 
-    // Filter table function
-    function filterTable(type, status) {
+    // Search + status filter; S/N follows the rows left on screen.
+    function filterTable(type) {
       const tableId = type === 'primary' ? 'primary-content' : 'unit-content';
-      const table = document.querySelector(`#${tableId} table tbody`);
-      const rows = table.querySelectorAll('tr');
+      const status = document.getElementById(type + '-filter').value;
+      const term = document.getElementById(type + '-search').value.trim().toLowerCase();
+      let shown = 0;
 
-      rows.forEach(row => {
-        if (status === 'all') {
-          row.style.display = '';
-        } else {
-          const statusCell = row.querySelector('.inline-flex');
-          if (statusCell) {
-            const statusText = statusCell.textContent.toLowerCase().trim();
-            const shouldShow =
-              (status === 'paid' && (statusText.includes('complete') || statusText.includes('paid'))) ||
-              (status === 'pending' && (statusText.includes('incomplete') || statusText.includes('pending'))) ||
-              (status === 'overdue' && statusText.includes('overdue'));
+      document.querySelectorAll(`#${tableId} table tbody tr[data-payment-row]`).forEach(row => {
+        const statusCell = row.querySelector('.inline-flex.rounded-full');
+        const statusText = statusCell ? statusCell.textContent.toLowerCase().trim() : '';
+        const matchesStatus = status === 'all' ||
+          (status === 'paid' && !statusText.includes('incomplete') && (statusText.includes('complete') || statusText.includes('paid'))) ||
+          (status === 'pending' && (statusText.includes('incomplete') || statusText.includes('pending') || statusText.includes('partial'))) ||
+          (status === 'overdue' && statusText.includes('overdue'));
+        const matchesTerm = term === '' || row.textContent.toLowerCase().includes(term);
+        const visible = matchesStatus && matchesTerm;
 
-            row.style.display = shouldShow ? '' : 'none';
-          }
+        row.style.display = visible ? '' : 'none';
+        if (visible) {
+          shown += 1;
+          const sn = row.querySelector('[data-sn]');
+          if (sn) sn.textContent = shown;
         }
       });
     }
@@ -1603,7 +1573,8 @@
     };
 
     // Updated function for betterment bill receipt
-    window.enterBettermentBillReceipt = function (fileNo, amount = '') {
+    window.enterBettermentBillReceipt = function (fileNo, amount = '', billId = '') {
+      const billAmount = parseFloat(String(amount).replace(/,/g, '')) || 0;
       const content = `
                   <form id="betterment-bill-form" class="space-y-4">
                     <div class="bg-yellow-50 p-4 rounded-lg flex justify-between items-start">
@@ -1619,6 +1590,12 @@
                       ` : ''}
                     </div>
                     <div>
+                      <label for="amount-paid" class="block text-sm font-medium text-gray-700">Payment Amount *</label>
+                      <input type="number" id="amount-paid" name="amount_paid" min="0" step="0.01" required
+                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                      <p id="amount-difference" class="mt-1 text-sm font-semibold"></p>
+                    </div>
+                    <div>
                       <label for="receipt-number" class="block text-sm font-medium text-gray-700">Receipt Number *</label>
                       <input type="text" id="receipt-number" name="receipt_number" required 
                              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
@@ -1627,6 +1604,12 @@
                       <label for="receipt-date" class="block text-sm font-medium text-gray-700">Receipt Date *</label>
                       <input type="date" id="receipt-date" name="receipt_date" required 
                              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                      <label for="payment-evidence" class="block text-sm font-medium text-gray-700">Evidence of Payment *</label>
+                      <input type="file" id="payment-evidence" name="evidence" accept=".pdf,.jpg,.jpeg,.png" required
+                             class="mt-1 block w-full text-sm text-gray-700">
+                      <p class="mt-1 text-xs text-gray-500">PDF, JPG or PNG, up to 10MB. It is filed in the file's EDMS record.</p>
                     </div>
                     <div>
                       <label for="receipt-notes" class="block text-sm font-medium text-gray-700">Notes</label>
@@ -1648,12 +1631,28 @@
 
       showModal('Enter Betterment Bill Receipt', content);
 
+      // Show the difference as soon as the amount paid is typed.
+      document.getElementById('amount-paid').addEventListener('input', function () {
+        const note = document.getElementById('amount-difference');
+        const money = value => '₦' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (this.value === '') {
+          note.textContent = '';
+          return;
+        }
+        const difference = Math.round((parseFloat(this.value) - billAmount) * 100) / 100;
+        note.className = 'mt-1 text-sm font-semibold ' + (difference === 0 ? 'text-green-700' : (difference > 0 ? 'text-blue-700' : 'text-red-700'));
+        note.textContent = difference === 0 ? 'Paid in full' : (difference > 0 ? 'Overpaid by ' + money(difference) : 'Underpaid by ' + money(Math.abs(difference)));
+      });
+
       // Handle form submission
       document.getElementById('betterment-bill-form').addEventListener('submit', function (e) {
         e.preventDefault();
 
         const formData = new FormData(this);
         formData.append('file_no', fileNo);
+        if (billId) {
+          formData.append('bill_id', billId);
+        }
 
         // Show loading
         const submitBtn = this.querySelector('button[type="submit"]');
@@ -1665,6 +1664,7 @@
           method: 'POST',
           body: formData,
           headers: {
+            'Accept': 'application/json',
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
           }
         })
@@ -1672,13 +1672,18 @@
           .then(data => {
             if (data.success) {
               closeModal();
-              showSuccessMessage('Betterment bill receipt saved successfully!');
+              const difference = Number(data.difference || 0);
+              const money = Math.abs(difference).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              showSuccessMessage(difference === 0
+                ? 'Betterment bill receipt saved successfully!'
+                : 'Receipt saved. ' + (difference > 0 ? 'Overpaid' : 'Underpaid') + ' by ₦' + money + '.');
               // Refresh the page to update the button state
               setTimeout(() => {
                 window.location.reload();
               }, 1500);
             } else {
-              showModal('Error', `<p class="text-red-600">${data.message || 'Failed to save receipt'}</p>`);
+              const firstError = data.errors ? Object.values(data.errors)[0][0] : null;
+              showModal('Error', `<p class="text-red-600">${firstError || data.message || 'Failed to save receipt'}</p>`);
             }
           })
           .catch(error => {

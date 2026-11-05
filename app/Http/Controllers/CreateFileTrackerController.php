@@ -2220,7 +2220,7 @@ HTML;
             ], 422);
         }
 
-        $result = $resolver->resolve($fileNumber);
+        $result = $resolver->resolveForSearch($fileNumber);
         $resolver->persist($result);
 
         $data = $this->presentLocationResult($result, true);
@@ -2228,7 +2228,8 @@ HTML;
         // Surface any existing active request for this file so the Quick Search card can
         // warn about a duplicate the moment the file is selected — rather than waiting for
         // the user to fill the requester form and click Send to discover it.
-        $existing = FileSearchRequest::activeForFile($fileNumber)
+        // Keyed on the resolved file: an old number answers with its current file.
+        $existing = FileSearchRequest::activeForFile($result['file_number'])
             ->with('requester:id,first_name,last_name')
             ->orderByDesc('id')
             ->first();
@@ -2270,7 +2271,7 @@ HTML;
             return response()->json(['success' => false, 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
         }
 
-        $result   = $resolver->resolve($request->file_number);
+        $result   = $resolver->resolveForSearch($request->file_number);
         $indexing = $result['indexing'];
 
         // The file's latest File Search Request carries the update too, so the
@@ -2313,7 +2314,7 @@ HTML;
         }
 
         // Return the freshly resolved (now manual) outcome for the UI.
-        $fresh = $resolver->resolve($request->file_number);
+        $fresh = $resolver->resolveForSearch($request->file_number);
 
         return response()->json([
             'success' => true,
@@ -3191,6 +3192,12 @@ HTML;
             // none of them, so computing them there would be a per-row N+1 (see the
             // File Log Table timeout this presenter already caused once).
             'duplicate_candidates' => $duplicateCandidates,
+            // Old file numbers, Quick Search only (FileLocationResolver::resolveForSearch):
+            // the number searched when it answered with its current file, the files this
+            // number is an old number of, and this file's own old numbers.
+            'searched_old_number' => $result['searched_old_number'] ?? null,
+            'old_number_of'       => $result['old_number_of'] ?? [],
+            'old_file_numbers'    => $result['old_file_numbers'] ?? [],
             'file_tracker_id'  => $result['file_tracker_id'],
             'file_title'       => $displayTitle,
             // Quick Search: once the tracker is closed (logged back in / cancelled) its

@@ -30,6 +30,9 @@ class BlindScanningController extends Controller
     /** Image types a blind-scan folder may hold; everything else (Thumbs.db, desktop.ini, .lnk) is skipped. */
     private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp', 'gif', 'webp', 'pdf'];
 
+    /** Upload type for large-format pages added to a file: everything goes to its A3 folder. */
+    private const UPLOAD_TYPE_LF = 'lf';
+
     /**
      * Administrators see every user's uploads. Same rule the rest of KLAES
      * uses: "Supper Admin" (the app's spelling) in users.assign_role.
@@ -518,13 +521,16 @@ class BlindScanningController extends Controller
                 return response()->json(['ok' => false, 'error' => 'Select a file number first.'], 400);
             }
 
-            $folderName = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $rawFileNumber);
-            $folderName = trim($folderName, '._');
+            $folderName = $this->blindFolderName($rawFileNumber);
             if ($folderName === '') {
                 return response()->json(['ok' => false, 'error' => 'That file number cannot be used as a folder name.'], 422);
             }
 
             $uploadMethod = $request->input('uploadMethod', 'direct');
+            $lfOnly = $request->input('uploadType') === self::UPLOAD_TYPE_LF;
+            if ($lfOnly && $uploadMethod !== 'direct') {
+                return response()->json(['ok' => false, 'error' => 'An LF scan upload cannot be sent as a ZIP.'], 422);
+            }
             $registryInput = $request->input('registry', $request->input('registry_type'));
             if (trim((string) $registryInput) === '') {
                 return response()->json(['ok' => false, 'error' => 'Select the registry first.'], 422);
@@ -547,7 +553,7 @@ class BlindScanningController extends Controller
             $localPcPath = $registrySubfolder . '/' . $folderName;
 
             if ($uploadMethod === 'direct') {
-                $result = $this->handleDirectUpload($request, $targetPath);
+                $result = $this->handleDirectUpload($request, $targetPath, $lfOnly);
                 if (!$result['saved'] && !$result['skipped']) {
                     return response()->json([
                         'ok' => false,
@@ -644,8 +650,54 @@ class BlindScanningController extends Controller
     }
 
     /**
-     * Save migrated files to database
+     * What a file already holds, shown before an upload so staff can see that
+     * adding LF pages leaves it alone: pages in its blind-scan folder on disk, and
+     * pages that have moved on into EDMS.
      */
+    public function folderSummary(Request $request)
+    {
+        $rawFileNumber = trim((string) $request->query('folderName'));
+        $folderName = $this->blindFolderName($rawFileNumber);
+        if ($folderName === '' || trim((string) $request->query('registry')) === '') {
+            return response()->json(['ok' => false, 'error' => 'Select a file number and registry first.'], 422);
+        }
+
+        [$registrySubfolder] = $this->resolveBlindRegistry($request->query('registry'));
+        $folder = file_storage_path('app/public/EDMS/BLIND_SCAN/' . $registrySubfolder . '/' . $folderName);
+
+        $blind = ['A4' => 0, 'A3' => 0];
+        foreach ($this->relativeFilesIn($folder) as $relative) {
+            $extension = strtolower(pathinfo($relative, PATHINFO_EXTENSION));
+            if (str_contains(strtolower($relative), '_pdf_originals/') || !in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+                continue;
+            }
+            $blind[$this->detectPaperSizeFromPath($relative) === 'A3' ? 'A3' : 'A4']++;
+        }
+
+        $edms = ['A4' => 0, 'A3' => 0];
+        $indexingIds = DB::connection('sqlsrv')->table('file_indexings')
+            ->where(fn ($q) => $q->where('file_number', $rawFileNumber)->orWhere('temp_file_no', $rawFileNumber))
+            ->pluck('id');
+        if ($indexingIds->isNotEmpty()) {
+            $sizes = DB::connection('sqlsrv')->table('scannings')
+                ->whereIn('file_indexing_id', $indexingIds)
+                ->select('paper_size', DB::raw('COUNT(*) AS pages'))
+                ->groupBy('paper_size')
+                ->get();
+            foreach ($sizes as $row) {
+                $edms[strtoupper(trim((string) $row->paper_size)) === 'A3' ? 'A3' : 'A4'] += (int) $row->pages;
+            }
+        }
+
+        return response()->json(['ok' => true, 'blind' => $blind, 'edms' => $edms]);
+    }
+
+    /** The file's folder name under BLIND_SCAN; an empty string when it has no usable characters. */
+    private function blindFolderName(string $fileNumber): string
+    {
+        return trim(preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $fileNumber), '._');
+    }
+
     /**
      * Every file under a folder, as forward-slash paths relative to it.
      */
@@ -1652,7 +1704,7 @@ class BlindScanningController extends Controller
      *   rejected not an image/PDF (Thumbs.db, desktop.ini, shortcuts)
      *   failed   could not be written
      */
-    private function handleDirectUpload(Request $request, $targetPath): array
+    private function handleDirectUpload(Request $request, $targetPath, bool $lfOnly = false): array
     {
         $result = ['saved' => [], 'skipped' => [], 'renamed' => [], 'rejected' => [], 'failed' => []];
         $paths = $request->input('paths', []);
@@ -1662,7 +1714,16 @@ class BlindScanningController extends Controller
         }
 
         foreach ($files as $index => $file) {
-            $outcome = $this->processUploadedFile($file, $paths[$index] ?? null, $targetPath);
+            $path = $paths[$index] ?? null;
+            if ($lfOnly) {
+                $path = $this->largeFormatPath($path, $file);
+                if ($path === null) {
+                    $result['rejected'][] = (string) ($paths[$index] ?? '');
+                    continue;
+                }
+            }
+
+            $outcome = $this->processUploadedFile($file, $path, $targetPath);
             $result[$outcome['status']][] = $outcome['status'] === 'renamed'
                 ? $outcome['from'] . ' => ' . $outcome['path']
                 : $outcome['path'];
@@ -1683,11 +1744,41 @@ class BlindScanningController extends Controller
     }
 
     /**
+     * Where an LF page goes: the file's A3 folder, whatever its local folder was
+     * called. Null for a page from an A4 folder, which is not a large-format page
+     * and must not be recorded as one.
+     */
+    private function largeFormatPath($relativePath, $file): ?string
+    {
+        $path = str_replace('\\', '/', (string) ($relativePath ?: ($file ? $file->getClientOriginalName() : '')));
+        $segments = array_values(array_filter(explode('/', $path), fn ($s) => $s !== ''));
+        if (!$segments) {
+            return null;
+        }
+
+        $name = array_pop($segments);
+        foreach ($segments as $segment) {
+            if (strcasecmp($segment, 'A4') === 0) {
+                return null;
+            }
+        }
+
+        return 'A3/' . $name;
+    }
+
+    /** True when the upload is byte-for-byte the file already at $path. */
+    private function isSameFile(string $path, $file): bool
+    {
+        return filesize($path) === $file->getSize()
+            && md5_file($path) === md5_file($file->getRealPath());
+    }
+
+    /**
      * Save a single uploaded file.
      *
-     * Never overwrites: the same name with the same size is a re-sent file and
-     * is skipped; the same name with different content is kept beside the
-     * original as "name (2).jpg".
+     * Never overwrites: an identical file is a re-send and is skipped, whether it
+     * sits under its own name or an earlier "(2)"; the same name with different
+     * content is kept beside the original as "name (2).jpg".
      *
      * @return array{status:string, path:string, from?:string}
      */
@@ -1721,15 +1812,17 @@ class BlindScanningController extends Controller
             $status = 'saved';
             $from = $filePath;
             if (is_file($destinationPath)) {
-                if (filesize($destinationPath) === $file->getSize()) {
+                if ($this->isSameFile($destinationPath, $file)) {
                     return ['status' => 'skipped', 'path' => $filePath];
                 }
                 $base = pathinfo($destinationPath, PATHINFO_FILENAME);
                 $n = 2;
-                do {
-                    $candidate = $destinationDir . DIRECTORY_SEPARATOR . $base . ' (' . $n . ').' . $extension;
+                while (is_file($candidate = $destinationDir . DIRECTORY_SEPARATOR . $base . ' (' . $n . ').' . $extension)) {
+                    if ($this->isSameFile($candidate, $file)) {
+                        return ['status' => 'skipped', 'path' => $filePath];
+                    }
                     $n++;
-                } while (is_file($candidate));
+                }
                 $destinationPath = $candidate;
                 $filePath = (str_contains($filePath, '/') ? dirname($filePath) . '/' : '') . basename($candidate);
                 $status = 'renamed';

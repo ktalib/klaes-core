@@ -10,6 +10,16 @@
     homeUrl: '/',
   };
 
+  /*
+   | Idle time belongs to the person, not to one tab. Each tab used to run its own
+   | timer off its own mouse and keyboard, so a KLAES tab left open behind the one
+   | being worked in reached the limit and signed the whole session out — about an
+   | hour after sign-in, mid-task, and several background tabs at the same second.
+   | Every tab now stamps the same value here and asks it before acting.
+   */
+  const ACTIVITY_KEY = 'klaes.autoLogout.lastActivity';
+  const ACTIVITY_WRITE_INTERVAL = 5 * 1000;
+
   const AutoLogout = {
     init(options = {}) {
       this.config = Object.assign({}, DEFAULTS, options);
@@ -19,6 +29,8 @@
       this.logoutTimer = null;
       this.warningModal = null;
       this.active = Boolean(this.config.enabled);
+      this.lastActivity = Date.now();
+      this.lastActivityWrite = 0;
 
       if (!this.active) {
         this.hideStatusIndicator();
@@ -27,13 +39,16 @@
 
       this.showStatusIndicator();
       this.attachActivityListeners();
-      this.resetTimers();
+      // A page that has just loaded is activity: it also rescues a tab left over
+      // from before this sign-in, which would otherwise act on the old value.
+      this.recordActivity();
     },
 
     attachActivityListeners() {
       const events = [
         'mousedown',
         'mousemove',
+        'keydown',
         'keypress',
         'scroll',
         'touchstart',
@@ -42,10 +57,53 @@
       events.forEach((eventName) => {
         document.addEventListener(
           eventName,
-          () => this.resetTimers(),
-          { passive: true }
+          () => this.recordActivity(),
+          // Capture: scrolling inside a table or panel never bubbles to document.
+          { passive: true, capture: true }
         );
       });
+
+      window.addEventListener('storage', (event) => {
+        if (event.key === ACTIVITY_KEY) {
+          this.resetTimers();
+        }
+      });
+    },
+
+    recordActivity() {
+      if (!this.active) {
+        return;
+      }
+
+      const now = Date.now();
+      this.lastActivity = now;
+
+      if (now - this.lastActivityWrite >= ACTIVITY_WRITE_INTERVAL) {
+        this.lastActivityWrite = now;
+        try {
+          window.localStorage.setItem(ACTIVITY_KEY, String(now));
+        } catch (error) {
+          // Storage blocked: this tab falls back to its own activity alone.
+        }
+      }
+
+      this.resetTimers();
+    },
+
+    // Latest activity in any tab of this browser.
+    latestActivity() {
+      let shared = 0;
+      try {
+        shared = Number(window.localStorage.getItem(ACTIVITY_KEY)) || 0;
+      } catch (error) {
+        shared = 0;
+      }
+
+      return Math.max(this.lastActivity, shared);
+    },
+
+    remainingTime() {
+      return this.config.inactivityLimit - (Date.now() - this.latestActivity());
     },
 
     showStatusIndicator() {
@@ -72,24 +130,27 @@
 
       this.hideWarning();
 
-      const warningDelay = Math.max(
-        0,
-        this.config.inactivityLimit - this.config.warningOffset
-      );
+      const remaining = Math.max(0, this.remainingTime());
 
       this.warningTimer = window.setTimeout(
         () => this.showWarning(),
-        warningDelay
+        Math.max(0, remaining - this.config.warningOffset)
       );
 
       this.logoutTimer = window.setTimeout(
         () => this.performLogout(),
-        this.config.inactivityLimit
+        remaining
       );
     },
 
     showWarning() {
       if (this.warningModal) {
+        return;
+      }
+
+      // Activity in another tab since this timer was set: no warning is due.
+      if (this.remainingTime() > this.config.warningOffset) {
+        this.resetTimers();
         return;
       }
 
@@ -141,11 +202,12 @@
 
       stayButton?.addEventListener('click', () => {
         this.hideWarning();
-        this.resetTimers();
+        this.lastActivityWrite = 0;
+        this.recordActivity();
       });
 
       logoutNowButton?.addEventListener('click', () => {
-        this.performLogout();
+        this.performLogout(true);
       });
     },
 
@@ -157,7 +219,15 @@
       window.clearInterval(this.countdownInterval);
     },
 
-    performLogout() {
+    performLogout(immediate = false) {
+      // The last check before a sign-out that cannot be taken back. A background
+      // tab's timer fires late and on its own schedule, so the storage event
+      // alone is not enough to rely on here.
+      if (!immediate && this.remainingTime() > 0) {
+        this.resetTimers();
+        return;
+      }
+
       if (this.logoutForm) {
         this.logoutForm.submit();
       } else {

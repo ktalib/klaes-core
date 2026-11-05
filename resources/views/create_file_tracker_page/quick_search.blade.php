@@ -263,7 +263,7 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.1/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+    <script src="{{ asset('js/global-fileno-modal.js') }}?v={{ @filemtime(public_path('js/global-fileno-modal.js')) }}"></script>
     @include('components.global-fileno-modal')
     @include('create_file_tracker_page.partials.fr-modal')
     @php
@@ -469,6 +469,40 @@
             return ks.find(k => k.is_in_transit && (k.receiving_officer_name || k.current_location)) || null;
         }
 
+        // Old file numbers on the result: rose for a true duplicate, amber for a previous
+        // number, as the listing's DUP / OLD badges. Three cases: the number searched
+        // answered with its current file, it is a record of its own that is also another
+        // file's old number (Open that file), or this file carries old numbers.
+        function oldFileHtml(d) {
+            const tone = dup => dup ? '#be123c' : '#b45309';
+            const box = (color, body) => `
+                <div class="mb-3 rounded-lg px-4 py-3" style="background:${color}14;border:1px solid ${color}55;">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <i data-lucide="copy" class="h-4 w-4 shrink-0" style="color:${color};"></i>
+                        ${body}
+                    </div>
+                </div>`;
+            const out = [];
+            const s = d.searched_old_number;
+
+            if (s) {
+                const color = tone(s.is_duplicate);
+                out.push(box(color, `<span class="text-sm" style="color:${color};"><b>${esc(s.file_number)}</b> is the ${esc(s.label)} of <b>${esc(d.file_number)}</b>. Showing the current file.</span>`));
+            }
+            (d.old_number_of || []).forEach(f => {
+                const color = tone(f.is_duplicate);
+                out.push(box(color, `
+                    <span class="text-sm" style="color:${color};">This is the ${esc(f.label)} of <b>${esc(f.file_number)}</b>${f.file_title ? ` (${esc(f.file_title)})` : ''}</span>
+                    <button type="button" data-open-file="${esc(f.file_number)}" class="ml-auto rounded-md px-2.5 py-1 text-xs font-semibold text-white" style="background:${color};">Open ${esc(f.file_number)}</button>`));
+            });
+            (d.old_file_numbers || []).filter(o => !s || o.file_number !== s.file_number).forEach(o => {
+                const color = tone(o.is_duplicate);
+                out.push(box(color, `<span class="text-sm" style="color:${color};">${esc(o.label)}: <b>${esc(o.file_number)}</b>${o.file_title ? ` (${esc(o.file_title)})` : ''}</span>`));
+            });
+
+            return out.join('');
+        }
+
         // The record the user picked, as {record_id, source}. Null until they choose.
         let selectedCandidate = null;
 
@@ -478,6 +512,8 @@
                 // When "Is Temporary File" is checked, restrict the MLS smart selector
                 // to temporary "(T)" file numbers only.
                 tempOnly: !!(tempChk && tempChk.checked),
+                // Old file numbers mostly have no record, so they are listed on request.
+                includeOldNumbers: true,
                 callback: function (data) {
                     let fileNumber = (data.fileNumber || '').toString().trim();
                     if (!fileNumber) return;
@@ -1254,6 +1290,7 @@
                         </div>
                     </div>
                     <div class="px-6 py-3">
+                        ${oldFileHtml(d)}
                         ${duplicateFlagHtml(d)}
                         ${(d.status === 'MISSING_FILE' && d.is_indexed) ? `
                         <div class="mb-3 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
@@ -1569,6 +1606,11 @@
             // DCIV files get the cascade initialised too, even though their requester form
             // starts hidden — the override checkbox only un-hides it, it does not re-render.
             if (!kh && d.can_send_fr && (!directsToLand(d) || hasIndexedCandidate(d))) initRequesterCascade(d);
+
+            result.querySelectorAll('[data-open-file]').forEach(b => b.addEventListener('click', () => {
+                input.value = b.dataset.openFile;
+                search();
+            }));
 
             const frBtn = result.querySelector('[data-fr]');
             if (frBtn) frBtn.addEventListener('click', () => sendFR(d, frBtn));

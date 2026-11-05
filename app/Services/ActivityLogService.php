@@ -396,7 +396,12 @@ class ActivityLogService
     }
 
     /**
-     * Automatically logout sessions that have exceeded configured work hours.
+     * Close the attendance record of sessions that have run past their work hours.
+     *
+     * This never signs anyone out. Reaching the end of a shift ends nobody's login:
+     * the record stops at the hours payroll would count anyway, and the person stays
+     * signed in until they sign out, or the browser's idle timer does it for them.
+     * Without this pass a record left open is credited as a full shift.
      */
     public static function autoLogoutExpiredSessions(?Carbon $now = null, bool $dryRun = false, ?int $limit = null): array
     {
@@ -501,7 +506,7 @@ class ActivityLogService
                     continue;
                 }
 
-                $result = self::finalizeAutoLogout($session, $evaluation['logout_time'], $evaluation['description']);
+                $result = self::finalizeAutoLogout($session, $evaluation['logout_time'], $evaluation['description'], false);
                 if ($result['updated']) {
                     $autoLoggedOut++;
                     $sessionsRemoved += $result['sessions_removed'];
@@ -520,7 +525,8 @@ class ActivityLogService
                     // Announcing a sign-out is now the manual path's job alone
                     // (App\Listeners\LogUserLogout). The attendance row and the
                     // session teardown above are unchanged: the record is still
-                    // written, it is only the message about it that stops.
+                    // written, it is only the message about it that stops. The login
+                    // itself is left alone: see the note on this method.
                 } else {
                     $skipped[] = ['session_id' => $session->id, 'user_id' => $user->id, 'reason' => 'optimistic_lock_failed'];
                 }
@@ -587,7 +593,7 @@ class ActivityLogService
     }
 
     /**
-     * Determine whether a session should be auto-logged out.
+     * Determine whether a session's attendance record is due to close.
      */
     private static function evaluateAutoLogoutWindow(
         UserActivityLog $session,
@@ -607,16 +613,8 @@ class ActivityLogService
         $baseEnd = $loginAt->copy()->addMinutes($shiftHours * 60);
         $reason = 'shift_hours';
 
-        $shiftEnd = self::resolveShiftEnd($user, $loginAt);
-        if ($shiftEnd) {
-            if ($shiftEnd->greaterThan($loginAt) && $shiftEnd->lessThan($baseEnd)) {
-                $baseEnd = $shiftEnd->copy();
-                $reason = 'shift_schedule';
-            } elseif ($shiftEnd->lessThanOrEqualTo($loginAt)) {
-                $baseEnd = $loginAt->copy()->addMinutes(1);
-                $reason = 'shift_schedule_elapsed';
-            }
-        }
+        // Counted from the sign-in, never from the shift's clock time. A shift_code
+        // end time used to cut this short, down to one minute for a sign-in after it.
 
         $maxEnd = $baseEnd->copy();
         if (($settings['track_overtime'] ?? true) && ($profile['allow_overtime'] ?? false)) {
@@ -652,14 +650,14 @@ class ActivityLogService
         return [
             'should_logout' => true,
             'logout_time' => $logoutTime,
-            'description' => 'Auto logout enforced (' . $reason . ')',
+            'description' => 'Attendance closed (' . $reason . ')',
         ];
     }
 
     /**
-     * Persist the auto logout update and remove backing session payloads.
+     * Close the activity record and, when $endSession is set, the login behind it.
      */
-    private static function finalizeAutoLogout(UserActivityLog $session, Carbon $logoutTime, string $description): array
+    private static function finalizeAutoLogout(UserActivityLog $session, Carbon $logoutTime, string $description, bool $endSession = true): array
     {
         $loginAt = $session->login_time instanceof Carbon
             ? $session->login_time->copy()
@@ -685,7 +683,9 @@ class ActivityLogService
             ]);
 
         if ($updated) {
-            $removed = self::deleteSessionRecord($session->session_id, $session->user_id);
+            $removed = $endSession
+                ? self::deleteSessionRecord($session->session_id, $session->user_id)
+                : 0;
 
             Log::info('Auto logout applied', [
                 'session_id' => $session->id,
@@ -700,51 +700,6 @@ class ActivityLogService
         }
 
         return ['updated' => false, 'sessions_removed' => 0];
-    }
-
-    /**
-     * Resolve configured shift end for the user relative to the login date.
-     */
-    private static function resolveShiftEnd(User $user, Carbon $loginAt): ?Carbon
-    {
-        $code = $user->shift_code ?: 'full_day';
-        $definition = config('attendance.shifts.' . $code);
-        if (!$definition || empty($definition['end'])) {
-            return null;
-        }
-
-        $timezone = config('app.timezone');
-
-        try {
-            $end = Carbon::createFromFormat(
-                'Y-m-d H:i',
-                $loginAt->format('Y-m-d') . ' ' . $definition['end'],
-                $timezone
-            );
-        } catch (\Throwable $exception) {
-            Log::warning('Failed to parse shift end', [
-                'user_id' => $user->id,
-                'shift_code' => $code,
-                'error' => $exception->getMessage(),
-            ]);
-
-            return null;
-        }
-
-        if (!empty($definition['overnight'])) {
-            $loginTime = $loginAt->format('H:i');
-            if ($loginTime < $definition['end']) {
-                return $end;
-            }
-
-            if ($end->lessThanOrEqualTo($loginAt)) {
-                $end->addDay();
-            }
-
-            return $end;
-        }
-
-        return $end;
     }
 
     /**

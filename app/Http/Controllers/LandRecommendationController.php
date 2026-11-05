@@ -513,7 +513,7 @@ class LandRecommendationController extends Controller
             // recommendation. Loaded for the whole page in one query rather than
             // asked per row: the menu on every subdivision batch offers either
             // Upload or View depending on the answer.
-            $batchDocuments = LandRecommendationBatchDocument::whereIn(
+            $batchDocuments = LandRecommendationBatchDocument::with('uploader')->whereIn(
                     'rofo_batch_id',
                     collect($batches->items())->pluck('rofo_batch_id')->filter()->values()
                 )
@@ -688,7 +688,7 @@ class LandRecommendationController extends Controller
         // whole page is still a single query.
         $subdivisionTemplateDocs = $subdivisionTemplateIds->isEmpty()
             ? collect()
-            : LandRecommendationBatchDocument::where(function ($q) use ($subdivisionTemplateIds) {
+            : LandRecommendationBatchDocument::with('uploader')->where(function ($q) use ($subdivisionTemplateIds) {
                     foreach ($subdivisionTemplateIds as $id) {
                         $key = LandRecommendationBatchDocument::subdivisionTemplateKey((int) $id);
                         $q->orWhere('rofo_batch_id', $key)
@@ -1038,6 +1038,7 @@ class LandRecommendationController extends Controller
                 'view_url'      => route('land-recommendations.batch-document.show', $batchId),
                 'original_name' => $document->original_name,
                 'summary'       => $document->summary(),
+                'uploaded_by'   => $document->uploadedByLabel(),
                 // Tells the preview card whether to draw an <img> or a PDF frame.
                 'mime_type'     => $document->mime_type,
                 'uploaded_at'   => optional($document->uploaded_at)->format('d/m/Y H:i'),
@@ -4484,6 +4485,15 @@ class LandRecommendationController extends Controller
         // again and this writes them. It never CLEARS the flag — a form posting 0 for
         // any other reason leaves a flagged record flagged.
         $this->applyExistingRecommendationMode($request, $validated);
+
+        // Said in the log because the row keeps no history of it: it decides whether the
+        // file sits under Mother Recommendations, and "I chose No" cannot otherwise be checked.
+        RecLog::info('Single recommendation edit: Use Subdivision Template', [
+            'id'     => $recommendation->id,
+            'file_number' => $recommendation->file_number,
+            'before' => (bool) $recommendation->use_subdivision_template,
+            'after'  => $validated['use_subdivision_template'],
+        ]);
 
         $recommendation->update($validated);
 

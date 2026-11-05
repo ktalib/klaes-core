@@ -141,6 +141,88 @@ class RelatedFileNumberRegistrar
     }
 
     /**
+     * The links on these files that an officer's related-file list cannot own: a type set
+     * by a workflow (Merger, Subdivision, ...), a shared KANGIS list row, or a row anchored
+     * somewhere other than the file's own indexing record. Editing the list shows them but
+     * must neither re-register nor remove them.
+     *
+     * @param  string[] $fileNumbers  every number the file is registered under
+     * @return array<string,string>   match key => type to show
+     */
+    public function workflowOwned(array $fileNumbers, ?int $sourceId, string $sourceTable = 'file_indexings'): array
+    {
+        $numbers = array_values(array_filter(array_map(fn ($n) => trim((string) $n), $fileNumbers)));
+        if (empty($numbers) || !Schema::connection('sqlsrv')->hasTable(self::TABLE)) {
+            return [];
+        }
+
+        $owned = [];
+        $rows = DB::connection('sqlsrv')->table(self::TABLE)
+            ->whereIn('file_number', $numbers)
+            ->get(['related_fileno', 'transaction_type', 'source_table', 'source_id']);
+
+        foreach ($rows as $row) {
+            $items = $this->listItems($row->related_fileno);
+            $elsewhere = (string) $row->source_table !== $sourceTable || (int) $row->source_id !== (int) $sourceId;
+
+            if ($this->isGeneric($row->transaction_type) && count($items) === 1 && !$elsewhere) {
+                continue;
+            }
+            foreach ($items as $item) {
+                $owned[$this->key($item)] = trim((string) $row->transaction_type) ?: self::DEFAULT_TYPE;
+            }
+        }
+
+        return $owned;
+    }
+
+    /**
+     * Remove the links an officer took off a file's related-file list. Unlike prune, this
+     * deletes only the numbers named, and only their plain one-number rows on this record.
+     * Best-effort, like sync().
+     *
+     * @param  string[] $numbers
+     */
+    public function forget(?int $sourceId, array $numbers, string $sourceTable = 'file_indexings'): void
+    {
+        if (empty($sourceId) || empty($numbers)) {
+            return;
+        }
+
+        try {
+            if (!Schema::connection('sqlsrv')->hasTable(self::TABLE)) {
+                return;
+            }
+
+            $conn = DB::connection('sqlsrv');
+            $remove = array_flip(array_map(fn ($n) => $this->key($n), $numbers));
+            $ids = [];
+
+            $rows = $conn->table(self::TABLE)
+                ->where('source_table', $sourceTable)
+                ->where('source_id', (int) $sourceId)
+                ->get(['id', 'related_fileno', 'transaction_type']);
+
+            foreach ($rows as $row) {
+                $items = $this->listItems($row->related_fileno);
+                if (count($items) === 1 && $this->isGeneric($row->transaction_type) && isset($remove[$this->key($items[0])])) {
+                    $ids[] = $row->id;
+                }
+            }
+
+            if (!empty($ids)) {
+                $conn->table(self::TABLE)->whereIn('id', $ids)->delete();
+            }
+        } catch (\Throwable $e) {
+            Log::warning('RelatedFileNumberRegistrar::forget failed', [
+                'source_table' => $sourceTable,
+                'source_id'    => $sourceId,
+                'error'        => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
      * Drop the generic rows that are no longer in the submitted list. Typed edges owned by
      * other workflows are left alone: see PRUNABLE_TYPES.
      */

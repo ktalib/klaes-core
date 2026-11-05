@@ -1190,6 +1190,15 @@ class PlanningRecommendationController extends Controller
             || $request->boolean('is_conversion_file');
         $hasFileNumber = !empty($validated['file_number']);
 
+        // A Conversion JSI is for Conversion (CON-) files only.
+        if ($isConversion && $hasFileNumber
+            && strpos(strtoupper(ltrim((string) $validated['file_number'])), 'CON-') !== 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only Conversion (CON-) file numbers can be used for a Conversion Joint Site Inspection Report.',
+            ], 422);
+        }
+
         if (!$application && !$subApplication && !($isConversion && $hasFileNumber)) {
             return response()->json([
                 'success' => false,
@@ -1235,7 +1244,12 @@ class PlanningRecommendationController extends Controller
             if ($subApplicationId !== null) {
                 $reportKey['sub_application_id'] = $subApplicationId;
             }
-            // For Conversion files without an application_id, key by file_number + source
+            // Conversion files key by file_number + source. Their application_id is a
+            // fileNumber id, which can equal an ST mother_applications id and must
+            // never pick up that application's report.
+            if ($isConversion && $hasFileNumber && $subApplicationId === null) {
+                $reportKey = [];
+            }
             if (empty($reportKey) && $isConversion && $hasFileNumber) {
                 $reportKey['file_number'] = $validated['file_number'];
                 $reportKey['source'] = 'Conversion Applications';

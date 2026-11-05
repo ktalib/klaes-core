@@ -761,7 +761,7 @@
                                     </template>
                                     <p class="text-xs text-gray-500 mt-2 font-bold">
                                         <i data-lucide="info" class="w-3 h-3 inline"></i>
-                                       All files will share the same File Name (File Title) and Prefix. You can only add unique location details for each file (if need be)
+                                       All files share the same Prefix. Each file keeps its own applicant and location details; use Apply Current Applicant to All to copy the fields you choose.
                                     </p>
                                 </div>
                             </div>
@@ -852,6 +852,93 @@
                                                 <span x-show="!duplexLocked">Apply Current Applicant to All <span x-text="batchQuantity"></span> Files</span>
                                                 <span x-show="duplexLocked" x-cloak x-text="'Apply Current Applicant to ' + duplexApplyRange().label"></span>
                                             </button>
+                                        </div>
+
+                                        {{-- Apply to All Files: the officer picks which of this applicant's
+                                             details to copy. Unticked fields keep each file's own value, so a
+                                             parcel update's plots / duplex files keep their own holders. --}}
+                                        <div x-show="applyPicker.open" x-cloak
+                                             class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-start justify-center overflow-y-auto p-4"
+                                             style="z-index: 70;"
+                                             @click.self="applyPicker.open = false"
+                                             @keydown.escape.window="applyPicker.open = false"
+                                             role="dialog" aria-modal="true" aria-labelledby="applyPickerTitle">
+                                            <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mt-16" @click.stop>
+                                                <div class="flex items-start justify-between px-5 py-4 border-b border-gray-200">
+                                                    <div>
+                                                        <h4 id="applyPickerTitle" class="text-base font-semibold text-gray-900 flex items-center gap-2">
+                                                            <i data-lucide="copy-check" class="w-5 h-5 text-blue-600"></i>
+                                                            Apply to All Files
+                                                        </h4>
+                                                        <p class="text-xs text-gray-500 mt-1">
+                                                            Copy the details of Applicant <span x-text="currentEntryIndex + 1"></span>
+                                                            to the other files. Tick the fields to copy; unticked fields keep each file's own value.
+                                                        </p>
+                                                    </div>
+                                                    <button type="button" @click="applyPicker.open = false" class="text-gray-400 hover:text-gray-600" aria-label="Close">
+                                                        <i data-lucide="x" class="w-5 h-5"></i>
+                                                    </button>
+                                                </div>
+
+                                                <div class="px-5 py-4 space-y-4">
+                                                    {{-- A duplex applies per stage by default; the whole duplex is a choice. --}}
+                                                    <div x-show="duplexLocked" class="space-y-1.5">
+                                                        <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Apply to</div>
+                                                        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                                            <input type="radio" value="stage" x-model="applyPicker.scope" @change="refreshApplyPicker()" class="text-blue-600 focus:ring-blue-500">
+                                                            <span x-text="duplexApplyRange().label.replace(/^all /, 'All ')"></span>
+                                                        </label>
+                                                        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                                            <input type="radio" value="all" x-model="applyPicker.scope" @change="refreshApplyPicker()" class="text-blue-600 focus:ring-blue-500">
+                                                            <span x-text="applyRangeFor('all').label.replace(/^all /, 'All ')"></span>
+                                                        </label>
+                                                    </div>
+
+                                                    <div>
+                                                        <div class="flex items-center justify-between mb-2">
+                                                            <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Fields</span>
+                                                            <span class="text-xs space-x-3">
+                                                                <button type="button" class="text-blue-600 hover:underline" @click="applyPickerSelectAll(true)">Select all</button>
+                                                                <button type="button" class="text-gray-500 hover:underline" @click="applyPickerSelectAll(false)">Clear</button>
+                                                            </span>
+                                                        </div>
+                                                        <div class="border border-gray-200 rounded-lg divide-y divide-gray-100">
+                                                            <template x-for="field in applyPicker.fields" :key="field.key">
+                                                                <label class="flex items-start gap-3 px-3 py-2.5"
+                                                                       :class="field.empty ? 'bg-gray-50 cursor-not-allowed' : 'cursor-pointer hover:bg-blue-50'">
+                                                                    <input type="checkbox" x-model="field.checked" :disabled="field.empty"
+                                                                           class="mt-0.5 rounded text-blue-600 focus:ring-blue-500">
+                                                                    <span class="flex-1 min-w-0">
+                                                                        <span class="block text-sm font-medium" :class="field.empty ? 'text-gray-400' : 'text-gray-800'" x-text="field.label"></span>
+                                                                        <span class="block text-xs truncate" :class="field.empty ? 'text-gray-400 italic' : 'text-gray-600'"
+                                                                              x-text="field.empty ? 'Empty on this applicant - nothing to copy' : field.display"></span>
+                                                                        <span x-show="field.ownTitles && !field.empty" class="block text-xs text-amber-700">
+                                                                            The other files already have their own titles; tick only to overwrite them.
+                                                                        </span>
+                                                                    </span>
+                                                                    <span x-show="!field.empty" class="text-xs whitespace-nowrap"
+                                                                          :class="field.changes ? 'text-blue-700' : 'text-gray-400'"
+                                                                          x-text="field.changes ? ('changes ' + field.changes + ' file' + (field.changes === 1 ? '' : 's')) : 'already the same'"></span>
+                                                                </label>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="flex justify-end gap-2 px-5 py-3 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+                                                    <button type="button" @click="applyPicker.open = false"
+                                                            class="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-white">
+                                                        Cancel
+                                                    </button>
+                                                    <button type="button" @click="confirmApplyApplicant()"
+                                                            :disabled="!applyPicker.fields.some(f => f.checked && !f.empty)"
+                                                            :class="applyPicker.fields.some(f => f.checked && !f.empty) ? 'hover:bg-blue-700' : 'opacity-50 cursor-not-allowed'"
+                                                            class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md flex items-center gap-2">
+                                                        <i data-lucide="copy" class="w-4 h-4"></i>
+                                                        <span x-text="'Apply ' + applyPicker.fields.filter(f => f.checked && !f.empty).length + ' field(s)'"></span>
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
 
                                         {{-- Party 1 for this applicant: the paired OP's Party 2 (allottee), matched by
@@ -1126,7 +1213,7 @@
                                                 <label for="generateEmail" class="block text-xs font-medium text-gray-600 mb-1">
                                                     Email of Applicant <span class="text-gray-400 font-normal">(optional)</span>
                                                 </label>
-                                                <input type="email" id="generateEmail" name="email" maxlength="150"
+                                                <input type="email" id="generateEmail" name="email" x-model="email" maxlength="150"
                                                        autocomplete="off"
                                                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                        placeholder="e.g. name@example.com">
@@ -2584,6 +2671,17 @@
                                 <p id="editRelatedFileNoHint" class="mt-1 text-xs text-gray-500">
                                     Pick the file this one relates to.
                                 </p>
+
+                                {{-- Additional related numbers, one row each; drawn by
+                                     renderEditRelatedExtras(). Disabled (so not posted) on a
+                                     row type that keeps one related number. --}}
+                                <div id="editRelatedExtras" class="mt-2 space-y-2"></div>
+                                <input type="hidden" id="editRelatedFilesExtra" name="related_files_extra" value="[]" disabled>
+                                <button type="button" id="editAddRelatedBtn" onclick="addEditRelatedFile()"
+                                        class="hidden mt-2 items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-300 text-blue-700 text-xs font-semibold rounded-md hover:bg-blue-50 transition-colors">
+                                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                    Add Related File Number
+                                </button>
                             </div>
 
                             <!-- File Name (Editable) -->

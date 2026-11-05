@@ -9,7 +9,7 @@ use RuntimeException;
 
 /**
  * Units inside a department, for File Movement's "Send to" (CR 30102026 item 34).
- * A unit is optional on a send; "Other" takes a typed name until the unit is added
+ * In-Unit mode sends a file to a unit; "Other" takes a typed name until the unit is added
  * in Configurable Entities > Units. A send between two offices of the same
  * department is In-Unit; between departments it is In Transit, as before.
  */

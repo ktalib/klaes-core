@@ -5207,15 +5207,20 @@
         }
 
         // Same safety net for the applicant fields when "Apply Applicant Details to All"
-        // is checked but the button was never pressed.
-        if (alpineData.applyApplicantToAll && alpineData.locationEntries.length > 0) {
+        // is checked but the button was never pressed. Once it has been, the picker has
+        // already copied what the officer chose, and re-copying here would overwrite the
+        // files edited one by one afterwards.
+        if (alpineData.applyApplicantToAll && !alpineData.applicantAppliedOnce && alpineData.locationEntries.length > 0) {
             const currentApplicant = alpineData.locationEntries[alpineData.currentEntryIndex] || alpineData.locationEntries[0];
+            const applyKeys = typeof alpineData.applyFieldKeys === 'function'
+                ? alpineData.applyFieldKeys()
+                : ['file_name', 'phone_no', 'address'];
             if (currentApplicant) {
                 for (let i = 0; i < alpineData.batchQuantity; i++) {
                     if (alpineData.locationEntries[i]) {
-                        alpineData.locationEntries[i].file_name = currentApplicant.file_name;
-                        alpineData.locationEntries[i].phone_no = currentApplicant.phone_no;
-                        alpineData.locationEntries[i].address = currentApplicant.address;
+                        applyKeys.forEach(key => {
+                            alpineData.locationEntries[i][key] = currentApplicant[key];
+                        });
                     }
                 }
             }
@@ -5981,7 +5986,13 @@
                 const relatedInput = document.getElementById('editRelatedFileNo');
                 if (relatedInput) {
                     const oldFileNo = (data.old_fileno || '').toString().trim();
-                    relatedInput.value = oldFileNo || parseRelatedFileNo(data.related_fileno);
+                    // related_primary is the first number; the rest go in the rows beneath.
+                    // Absent on a temporary file or plot extension, which keep one number.
+                    const primaryRelated = data.related_primary !== undefined
+                        ? data.related_primary
+                        : parseRelatedFileNo(data.related_fileno);
+                    relatedInput.value = oldFileNo || primaryRelated;
+                    setEditRelatedExtras(Array.isArray(data.related_extras) ? data.related_extras : null);
                     const oldCheckbox = document.getElementById('editIsOldFileNo');
                     if (oldCheckbox) oldCheckbox.checked = oldFileNo !== '';
                     // No stored title for the linked file — it only appears after a pick.
@@ -5996,6 +6007,10 @@
                                 if (title && relatedTitleEl) relatedTitleEl.textContent = title;
                             }).catch(() => {});
                     }
+                    // Re-Issuance of FileNo (set at commissioning or through Update File
+                    // Source): the number is the duplicate the file replaces, so the field
+                    // reads Old File (Duplicate FileNo), as on the commissioning card.
+                    editFileIsReissuance = String(data.file_option || '').trim().toLowerCase() === 'reissuance';
                     onEditIsOldFileNoChange(oldFileNo !== '');
                 }
 
@@ -6237,9 +6252,122 @@
         syncEditRelatedFileNoUi();
     }
 
+    // Additional related numbers on the Edit modal, under the main field. Each comes
+    // from the global selector, so only real file numbers can be linked. A `locked` one
+    // belongs to a workflow (Merger, Subdivision, ...) and is shown but not removable.
+    let editRelatedExtras = [];
+
+    function setEditRelatedExtras(list) {
+        const supported = Array.isArray(list);
+        editRelatedExtras = supported ? list.map(e => ({ ...e })) : [];
+
+        const button = document.getElementById('editAddRelatedBtn');
+        if (button) {
+            button.classList.toggle('hidden', !supported);
+            button.classList.toggle('inline-flex', supported);
+        }
+        const hidden = document.getElementById('editRelatedFilesExtra');
+        if (hidden) hidden.disabled = !supported;
+
+        renderEditRelatedExtras();
+    }
+
+    function renderEditRelatedExtras() {
+        const box = document.getElementById('editRelatedExtras');
+        if (!box) return;
+
+        const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        box.innerHTML = editRelatedExtras.map((entry, i) => `
+            <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md">
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-gray-800 uppercase">${esc(entry.file_no)}</div>
+                    ${entry.title ? `<div class="text-xs font-medium text-blue-700 truncate">${esc(entry.title)}</div>` : ''}
+                </div>
+                ${entry.locked
+                    ? `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-200 text-gray-600 text-xs font-medium"
+                             title="Set by its own workflow, so it cannot be removed here">
+                           <i data-lucide="lock" class="w-3 h-3"></i>${esc(entry.type || 'Linked')}
+                       </span>`
+                    : `<button type="button" onclick="removeEditRelatedFile(${i})" aria-label="Remove ${esc(entry.file_no)}"
+                               class="shrink-0 inline-flex items-center px-1 py-1 text-gray-400 hover:text-red-600" title="Remove">
+                           <i data-lucide="x" class="w-4 h-4"></i>
+                       </button>`}
+            </div>`).join('');
+
+        // Locked links stay with their workflow: only what can change is posted.
+        const hidden = document.getElementById('editRelatedFilesExtra');
+        if (hidden) {
+            hidden.value = JSON.stringify(editRelatedExtras.filter(e => !e.locked).map(e => e.file_no));
+        }
+
+        if (window.lucide && typeof lucide.createIcons === 'function') {
+            lucide.createIcons();
+        }
+    }
+
+    function removeEditRelatedFile(index) {
+        editRelatedExtras.splice(index, 1);
+        renderEditRelatedExtras();
+    }
+
+    function addEditRelatedFile() {
+        if (typeof GlobalFileNoModal === 'undefined' || typeof GlobalFileNoModal.open !== 'function') {
+            Swal.fire('Error', 'File number selector is not available. Please refresh the page.', 'error');
+            return;
+        }
+
+        GlobalFileNoModal.open({
+            callback: function (data) {
+                if (!data || !data.fileNumber) return;
+
+                // Legacy KN/KANGIS records store a trailing dash (e.g. "KN 3456-").
+                const number = (data.fileNumber || '').toString().replace(/[\s-]+$/, '').trim();
+                if (!number) return;
+
+                const key = v => String(v || '').trim().replace(/\s+/g, ' ').toUpperCase();
+                const main = document.getElementById('editRelatedFileNo');
+                const own = document.getElementById('editMlsfNo');
+                const taken = [main && main.value, ...editRelatedExtras.map(e => e.file_no)].map(key);
+
+                if (own && key(own.value) === key(number)) {
+                    Swal.fire({ icon: 'warning', title: 'Same file', text: 'A file cannot be related to itself.', confirmButtonColor: '#f59e0b' });
+                    return;
+                }
+                if (taken.includes(key(number))) {
+                    Swal.fire({ icon: 'warning', title: 'Already listed', text: number + ' is already on this file.', confirmButtonColor: '#f59e0b' });
+                    return;
+                }
+
+                const title = (
+                    data.file_name
+                    || data.file_title
+                    || (data.record && (data.record.file_name || data.record.FileName || data.record.file_title))
+                    || ''
+                ).toString().trim();
+
+                // An empty main field takes the number, as its own Select would.
+                if (main && !main.value.trim()) {
+                    main.value = number;
+                    const titleEl = document.getElementById('editRelatedFileTitle');
+                    if (titleEl) titleEl.textContent = title;
+                    syncEditRelatedFileNoUi();
+                    return;
+                }
+
+                editRelatedExtras.push({ file_no: number, title: title, type: 'Related File', locked: false });
+                renderEditRelatedExtras();
+            }
+        });
+    }
+
+    // True while the Edit modal shows a Re-Issuance of FileNo file.
+    let editFileIsReissuance = false;
+
     // The Edit modal carries one file-number field. Ticking "Old File Number" relabels
     // it and flips the hidden flag so the backend saves it as the old file number
-    // (mls_file_no.old_fileno) instead of a related file number.
+    // (mls_file_no.old_fileno) instead of a related file number. On a Re-Issuance of
+    // FileNo the field is the duplicated number whichever column holds it.
     function onEditIsOldFileNoChange(checked) {
         const isOld = !!checked;
         const label = document.getElementById('editRelatedFileNoLabel');
@@ -6249,16 +6377,22 @@
 
         if (hidden) hidden.value = isOld ? '1' : '0';
         if (label) {
-            label.innerHTML = '<i data-lucide="link" class="w-4 h-4 inline mr-1"></i>'
-                + (isOld ? 'Old File Number' : 'Related File Number');
+            label.innerHTML = editFileIsReissuance
+                ? '<i data-lucide="copy" class="w-4 h-4 inline mr-1"></i><span style="color:#be123c">Old File (Duplicate FileNo)</span>'
+                : '<i data-lucide="link" class="w-4 h-4 inline mr-1"></i>'
+                    + (isOld ? 'Old File Number' : 'Related File Number');
         }
         if (hint) {
-            hint.textContent = isOld
-                ? "Saved as this file's previous (old) file number."
-                : 'Pick the file this one relates to.';
+            hint.textContent = editFileIsReissuance
+                ? 'Re-Issuance of FileNo: the duplicated number this file replaces.'
+                : (isOld
+                    ? "Saved as this file's previous (old) file number."
+                    : 'Pick the file this one relates to.');
         }
         if (input) {
-            input.placeholder = isOld ? 'Select old file number' : 'Select related file number';
+            input.placeholder = editFileIsReissuance
+                ? 'Select old file (duplicate FileNo)'
+                : (isOld ? 'Select old file number' : 'Select related file number');
         }
         syncEditRelatedFileNoUi();
         if (window.lucide && typeof lucide.createIcons === 'function') {
@@ -7687,6 +7821,8 @@
             address: '',
             rep_phone_no: '',
             rep_address: '',
+            // Bound to the Email of Applicant input so a batch can keep one per file.
+            email: '',
             isInherited: false, // Flag to track if fields were auto-populated from existing file
             sourceInstrumentCaptureId: '',
             sourcePropId: '',
@@ -7797,6 +7933,14 @@
             serialRangePreview: '-',
             applyLocationToAll: false, // Toggle for batch location sync
             applyApplicantToAll: false, // Toggle for batch applicant sync (File Options card)
+            // The fields "Apply to All" copies, as last chosen on its picker card. null until
+            // the picker is used: the toggle then keeps its old meaning (title, phone, address).
+            applyApplicantFields: null,
+            // Set once the picker has been applied, so Generate no longer re-copies the
+            // fields over values edited per file afterwards.
+            applicantAppliedOnce: false,
+            // The "Apply to All Files" picker card.
+            applyPicker: { open: false, scope: 'stage', fields: [] },
             // Allottees (each OP's Party 2) by batch sequence, set by the Batch Capture OP
             // hand-off (copReopenCommissionForBatch). Index i pairs with applicant i, and
             // becomes the ToT's Party 1 at link time. Empty outside that flow.
@@ -10545,7 +10689,7 @@
                         }
                     }
 
-                    if (this.applyApplicantToAll && ['file_name', 'phone_no', 'address'].includes(field)) {
+                    if (this.applyApplicantToAll && this.applyFieldKeys().includes(field)) {
                         for (let i = 0; i < this.batchQuantity; i++) {
                             if (this.locationEntries[i]) {
                                 this.locationEntries[i][field] = value;
@@ -10597,11 +10741,29 @@
                 }
             },
 
+            // The applicant details each file of a batch keeps for itself: entry key -> card
+            // field. Each applicant on the File Options card can be a different person, so
+            // gender, customer type, email and the Local Rep travel with the file too; the
+            // server falls back to the batch-wide value for a file that carries none.
+            applicantEntryFields() {
+                return {
+                    file_name: 'fileName',
+                    phone_no: 'phone_no',
+                    address: 'address',
+                    email: 'email',
+                    gender: 'gender',
+                    customer_type: 'customerType',
+                    rep_phone_no: 'rep_phone_no',
+                    rep_address: 'rep_address',
+                };
+            },
+
             saveCurrentApplicantToEntry() {
-                if (this.locationEntries[this.currentEntryIndex]) {
-                    this.locationEntries[this.currentEntryIndex].file_name = this.fileName;
-                    this.locationEntries[this.currentEntryIndex].phone_no = this.phone_no;
-                    this.locationEntries[this.currentEntryIndex].address = this.address;
+                const entry = this.locationEntries[this.currentEntryIndex];
+                if (entry) {
+                    Object.entries(this.applicantEntryFields()).forEach(([key, prop]) => {
+                        entry[key] = this[prop] ?? '';
+                    });
                     this.rememberEntryPurpose();
                 }
             },
@@ -10612,6 +10774,24 @@
                     this.fileName = entry.file_name || '';
                     this.phone_no = entry.phone_no || '';
                     this.address = entry.address || '';
+
+                    // A file not yet given its own keeps what is on the card, as these
+                    // were batch-wide before.
+                    const has = key => Object.prototype.hasOwnProperty.call(entry, key);
+                    if (has('email')) this.email = entry.email || '';
+                    if (has('gender')) this.gender = entry.gender || '';
+                    if (has('rep_phone_no')) this.rep_phone_no = entry.rep_phone_no || '';
+                    if (has('rep_address')) this.rep_address = entry.rep_address || '';
+                    if (entry.customer_type) {
+                        this.customerType = entry.customer_type;
+                        // Crossing a duplex stage changes the prefix, whose watcher re-derives
+                        // the customer type from the land use; this file's own one wins.
+                        this.$nextTick(() => {
+                            if (this.locationEntries[this.currentEntryIndex] === entry) {
+                                this.customerType = entry.customer_type;
+                            }
+                        });
+                    }
                     this.restoreEntryPurpose(false);
                 }
             },
@@ -10918,60 +11098,161 @@
                 });
             },
 
-            // Apply the current applicant's details to every file in the batch. The rest
-            // of the File Options card (file type, prefix, land use, purpose, customer
-            // type, gender) is already batch-wide, so only the per-entry fields are copied.
+            // ── Apply to All Files ─────────────────────────────────────────────────────
+            // "Apply Current Applicant to All" opens a card on which the officer picks the
+            // fields to copy (phone, address, gender, customer type, ...). Unticked fields
+            // keep each file's own value, which is what a parcel update's batch needs:
+            // a subdivision's plots, a duplex's files and an OP batch's allottees arrive
+            // with their own titles and must not be overwritten by the one on screen.
+
+            // The fields copied by the toggle's live sync and by Generate's safety net:
+            // the picker's last choice, else the original three.
+            applyFieldKeys() {
+                return Array.isArray(this.applyApplicantFields)
+                    ? this.applyApplicantFields
+                    : ['file_name', 'phone_no', 'address'];
+            },
+
+            applicantFieldDefs() {
+                const defs = [
+                    { key: 'file_name', label: 'File Name (File Title)', prop: 'fileName' },
+                    { key: 'phone_no', label: 'Phone No of Applicant', prop: 'phone_no' },
+                    { key: 'address', label: 'Address of Applicant', prop: 'address' },
+                    { key: 'email', label: 'Email of Applicant', prop: 'email' },
+                    { key: 'gender', label: 'Gender', prop: 'gender' },
+                    { key: 'customer_type', label: 'Customer Type', prop: 'customerType' },
+                ];
+                // Local Rep is captured for Conversion only.
+                if (this.applicationType === 'conversion') {
+                    defs.push(
+                        { key: 'rep_phone_no', label: 'Local Rep Phone No', prop: 'rep_phone_no' },
+                        { key: 'rep_address', label: 'Local Rep Address', prop: 'rep_address' }
+                    );
+                }
+                // Purpose is batch-wide, except where each file keeps its own.
+                if (this.purposeIsPerFile()) {
+                    defs.push({ key: 'purpose_id', label: 'Purpose', prop: 'purpose' });
+                }
+                return defs;
+            },
+
+            // 'stage' = the duplex stage on screen (the whole batch outside a duplex).
+            applyRangeFor(scope) {
+                if (scope === 'all' && this.duplexRecordId) {
+                    const total = Math.min(this.batchQuantity, this.locationEntries.length);
+                    return { start: 0, end: total, label: `all ${total} files in the duplex` };
+                }
+                return this.duplexApplyRange();
+            },
+
             applyApplicantToBatch() {
                 if (!this.batchMode || this.batchQuantity < 2) {
                     return;
                 }
 
                 // The applicant inputs bind to top-level state, not to the entry, so flush
-                // what is on screen into the current entry before broadcasting it.
+                // what is on screen into the current entry before offering to copy it.
                 this.saveCurrentApplicantToEntry();
 
-                const currentEntry = this.locationEntries[this.currentEntryIndex];
-                if (!currentEntry) {
+                if (!this.locationEntries[this.currentEntryIndex]) {
                     console.error('Apply applicant to batch failed: current entry at index ' + this.currentEntryIndex + ' is undefined');
                     return;
                 }
 
-                const applicantData = {
-                    file_name: currentEntry.file_name || '',
-                    phone_no: currentEntry.phone_no || '',
-                    address: currentEntry.address || ''
-                };
+                this.applyPicker.fields = [];
+                this.applyPicker.scope = 'stage';
+                this.refreshApplyPicker();
+                this.applyPicker.open = true;
 
-                const range = this.duplexApplyRange();
-                const count = range.end - range.start;
+                this.$nextTick(() => {
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                });
+            },
+
+            // (Re)build the picker rows: the value on screen, and how many files it would change.
+            refreshApplyPicker() {
+                const range = this.applyRangeFor(this.applyPicker.scope);
+                const norm = v => String(v ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+                const purposeName = id => ((this.purposes || []).find(p => String(p.id) === String(id)) || {}).name || '';
+                const ticked = new Map((this.applyPicker.fields || []).map(f => [f.key, f.checked]));
+                const remembered = Array.isArray(this.applyApplicantFields) ? this.applyApplicantFields : null;
+
+                this.applyPicker.fields = this.applicantFieldDefs().map(def => {
+                    const value = String(this[def.prop] ?? '').trim();
+                    const empty = value === '';
+                    let changes = 0;
+                    const otherTitles = new Set();
+
+                    for (let i = range.start; i < range.end; i++) {
+                        if (i === this.currentEntryIndex) continue;
+                        const entry = this.locationEntries[i] || {};
+                        if (norm(entry[def.key]) !== norm(value)) changes++;
+                        if (def.key === 'file_name' && norm(entry.file_name)) otherTitles.add(norm(entry.file_name));
+                    }
+
+                    // The other files already carry titles of their own (plot holders, OP
+                    // allottees): left unticked unless the officer chooses otherwise.
+                    const ownTitles = def.key === 'file_name'
+                        && otherTitles.size > 0
+                        && !(otherTitles.size === 1 && otherTitles.has(norm(value)));
+
+                    let checked;
+                    if (ticked.has(def.key)) checked = ticked.get(def.key);
+                    else if (remembered) checked = remembered.includes(def.key);
+                    else checked = !ownTitles;
+
+                    return {
+                        key: def.key,
+                        label: def.label,
+                        value,
+                        display: def.key === 'purpose_id' ? (purposeName(value) || value) : value,
+                        empty,
+                        changes,
+                        ownTitles,
+                        checked: checked && !empty,
+                    };
+                });
+            },
+
+            applyPickerSelectAll(on) {
+                this.applyPicker.fields.forEach(f => { f.checked = on && !f.empty; });
+            },
+
+            confirmApplyApplicant() {
+                const chosen = this.applyPicker.fields.filter(f => f.checked && !f.empty);
+                if (!chosen.length) {
+                    Swal.fire({ icon: 'info', title: 'Pick a field', text: 'Tick at least one field to apply.', confirmButtonColor: '#2563eb' });
+                    return;
+                }
+
+                const range = this.applyRangeFor(this.applyPicker.scope);
+                const values = {};
+                chosen.forEach(f => { values[f.key] = f.value; });
+
                 for (let i = range.start; i < range.end; i++) {
                     if (this.locationEntries[i]) {
                         this.locationEntries[i] = {
                             ...this.locationEntries[i],
-                            ...applicantData
+                            ...values
                         };
                     } else {
                         console.warn('Location entry at index ' + i + ' is missing during batch applicant apply');
                     }
                 }
 
-                // Keep the top-level bound fields in sync with what was just applied
-                this.fileName = applicantData.file_name;
-                this.phone_no = applicantData.phone_no;
-                this.address = applicantData.address;
+                this.applyApplicantFields = chosen.map(f => f.key);
+                this.applicantAppliedOnce = true;
+                this.applyPicker.open = false;
 
+                const esc = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
                 Swal.fire({
                     icon: 'success',
-                    title: 'Applicant Applied',
-                    text: `Applicant details applied to ${range.label}`,
-                    timer: 2000,
+                    title: 'Applied',
+                    html: `<b>${chosen.map(f => esc(f.label)).join(', ')}</b> applied to ${esc(range.label)}.`,
+                    timer: 2500,
                     showConfirmButton: false
-                });
-
-                this.$nextTick(() => {
-                    if (typeof lucide !== 'undefined') {
-                        lucide.createIcons();
-                    }
                 });
             }
         }

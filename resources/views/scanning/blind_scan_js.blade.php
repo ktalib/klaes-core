@@ -3,6 +3,7 @@
   const MIGRATE_ENDPOINT = "{{ route('blind-scanning.migrate') }}";
   const API_LIST = "{{ route('blind-scanning.list') }}";
   const API_LOGS = "{{ route('blind-scanning.logs') }}";
+  const API_FOLDER_SUMMARY = "{{ route('blind-scanning.folder-summary') }}";
   const API_SYNC_MIGRATIONS = "{{ route('blind-scanning.sync-migrations') }}";
   const API_SAVE_IMAGE = "{{ route('blind-scanning.save-image') }}";
   const API_DELETE_FILE = "{{ route('blind-scanning.delete-file') }}";
@@ -725,6 +726,9 @@
   const statusEl = document.getElementById('status');
   const migrateBtn = document.getElementById('migrateBtn');
   const registryEl = document.getElementById('registryType');
+  const uploadTypeCheckEl = document.getElementById('uploadTypeCheck');
+  const uploadTypeRadios = Array.from(document.querySelectorAll('input[name="uploadType"]'));
+  const lfFilesEl = document.getElementById('lfFilesInput');
   const ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp', 'gif', 'webp', 'pdf'];
   // A folder goes up in batches: each request stays far below the server's
   // size limit, progress is measured on real bytes sent, and a failed batch is
@@ -783,10 +787,20 @@
     setProgressDetail('Stopping after the current batch...');
   });
 
+  // Nothing is preselected: a default is easy to skip, and flat LF pages would then
+  // be recorded as A4. '' until the box is ticked and an option chosen.
+  const selectedUploadType = () => (uploadTypeCheckEl && uploadTypeCheckEl.checked
+    ? (uploadTypeRadios.find(r => r.checked)?.value || '')
+    : '');
+  // LF Scan only: every page goes to the file's A3 folder, whatever its local folder is called.
+  const isLfOnly = () => selectedUploadType() === 'lf';
+
   function detectSelectedRoot(files) {
     const segs = [];
     for (const f of files) {
-      const rel = f.webkitRelativePath || f.name;
+      // Images picked one by one have no folder to name.
+      if (!f.webkitRelativePath) return null;
+      const rel = f.webkitRelativePath;
       const first = (rel.split('/')[0] || '').trim();
       if (first) segs.push(first.toLowerCase());
     }
@@ -806,15 +820,25 @@
     return ALLOWED_EXT.includes(ext);
   }
 
+  const isInPaperFolder = (file, paper) =>
+    ('/' + (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').toUpperCase()).includes(`/${paper}/`);
+
   function paperCounts(files) {
+    if (isLfOnly()) return { A4: 0, A3: files.length, other: 0 };
     const counts = { A4: 0, A3: 0, other: 0 };
     for (const f of files) {
-      const rel = '/' + (f.webkitRelativePath || f.name || '').replace(/\\/g, '/').toUpperCase();
-      if (rel.includes('/A3/')) counts.A3++;
-      else if (rel.includes('/A4/')) counts.A4++;
+      if (isInPaperFolder(f, 'A3')) counts.A3++;
+      else if (isInPaperFolder(f, 'A4')) counts.A4++;
       else counts.other++;
     }
     return counts;
+  }
+
+  // The folder picked is named after a different file. A plain name such as
+  // "LF Scan" says nothing about the file, so it is only checked when it has a number.
+  function mismatchedFolder(fileNumber) {
+    if (!localParentName || localParentName === fileNumber.toLowerCase()) return null;
+    return isLfOnly() && !/\d/.test(localParentName) ? null : localParentName;
   }
 
   function validateUploadSection() {
@@ -827,7 +851,9 @@
     if (!selectedFiles.length) {
       statusEl.innerHTML = skippedLocal.length
         ? `<span class="text-red-600">The folder has no image or PDF files.</span>${skippedNote}`
-        : 'No folder selected.';
+        : (uploadTypeCheckEl && !selectedUploadType()
+          ? 'Tick <b>Choose upload type</b> and pick an option to continue.'
+          : 'No folder selected.');
       migrateBtn.disabled = true; ready = false; return;
     }
 
@@ -843,9 +869,14 @@
       migrateBtn.disabled = true; ready = false; return;
     }
 
+    if (isLfOnly() && selectedFiles.some(f => isInPaperFolder(f, 'A4'))) {
+      statusEl.innerHTML = `<span class="text-red-600">This folder has an <b>A4</b> subfolder, so it is not LF scans only.</span> Pick just the LF images, or change the upload type to Full file.${skippedNote}`;
+      migrateBtn.disabled = true; ready = false; return;
+    }
+
     const counts = paperCounts(selectedFiles);
     const registryLabel = registryEl.options[registryEl.selectedIndex].text;
-    const mismatch = inferred && inferred.toLowerCase() !== typedRaw.toLowerCase()
+    const mismatch = mismatchedFolder(typedRaw)
       ? `<div class="text-yellow-700 mt-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i>The folder is named <code>${escapeHtml(inferred)}</code> but the file number is <code>${escapeHtml(typedRaw)}</code>. You will be asked to confirm.</div>`
       : '';
 
@@ -855,15 +886,51 @@
     migrateBtn.disabled = uploading; ready = true;
   }
 
-  folderEl.addEventListener('change', () => {
-    const all = Array.from(folderEl.files || []);
+  function setSelection(all) {
     selectedFiles = all.filter(isAllowedFile);
     skippedLocal = all.filter(f => !isAllowedFile(f));
     totalSelectedBytes = selectedFiles.reduce((sum, file) => sum + (file.size || 0), 0);
     validateUploadSection();
+  }
+
+  folderEl.addEventListener('change', () => {
+    if (lfFilesEl) lfFilesEl.value = '';
+    setSelection(Array.from(folderEl.files || []));
   });
+  if (lfFilesEl) {
+    lfFilesEl.addEventListener('change', () => {
+      folderEl.value = '';
+      setSelection(Array.from(lfFilesEl.files || []));
+    });
+  }
   if (registryEl) {
     registryEl.addEventListener('change', validateUploadSection);
+  }
+
+  // The folder picker stays locked until a type is chosen. Changing the type starts
+  // the selection again: a pick made for one type must not go up labelled as the other.
+  function applyUploadType() {
+    if (!uploadTypeCheckEl) return;
+    const type = selectedUploadType();
+    const lf = type === 'lf';
+    if (!uploadTypeCheckEl.checked) uploadTypeRadios.forEach(r => { r.checked = false; });
+    document.getElementById('uploadTypeOptions').classList.toggle('hidden', !uploadTypeCheckEl.checked);
+    document.getElementById('lfFilesWrap').classList.toggle('hidden', !lf);
+    folderEl.disabled = !type;
+    document.getElementById('uploadTypeHint').textContent = lf
+      ? 'Large-format pages added to this file. They go into its A3 folder and pages already uploaded stay as they are.'
+      : (type ? 'The whole file, with its A4 and A3 subfolders.' : 'Required before a folder can be picked.');
+    document.getElementById('folderHint').textContent = lf
+      ? 'Use Chrome/Edge on desktop. Pick the folder holding the LF scans; its name does not matter.'
+      : 'Use Chrome/Edge on desktop. The folder name should match the File Number.';
+    folderEl.value = '';
+    if (lfFilesEl) lfFilesEl.value = '';
+    setSelection([]);
+  }
+  if (uploadTypeCheckEl) {
+    uploadTypeCheckEl.addEventListener('change', applyUploadType);
+    uploadTypeRadios.forEach(r => r.addEventListener('change', applyUploadType));
+    applyUploadType();
   }
 
   function formatBytes(bytes) {
@@ -887,6 +954,8 @@
   }
 
   function computeRelativeUploadPath(file, folderName) {
+    if (isLfOnly()) return `A3/${file.name}`;
+
     let relativePath = file.webkitRelativePath || file.name || '';
     if (!relativePath) {
       return file.name || 'document';
@@ -947,25 +1016,37 @@
     });
   }
 
+  // What the file already holds. The preview still works without it.
+  async function fetchFolderSummary(folderName, registry) {
+    try {
+      const params = new URLSearchParams({ folderName, registry });
+      const res = await fetch(`${API_FOLDER_SUMMARY}?${params}`, { headers: { Accept: 'application/json' } });
+      const data = await res.json();
+      return res.ok && data.ok ? data : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   /**
    * Show the selected folder before anything is sent: where it will go, the
    * page counts, a thumbnail of every scan (grouped A4 / A3), and any warning.
    * Resolves true only when the user confirms the upload.
    */
-  async function previewBeforeUpload(folderName, registryLabel) {
-    const mismatch = localParentName && localParentName !== folderName.toLowerCase();
+  async function previewBeforeUpload(folderName, registryLabel, registry) {
+    const mismatch = mismatchedFolder(folderName);
 
     if (typeof Swal === 'undefined') {
       return confirm(`${mismatch ? `The folder you picked is "${localParentName}" but the file number is "${folderName}".\n\n` : ''}Upload ${selectedFiles.length} file(s) to ${folderName} in ${registryLabel}?`);
     }
 
+    const existing = await fetchFolderSummary(folderName, registry);
     const MAX_TILES = 150;
     const objectUrls = [];
     const counts = paperCounts(selectedFiles);
     const groups = { A4: [], A3: [], other: [] };
     selectedFiles.forEach(file => {
-      const rel = '/' + (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').toUpperCase();
-      (rel.includes('/A3/') ? groups.A3 : rel.includes('/A4/') ? groups.A4 : groups.other).push(file);
+      (isLfOnly() || isInPaperFolder(file, 'A3') ? groups.A3 : isInPaperFolder(file, 'A4') ? groups.A4 : groups.other).push(file);
     });
     const naturalSort = (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
     Object.values(groups).forEach(list => list.sort(naturalSort));
@@ -1025,8 +1106,10 @@
           <div class="bsp-card"><small>File number</small><b>${escapeHtml(folderName)}</b></div>
           <div class="bsp-card"><small>Registry</small><b>${escapeHtml(registryLabel)}</b></div>
           <div class="bsp-card"><small>Files</small><b>${selectedFiles.length}</b> <small>${formatBytes(totalSelectedBytes)}</small></div>
-          <div class="bsp-card"><small>Paper size</small><b>A4 ${counts.A4} · A3 ${counts.A3}</b>${counts.other ? `<small>${counts.other} not in an A4/A3 folder (stored as A4)</small>` : ''}</div>
+          <div class="bsp-card"><small>${isLfOnly() ? 'LF Scan only: adding' : 'Paper size'}</small><b>A4 ${counts.A4} · A3 ${counts.A3}</b>${counts.other ? `<small>${counts.other} not in an A4/A3 folder (stored as A4)</small>` : ''}</div>
+          ${existing ? `<div class="bsp-card"><small>Already on the server</small><b>A4 ${existing.blind.A4 + existing.edms.A4} · A3 ${existing.blind.A3 + existing.edms.A3}</b>${existing.edms.A4 + existing.edms.A3 ? `<small>${existing.edms.A4 + existing.edms.A3} already moved on to Scan Upload</small>` : ''}</div>` : ''}
         </div>
+        ${existing && existing.blind.A4 + existing.blind.A3 + existing.edms.A4 + existing.edms.A3 ? `<div class="bsp-note"><i class="fa-solid fa-shield-halved mr-1"></i>Pages already on the server are kept. Nothing is replaced: an identical file is skipped and a different one with the same name is saved beside it.</div>` : ''}
         ${mismatch ? `<div class="bsp-warn"><i class="fa-solid fa-triangle-exclamation mr-1"></i>The folder you picked is <b>${escapeHtml(localParentName)}</b> but the file number is <b>${escapeHtml(folderName)}</b>. Check these are the right scans before uploading.</div>` : ''}
         ${skippedLocal.length ? `<div class="bsp-note">${skippedLocal.length} non-image file(s) will be left out: ${skippedLocal.slice(0, 5).map(f => escapeHtml(f.name)).join(', ')}${skippedLocal.length > 5 ? '…' : ''}</div>` : ''}
         <div class="bsp-note">Click a thumbnail to open it full size in a new tab.</div>
@@ -1061,13 +1144,16 @@
     const registry = registryEl.value;
     const registryLabel = registryEl.options[registryEl.selectedIndex].text;
 
-    if (!(await previewBeforeUpload(folderName, registryLabel))) {
+    if (!(await previewBeforeUpload(folderName, registryLabel, registry))) {
       return;
     }
 
     uploading = true;
     cancelRequested = false;
     migrateBtn.disabled = true;
+    const uploadType = isLfOnly() ? 'lf' : 'full';
+    const lockUploadType = locked => [uploadTypeCheckEl, ...uploadTypeRadios].forEach(el => { if (el) el.disabled = locked; });
+    lockUploadType(true);
 
     const files = selectedFiles.slice();
     const totalBytes = Math.max(1, totalSelectedBytes);
@@ -1095,6 +1181,7 @@
           form.append('folderName', folderName);
           form.append('registry', registry);
           form.append('uploadMethod', 'direct');
+          form.append('uploadType', uploadType);
           form.append('batch_index', String(i));
           form.append('batch_total', String(batches.length));
           batch.forEach(file => {
@@ -1153,6 +1240,7 @@
           form.append('folderName', folderName);
           form.append('registry', registry);
           form.append('uploadMethod', 'direct');
+          form.append('uploadType', uploadType);
           form.append('batch_index', '0');
           form.append('batch_total', '2');
           again.forEach(file => { form.append('files[]', file); form.append('paths[]', computeRelativeUploadPath(file, folderName)); });
@@ -1190,6 +1278,13 @@
         fileNoEl.value = '';
         document.getElementById('clearFileNoBtn')?.classList.add('hidden');
         ready = false;
+        // Each upload needs its own choice, so the next file is not labelled by accident.
+        if (uploadTypeCheckEl) {
+          const doneNote = statusEl.innerHTML;
+          uploadTypeCheckEl.checked = false;
+          applyUploadType();
+          statusEl.innerHTML = doneNote;
+        }
       }
       if (totals.failed.length) {
         console.warn('Files the server could not save:', totals.failed);
@@ -1207,6 +1302,7 @@
     } finally {
       uploading = false;
       migrateBtn.disabled = !ready;
+      lockUploadType(false);
     }
   }
 

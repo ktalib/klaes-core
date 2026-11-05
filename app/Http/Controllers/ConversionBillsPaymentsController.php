@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\ConversionBettermentService;
+use App\Services\PhysicalPlanningBillSources;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -201,11 +202,12 @@ class ConversionBillsPaymentsController extends Controller
     }
 
     /**
-     * Generate / update a betterment bill for a JSI report.
+     * Generate / update a betterment bill for an inspection report of any central source.
      */
     public function generateBill(Request $request)
     {
         $validator = Validator::make($request->all(), [
+            'source'        => 'nullable|string|in:' . implode(',', array_keys(PhysicalPlanningBillSources::SOURCES)),
             'jsi_report_id' => 'required|integer',
             'file_number'   => 'required|string|max:100',
             'category'      => 'required|string',
@@ -217,12 +219,22 @@ class ConversionBillsPaymentsController extends Controller
             return response()->json(['success' => false, 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
         }
 
+        $sourceKey = $request->input('source') ?: 'pp_conversion';
+        $source = PhysicalPlanningBillSources::get($sourceKey);
+        $report = app(PhysicalPlanningBillSources::class)->report($sourceKey, (int) $request->jsi_report_id);
+
+        if (!$report) {
+            return response()->json(['success' => false, 'message' => 'Inspection report not found for this bill.'], 404);
+        }
+
         $result = $this->bettermentService->generateBill(
             $request->jsi_report_id,
-            $request->file_number,
+            $report->file_number ?: $request->file_number,
             $request->category,
             (float) $request->area,
-            $request->application_id
+            $request->application_id,
+            $source['billing_source'],
+            $source['has_measurement_entries'] ? $source['report_table'] : null
         );
 
         return response()->json($result);
@@ -257,6 +269,60 @@ class ConversionBillsPaymentsController extends Controller
         }
 
         return response()->json(['success' => true, 'data' => $bill]);
+    }
+
+    /**
+     * The generated betterment bill as a printable page, or a PDF with ?download=1.
+     */
+    public function printBill(Request $request, $id)
+    {
+        $bill = DB::connection('sqlsrv')
+            ->table('billing')
+            ->where('ID', $id)
+            ->whereNotNull('Betterment_Charges')
+            ->first();
+
+        abort_if(!$bill, 404, 'Betterment bill not found.');
+
+        $sourceKey = PhysicalPlanningBillSources::keyForBillingSource($bill->source);
+        $applicantName = null;
+        $landUse = null;
+        $plotNumber = null;
+        $location = null;
+
+        if ($sourceKey) {
+            $report = app(PhysicalPlanningBillSources::class)->report($sourceKey, (int) $bill->source_id);
+            $applicantName = $report->applicant_name ?? null;
+            $landUse = $report->applied_land_use ?? null;
+            $plotNumber = $report->plot_number ?? null;
+            $location = $report->location ?? null;
+        } elseif (!empty($bill->application_id)) {
+            $application = DB::connection('sqlsrv')->table('mother_applications')->where('id', $bill->application_id)->first();
+            $applicantName = $application
+                ? ($application->corporate_name ?: trim($application->first_name . ' ' . $application->surname))
+                : null;
+            $landUse = $application->land_use ?? null;
+            $plotNumber = $application->property_plot_no ?? null;
+            $location = $application->property_location ?? null;
+        }
+
+        $data = [
+            'bill' => $bill,
+            'typeLabel' => $sourceKey ? PhysicalPlanningBillSources::get($sourceKey)['label'] : 'Sectional Titling',
+            'applicantName' => $applicantName,
+            'landUse' => $landUse,
+            'plotNumber' => $plotNumber,
+            'location' => $location,
+            'isPdf' => $request->boolean('download'),
+        ];
+
+        if ($data['isPdf']) {
+            return app('dompdf.wrapper')
+                ->loadView('physical_planning.bills.print', $data)
+                ->download('Betterment_Bill_' . preg_replace('/[^A-Za-z0-9_-]+/', '_', (string) ($bill->ref_id ?: $bill->ID)) . '.pdf');
+        }
+
+        return view('physical_planning.bills.print', $data);
     }
 
     /**
@@ -334,6 +400,8 @@ class ConversionBillsPaymentsController extends Controller
             ->update([
                 'Betterment_receipt' => $request->receipt_no,
                 'receipt_date'       => $request->receipt_date,
+                'Betterment_receipt_date' => $request->receipt_date,
+                'Betterment_amount_paid'  => $amountPaid,
                 'Payment_Status'     => $status,
                 'updated_at'         => now(),
             ]);

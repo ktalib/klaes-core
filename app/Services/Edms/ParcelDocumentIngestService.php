@@ -57,6 +57,7 @@ class ParcelDocumentIngestService
         'ownership_document' => [5, null, 'Ownership Document'],
         'means_of_id' => [10, null, 'Means of Identification'],
         'tax_clearance' => [7, 21, 'Tax Clearance'],
+        'payment_evidence' => [7, 78, 'Evidence of Payment'],
     ];
 
     /** Used when a field is not in the map — Miscellaneous, and visible as such. */

@@ -71,10 +71,12 @@ window.secretariatFileLog = function (config) {
         indexQ: '', indexOpen: false, related_file_number: '',
         receiving_officer_id: '', request_purpose_id: '', officerFilter: '', officerOpen: false,
         officer_other: '', purpose_other: '', from_other: '', timeline_days: '',
-        unit_id: '', unit_other: '',
+        unit_id: '', unit_other: '', file_unit: '',
     });
+    // The Department / In-Unit card on a row's Send or Receive button.
+    const blankMovement = () => ({ in_unit: false, to_department: '', unit_id: '', unit_other: '' });
     const blankSend = () => ({ row: null, to_office: '', receiving_officer_id: '', request_purpose_id: '', officerFilter: '', officerOpen: false,
-        officer_other: '', purpose_other: '', notes: '', unit_id: '', unit_other: '' });
+        officer_other: '', purpose_other: '', notes: '', unit_id: '', unit_other: '', in_unit: false, to_department: '' });
     // A listed choice, or "Other" with its specify box filled in (as on Quick Search).
     const chosen = (value, other) => value === 'other' ? String(other || '').trim() !== '' : !!value;
     const listed = (value) => (value && value !== 'other') ? value : null;
@@ -83,7 +85,7 @@ window.secretariatFileLog = function (config) {
     // Batch mode: files collected by scan (or picked from the register), then
     // received or sent together. Each file goes through the same single-file
     // endpoint, so it is checked and logged exactly as one scan would be.
-    const blankBatchAll = () => ({ to_office: '', receiving_officer_id: '', officer_other: '', request_purpose_id: '', purpose_other: '', unit_id: '', unit_other: '' });
+    const blankBatchAll = () => ({ to_office: '', receiving_officer_id: '', officer_other: '', request_purpose_id: '', purpose_other: '' });
     const blankBatch = (on = false) => ({ on, items: [], running: false, notes: '', pick: '', all: blankBatchAll() });
     const blankEdit = () => ({ open: false, ref: null, office: '', status: '', statusLabel: '', initial: {},
         log_in_date: '', log_in_time: '', log_out_date: '', log_out_time: '',
@@ -123,6 +125,9 @@ window.secretariatFileLog = function (config) {
         dateTo: '',
         exportOpen: false,
         filter: '',
+        // The departments and units opened on the collapsing rows.
+        openGroups: {},
+        movementAsk: { ...blankMovement(), open: false, mode: 'in', step: 'choose', label: '', proceed: null },
         listsLoading: false,
         autoRefresh: false,
         autoRefreshSeconds: AUTO_REFRESH_SECONDS,
@@ -466,7 +471,7 @@ window.secretariatFileLog = function (config) {
 
         // ── Pagination ────────────────────────────────────────────────────
         pageCount() {
-            return Math.max(1, Math.ceil(this.visibleRows().length / this.perPage));
+            return Math.max(1, Math.ceil(this.topRows().length / this.perPage));
         },
         // Clamped, so a refresh that shrinks the list never leaves an empty page.
         currentPage() {
@@ -475,8 +480,64 @@ window.secretariatFileLog = function (config) {
         pageOffset() {
             return (this.currentPage() - 1) * this.perPage;
         },
-        pagedRows() {
-            return this.visibleRows().slice(this.pageOffset(), this.pageOffset() + this.perPage);
+        // Files sent to units of one department collapse into one row, where the first of
+        // them was (user, 2026-11-04). A department with one file stays a plain row.
+        topRows() {
+            const rows = this.visibleRows();
+            const groupOf = (r) => (r.to_unit && r.to_department && !r.elsewhere ? r.to_department : null);
+            const groups = {};
+            rows.forEach((r) => {
+                const d = groupOf(r);
+                if (d) (groups[d] = groups[d] || []).push(r);
+            });
+            const out = [];
+            rows.forEach((r) => {
+                const d = groupOf(r);
+                if (!d || groups[d].length < 2) {
+                    out.push(r);
+                } else if (groups[d][0] === r) {
+                    out.push({ group: true, department: d, rows: groups[d] });
+                }
+            });
+            return out;
+        },
+        // A page of top rows, as the lines the table draws: a department row, and when it
+        // is open a row per unit, then that unit's files. A unit with one file shows the
+        // file itself. Pages count top rows only. A search opens everything.
+        pagedItems() {
+            const searching = String(this.filter || '').trim() !== '';
+            const items = [];
+            this.topRows().slice(this.pageOffset(), this.pageOffset() + this.perPage).forEach((r, i) => {
+                const sn = String(this.pageOffset() + i + 1);
+                if (!r.group) {
+                    items.push({ key: r.row_key || r.id, sn, rows: [r] });
+                    return;
+                }
+                const key = this.tab + '|' + r.department;
+                const open = searching || !!this.openGroups[key];
+                items.push({ dept: true, key, groupKey: key, sn, department: r.department, open, all: r.rows, rows: [] });
+                if (!open) return;
+                const units = new Map();
+                r.rows.forEach((f) => units.set(f.to_unit, [...(units.get(f.to_unit) || []), f]));
+                [...units.entries()].forEach(([name, files], u) => {
+                    const unitSn = sn + '.' + (u + 1);
+                    if (files.length < 2) {
+                        items.push({ key: files[0].row_key || files[0].id, sn: unitSn, rows: files });
+                        return;
+                    }
+                    const unitKey = key + '|' + name;
+                    const unitOpen = searching || !!this.openGroups[unitKey];
+                    items.push({ unit: true, key: unitKey, groupKey: unitKey, sn: unitSn, dot: true, name, open: unitOpen, all: files, rows: unitOpen ? files : [] });
+                });
+            });
+            return items;
+        },
+        toggleGroup(item) {
+            this.openGroups = { ...this.openGroups, [item.groupKey]: !this.openGroups[item.groupKey] };
+        },
+        groupUnits(item) {
+            const units = [...new Set(item.all.map(r => r.to_unit))];
+            return units.join(', ');
         },
         goToPage(n) {
             this.page = Math.min(Math.max(1, n), this.pageCount());
@@ -688,7 +749,7 @@ window.secretariatFileLog = function (config) {
                 r.file_type === 'NON_FILE' ? 'not a regular mail letter memo file' : '',
                 this.kindText(r.document_kind, r.mail_type), r.mail_type,
                 r.not_indexed ? 'not indexed' : '', r.legacy ? 'legacy log' : '', r.request_type === 'SUBMITTED' ? 'submitted request' : '',
-                r.from, r.to, r.to_officer, r.now_at, r.state, bucket,
+                r.from, r.to, r.to_unit, r.to_officer, r.now_at, r.state, bucket,
                 r.since, r.since ? this.fmt(r.since) : '',
                 r.purpose, r.notes, r.reference, r.sender, r.sender_name, r.sender_rank,
             ].filter(v => v !== null && v !== undefined && v !== '').map(v => nice(String(v))).join(' | ').toLowerCase();
@@ -927,13 +988,13 @@ window.secretariatFileLog = function (config) {
             await this.loadProfile({ file_number: this.profile.data.file.file_number || '', tracker_id: t ? t.id : '' });
         },
 
-        openRow(row, startSend = false) {
+        openRow(row, startSend = false, unit = null) {
             this.profile.match = { file_number: row.file_number, related_file_number: row.related_file_number, tracking_id: row.tracking_id, file_title: row.file_title, tracker: row.id ? { id: row.id } : null };
             this.profile.readOnly = !!row.elsewhere;
             this.send = blankSend();
             this.loadProfile({ tracker_id: row.id || '', file_number: row.file_number || '' }).then(() => {
                 if (this.profile.readOnly) return;
-                if (startSend && this.heldHere()) this.startSendFromProfile();
+                if (startSend && this.heldHere()) this.startSendFromProfile(unit);
             });
             this.$nextTick(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
         },
@@ -1056,24 +1117,88 @@ window.secretariatFileLog = function (config) {
         },
 
         // ── Units (CR 30102026 item 34) ──────────────────────────────────
-        // Units of the department the chosen office belongs to.
-        // Units of a department by name (the incoming log picks the department, not an office).
+        // Units of a department by name.
         unitsInDept(department) {
             const dept = String(department || '').trim().toLowerCase();
             if (!dept || dept === 'other') return [];
             return this.units.filter(u => String(u.department || '').trim().toLowerCase() === dept);
         },
-        unitsFor(officeCode) {
-            const o = this.offices.find(i => i.office_code === officeCode);
-            if (!o) return [];
-            const dept = String(o.department || '').trim().toLowerCase();
-            return this.units.filter(u => String(u.department || '').trim().toLowerCase() === dept);
+        myDepartment() {
+            const o = this.offices.find(i => i.office_code === this.office);
+            return o ? (o.department || 'Other') : '';
         },
-        // In-Unit when the office it goes to is in my department, In Transit otherwise.
-        isInUnit(officeCode) {
-            const mine = this.offices.find(i => i.office_code === this.office);
-            const to = this.offices.find(i => i.office_code === officeCode);
-            return !!(mine && to && mine.department && String(mine.department).trim().toLowerCase() === String(to.department || '').trim().toLowerCase());
+        // The card on a row's or a file's Send / Receive button (user, 2026-11-04): Department,
+        // or In-Unit with a unit of the user's own department. Then it goes on with that file.
+        askMovement(mode, label, proceed) {
+            this.movementAsk = { ...blankMovement(), open: true, mode, step: 'choose', label, proceed };
+        },
+        chooseDepartment() {
+            this.movementAsk.open = false;
+            this.movementAsk.proceed(null);
+        },
+        chooseInUnit() {
+            const a = this.movementAsk;
+            a.in_unit = true;
+            a.to_department = this.myDepartment();
+            a.step = 'in_unit';
+        },
+        movementValid() {
+            return this.unitChosen(this.movementAsk);
+        },
+        confirmInUnit() {
+            if (!this.movementValid()) return;
+            const { to_department, unit_id, unit_other, proceed } = this.movementAsk;
+            this.movementAsk.open = false;
+            proceed({ to_department, unit_id, unit_other });
+        },
+        sendRow(row) {
+            this.askMovement('out', row.file_number || row.file_title, (unit) => this.openRow(row, true, unit));
+        },
+        // A file already sent to a unit keeps it, so there is nothing to choose.
+        receiveRow(row) {
+            if (row.to_unit) return this.receivePending(row);
+            this.askMovement('in', row.file_number || row.file_title, (unit) => this.receivePending(row, unit));
+        },
+        sendFromProfile() {
+            const d = this.profile.data;
+            this.askMovement('out', d && (d.file.file_number || d.file.file_title), (unit) => this.startSendFromProfile(unit));
+        },
+        receiveFromProfile() {
+            const d = this.profile.data;
+            const t = d && d.tracker;
+            if (t && t.unit && t.last_status === 'pending_acceptance') return this.receiveProfile();
+            this.askMovement('in', d && (d.file.file_number || d.file.file_title), (unit) => this.receiveProfile(unit));
+        },
+        // An In-Unit receipt carries the unit chosen on the card.
+        receiveUnitFields(unit) {
+            if (!unit) return {};
+            const other = unit.unit_id === 'other';
+            return {
+                in_unit_receive: true,
+                received_unit_id: other ? null : Number(unit.unit_id),
+                received_unit_other: other ? String(unit.unit_other || '').trim() : null,
+            };
+        },
+        // The unit a file picked on the manual log was sent to, for the note above its number.
+        async loadManualUnit(fileNumber) {
+            this.manual.file_unit = '';
+            if (this.mode !== 'in' || !fileNumber) return;
+            try {
+                const d = await this.request(this.urls.profile + '?' + new URLSearchParams({ file_number: fileNumber }));
+                const t = d.tracker;
+                if (t && t.unit && this.manual.file_number === fileNumber) {
+                    this.manual.file_unit = t.unit + (t.unit_department ? ', ' + t.unit_department : '');
+                }
+            } catch (e) {
+                // Only a note; the server keeps the file's unit either way.
+            }
+        },
+        // The officer is optional on an In-Unit send; "Other" must still be typed.
+        officerOk(s) {
+            return s.in_unit && s.receiving_officer_id !== 'other' ? true : chosen(s.receiving_officer_id, s.officer_other);
+        },
+        unitChosen(s) {
+            return !!s.to_department && (s.unit_id === 'other' ? String(s.unit_other || '').trim() !== '' : !!s.unit_id);
         },
         fromUnitFields(department, id, other) {
             if (id === 'other') return { from_unit_id: null, from_unit_other: String(other || '').trim() || null };
@@ -1083,11 +1208,15 @@ window.secretariatFileLog = function (config) {
         unitOk(id, other) {
             return id !== 'other' || String(other || '').trim() !== '';
         },
-        // The unit for the request: a listed one of that department, or Other typed. Optional.
-        unitFields(officeCode, id, other) {
-            if (id === 'other') return { receiving_unit_id: null, receiving_unit_other: String(other || '').trim() || null };
-            const u = this.unitsFor(officeCode).find(i => String(i.id) === String(id));
-            return { receiving_unit_id: u ? u.id : null, receiving_unit_other: null };
+        // The unit for the request, on an In-Unit send: a listed one of that department, or Other typed.
+        unitFields(s) {
+            if (!s.in_unit) return {};
+            const other = s.unit_id === 'other';
+            return {
+                to_department: s.to_department,
+                receiving_unit_id: other ? null : Number(s.unit_id),
+                receiving_unit_other: other ? String(s.unit_other || '').trim() : null,
+            };
         },
 
         // KLAES departments, as the offices table groups them.
@@ -1512,7 +1641,7 @@ window.secretariatFileLog = function (config) {
         },
 
         // ── Receive ───────────────────────────────────────────────────────
-        async receiveProfile() {
+        async receiveProfile(unit = null) {
             const d = this.profile.data;
             if (!d) return;
             await this.receive({
@@ -1521,16 +1650,18 @@ window.secretariatFileLog = function (config) {
                 file_number: d.file.file_number,
                 file_title: d.file.file_title,
                 received_via: this.scan.matches.length ? 'scan' : 'manual',
+                ...this.receiveUnitFields(unit),
             }, null, { purpose: this.historyMeta().request_purpose_name, label: d.file.file_number || d.file.file_title });
         },
 
-        async receivePending(row) {
+        async receivePending(row, unit = null) {
             await this.receive({
                 entry_type: row.file_type === 'NON_FILE' ? 'non_file' : 'file',
                 tracker_id: row.id,
                 file_number: row.file_number,
                 file_title: row.file_title,
                 received_via: 'manual',
+                ...this.receiveUnitFields(unit),
             }, null, { purpose: row.purpose, officer: row.to_officer, label: row.file_number || row.file_title });
         },
 
@@ -1702,10 +1833,12 @@ window.secretariatFileLog = function (config) {
             this.manual.file_title = f.file_title || '';
             this.manual.indexQ = f.file_number;
             this.manual.indexOpen = false;
+            this.loadManualUnit(f.file_number);
         },
 
         manualTypeChanged() {
             this.manual.file_number = '';
+            this.manual.file_unit = '';
             this.manual.related_file_number = '';
             this.manual.indexQ = '';
             this.manual.indexOpen = false;
@@ -1749,7 +1882,7 @@ window.secretariatFileLog = function (config) {
             // Timeline (Days) is optional; when given, a whole number 0–365 (as on Log a File).
             if (this.manualTimelineDays() === false) return false;
             // Send: where it goes.
-            if (this.mode === 'out' && (!m.send_to_office || m.send_to_office === this.office || !this.unitOk(m.unit_id, m.unit_other))) return false;
+            if (this.mode === 'out' && (!m.send_to_office || m.send_to_office === this.office)) return false;
             if (this.mode === 'in' && !this.unitOk(m.unit_id, m.unit_other)) return false;
             // Where it came from is required: a department, then an office (or Other, typed).
             if (!this.senderIsExternal() && (!m.from_department || !chosen(m.from_office, m.from_other))) return false;
@@ -1818,7 +1951,6 @@ window.secretariatFileLog = function (config) {
                 sender_lga: m.entry_type === 'non_file' && m.sender_type === 'External' && m.sender_mda === 'lga' ? (m.sender_lga || null) : null,
                 // Internal sender with a typed department: that department; otherwise Other is outside KLAES.
                 send_to_office: this.mode === 'out' ? m.send_to_office : null,
-                ...(this.mode === 'out' ? this.unitFields(m.send_to_office, m.unit_id, m.unit_other) : {}),
                 // Incoming: the unit it came from (optional).
                 ...(this.mode === 'in' && !this.senderIsExternal() ? this.fromUnitFields(m.from_department, m.unit_id, m.unit_other) : {}),
                 from_department: this.senderIsExternal() ? null : m.from_department === 'other'
@@ -1877,7 +2009,8 @@ window.secretariatFileLog = function (config) {
             const all = this.sendOfficers();
             const list = f ? all.filter(o => (String(o.name) + ' ' + String(o.username || '')).toLowerCase().includes(f)) : all;
             const to = this.offices.find(o => o.office_code === officeCode);
-            const dept = String((to && to.department) || '').toLowerCase().replace(/\s*department\s*$/, '').trim();
+            const department = (state.in_unit && state.to_department) || (to && to.department) || '';
+            const dept = String(department).toLowerCase().replace(/\s*department\s*$/, '').trim();
             const inDept = (o) => {
                 const d = String(o.department || '').toLowerCase();
                 return dept && d && (d === dept || d.includes(dept) || dept.includes(d));
@@ -1885,22 +2018,22 @@ window.secretariatFileLog = function (config) {
             const mine = dept ? list.filter(inDept) : [];
             const rest = list.filter(o => !mine.includes(o));
             const groups = [];
-            if (mine.length) groups.push({ label: nice(to.department) + ' department', items: mine });
+            if (mine.length) groups.push({ label: nice(department) + ' department', items: mine });
             if (rest.length) groups.push({ label: mine.length ? 'All other officers' : 'Officers', items: rest });
             return groups;
         },
 
-        startSendFromProfile() {
+        startSendFromProfile(unit = null) {
             const d = this.profile.data;
             if (!d || !d.tracker) return;
-            this.send = { ...blankSend(), row: { id: d.tracker.id, file_number: d.file.file_number, file_title: d.file.file_title } };
+            this.send = { ...blankSend(), row: { id: d.tracker.id, file_number: d.file.file_number, file_title: d.file.file_title }, ...(unit ? { in_unit: true, ...unit } : {}) };
         },
 
         sendValid() {
             const s = this.send;
             // A request purpose is optional; "Other" must still be typed.
             const purposeOk = s.request_purpose_id !== 'other' || s.purpose_other.trim() !== '';
-            return !!(s.row && s.to_office && chosen(s.receiving_officer_id, s.officer_other) && purposeOk && this.unitOk(s.unit_id, s.unit_other));
+            return !!(s.row && purposeOk && this.officerOk(s) && (s.in_unit ? this.unitChosen(s) : s.to_office));
         },
 
         async forward() {
@@ -1912,13 +2045,13 @@ window.secretariatFileLog = function (config) {
                     body: JSON.stringify({
                         office: this.office,
                         tracker_id: this.send.row.id,
-                        to_office: this.send.to_office,
+                        to_office: this.send.in_unit ? null : this.send.to_office,
                         request_purpose_id: listed(this.send.request_purpose_id),
                         request_purpose_other: typed(this.send.request_purpose_id, this.send.purpose_other),
                         receiving_officer_id: listed(this.send.receiving_officer_id),
                         receiving_officer_other: typed(this.send.receiving_officer_id, this.send.officer_other),
                         notes: this.send.notes,
-                        ...this.unitFields(this.send.to_office, this.send.unit_id, this.send.unit_other),
+                        ...this.unitFields(this.send),
                     }),
                 });
                 this.notify('success', data.message);
@@ -2038,8 +2171,6 @@ window.secretariatFileLog = function (config) {
                 i.officer_other = a.officer_other;
                 i.request_purpose_id = a.request_purpose_id;
                 i.purpose_other = a.purpose_other;
-                i.unit_id = a.unit_id;
-                i.unit_other = a.unit_other;
                 if (i.state === 'error') { i.state = 'ready'; i.message = ''; }
             });
         },
@@ -2047,8 +2178,7 @@ window.secretariatFileLog = function (config) {
             if (this.mode === 'in') return true;
             // A request purpose is optional; "Other" must still be typed.
             const purposeOk = i.request_purpose_id !== 'other' || String(i.purpose_other || '').trim() !== '';
-            return !!(i.to_office && i.to_office !== this.office
-                && chosen(i.receiving_officer_id, i.officer_other) && purposeOk && this.unitOk(i.unit_id, i.unit_other));
+            return !!(i.to_office && i.to_office !== this.office && chosen(i.receiving_officer_id, i.officer_other) && purposeOk);
         },
         batchReady() {
             const todo = this.batchPending();
@@ -2076,7 +2206,6 @@ window.secretariatFileLog = function (config) {
                             receiving_officer_id: listed(i.receiving_officer_id),
                             receiving_officer_other: typed(i.receiving_officer_id, i.officer_other),
                             notes: this.batch.notes,
-                            ...this.unitFields(i.to_office, i.unit_id, i.unit_other),
                         }
                         : {
                             office: this.office,

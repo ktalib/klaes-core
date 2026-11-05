@@ -408,7 +408,7 @@
                                                                  means nothing on its own, and everything that follows
                                                                  from reading it — Replace, Reset — is on the card. --}}
                                                             <button type="button" @click="open = false"
-                                                                onclick="viewMotherRecommendation(@js($b->rofo_batch_id), @js($b->mother_file_no), @js($batchDoc->summary()), @js($batchDoc->mime_type), {{ (int) $total }})"
+                                                                onclick="viewMotherRecommendation(@js($b->rofo_batch_id), @js($b->mother_file_no), @js($batchDoc->summary()), @js($batchDoc->mime_type), {{ (int) $total }}, @js($batchDoc->uploadedByLabel()))"
                                                                 class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-bold text-emerald-700 hover:bg-emerald-50 transition">
                                                                 <i data-lucide="image" class="h-4 w-4 shrink-0"></i>
                                                                 <span class="flex-1 leading-tight">
@@ -876,7 +876,7 @@
                                                              Replace and Reset sit. --}}
                                                         @forelse($subTplDocs as $i => $doc)
                                                         <button type="button"
-                                                                onclick="viewSubdivisionMother(@js($doc->rofo_batch_id), @js($rec->file_number), @js($subTplMother), @js($doc->summary()), @js($doc->mime_type), {{ $i + 1 }}, {{ $subTplDocs->count() }})"
+                                                                onclick="viewSubdivisionMother(@js($doc->rofo_batch_id), @js($rec->file_number), @js($subTplMother), @js($doc->summary()), @js($doc->mime_type), {{ $i + 1 }}, {{ $subTplDocs->count() }}, @js($doc->uploadedByLabel()))"
                                                                 class="flex w-full items-center px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition gap-2 font-bold">
                                                             <i data-lucide="file-check-2" class="h-4 w-4"></i>
                                                             <span class="flex-1 leading-tight">
@@ -1000,7 +1000,7 @@
                                                              table as usual once this record is approved. --}}
                                                         @if($subTplDoc)
                                                         <button type="button"
-                                                                onclick="viewSubdivisionMother(@js($subTplDoc->rofo_batch_id), @js($rec->file_number), @js($subTplMother), @js($subTplDoc->summary()), @js($subTplDoc->mime_type), 1, {{ $subTplDocs->count() }})"
+                                                                onclick="viewSubdivisionMother(@js($subTplDoc->rofo_batch_id), @js($rec->file_number), @js($subTplMother), @js($subTplDoc->summary()), @js($subTplDoc->mime_type), 1, {{ $subTplDocs->count() }}, @js($subTplDoc->uploadedByLabel()))"
                                                                 class="flex w-full items-center px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition gap-2 font-bold">
                                                             <i data-lucide="file-check-2" class="h-4 w-4"></i>
                                                             <span class="flex-1 leading-tight">
@@ -1267,7 +1267,7 @@
                 <i data-lucide="file-check-2" class="h-5 w-5 text-violet-700"></i>
             </div>
             <div class="min-w-0 flex-1">
-                <h3 id="recDocModalTitle" class="text-sm font-black text-slate-900 truncate">Recommendation</h3>
+                <h3 class="text-sm font-black text-slate-900 truncate"><span id="recDocModalTitle">Recommendation</span> <span id="recDocModalUploader" class="hidden font-semibold text-violet-700"></span></h3>
                 <p id="recDocModalSub" class="text-[11px] font-semibold text-slate-500 truncate"></p>
             </div>
             <span id="recDocModalMeta" class="hidden shrink-0 px-2.5 py-1 rounded-full bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-500"></span>
@@ -1912,7 +1912,8 @@
                     data.mother_file_no || '',
                     (data.document && data.document.summary) || '',
                     (data.document && data.document.mime_type) || '',
-                    data.count
+                    data.count,
+                    (data.document && data.document.uploaded_by) || ''
                 );
             });
         });
@@ -1963,13 +1964,14 @@
     // fetched first — the same endpoint the main list's batch row uses.
     // Opening the batch's letter. Reachable from the batch menu and from any child
     // row, because one document answers for the whole batch.
-    function viewMotherRecommendation(batchId, motherFileNo, summary, mime, childCount) {
+    function viewMotherRecommendation(batchId, motherFileNo, summary, mime, childCount, uploadedBy) {
         var base = CHILDREN_URL + '/' + encodeURIComponent(batchId) + '/document';
 
         openRecDocModal({
             title:    'Signed brief Recommendation (mother)',
             subtitle: (motherFileNo ? motherFileNo + ' · ' : '') + batchId
                         + (childCount ? ' · inherited by all ' + childCount + ' children' : ''),
+            uploadedBy: uploadedBy,
             meta:     summary,
             mime:     mime,
             url:      base,
@@ -1985,13 +1987,14 @@
     // thing: a scanned sheet that stands in for a printed recommendation. The
     // batch version is not reused directly because its subtitle counts children
     // and names the batch id, neither of which means anything for a lone record.
-    function viewSubdivisionMother(key, fileNumber, motherFileNo, summary, mime, position, total) {
+    function viewSubdivisionMother(key, fileNumber, motherFileNo, summary, mime, position, total, uploadedBy) {
         var base = CHILDREN_URL + '/' + encodeURIComponent(key) + '/document';
 
         openRecDocModal({
             title:    total > 1 ? ('Signed brief Recommendation (mother) ' + position + ' of ' + total) : 'Signed brief Recommendation (mother)',
             subtitle: (fileNumber ? fileNumber + ' · ' : '')
                         + (motherFileNo ? 'inherited from ' + motherFileNo : 'inherited from the mother file'),
+            uploadedBy: uploadedBy,
             meta:     summary,
             mime:     mime,
             url:      base,
@@ -2039,6 +2042,10 @@
 
         document.getElementById('recDocModalTitle').textContent = opts.title || 'Recommendation';
         document.getElementById('recDocModalSub').textContent   = opts.subtitle || '';
+        // The mother letters say who filed them; the other cards pass nothing and it stays hidden.
+        var uploader = document.getElementById('recDocModalUploader');
+        uploader.textContent = opts.uploadedBy ? '· ' + opts.uploadedBy : '';
+        uploader.classList.toggle('hidden', !opts.uploadedBy);
         document.getElementById('recDocModalOpen').href         = recDoc.viewUrl;
         document.getElementById('recDocModalErrorLink').href    = recDoc.viewUrl;
 

@@ -298,7 +298,7 @@
                             <div class="grid grid-cols-1 md:grid-cols-4 gap-2 items-start">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-600 mb-1">Send to (office)</label>
-                                    <select x-model="batch.all.to_office" @change="batch.all.unit_id = ''; batch.all.unit_other = ''" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
+                                    <select x-model="batch.all.to_office" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
                                         <option value="">— Select office —</option>
                                         <template x-for="group in officeGroups()" :key="'bao-' + group.department">
                                             <optgroup :label="group.department">
@@ -308,22 +308,6 @@
                                             </optgroup>
                                         </template>
                                     </select>
-                                </div>
-                                <div x-show="batch.all.to_office">
-                                    {{-- Unit inside that department: optional; Other until it is added in Configurable Entities > Units (CR 30102026 item 34). --}}
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Unit <span class="font-normal text-gray-400">(optional)</span></label>
-                                    <select x-model="batch.all.unit_id" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
-                                        <option value="">— No unit —</option>
-                                        <template x-for="u in unitsFor(batch.all.to_office)" :key="'bau-' + u.id">
-                                            <option :value="String(u.id)" x-text="u.name"></option>
-                                        </template>
-                                        <option value="other">Other (specify)</option>
-                                    </select>
-                                    <input type="text" x-show="batch.all.unit_id === 'other'" x-model="batch.all.unit_other" maxlength="150" placeholder="Specify the unit *"
-                                           class="mt-1 w-full border rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                           :class="String(batch.all.unit_other || '').trim() ? 'border-gray-300' : 'border-red-300'">
-                                    <p class="mt-1 text-xs" :class="isInUnit(batch.all.to_office) ? 'text-purple-700' : 'text-gray-500'"
-                                       x-text="isInUnit(batch.all.to_office) ? 'In-Unit: within your department' : 'In Transit: to another department'"></p>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-600 mb-1">Receiving officer</label>
@@ -387,7 +371,6 @@
                                             <td class="px-3 py-2 text-gray-600" x-show="mode === 'in'" x-text="nice(item.where) || '—'"></td>
                                             <td class="px-3 py-2" x-show="mode === 'out'">
                                                 <select x-model="item.to_office" :disabled="item.state === 'done' || batch.running"
-                                                        @change="item.unit_id = ''; item.unit_other = ''"
                                                         class="w-full border rounded-lg text-sm px-2 py-1.5 bg-white" :class="item.to_office || item.state === 'done' ? 'border-gray-300' : 'border-red-300'" style="min-width:11rem">
                                                     <option value="">— Select office —</option>
                                                     <template x-for="group in officeGroups()" :key="'bio-' + group.department">
@@ -398,22 +381,6 @@
                                                         </optgroup>
                                                     </template>
                                                 </select>
-                                                {{-- The row's Unit, optional (CR 30102026 item 34; user 2026-11-02: not only on "Send all to"). --}}
-                                                <template x-if="item.to_office">
-                                                    <div class="mt-1">
-                                                        <select x-model="item.unit_id" :disabled="item.state === 'done' || batch.running" aria-label="Unit (optional)"
-                                                                class="w-full border border-gray-300 rounded-lg text-xs px-2 py-1 bg-white" style="min-width:11rem">
-                                                            <option value="">Unit (optional)</option>
-                                                            <template x-for="u in unitsFor(item.to_office)" :key="'biu-' + u.id">
-                                                                <option :value="String(u.id)" x-text="u.name"></option>
-                                                            </template>
-                                                            <option value="other">Other (specify)</option>
-                                                        </select>
-                                                        <input type="text" x-show="item.unit_id === 'other'" x-model="item.unit_other" maxlength="150" placeholder="Specify the unit *"
-                                                               :disabled="item.state === 'done' || batch.running"
-                                                               class="mt-1 w-full border rounded-lg text-xs px-2 py-1" :class="String(item.unit_other || '').trim() ? 'border-gray-300' : 'border-red-300'">
-                                                    </div>
-                                                </template>
                                             </td>
                                             <td class="px-3 py-2" x-show="mode === 'out'">
                                                 <select x-model="item.receiving_officer_id" :disabled="item.state === 'done' || batch.running"
@@ -545,15 +512,17 @@
                                         style="background:#dc2626;color:#fff;border:1px solid #dc2626;" @click="closeProfile()">
                                     <i data-lucide="x" class="w-4 h-4"></i> Close
                                 </button>
+                                <div x-show="profile.data && profile.data.tracker && profile.data.tracker.unit" class="px-3 py-2 text-xs font-semibold rounded-lg" style="background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff;"
+                                     x-text="profile.data && profile.data.tracker ? 'Unit: ' + profile.data.tracker.unit + (profile.data.tracker.unit_department ? ', ' + profile.data.tracker.unit_department : '') : ''"></div>
                                 <div x-show="profile.readOnly" class="px-3 py-2 text-xs rounded-lg border" style="background:#f8fafc;color:#475569;border-color:#cbd5e1;max-width:12rem"
                                      >Read only — this file is not in your office's register.</div>
                                 <div x-show="sentFromHere() && !profile.readOnly" class="px-3 py-2 text-xs rounded-lg bg-yellow-50 text-yellow-800 border border-yellow-200">Sent from your office — in transit</div>
                                 <button type="button" x-show="canReceive()" class="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg shadow-sm disabled:opacity-50"
-                                        :disabled="busy" @click="receiveProfile()">
+                                        :disabled="busy" @click="receiveFromProfile()">
                                     <i data-lucide="log-in" class="w-4 h-4"></i> Receive file
                                 </button>
                                 <button type="button" x-show="canSend()" class="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-lg shadow-sm"
-                                        @click="startSendFromProfile()">
+                                        @click="sendFromProfile()">
                                     <i data-lucide="send" class="w-4 h-4"></i> Send to next office
                                 </button>
                                 <div x-show="!canReceive() && !canSend() && heldHere() && !profile.readOnly" class="px-3 py-2 text-xs rounded-lg bg-green-50 text-green-700 border border-green-200">Held at your office</div>
@@ -573,10 +542,11 @@
 
                     {{-- Send form (inline) — same fields as the main Log a File page --}}
                     <div x-show="send.row" x-transition class="px-6 py-4 bg-orange-50 border-b border-orange-100 space-y-3">
+                        @include('secretariat_file_log.partials.in_unit_label', ['state' => 'send'])
                         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                            <div>
+                            <div x-show="!send.in_unit">
                                 <label class="block text-xs font-semibold text-gray-600 mb-1">Next office *</label>
-                                <select x-model="send.to_office" @change="send.receiving_officer_id = ''; send.officerFilter = ''; send.unit_id = ''; send.unit_other = ''" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
+                                <select x-model="send.to_office" @change="send.receiving_officer_id = ''; send.officerFilter = ''" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white">
                                     <option value="">— Select office —</option>
                                     <template x-for="group in officeGroups()" :key="'to-' + group.department">
                                         <optgroup :label="group.department">
@@ -587,25 +557,9 @@
                                     </template>
                                 </select>
                             </div>
-                            <div>
-                                    {{-- Unit inside that department: optional; Other until it is added in Configurable Entities > Units (CR 30102026 item 34).
-                                         Always shown, usable once the office is chosen (user, 2026-11-02). --}}
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Unit <span class="font-normal text-gray-400">(optional)</span></label>
-                                    <select x-model="send.unit_id" :disabled="!send.to_office" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white disabled:bg-gray-50 disabled:text-gray-400">
-                                        <option value="" x-text="send.to_office ? '— No unit —' : '— Select the office first —'"></option>
-                                        <template x-for="u in unitsFor(send.to_office)" :key="'su-' + u.id">
-                                            <option :value="String(u.id)" x-text="u.name"></option>
-                                        </template>
-                                        <option value="other">Other (specify)</option>
-                                    </select>
-                                    <input type="text" x-show="send.unit_id === 'other'" x-model="send.unit_other" maxlength="150" placeholder="Specify the unit *"
-                                           class="mt-1 w-full border rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                           :class="String(send.unit_other || '').trim() ? 'border-gray-300' : 'border-red-300'">
-                                    <p class="mt-1 text-xs" x-show="send.to_office" :class="isInUnit(send.to_office) ? 'text-purple-700' : 'text-gray-500'"
-                                       x-text="isInUnit(send.to_office) ? 'In-Unit: within your department' : 'In Transit: to another department'"></p>
-                                </div>
+                            @include('secretariat_file_log.partials.unit_destination', ['state' => 'send', 'key' => 's'])
                             <div class="relative" @click.outside="send.officerOpen = false">
-                                <label class="block text-xs font-semibold text-gray-600 mb-1">Receiving officer *</label>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Receiving officer <span x-text="send.in_unit ? '(optional)' : '*'"></span></label>
                                 <div class="relative">
                                     <input type="text" x-ref="officerInput" x-model="send.officerFilter"
                                            @focus="send.officerOpen = true" @input="send.receiving_officer_id = ''; send.officerOpen = true"
@@ -665,7 +619,7 @@
                         <div class="flex gap-2 justify-end">
                             <button type="button" class="px-3 py-2 text-sm text-gray-600" @click="send.row = null">Cancel</button>
                             <button type="button" class="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
-                                    :disabled="busy || !sendValid()" @click="forward()"><i data-lucide="send" class="w-4 h-4"></i> Track to next office</button>
+                                    :disabled="busy || !sendValid()" @click="forward()"><i data-lucide="send" class="w-4 h-4"></i> <span x-text="send.in_unit ? 'Send to unit' : 'Track to next office'"></span></button>
                         </div>
                     </div>
 
@@ -854,6 +808,9 @@
                         </div>
 
                         {{-- Not indexed and Not a regular Mail/Letter/Memo/File: the document, then Sender, then Receiving. --}}
+                        {{-- On Receive, the unit the file was sent to (user, 2026-11-04). --}}
+                        <div x-show="mode === 'in' && manual.file_unit" class="px-3 py-2 text-xs font-semibold rounded-lg"
+                             style="background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff;" x-text="'Sent to unit: ' + manual.file_unit"></div>
                         <div class="rounded-xl" :class="manual.entry_type !== 'file' ? 'border p-4' : ''"
                              :style="manual.entry_type !== 'file' ? 'border-color:#bfdbfe;background:#eff6ff;' : ''">
                             <div x-show="manual.entry_type !== 'file'" class="flex items-center gap-2 mb-3">
@@ -1106,23 +1063,6 @@
                                         @include('secretariat_file_log.partials.pick_list', ['model' => 'manual.send_to_office', 'placeholder' => "'— Select the office —'", 'required' => true])
                                     </div>
                                 </div>
-                                <div x-show="mode === 'out'">
-                                    {{-- Unit inside that department: optional; Other until it is added in Configurable Entities > Units (CR 30102026 item 34).
-                                         Always shown, usable once the office is chosen (user, 2026-11-02). --}}
-                                    <label class="block text-xs font-semibold text-gray-600 mb-1">Unit <span class="font-normal text-gray-400">(optional)</span></label>
-                                    <select x-model="manual.unit_id" :disabled="!manual.send_to_office" class="w-full border border-gray-300 rounded-lg text-sm px-2 py-2 bg-white disabled:bg-gray-50 disabled:text-gray-400">
-                                        <option value="" x-text="manual.send_to_office ? '— No unit —' : '— Select the office first —'"></option>
-                                        <template x-for="u in unitsFor(manual.send_to_office)" :key="'mu-' + u.id">
-                                            <option :value="String(u.id)" x-text="u.name"></option>
-                                        </template>
-                                        <option value="other">Other (specify)</option>
-                                    </select>
-                                    <input type="text" x-show="manual.unit_id === 'other'" x-model="manual.unit_other" maxlength="150" placeholder="Specify the unit *"
-                                           class="mt-1 w-full border rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                           :class="String(manual.unit_other || '').trim() ? 'border-gray-300' : 'border-red-300'">
-                                    <p class="mt-1 text-xs" x-show="manual.send_to_office" :class="isInUnit(manual.send_to_office) ? 'text-purple-700' : 'text-gray-500'"
-                                       x-text="isInUnit(manual.send_to_office) ? 'In-Unit: within your department' : 'In Transit: to another department'"></p>
-                                </div>
 
                                 <div class="relative" @click.outside="manual.officerOpen = false">
                                     <label class="block text-xs font-semibold text-gray-600 mb-1">Receiving officer *
@@ -1331,12 +1271,43 @@
                                     <th class="px-5 py-3 text-right">Action</th>
                                 </tr>
                             </thead>
+                            {{-- One tbody per line. Files sent to units collapse: one row per department, inside it one per unit, then the files (user, 2026-11-04). --}}
+                            <template x-for="item in pagedItems()" :key="view() + '-' + item.key">
                             <tbody class="uppercase">
-                                <template x-for="(row, idx) in pagedRows()" :key="view() + '-' + (row.row_key || row.id)">
+                                <template x-if="item.unit">
+                                    <tr class="border-t border-gray-100 cursor-pointer hover:bg-purple-50" tabindex="0" role="button" :aria-expanded="String(item.open)"
+                                        @click="toggleGroup(item)" @keydown.enter.prevent="toggleGroup(item)" @keydown.space.prevent="toggleGroup(item)">
+                                        <td class="px-5 py-2 text-gray-500" x-text="item.sn"></td>
+                                        <td colspan="8" class="py-2 pr-5" style="padding-left:2.5rem">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <svg class="w-4 h-4 text-purple-700 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                                                     aria-hidden="true" :style="item.open ? 'transform:rotate(90deg)' : ''"><path d="m9 18 6-6-6-6"/></svg>
+                                                <span class="font-semibold text-gray-700" x-text="item.name"></span>
+                                                <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff;" x-text="item.all.length + ' files'"></span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-if="item.dept">
+                                    <tr class="border-t border-gray-100 cursor-pointer hover:bg-purple-100" style="background:#faf5ff" tabindex="0" role="button" :aria-expanded="String(item.open)"
+                                        @click="toggleGroup(item)" @keydown.enter.prevent="toggleGroup(item)" @keydown.space.prevent="toggleGroup(item)">
+                                        <td class="px-5 py-3 text-gray-500" x-text="item.sn"></td>
+                                        <td colspan="8" class="px-5 py-3">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <svg class="w-4 h-4 text-purple-700 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                                                     aria-hidden="true" :style="item.open ? 'transform:rotate(90deg)' : ''"><path d="m9 18 6-6-6-6"/></svg>
+                                                <span class="font-semibold text-gray-800" x-text="item.department"></span>
+                                                <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff;" x-text="item.all.length + ' files'"></span>
+                                                <span class="text-xs text-gray-600" x-text="groupUnits(item)"></span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <template x-for="(row, ci) in item.rows" :key="view() + '-' + (row.row_key || row.id)">
                                     {{-- A searched file that is not at this office is listed read only (user, 2026-11-02). --}}
                                     <tr class="border-t border-gray-100 cursor-pointer" :class="row.elsewhere ? 'hover:bg-gray-100' : 'hover:bg-indigo-50'"
                                         :style="row.elsewhere ? 'background:#f8fafc' : ''" @click="openRow(row)">
-                                        <td class="px-5 py-3 text-gray-500" x-text="pageOffset() + idx + 1"></td>
+                                        <td class="px-5 py-3 text-gray-500" x-text="item.dot ? item.sn + '.' + (ci + 1) : item.sn"></td>
                                         <td class="px-5 py-3 whitespace-nowrap">
                                             <div class="font-semibold text-gray-800" x-text="row.file_number || row.related_file_number || '—'"></div>
                                             <div class="text-xs mt-0.5 space-x-1">
@@ -1401,12 +1372,12 @@
                                                 </span>
                                             </template>
                                             <template x-if="!row.elsewhere && view() !== 'sent' && rowBucket(row) === 'pending'">
-                                                <button type="button" class="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50" :disabled="busy" @click="receivePending(row)">
+                                                <button type="button" class="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50" :disabled="busy" @click="receiveRow(row)">
                                                     <i data-lucide="log-in" class="w-3.5 h-3.5"></i> Receive
                                                 </button>
                                             </template>
                                             <template x-if="!row.elsewhere && view() !== 'sent' && rowBucket(row) === 'held'">
-                                                <button type="button" class="inline-flex items-center gap-1 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded-lg" @click="openRow(row, true)">
+                                                <button type="button" class="inline-flex items-center gap-1 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded-lg" @click="sendRow(row)">
                                                     <i data-lucide="send" class="w-3.5 h-3.5"></i> Send
                                                 </button>
                                             </template>
@@ -1428,6 +1399,9 @@
                                         </td>
                                     </tr>
                                 </template>
+                            </tbody>
+                            </template>
+                            <tbody>
                                 <tr x-show="!visibleRows().length">
                                     <td colspan="9" class="px-5 py-10 text-center text-gray-400">
                                         <i data-lucide="inbox" class="w-8 h-8 mx-auto"></i>
@@ -1441,7 +1415,7 @@
                     {{-- Pagination over the rows this tab, sub-tab, filter and date range show. --}}
                     <div x-show="visibleRows().length" class="px-5 py-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
                         <div class="flex items-center gap-2">
-                            <span x-text="'Showing ' + (pageOffset() + 1) + '–' + Math.min(pageOffset() + perPage, visibleRows().length) + ' of ' + visibleRows().length"></span>
+                            <span x-text="'Showing ' + (pageOffset() + 1) + '–' + Math.min(pageOffset() + perPage, topRows().length) + ' of ' + topRows().length"></span>
                             <span class="text-gray-300">·</span>
                             <label class="flex items-center gap-1">
                                 <span>Per page</span>
@@ -1474,6 +1448,8 @@
     </div>
 
     {{-- Lightbox --}}
+    @include('secretariat_file_log.partials.movement_choice')
+
     {{-- Edit one log. The entry as it was is kept in a hidden history (file_movement_log_edits). --}}
     <div x-show="edit.open" x-transition.opacity class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4" @keydown.window.escape="edit.open && closeEdit()" x-cloak>
         <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-full overflow-y-auto" @click.outside="closeEdit()">

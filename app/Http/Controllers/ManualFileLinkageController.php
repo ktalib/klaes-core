@@ -477,7 +477,9 @@ class ManualFileLinkageController extends Controller
             // Files that were already decommissioned keep their first record — say so
             $decommissionNote = '';
             if (($isFinalizeChain || !$useHoldingFile) && !empty($filesToDecommission)) {
-                $decommSummary = $workflowService->decommissionFiles($filesToDecommission, $decommReason, $commissionedBy, $successorFileNo, true);
+                // Flag only (last argument false): a retired file keeps its fileNumber and
+                // file_indexings rows. Removal deleted COM-2010-47 on 2026-10-23.
+                $decommSummary = $workflowService->decommissionFiles($filesToDecommission, $decommReason, $commissionedBy, $successorFileNo, false);
                 $already = $decommSummary['already_decommissioned'] ?? [];
                 if ($already) {
                     $decommissionNote = ' Already decommissioned, so not recorded again: ' . implode('; ', array_map(

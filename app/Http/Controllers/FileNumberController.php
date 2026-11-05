@@ -1977,7 +1977,9 @@ class FileNumberController extends Controller
                     'mls_file_no.customer_type',
                     'mls_file_no.purpose_id',
                     // The edit modal shows one field for both, picked by a checkbox.
-                    'mls_file_no.old_fileno'
+                    'mls_file_no.old_fileno',
+                    // Re-Issuance of FileNo relabels that field Old File (Duplicate FileNo).
+                    'mls_file_no.file_option'
                 ])
                 ->where('fileNumber.id', $id)
                 ->where(function ($q) {
@@ -2020,6 +2022,20 @@ class FileNumberController extends Controller
             $batchService = app(\App\Services\FileNumber\BatchExpansionService::class);
             $batchNo = $batchService->batchNoFor($record);
             $batchMembers = $batchNo !== '' ? $batchService->members($batchNo) : collect();
+
+            // The Edit modal lists every related number, not just the first. Left unset on
+            // a failure: the modal then falls back to its one field and offers no plus.
+            try {
+                [$record->related_primary, $record->related_extras] = $this->splitRelatedForEdit(
+                    $record,
+                    $this->relatedFilesForEdit($record)
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Could not list related files for the edit modal', [
+                    'id' => $id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             $record->entity = \App\Support\MlsRowTarget::FILE_NUMBER;
             $record->batch_no = $batchNo ?: null;
@@ -2094,6 +2110,9 @@ class FileNumberController extends Controller
             'rep_address' => 'nullable|string|max:255',
             'gender' => 'nullable|string|in:Male,Female,Corporate,Joint',
             'related_fileno' => 'nullable|string|max:255',
+            // JSON list of the additional related numbers (the plus button). Absent on a
+            // screen that does not offer them, which leaves the list as it is.
+            'related_files_extra' => 'nullable|string|max:20000',
             'is_old_fileno' => 'nullable|boolean',
             // Batch scope. A batch row stands for N files; `apply_to_batch` opts into
             // writing all of them, and `batch_no` is verified against the record itself
@@ -2687,6 +2706,235 @@ class FileNumberController extends Controller
         return $result;
     }
 
+    /** Every number a fileNumber row goes by. */
+    private function ownFileNumbers($record): array
+    {
+        return array_values(array_filter(array_map(
+            fn ($n) => trim((string) $n),
+            [$record->mlsfNo ?? null, $record->kangisFileNo ?? null, $record->NewKANGISFileNo ?? null, $record->st_file_no ?? null]
+        ), fn ($n) => $n !== '' && $n !== 'N/A'));
+    }
+
+    /** Case- and spacing-insensitive, the way the register is matched. */
+    private function relatedKey(?string $fileNo): string
+    {
+        return strtoupper(preg_replace('/\s+/', ' ', trim((string) $fileNo)));
+    }
+
+    /** A related_fileno column value: a JSON array, or comma-separated text on older rows. */
+    private function parseRelatedColumn(?string $raw): array
+    {
+        $raw = trim((string) $raw);
+        if ($raw === '') {
+            return [];
+        }
+        $decoded = json_decode($raw, true);
+        $parts = is_array($decoded) ? $decoded : explode(',', $raw);
+
+        return array_values(array_filter(
+            array_map(fn ($n) => is_scalar($n) ? trim((string) $n) : '', $parts),
+            fn ($n) => $n !== '' && $n !== 'N/A'
+        ));
+    }
+
+    /**
+     * The file's own indexing record, which the register anchors its rows on. None for a
+     * KANGIS Registry file: its links live on the land file's row (attachKangis).
+     */
+    private function relatedAnchorIndexing($record): ?object
+    {
+        $numbers = $this->ownFileNumbers($record);
+        if (empty($numbers)) {
+            return null;
+        }
+
+        return DB::connection('sqlsrv')->table('file_indexings')
+            ->whereIn('file_number', $numbers)
+            ->whereNull('deleted_at')
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->where(fn ($q) => $q->whereNull('general_registry')->orWhere('general_registry', '!=', 'KANGIS Registry'))
+            ->orderBy('id')
+            ->first(['id', 'file_number', 'prop_id', 'location', 'related_fileno']);
+    }
+
+    /**
+     * Every related number on a file for the Edit modal: the listing's merge, plus the
+     * indexing record's own list. `locked` marks what the officer cannot remove here,
+     * see RelatedFileNumberRegistrar::workflowOwned().
+     *
+     * @return array<int,array{file_no:string,type:string,title:string,locked:bool}>
+     */
+    private function relatedFilesForEdit($record): array
+    {
+        $id = (int) $record->id;
+        $own = array_flip(array_map(fn ($n) => $this->relatedKey($n), $this->ownFileNumbers($record)));
+
+        $old = $record->old_fileno ?? null;
+        if ($old === null) {
+            $old = DB::connection('sqlsrv')->table('mls_file_no')
+                ->where('full_file_number', $record->mlsfNo ?? '')
+                ->orderByDesc('id')
+                ->value('old_fileno');
+        }
+
+        $merged = $this->relatedFileNumbersForRows([$id => (object) [
+            'mlsfNo' => $record->mlsfNo ?? null,
+            'kangisFileNo' => $record->kangisFileNo ?? null,
+            'NewKANGISFileNo' => $record->NewKANGISFileNo ?? null,
+            'st_file_no' => $record->st_file_no ?? null,
+            'derived_old_fileno' => null,
+            'derived_related_fileno' => $record->related_fileno ?? null,
+        ]])[$id] ?? [];
+
+        $anchor = $this->relatedAnchorIndexing($record);
+
+        $entries = [];
+        $add = function (string $fileNo, string $type) use (&$entries, $own, $old) {
+            $key = $this->relatedKey($fileNo);
+            if ($key === '' || isset($own[$key]) || isset($entries[$key]) || $key === $this->relatedKey($old)) {
+                return;
+            }
+            $entries[$key] = ['file_no' => trim($fileNo), 'type' => $type];
+        };
+
+        // A KANGIS list row carries several numbers in one value.
+        foreach ($merged as $entry) {
+            foreach (explode(',', (string) $entry['file_no']) as $number) {
+                $add($number, (string) ($entry['type'] ?? 'Related File'));
+            }
+        }
+        foreach ($this->parseRelatedColumn($anchor->related_fileno ?? null) as $number) {
+            $add($number, 'Related File');
+        }
+
+        $owned = app(\App\Services\RelatedFileNumberRegistrar::class)
+            ->workflowOwned($this->ownFileNumbers($record), $anchor->id ?? null);
+
+        $list = [];
+        foreach ($entries as $key => $entry) {
+            $list[] = $entry + ['locked' => isset($owned[$key])];
+        }
+
+        return $this->attachRelatedFileTitles([$id => $list])[$id] ?? [];
+    }
+
+    /**
+     * Which number sits in the modal's main field and which go in the rows beneath it.
+     * The main field holds the old number when there is one (the page fills that itself),
+     * else the first number of the file's own column, else its first removable one.
+     *
+     * @return array{0:string,1:array}
+     */
+    private function splitRelatedForEdit($record, array $list): array
+    {
+        if (trim((string) ($record->old_fileno ?? '')) !== '') {
+            return ['', $list];
+        }
+
+        $column = $this->parseRelatedColumn($record->related_fileno ?? null);
+        $wanted = isset($column[0]) ? $this->relatedKey($column[0]) : null;
+
+        $index = null;
+        foreach ($list as $i => $entry) {
+            if ($wanted !== null ? $this->relatedKey($entry['file_no']) === $wanted : empty($entry['locked'])) {
+                $index = $i;
+                break;
+            }
+        }
+        if ($index === null) {
+            return ['', $list];
+        }
+
+        $primary = $list[$index]['file_no'];
+        array_splice($list, $index, 1);
+
+        return [$primary, $list];
+    }
+
+    /**
+     * The main field's number(s) plus the plus button's, each once: never the file's own
+     * number, nor the old number the main field is holding.
+     */
+    private function mergeEditedRelated($record, array $primary, ?string $extraJson, string $oldFileNo): array
+    {
+        $extras = json_decode((string) $extraJson, true);
+        $extras = is_array($extras) ? array_filter($extras, 'is_string') : [];
+
+        $skip = array_flip(array_map(fn ($n) => $this->relatedKey($n), $this->ownFileNumbers($record)));
+        if ($oldFileNo !== '') {
+            $skip[$this->relatedKey($oldFileNo)] = true;
+        }
+
+        $out = [];
+        foreach (array_merge($primary, $extras) as $number) {
+            $number = trim($number);
+            $key = $this->relatedKey($number);
+            if ($key === '' || strlen($number) > 255 || isset($skip[$key]) || isset($out[$key])) {
+                continue;
+            }
+            $out[$key] = $number;
+        }
+
+        return array_values($out);
+    }
+
+    /**
+     * Carry the Edit modal's list to the two stores beside fileNumber.related_fileno: the
+     * register (Legal Search, Related File Numbers) and the indexing record's own list.
+     * A link must never fail the edit itself, so this logs and carries on.
+     */
+    private function syncEditedRelatedFiles($record, array $numbers, array $removed, ?string $fileTitle): void
+    {
+        try {
+            $anchor = $this->relatedAnchorIndexing($record);
+            if (!$anchor) {
+                return;
+            }
+
+            $registrar = app(\App\Services\RelatedFileNumberRegistrar::class);
+            $owned = $registrar->workflowOwned($this->ownFileNumbers($record), (int) $anchor->id);
+
+            $registrar->forget((int) $anchor->id, $removed);
+            $registrar->sync(
+                (int) $anchor->id,
+                $anchor->file_number,
+                $fileTitle,
+                $anchor->prop_id,
+                array_values(array_filter($numbers, fn ($n) => !isset($owned[$this->relatedKey($n)]))),
+                ['location' => $anchor->location]
+            );
+
+            $gone = array_flip(array_map(fn ($n) => $this->relatedKey($n), $removed));
+            $current = $this->parseRelatedColumn($anchor->related_fileno);
+            $merged = [];
+            foreach (array_merge($current, $numbers) as $number) {
+                $key = $this->relatedKey($number);
+                if (!isset($gone[$key]) && !isset($merged[$key])) {
+                    $merged[$key] = $number;
+                }
+            }
+
+            if (array_values($merged) !== $current) {
+                DB::connection('sqlsrv')->table('file_indexings')->where('id', $anchor->id)->update([
+                    'related_fileno' => empty($merged) ? null : json_encode(array_values($merged)),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            Log::info('Land FC: related file numbers edited', [
+                'file_number' => $anchor->file_number,
+                'related' => $numbers,
+                'removed' => $removed,
+                'user_id' => Auth::id(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Could not carry edited related files to the register', [
+                'file_number' => $record->mlsfNo ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     /**
      * Render the file's related OR old file number for the list.
      *
@@ -2896,16 +3144,43 @@ class FileNumberController extends Controller
             // history. It is therefore written only for the file that was opened.
             $isOldFileNo = false;
             $relatedFileNoInput = '';
+            $relatedFileNumbers = [];
+            $relatedRemoved = null;
             if ($isPrimary && $request->has('related_fileno')) {
                 $isOldFileNo = filter_var($request->input('is_old_fileno'), FILTER_VALIDATE_BOOLEAN);
                 $relatedFileNoInput = trim((string) $request->input('related_fileno'));
-                $relatedFileNumbers = array_values(array_filter(
+                $relatedFileNumbers = $isOldFileNo ? [] : array_values(array_filter(
                     array_map('trim', preg_split('/\s*,\s*/', $relatedFileNoInput)),
                     fn ($v) => $v !== ''
                 ));
 
+                // The plus button's numbers. What was listed and is gone now was removed
+                // by the officer, which is the only thing that may delete a link.
+                if ($request->has('related_files_extra')) {
+                    try {
+                        $listed = $this->relatedFilesForEdit($record);
+                    } catch (\Throwable $e) {
+                        $listed = [];
+                        Log::warning('Could not read related files before an edit', [
+                            'id' => $id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                    $relatedFileNumbers = $this->mergeEditedRelated(
+                        $record,
+                        $relatedFileNumbers,
+                        $request->input('related_files_extra'),
+                        $isOldFileNo ? $relatedFileNoInput : ''
+                    );
+                    $kept = array_flip(array_map(fn ($n) => $this->relatedKey($n), $relatedFileNumbers));
+                    $relatedRemoved = array_values(array_map(
+                        fn ($entry) => $entry['file_no'],
+                        array_filter($listed, fn ($entry) => empty($entry['locked']) && !isset($kept[$this->relatedKey($entry['file_no'])]))
+                    ));
+                }
+
                 if (\Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasColumn('fileNumber', 'related_fileno')) {
-                    $updateData['related_fileno'] = (!$isOldFileNo && !empty($relatedFileNumbers))
+                    $updateData['related_fileno'] = !empty($relatedFileNumbers)
                         ? json_encode($relatedFileNumbers)
                         : null;
                 }
@@ -2919,6 +3194,10 @@ class FileNumberController extends Controller
 
             if (isset($updateData['lga'])) {
                 $this->syncConversionSheetLga($updateData['lga'], $record->mlsfNo ?: ($record->st_file_no ?? null), (int) $id);
+            }
+
+            if ($relatedRemoved !== null) {
+                $this->syncEditedRelatedFiles($record, $relatedFileNumbers, $relatedRemoved, $updateData['FileName'] ?? null);
             }
 
             // Also sync to mls_file_no if mlsfNo is present

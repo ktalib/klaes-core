@@ -106,7 +106,8 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Blade directives for the module permission gate.
      *
-     *   @canDo('Survey - Records', 'create') ... @elsecanDo ... @endcanDo
+     *   @canDo('Survey - Records', 'create') ... @else ... @endcanDo
+     *   (the bare else-form of the directive is an else-IF and needs arguments; with none it throws)
      *   @canAnyDo('Survey - Records', ['create', 'edit']) ... @endcanAnyDo
      *
      * Hiding a control is only half of a permission — every place these wrap a button, the

@@ -24,6 +24,17 @@ use Illuminate\Support\Facades\Schema;
  */
 class OldFileNumberService
 {
+    public const LABEL_OLD       = 'Old FileNo';
+    public const LABEL_DUPLICATE = 'Old FileNo (Duplicate FileNo)';
+
+    /**
+     * Sources that make the number a true duplicate, not just a previous one. The other
+     * tests are the file's own type, Re-Issuance of FileNo (what the listing's DUP badge
+     * and the commissioning sheet read), and the number sitting in the Duplicate Files
+     * register (duplicate_fileno), which is where most of these numbers come from.
+     */
+    private const DUPLICATE_SOURCES = [OldFileNumber::SOURCE_REISSUANCE, OldFileNumber::SOURCE_MOVE];
+
     /**
      * Record an old file number for a live file. Returns the ledger row id, or null
      * when there was nothing to record.
@@ -161,6 +172,177 @@ class OldFileNumberService
             ->first();
 
         return $row->file_number ?? null;
+    }
+
+    /**
+     * Quick Search: the live file(s) this number is an old number of. Reads the ledger
+     * and mls_file_no.old_fileno together: numbers set before the ledger existed are
+     * only on the column, so currentFileNumberFor() alone misses them.
+     *
+     * @return array<int,array{file_number:string,file_title:?string,is_duplicate:bool,label:string}>
+     */
+    public function currentFilesFor(?string $oldFileNumber): array
+    {
+        $oldFileNumber = $this->normalize($oldFileNumber);
+
+        if ($oldFileNumber === '') {
+            return [];
+        }
+
+        return array_map(fn ($pair) => [
+            'file_number'  => $pair['file_number'],
+            'file_title'   => $pair['file_title'],
+            'is_duplicate' => $pair['is_duplicate'],
+            'label'        => $pair['label'],
+        ], $this->pairs(
+            fn ($q) => $q->where('old_file_number', $oldFileNumber),
+            fn ($q) => $q->where('old_fileno', $oldFileNumber)
+        ));
+    }
+
+    /**
+     * Quick Search: the old number(s) a live file carries, from the same two stores.
+     *
+     * @return array<int,array{file_number:string,file_title:?string,is_duplicate:bool,label:string}>
+     */
+    public function oldNumbersFor(?string $fileNumber): array
+    {
+        $fileNumber = $this->normalize($fileNumber);
+
+        if ($fileNumber === '') {
+            return [];
+        }
+
+        return array_map(fn ($pair) => [
+            'file_number'  => $pair['old_file_number'],
+            'file_title'   => $pair['old_file_title'],
+            'is_duplicate' => $pair['is_duplicate'],
+            'label'        => $pair['label'],
+        ], $this->pairs(
+            fn ($q) => $q->where('file_number', $fileNumber),
+            fn ($q) => $q->where('full_file_number', $fileNumber)
+        ));
+    }
+
+    /**
+     * Old numbers matching what is typed into a file-number dropdown.
+     *
+     * @return array<int,array{file_number:string,old_file_number:string,file_title:?string,is_duplicate:bool,label:string}>
+     */
+    public function search(?string $term, int $limit = 10): array
+    {
+        $term = $this->normalize($term);
+
+        if (mb_strlen($term) < 2) {
+            return [];
+        }
+
+        $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
+
+        return array_slice($this->pairs(
+            fn ($q) => $q->where('old_file_number', 'like', $like),
+            fn ($q) => $q->where('old_fileno', 'like', $like)
+        ), 0, $limit);
+    }
+
+    /**
+     * Every (live file, old number) pair the two scopes select. Read-only and quiet on
+     * failure: recognising an old number must never break a search.
+     */
+    private function pairs(\Closure $ledgerScope, \Closure $mlsScope): array
+    {
+        try {
+            $conn = DB::connection('sqlsrv');
+            $pairs = [];
+
+            $add = function (?string $file, ?string $old, ?string $title, bool $duplicate) use (&$pairs) {
+                $file = trim((string) $file);
+                $old  = trim((string) $old);
+                if ($file === '' || $old === '' || strcasecmp($file, $old) === 0) {
+                    return;
+                }
+                $key = strtoupper($file . '|' . $old);
+                $pairs[$key] = [
+                    'file_number'     => $pairs[$key]['file_number'] ?? $file,
+                    'old_file_number' => $pairs[$key]['old_file_number'] ?? $old,
+                    'old_file_title'  => $pairs[$key]['old_file_title'] ?? (trim((string) $title) ?: null),
+                    'is_duplicate'    => $duplicate || ($pairs[$key]['is_duplicate'] ?? false),
+                ];
+            };
+
+            $ledger = $ledgerScope(OldFileNumber::on('sqlsrv'))
+                ->orderByDesc('id')
+                ->get(['file_number', 'old_file_number', 'old_file_title', 'source']);
+            foreach ($ledger as $row) {
+                $add($row->file_number, $row->old_file_number, $row->old_file_title, in_array($row->source, self::DUPLICATE_SOURCES, true));
+            }
+
+            if (Schema::connection('sqlsrv')->hasColumn('mls_file_no', 'old_fileno')) {
+                $columns = $mlsScope($conn->table('mls_file_no'))
+                    ->whereNotNull('old_fileno')
+                    ->where('old_fileno', '<>', '')
+                    ->get(['full_file_number', 'old_fileno']);
+                foreach ($columns as $row) {
+                    $add($row->full_file_number, $row->old_fileno, null, false);
+                }
+            }
+
+            if (empty($pairs)) {
+                return [];
+            }
+
+            // Each live file's title and type. A file with only deleted rows no longer
+            // answers to the number; a file with no row here keeps its ledger entry.
+            $details = [];
+            $files = array_values(array_unique(array_column($pairs, 'file_number')));
+            foreach (array_chunk($files, 500) as $chunk) {
+                $rows = $conn->table('mls_file_no')
+                    ->whereIn('full_file_number', $chunk)
+                    ->orderBy('id')
+                    ->get(['full_file_number', 'file_name', 'file_option', 'is_deleted']);
+                foreach ($rows as $row) {
+                    $key = strtoupper(trim((string) $row->full_file_number));
+                    $live = empty($row->is_deleted);
+                    $details[$key] = [
+                        'title'      => trim((string) $row->file_name) ?: ($details[$key]['title'] ?? null),
+                        'reissuance' => strtolower(trim((string) $row->file_option)) === 'reissuance' || ($details[$key]['reissuance'] ?? false),
+                        'live'       => $live || ($details[$key]['live'] ?? false),
+                    ];
+                }
+            }
+
+            $registered = [];
+            $olds = array_values(array_unique(array_column($pairs, 'old_file_number')));
+            foreach (array_chunk($olds, 500) as $chunk) {
+                $rows = $conn->table('duplicate_fileno')
+                    ->whereIn('file_number', $chunk)
+                    ->whereRaw("UPPER(LTRIM(RTRIM(category))) = 'DUPLICATE FILES'")
+                    ->pluck('file_number');
+                foreach ($rows as $number) {
+                    $registered[strtoupper(trim((string) $number))] = true;
+                }
+            }
+
+            $out = [];
+            foreach ($pairs as $pair) {
+                $detail = $details[strtoupper($pair['file_number'])] ?? null;
+                if ($detail && !$detail['live']) {
+                    continue;
+                }
+                $pair['file_title'] = $detail['title'] ?? null;
+                $pair['is_duplicate'] = $pair['is_duplicate']
+                    || ($detail['reissuance'] ?? false)
+                    || isset($registered[strtoupper($pair['old_file_number'])]);
+                $pair['label'] = $pair['is_duplicate'] ? self::LABEL_DUPLICATE : self::LABEL_OLD;
+                $out[] = $pair;
+            }
+
+            return $out;
+        } catch (\Throwable $e) {
+            Log::warning('OldFileNumberService lookup failed', ['error' => $e->getMessage()]);
+
+            return [];
+        }
     }
 
     /**

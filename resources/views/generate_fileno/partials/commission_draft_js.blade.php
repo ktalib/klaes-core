@@ -38,6 +38,8 @@
         'reclaimedNotice', 'reclaimedNoticeKind',
         // Rebuilt from the duplex plan on resume.
         'duplexStages', 'duplexStageIndex',
+        // The Apply to All Files picker is a dialog, not data.
+        'applyPicker',
     ]);
 
     // Any of these holding a value makes the card worth keeping. Picking a file type or

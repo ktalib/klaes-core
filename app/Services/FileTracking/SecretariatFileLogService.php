@@ -150,6 +150,23 @@ class SecretariatFileLogService
         $tracker->save();
     }
 
+    /**
+     * In-Unit receipt (user, 2026-11-04): the unit taking the file, on the entry just received.
+     * Files sent before units existed have none; one sent to a unit keeps it. $unit is FileMovementUnits::choice().
+     */
+    public function stampReceivedUnit(FileTracker $tracker, array $unit): void
+    {
+        $log = $tracker->movement_log ?: [];
+        if (!$log) return;
+        $i = count($log) - 1;
+        if (!empty($log[$i]['receiving_unit_name'])) return;
+        $log[$i]['receiving_unit_id'] = $unit['id'];
+        $log[$i]['receiving_unit_name'] = $unit['name'];
+        $log[$i]['receiving_unit_other'] = $unit['other'];
+        $tracker->movement_log = $log;
+        $tracker->save();
+    }
+
     public function receive(string $officeCode, array $data, User $user): array
     {
         $office = $this->office($officeCode);
@@ -247,9 +264,15 @@ class SecretariatFileLogService
                 return ['tracker' => $tracker, 'action' => 'already_here'];
             }
 
-            // A hand-over already addressed to my office: accept it in place.
-            if ($last && $lastStatus === 'pending_acceptance' && $lastOffice === $office['code']) {
-                $log[$lastIndex] = array_merge($last, [
+            // A hand-over already addressed to my office, or to a unit of my department: accept it in place.
+            $forMyUnit = $this->waitingForMyUnit($last, $office);
+            if ($last && $lastStatus === 'pending_acceptance' && ($lastOffice === $office['code'] || $forMyUnit)) {
+                $log[$lastIndex] = array_merge($last, $forMyUnit ? [
+                    'office_code'           => $office['code'],
+                    'office_name'           => $office['name'],
+                    'receiving_office_code' => $office['code'],
+                    'receiving_office_name' => $office['name'],
+                ] : [], [
                     'log_in_time'       => $now->format('H:i'),
                     'log_in_date'       => $now->format('Y-m-d'),
                     'status'            => 'active',
@@ -260,6 +283,13 @@ class SecretariatFileLogService
                 ]);
                 if ($this->clean($data['notes'] ?? null)) {
                     $log[$lastIndex]['acceptance_note'] = $this->clean($data['notes']);
+                }
+                // In-Unit with no officer named: whoever receives it is the receiving officer (user, 2026-11-04).
+                if (!empty($last['unit_destination']) && empty($last['receiving_officer_name'])) {
+                    $log[$lastIndex]['receiving_officer_id'] = $user->id;
+                    $log[$lastIndex]['receiving_officer_name'] = $userName;
+                    $tracker->receiving_officer_id = $user->id;
+                    $tracker->receiving_officer_name = $userName;
                 }
                 $tracker->movement_log = $log;
                 $this->markHeld($tracker, $office, $userName);
@@ -329,41 +359,82 @@ class SecretariatFileLogService
             ]);
     }
 
+    /**
+     * Where an In-Unit send sits until it is received: the sender's own office inside
+     * their department, otherwise the department's Director's office. Only a place to
+     * keep it; lists() shows it to every office of the department.
+     */
+    private function unitOffice(array $from, string $department): array
+    {
+        if (FileMovementUnits::category($from['department'], $department) === FileMovementUnits::IN_UNIT) {
+            return $from;
+        }
+        $code = DB::connection('sqlsrv')->table('offices')->where('is_active', 1)->where('department', trim($department))
+            ->orderByRaw("CASE WHEN office_name LIKE 'Director%' THEN 0 ELSE 1 END")->orderBy('office_name')->value('office_code');
+        if (!$code) {
+            throw new RuntimeException("{$department} has no office yet, so nobody can receive the file there.");
+        }
+
+        return $this->office($code);
+    }
+
+    /** A file waiting for a unit of this office's department: anyone there can receive it. */
+    private function waitingForMyUnit(?array $entry, array $office): bool
+    {
+        return $entry && !empty($entry['unit_destination'])
+            && strtolower((string) ($entry['status'] ?? '')) === 'pending_acceptance'
+            && FileMovementUnits::category($entry['receiving_department'] ?? null, $office['department']) === FileMovementUnits::IN_UNIT;
+    }
+
     /** @return FileTracker */
-    public function forward(string $officeCode, int $trackerId, string $toOfficeCode, ?int $purposeId, ?int $officerId, ?string $notes, User $user,
+    public function forward(string $officeCode, int $trackerId, ?string $toOfficeCode, ?int $purposeId, ?int $officerId, ?string $notes, User $user,
                             ?string $purposeOther = null, ?string $officerOther = null, ?int $timelineDays = null,
-                            ?int $unitId = null, ?string $unitOther = null): FileTracker
+                            ?int $unitId = null, ?string $unitOther = null, ?string $toDepartment = null): FileTracker
     {
         $office = $this->office($officeCode);
-        $to = $this->office($toOfficeCode);
 
-        // Unit inside the receiving department: optional, or "Other" typed (CR 30102026 item 34).
-        $unit = FileMovementUnits::choice($unitId, $unitOther, $to['department']);
+        // In-Unit send ($toDepartment given): the unit is the destination, so no office is
+        // chosen, the officer is optional and anyone in that department can receive it (user, 2026-11-04).
+        $inUnit = $this->clean($toDepartment) !== null;
+        if ($inUnit) {
+            $unit = FileMovementUnits::choice($unitId, $unitOther, $toDepartment);
+            if (!$unit) {
+                throw new RuntimeException('Choose the unit the file is going to, or Other and specify it.');
+            }
+            $to = $this->unitOffice($office, $toDepartment);
+        } else {
+            if (!$this->clean($toOfficeCode)) {
+                throw new RuntimeException('Choose the office the file is going to.');
+            }
+            $to = $this->office($toOfficeCode);
+            // Unit inside the receiving department: optional, or "Other" typed (CR 30102026 item 34).
+            $unit = FileMovementUnits::choice($unitId, $unitOther, $to['department']);
+        }
         $category = FileMovementUnits::category($office['department'], $to['department']);
 
         // {id, name}; id is null for an "Other" purpose / officer typed by hand.
         $purpose = $this->purposeChoice($purposeId, $purposeOther);
         // The request purpose is optional (2026-10-15).
         $officer = $this->officerChoice($officerId, $officerOther);
-        if (!$officer) {
+        if (!$officer && !$inUnit) {
             throw new RuntimeException('Choose a receiving officer, or choose Other and specify the name.');
         }
-        $officerName = $officer->name;
+        $officerName = $officer?->name;
 
-        if ($to['code'] === $office['code']) {
+        if ($to['code'] === $office['code'] && !$inUnit) {
             throw new RuntimeException('Choose a different office to send the file to.');
         }
 
         // A file cannot be sent to yourself: the receiving officer is the person at
         // the office it goes to, whether picked from the list or typed under "Other".
-        $isSender = $officer->id !== null
+        $isSender = $officer && ($officer->id !== null
             ? (int) $officer->id === (int) $user->id
-            : mb_strtolower(preg_replace('/\s+/', ' ', $officerName)) === mb_strtolower(preg_replace('/\s+/', ' ', $this->userName($user)));
+            : mb_strtolower(preg_replace('/\s+/', ' ', $officerName)) === mb_strtolower(preg_replace('/\s+/', ' ', $this->userName($user))));
         if ($isSender) {
             throw new RuntimeException("You cannot send a file to yourself. Choose the officer at {$to['name']} who is receiving it.");
         }
 
-        return DB::connection('sqlsrv')->transaction(function () use ($office, $to, $trackerId, $purpose, $officer, $officerName, $notes, $user, $timelineDays, $unit, $category) {
+        return DB::connection('sqlsrv')->transaction(function () use ($office, $to, $trackerId, $purpose, $officer, $officerName, $notes, $user, $timelineDays, $unit, $category, $inUnit) {
             $tracker = FileTracker::lockForUpdate()->find($trackerId);
             if (!$tracker) {
                 throw new RuntimeException('File tracker not found.');
@@ -397,7 +468,7 @@ class SecretariatFileLogService
                 $tracker->movement_log = $log;
             }
 
-            $tracker->completeCurrentMovement($now->format('H:i'), $this->clean($notes) ?: ('Sent to ' . $to['name']));
+            $tracker->completeCurrentMovement($now->format('H:i'), $this->clean($notes) ?: ('Sent to ' . ($inUnit ? $unit['name'] : $to['name'])));
 
             $tracker->addMovementLog(
                 $to['code'],
@@ -413,7 +484,7 @@ class SecretariatFileLogService
                     'purpose'                => $purpose?->name,
                     'receiving_office_code'  => $to['code'],
                     'receiving_office_name'  => $to['name'],
-                    'receiving_officer_id'   => $officer->id,
+                    'receiving_officer_id'   => $officer?->id,
                     'receiving_officer_name' => $officerName,
                 ]
             );
@@ -429,11 +500,15 @@ class SecretariatFileLogService
                 $log[count($log) - 1]['receiving_unit_name'] = $unit['name'];
                 $log[count($log) - 1]['receiving_unit_other'] = $unit['other'];
             }
+            if ($inUnit) {
+                $log[count($log) - 1]['unit_destination'] = true;
+                $log[count($log) - 1]['receiving_department'] = $to['department'];
+            }
             $tracker->movement_log = $log;
 
             $tracker->receiving_office_code = $to['code'];
             $tracker->receiving_office_name = $to['name'];
-            $tracker->receiving_officer_id = $officer->id;
+            $tracker->receiving_officer_id = $officer?->id;
             $tracker->receiving_officer_name = $officerName;
             if ($purpose) {
                 $tracker->request_purpose_id = $purpose->id;
@@ -467,8 +542,15 @@ class SecretariatFileLogService
         $office = $this->office($officeCode);
         $code = $office['code'];
 
-        $atMyOffice = FileTracker::where(function ($q) use ($code) {
-            $q->where('current_office_code', $code)->orWhere('receiving_office_code', $code);
+        $departmentOffices = DB::connection('sqlsrv')->table('offices')->where('department', $office['department'])->pluck('office_code')->all();
+
+        $atMyOffice = FileTracker::where(function ($q) use ($code, $departmentOffices) {
+            $q->where('current_office_code', $code)->orWhere('receiving_office_code', $code)
+                ->orWhere(function ($u) use ($departmentOffices) {
+                    $u->whereIn('receiving_office_code', $departmentOffices)
+                        ->where('assignment_status', FileTracker::ASSIGNMENT_PENDING)
+                        ->where('movement_log', 'like', '%"unit[_]destination":true%');
+                });
         })
             ->whereRaw("UPPER(LTRIM(RTRIM(ISNULL(status,'')))) NOT IN ('CANCELLED', 'COMPLETED')")
             ->orderByDesc('updated_at')
@@ -495,7 +577,7 @@ class SecretariatFileLogService
             }
             $status = strtolower((string) ($last['status'] ?? ''));
             $lastOffice = $last['receiving_office_code'] ?? $last['office_code'] ?? null;
-            if ($lastOffice !== $code) {
+            if ($lastOffice !== $code && !$this->waitingForMyUnit($last, $office)) {
                 continue;
             }
             $prev = count($log) > 1 ? $log[count($log) - 2] : null;
@@ -965,12 +1047,20 @@ class SecretariatFileLogService
         $tracker->current_handler = $userName;
     }
 
+    private function officeDepartment(?string $code): ?string
+    {
+        static $departments = null;
+        $departments ??= DB::connection('sqlsrv')->table('offices')->pluck('department', 'office_code')->all();
+
+        return $departments[$code] ?? null;
+    }
+
     private function row(FileTracker $tracker, array $entry, array $extra): array
     {
         $meta = json_decode((string) $tracker->module_meta, true);
         $meta = is_array($meta) ? ($meta['secretariat'] ?? []) : [];
 
-        return array_merge([
+        $row = array_merge([
             'id'          => $tracker->id,
             'tracking_id' => $tracker->tracking_id,
             'file_number' => $tracker->file_number,
@@ -997,6 +1087,10 @@ class SecretariatFileLogService
             'notes'       => $entry['notes'] ?? null,
             // Unit and In-Unit / In Transit, set on sends since 2026-11-01 (CR 30102026 item 34).
             'to_unit'     => $entry['receiving_unit_name'] ?? null,
+            // The department that unit is in, for the Mails tab's collapsing rows.
+            'to_department' => !empty($entry['receiving_unit_name'])
+                ? ($entry['receiving_department'] ?? $this->officeDepartment($entry['receiving_office_code'] ?? $entry['office_code'] ?? null))
+                : null,
             'category'    => $entry['movement_category'] ?? null,
             // Timeline (Days) / Expected Return Date, for the tab tables' Timeline column.
             'timeline_days'       => $tracker->timeline_days !== null ? (int) $tracker->timeline_days : null,
@@ -1004,6 +1098,13 @@ class SecretariatFileLogService
             'timeline_status'     => $tracker->timeline_status,
             'days_until_deadline' => $tracker->days_until_deadline,
         ], $extra);
+
+        // Waiting for a unit: it is addressed to the department, not the office keeping it.
+        if (!empty($entry['unit_destination']) && strtolower((string) ($entry['status'] ?? '')) === 'pending_acceptance') {
+            $row['to'] = $entry['receiving_department'] ?? $row['to'] ?? null;
+        }
+
+        return $row;
     }
 
     /**

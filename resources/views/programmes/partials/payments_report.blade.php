@@ -61,10 +61,12 @@
       <div class="text-xl font-bold">₦{{ number_format($bettermentChargesSum ?? 0, 2) }}</div>
     </div>
     
+    @if(!($ppCentral ?? false))
     <div class="p-4 border rounded-md" data-payment="unit">
       <div class="text-sm text-gray-600 mb-1">Unit Application Fees</div>
       <div class="text-xl font-bold">₦{{ number_format($unitApplicationFeesSum ?? 0, 2) }}</div>
     </div>
+    @endif
     
     <div class="p-4 border rounded-md" data-payment="landuse">
       <div class="text-sm text-gray-600 mb-1">Land Use Charge</div>

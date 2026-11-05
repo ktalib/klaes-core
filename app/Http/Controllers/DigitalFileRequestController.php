@@ -102,6 +102,23 @@ class DigitalFileRequestController extends Controller
             ];
         }
 
+        // Mobile Quick Search: most old numbers have no indexing row, so without this
+        // they could not be picked at all. Opt-in, so the request forms are unchanged.
+        if ($request->boolean('with_old_numbers')) {
+            foreach (app(\App\Services\OldFileNumberService::class)->search($q) as $pair) {
+                $fileNo = $pair['old_file_number'];
+                if (isset($seen[$fileNo])) {
+                    continue;
+                }
+                $seen[$fileNo] = true;
+                $results[] = [
+                    'id'    => $fileNo,
+                    'text'  => $fileNo . ' - ' . $pair['label'] . ' of ' . $pair['file_number'],
+                    'title' => $pair['file_title'],
+                ];
+            }
+        }
+
         return response()->json(['results' => $results]);
     }
 

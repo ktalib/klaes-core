@@ -30,8 +30,11 @@
         initialTab: null,
         autoPopulateGenericFields: true,
         excludePrefixes: [],  // Array of uppercase file-number prefixes to hide (e.g. ['CON'])
+        includePrefixes: [],  // Array of uppercase file-number prefixes to allow, nothing else (e.g. ['CON-']); [] = no restriction
+        includePrefixMessage: null, // Override for the refusal text when a number outside includePrefixes is applied
         allowedTabs: null,    // Array of registry tab names to show (e.g. ['mls']); null = show all
         tempOnly: false,      // MLPP tab only: restrict the smart selector to temporary "(T)" file numbers
+        includeOldNumbers: false, // MLPP tab only: also list old file numbers (Quick Search)
         blockedYears: null,   // Array of 4-digit years this caller refuses (e.g. [2026]); null/[] = accept any year
         blockedYearMessage: null, // Override for the refusal text; null = the generic wording below
         manualOnly: false         // true = hide Smart Selector and open every tab on Manual Entry
@@ -89,6 +92,17 @@
                 $('#mls-smart-selector').removeData('select2-initialized');
             }
             this._lastTempOnly = Boolean(this.config.tempOnly);
+
+            // Prefix scope (includePrefixes): when it differs from the previous open,
+            // drop the cached lists so a list loaded for another caller never leaks in.
+            const includeKey = this.includePrefixList().join(',');
+            if (includeKey !== (this._lastIncludeKey || '')) {
+                ['mls', 'kangis', 'newkangis'].forEach((tab) => {
+                    this.cache[tab + 'Files'] = [];
+                    $('#' + tab + '-smart-selector').removeData('select2-initialized');
+                });
+            }
+            this._lastIncludeKey = includeKey;
 
             this.ensureCOTab();
 
@@ -381,6 +395,21 @@
             return !scoped;
         },
 
+        // --- Prefix scope (config.includePrefixes) ----------------------------------
+        includePrefixList: function () {
+            return (Array.isArray(this.config.includePrefixes) ? this.config.includePrefixes : [])
+                .map(p => String(p || '').trim().toUpperCase())
+                .filter(p => p !== '');
+        },
+
+        // True when the number is allowed by the caller's prefix scope (or there is none).
+        matchesIncludePrefixes: function (fileNumber) {
+            const prefixes = this.includePrefixList();
+            if (!prefixes.length) return true;
+            const fn = String(fileNumber || '').trim().toUpperCase();
+            return prefixes.some(p => fn.startsWith(p));
+        },
+
         // Load data for specific tab
         loadTabData: function (tabName) {
             if (tabName === 'co') { this.loadCOFiles(); return; } // Survey CO files: its own list, see loadCOFiles()
@@ -416,7 +445,9 @@
                     exclude_matched: this.config.exclude_matched || '',
                     all_registries: (tabName === 'mls' && this.includeAllMlsRegistries()) ? 1 : 0,
                     // MLS temp-file toggle: restrict initial list to "(T)" files
-                    temp_only: (tabName === 'mls' && this.config.tempOnly) ? 1 : 0
+                    temp_only: (tabName === 'mls' && this.config.tempOnly) ? 1 : 0,
+                    // Prefix scope: let the server fill the first page with matching files
+                    only_prefixes: tabName === 'mls' ? this.includePrefixList().join(',') : ''
                 },
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
@@ -451,12 +482,11 @@
 
             // Apply caller-requested prefix exclusions (e.g. hide CON-* in OSS FEFR context)
             const _excludePfx = (this.config.excludePrefixes || []).map(p => p.toUpperCase());
-            const filteredFiles = _excludePfx.length > 0
-                ? files.filter(file => {
-                    const fn = (this.extractFileNumber(file, tabName) || '').toUpperCase();
-                    return !_excludePfx.some(prefix => fn.startsWith(prefix));
-                })
-                : files;
+            const filteredFiles = files.filter(file => {
+                const fn = (this.extractFileNumber(file, tabName) || '').toUpperCase();
+                return !_excludePfx.some(prefix => fn.startsWith(prefix))
+                    && this.matchesIncludePrefixes(fn);
+            });
 
             // Add initial batch of files (at least 10)
             const initialFiles = filteredFiles.slice(0, Math.max(10, filteredFiles.length));
@@ -519,7 +549,9 @@
                                     exclude_matched: GlobalFileNoModal.config.exclude_matched || '',
                                     all_registries: (tabName === 'mls' && GlobalFileNoModal.includeAllMlsRegistries()) ? 1 : 0,
                                     // MLS temp-file toggle: restrict search results to "(T)" files
-                                    temp_only: (tabName === 'mls' && GlobalFileNoModal.config.tempOnly) ? 1 : 0
+                                    temp_only: (tabName === 'mls' && GlobalFileNoModal.config.tempOnly) ? 1 : 0,
+                                    with_old_numbers: (tabName === 'mls' && GlobalFileNoModal.config.includeOldNumbers) ? 1 : 0,
+                                    only_prefixes: tabName === 'mls' ? GlobalFileNoModal.includePrefixList().join(',') : ''
                                 },
                                 headers: {
                                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
@@ -534,7 +566,9 @@
                                                 id: JSON.stringify(file),
                                                 text: fileNumber,
                                                 fileNumber: fileNumber,
-                                                tempFileNo: file.temp_file_no || file.temp_fileno || ''
+                                                tempFileNo: file.temp_file_no || file.temp_fileno || '',
+                                                oldOf: file.old_of || '',
+                                                oldLabel: file.old_label || ''
                                             };
                                         });
                                         // Apply prefix exclusions for contexts like OSS FEFR
@@ -542,6 +576,7 @@
                                         if (_excludePfxSearch.length > 0) {
                                             results = results.filter(r => !_excludePfxSearch.some(p => (r.text || '').toUpperCase().startsWith(p)));
                                         }
+                                        results = results.filter(r => GlobalFileNoModal.matchesIncludePrefixes(r.text));
                                         success({ results: results });
                                     } else {
                                         failure();
@@ -606,6 +641,11 @@
             const fileNo = data.fileNumber || data.text || '';
             const $result = $('<div class="select2-file-result"><div class="file-number"></div></div>');
             $result.find('.file-number').text(fileNo);
+            if (data.oldOf) {
+                $('<div style="font-size:11px;color:#be123c;"></div>')
+                    .text(`${data.oldLabel || 'Old FileNo'} of ${data.oldOf}`)
+                    .appendTo($result);
+            }
             return $result;
         },
 
@@ -1248,6 +1288,8 @@
             // Determine input method for this tab
             const inputMethod = $(`input[name="${tabName}-input-method"]:checked`).val() || 'manual';
             
+            let isOldNumberPick = false;
+
             if (!fileNumber && inputMethod === 'smart') {
                 // For smart selectors, get the actual selected file data
                 const selector = $(`#${tabName}-smart-selector`);
@@ -1257,6 +1299,7 @@
                     try {
                         const fileData = JSON.parse(selected);
                         fileNumber = this.extractFileNumber(fileData, tabName);
+                        isOldNumberPick = !!fileData.old_of;
                         console.log('[GlobalFileNoModal] Smart selector extracted file number:', fileNumber, 'from data:', fileData);
                     } catch (e) {
                         console.error('Error parsing selected file data:', e);
@@ -1281,6 +1324,31 @@
             // Years the caller refuses (the indexing form passes 2026). Checked before
             // anything is recorded, so a refused number never reaches recent selections,
             // the target fields or the caller's callback.
+            // Prefix scope: manual entry and recent selections can build any number, so
+            // the caller's includePrefixes are enforced here as well as in the lists.
+            if (!this.matchesIncludePrefixes(fileNumber)) {
+                const allowed = this.includePrefixList().join(', ');
+                const message = this.config.includePrefixMessage
+                    || `${fileNumber} cannot be used here. Only ${allowed} file numbers are allowed.`;
+                console.warn('[GlobalFileNoModal] Outside prefix scope, aborting apply', { fileNumber, allowed });
+                this.showError(message);
+                if (typeof Swal !== 'undefined' && typeof Swal.fire === 'function') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'File number not allowed',
+                        text: message,
+                        customClass: { container: 'fileno-selector-alert' },
+                        willOpen: (el) => {
+                            const container = el.closest('.swal2-container') || el.parentElement;
+                            if (container) container.style.zIndex = '2000001';
+                        },
+                    });
+                } else {
+                    window.alert(message);
+                }
+                return;
+            }
+
             const blockedYear = this.blockedYearFor(fileNumber);
             if (blockedYear !== null) {
                 console.warn('[GlobalFileNoModal] Blocked year, aborting apply', { fileNumber, blockedYear });
@@ -1307,8 +1375,9 @@
 
                 // Smart selector should only apply records that are still resolvable from source APIs.
                 // This blocks stale local "recent selections" that no longer exist in backing tables.
-                // Exception: TEMP file numbers (no-official-file toggle) are not in the API by design.
-                if (!isTempMode && inputMethod === 'smart' && !record) {
+                // Exception: TEMP file numbers (no-official-file toggle) are not in the API by design,
+                // and neither is an old file number, which usually has no record of its own.
+                if (!isTempMode && !isOldNumberPick && inputMethod === 'smart' && !record) {
                     this.showError('Selected file number could not be resolved. Please choose a valid file from the search results.');
                     return;
                 }
@@ -1729,6 +1798,9 @@
                             if (tabName === 'mls' && modal.config.tempOnly) {
                                 data.temp_only = 1;
                             }
+                            if (tabName === 'mls' && modal.config.includeOldNumbers) {
+                                data.with_old_numbers = 1;
+                            }
                             return data;
                         },
                         processResults: function (data) {
@@ -1745,7 +1817,9 @@
                                     id: JSON.stringify(file),
                                     text: fileNumber,
                                     fileNumber: fileNumber,
-                                    tempFileNo: file.temp_file_no || file.temp_fileno || ''
+                                    tempFileNo: file.temp_file_no || file.temp_fileno || '',
+                                    oldOf: file.old_of || '',
+                                    oldLabel: file.old_label || ''
                                 };
                             }).filter(Boolean);
 

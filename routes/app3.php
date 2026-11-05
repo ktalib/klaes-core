@@ -687,9 +687,28 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/planning-recommendation/{applicationId}/approval', [ConversionPlanningRecommendationController::class, 'approvalPage'])->name('planning-recommendation.approval');
         });
 
+        // SLTR Applications: copy of the Conversion Planning Recommendation screens, on
+        // sltr_joint_site_inspection_reports (Schedule of Payment and Memo on hold).
+        Route::prefix('sltr')->name('sltr.')->controller(\App\Http\Controllers\SltrPlanningRecommendationController::class)->group(function () {
+            Route::get('/planning-recommendation', 'index')->name('planning-recommendation');
+            Route::get('/planning-recommendation/data', 'getData')->name('planning-recommendation.data');
+            Route::get('/planning-recommendation/{applicationId}/approval', 'approvalPage')->name('planning-recommendation.approval');
+            Route::get('/recommendation/{applicationId}/print', 'printRecommendation')->name('recommendation.print');
+            Route::get('/jsi/file-options', 'jsiFileOptions')->name('jsi.file-options');
+            Route::post('/jsi', 'storeJsi')->name('jsi.store');
+            Route::post('/jsi/approve', 'approveJsi')->name('jsi.approve');
+            Route::post('/jsi/update-status', 'updateJsiStatus')->name('jsi.update-status');
+            Route::get('/jsi/{application}', 'showJsi')->name('jsi.show');
+        });
+
+        // Any betterment bill (ST, SLTR, Conversion, Master JSI) as a printable page / PDF.
+        Route::get('/bills/{id}/print', [ConversionBillsPaymentsController::class, 'printBill'])->whereNumber('id')->name('bills.print');
+
         // Conversion Bills & Payments (AJAX endpoints only — views use programmes routes with ?source=pp_conversion)
         Route::prefix('conversion')->name('conversion.')->group(function () {
             Route::get('/recommendation/{applicationId}/print', [ConversionPlanningRecommendationController::class, 'printRecommendation'])->name('recommendation.print');
+            // Conversion JSI file dropdown: CON- files from File Indexing.
+            Route::get('/jsi/file-options', [ConversionPlanningRecommendationController::class, 'jsiFileOptions'])->name('jsi.file-options');
             Route::get('/bills/search-jsi', [ConversionBillsPaymentsController::class, 'searchJsiForBilling'])->name('bills.search-jsi');
             Route::post('/bills/calculate', [ConversionBillsPaymentsController::class, 'calculateFee'])->name('bills.calculate');
             Route::post('/bills/generate', [ConversionBillsPaymentsController::class, 'generateBill'])->name('bills.generate');

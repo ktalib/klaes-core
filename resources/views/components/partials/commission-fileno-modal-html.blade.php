@@ -497,7 +497,7 @@
                                     <label for="generateEmail" class="block text-xs font-medium text-gray-600 mb-1">
                                         Email of Applicant <span class="text-gray-400 font-normal">(optional)</span>
                                     </label>
-                                    <input type="email" id="generateEmail" name="email" maxlength="150"
+                                    <input type="email" id="generateEmail" name="email" x-model="email" maxlength="150"
                                            autocomplete="off"
                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                            placeholder="e.g. name@example.com">

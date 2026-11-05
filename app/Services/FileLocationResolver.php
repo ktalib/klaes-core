@@ -272,6 +272,50 @@ class FileLocationResolver
     }
 
     /**
+     * Quick Search (web and mobile): resolve(), recognising old file numbers.
+     *
+     * A number with no record of its own that is the old number of exactly one file
+     * answers with that file, and searched_old_number says so. A number that IS a record
+     * keeps its own result, the Duplicate Files register included: COM-2014-172 is
+     * registered to one holder while COM-2026-292 belongs to another, so answering with
+     * the new file would show the wrong person's. old_number_of only points at the
+     * current file, for the officer to open.
+     *
+     * Kept apart from resolve(), which runs per row in the bulk paths.
+     */
+    public function resolveForSearch(string $fileNumber): array
+    {
+        $result = $this->resolve($fileNumber);
+        $old    = app(OldFileNumberService::class);
+
+        $searched = null;
+        $current  = $old->currentFilesFor($result['file_number']);
+
+        $hasOwnRecord = $result['status'] !== self::STATUS_PENDING_FILE
+            || !empty($result['indexing'])
+            || !empty($result['tracker'])
+            || !empty($result['duplicate_flag'])
+            || !empty($result['superseded_by'])
+            || !empty($result['superseded_reason']);
+
+        if (!$hasOwnRecord && count($current) === 1) {
+            $searched = [
+                'file_number'  => $result['file_number'],
+                'is_duplicate' => $current[0]['is_duplicate'],
+                'label'        => $current[0]['label'],
+            ];
+            $result  = $this->resolve($current[0]['file_number']);
+            $current = $old->currentFilesFor($result['file_number']);
+        }
+
+        $result['searched_old_number'] = $searched;
+        $result['old_number_of']       = $current;
+        $result['old_file_numbers']    = $old->oldNumbersFor($result['file_number']);
+
+        return $result;
+    }
+
+    /**
      * Persist the resolved snapshot onto the matching file_indexings row.
      */
     public function persist(array $result): void

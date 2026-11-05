@@ -1,0 +1,85 @@
+id,department,name
+9,Land,"Director Land"
+10,Land,"Deputy Director Land"
+11,Land,Conversion
+12,Land,"Direct Allocation"
+13,Land,Recommendation/RofO
+14,Land,"Registry 1"
+15,Land,"Registry 2"
+16,Land,"Registry 3"
+17,Deeds,"Director Deeds"
+18,Deeds,"Deputy Director Deeds"
+19,Deeds,Registration
+20,Deeds,"Valuation - Registration"
+21,Deeds,"Valuation - Compensation"
+22,Deeds,Caveat
+23,Deeds,Registry
+24,Deeds,Consent
+25,"Special Duty","Director Special Assignment"
+26,"Special Duty","Deputy Director Special Assignment"
+27,"Special Duty",Fieldwork
+28,"Special Duty",Bills
+29,"Special Duty",Notice
+30,"Sectional Titling","Director Sectional Titling"
+31,"Sectional Titling","Deputy Director Sectional Titling"
+32,"Sectional Titling",Registry
+33,"Sectional Titling",GIS
+34,"Sectional Titling",Finance
+35,"Physical Planning","Director Physical Planning"
+36,"Physical Planning","Deputy Director Physical Planning"
+37,"Physical Planning",Registry
+38,"Physical Planning",GIS
+39,"Physical Planning",JSI
+40,SLTR,"Director SLTR"
+41,SLTR,"Deputy Director SLTR"
+42,SLTR,Registry
+43,SLTR,GIS
+44,DCIV,"Director DCIV"
+45,DCIV,"Deputy Director DCIV"
+46,DCIV,Registry
+47,DCIV,"File Commissioning"
+48,PRS,"Director PRS"
+49,PRS,"Deputy Director PRS"
+50,Cadastral,"Director Cadastral"
+51,Cadastral,"Deputy Director Cadastral"
+52,Cadastral,GIS
+53,Cadastral,Information
+54,Cadastral,Report
+55,Cadastral,"Drawing and Charting"
+56,Cadastral,P&D
+57,Survey,"Surveyor General"
+58,Survey,"Deputy Surveyor General"
+59,Survey,GIS
+60,Survey,Examination/Verification
+61,Survey,Compensation
+62,Survey,GKN
+63,Survey,Registry
+64,KANGIS,"Director General"
+65,KANGIS,DAGS
+66,KANGIS,"Director GIS"
+67,KANGIS,"Deputy Director GIS"
+68,KANGIS,"Customer Service"
+69,KANGIS,Verification
+70,KANGIS,Geometry
+71,KANGIS,Production
+72,KANGIS,Registry
+73,Management,"Honorable Commissioner"
+74,Management,"Permanent Secretary"
+75,"KLAES Revenue Management System","Director Revenue"
+76,"KLAES Revenue Management System","Deputy Director Revenue"
+77,"Admin and General Services Department",DAGS
+78,"Admin and General Services Department","Deputy Director Finance"
+79,"Admin and General Services Department","Secret Registry"
+80,"Legal Department","Director Legal"
+81,"Legal Department","Deputy Director Legal"
+82,"Legal Department","Legal Unit"
+83,"KLAES DMS",SCB
+84,"KLAES DMS",Indexing
+85,"KLAES DMS","Blind Scanning"
+86,"KLAES DMS","Scan Upload"
+87,"KLAES DMS",PageTyping
+88,"KLAES DMS",Jacketing
+89,"KLAES DMS",QRCoding
+90,"KLAES DMS","Arch Folder"
+91,"KLAES DMS",PRA
+92,"KLAES DMS",PIC

@@ -1,0 +1,6 @@
+id,office_code,office_name,department
+138,SPA-DIR,"Director Special Assignment","Special Assignment"
+139,SPA-DD,"Deputy Director Special Assignment","Special Assignment"
+140,REV-DIR,"Director Revenue","KLAES Revenue Management System"
+141,REV-DD,"Deputy Director Revenue","KLAES Revenue Management System"
+142,DMS,"KLAES DMS Office","KLAES DMS"

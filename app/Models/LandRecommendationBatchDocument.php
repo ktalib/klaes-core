@@ -234,6 +234,27 @@ class LandRecommendationBatchDocument extends Model
         return str_starts_with($mime, 'image/') || $mime === 'application/pdf';
     }
 
+    public function uploader()
+    {
+        return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    /**
+     * Who filed the letter and when, for a label:
+     * "Uploaded by Abdullahi Rabiu · 22/10/2026". Empty when neither is on the row.
+     */
+    public function uploadedByLabel(): string
+    {
+        $name = trim((string) optional($this->uploader)->name);
+        $date = optional($this->uploaded_at)->format('d/m/Y');
+
+        if ($name === '' && ! $date) {
+            return '';
+        }
+
+        return 'Uploaded by ' . ($name !== '' ? $name : 'unknown user') . ($date ? ' · ' . $date : '');
+    }
+
     /**
      * What the file is, for a label: "JPG · 1.2 MB".
      */

@@ -111,6 +111,8 @@ class FileProfileService
                 'created_by'     => $tracker->created_by_name,
                 'created_at'     => optional($tracker->created_at)->toDateTimeString(),
                 'last_status'    => strtolower((string) ($lastEntry['status'] ?? '')),
+                'unit'           => $lastEntry['receiving_unit_name'] ?? null,
+                'unit_department' => $lastEntry['receiving_department'] ?? null,
                 'last_at'        => $lastEntry['accepted_at'] ?? $lastEntry['timestamp'] ?? null,
                 // The office a legacy hand-over sits at; it counts as held there.
                 // Where a pending hand-over is addressed, and which office sent it.

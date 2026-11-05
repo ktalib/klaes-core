@@ -64,12 +64,17 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">File Number <span class="text-red-500">*</span></label>
-                <div class="flex gap-2">
+                <div id="jsiFileNumberRow" class="flex gap-2">
                     <input type="text" name="file_number" id="jointInspectionFileNumber" value="" readonly class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-gray-50 cursor-not-allowed" placeholder="File number from application" data-jsi-validate>
                     <button type="button" id="jsiSelectFileNumberBtn" class="hidden shrink-0 inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-md hover:bg-blue-700 transition-colors shadow-sm" title="Select file number">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                         Select
                     </button>
+                </div>
+                {{-- Conversion only: searchable list of CON- files from File Indexing. It fills
+                     the file_number field above, which is hidden in that context. --}}
+                <div id="jsiConversionFileWrapper" class="hidden">
+                    <select id="jsiConversionFileSelect" class="w-full" data-placeholder="Search Conversion (CON-) file number or title"></select>
                 </div>
                 <p id="jsiFileNumberHint" class="mt-1 text-[10px] text-gray-500">File number is locked to the current application.</p>
             </div>

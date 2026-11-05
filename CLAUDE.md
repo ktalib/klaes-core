@@ -49,7 +49,7 @@ KLAES (Kano Land Administration & Electronic System): a Laravel 9 / PHP 8.2 mono
 
 ## Blade gotchas
 
-- Module action checks use the custom `@canDo('Module', 'action') ... @elsecanDo ... @endcanDo` directive (defined in `AppServiceProvider`), not `@can`.
+- Module action checks use the custom `@canDo('Module', 'action') ... @else ... @endcanDo` directive (defined in `AppServiceProvider`), not `@can`. The else branch is plain `@else`: `@elsecanDo` is an else-IF that needs arguments, and with none it throws a 500 for every user who fails the first check.
 - Never put a directive name or a raw PHP open tag inside a Blade comment.
 - Use the `@php ... @endphp` block form.
 

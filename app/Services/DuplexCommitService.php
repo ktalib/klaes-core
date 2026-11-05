@@ -593,6 +593,10 @@ class DuplexCommitService
 
             $plotNo = $this->pick($entry, 'plotNo', $plot['plot_no'] ?? $duplex->plot_no);
 
+            // Set for this file on the commissioning card (or by Apply to All).
+            $base['customer_type'] = $this->pick($entry, 'customer_type', $base['customer_type']);
+            $base['gender']        = $this->pick($entry, 'gender', $base['gender']);
+
             return $this->callSingle($base + [
                 'tracking_id'      => $this->pick($entry, 'tracking_id', $this->trackingIdFor($stage)),
                 'file_name'        => $this->pick($entry, 'file_name', $plot['holder'] ?? ($duplex->file_title ?: $duplex->applicant_name)),
@@ -603,6 +607,7 @@ class DuplexCommitService
                 'district'         => $this->pick($entry, 'district', $duplex->district),
                 'phone_no'         => $this->pick($entry, 'phone_no', $duplex->phone),
                 'address'          => $this->pick($entry, 'address', $duplex->address),
+                'email'            => $this->pick($entry, 'email', null),
                 // The Purpose picked for this file on the commissioning screen.
                 'purpose_id'       => $this->pick($entry, 'purpose_id', null),
                 'original_file_no' => $inputs[0],
@@ -627,6 +632,10 @@ class DuplexCommitService
                 'file_name' => $this->pick($entry, 'file_name', $plot['holder'] ?? ($duplex->file_title ?: $duplex->applicant_name)),
                 'phone_no'  => $this->pick($entry, 'phone_no', $duplex->phone),
                 'address'   => $this->pick($entry, 'address', $duplex->address),
+                // Per-file applicant details; blank falls back to the stage-wide value.
+                'customer_type' => $this->pick($entry, 'customer_type', null),
+                'gender'        => $this->pick($entry, 'gender', null),
+                'email'         => $this->pick($entry, 'email', null),
                 'purpose_id' => $this->pick($entry, 'purpose_id', null),
                 // Left empty on purpose: the batch path mints a fresh unique tracking id
                 // for every entry, and reuses the grouping record's where one exists.
@@ -760,8 +769,9 @@ class DuplexCommitService
                 'district'                  => $this->pick($entry, 'district', $duplex->district),
                 'phone_no'                  => $this->pick($entry, 'phone_no', $duplex->phone),
                 'address'                   => $this->pick($entry, 'address', $duplex->address),
-                'customer_type'             => $meta['customer_type'] ?? 'Individual',
-                'gender'                    => $meta['gender'] ?? 'Male',
+                'email'                     => $this->pick($entry, 'email', null),
+                'customer_type'             => $this->pick($entry, 'customer_type', $meta['customer_type'] ?? 'Individual'),
+                'gender'                    => $this->pick($entry, 'gender', $meta['gender'] ?? 'Male'),
                 'commissioned_by'           => $meta['commissioned_by'] ?? null,
                 'commission_date'           => $meta['commission_date'] ?? now()->toDateString(),
                 'commission_time'           => $meta['commission_time'] ?? now()->format('H:i'),

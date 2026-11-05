@@ -11,6 +11,17 @@
 
         <!-- Main Content -->
         <div class="p-6">
+            @php
+                // Physical Planning > Bills & Payments: one central area, a tab per application type.
+                $ppCentral = \App\Services\PhysicalPlanningBillSources::isCentral(request());
+                $ppSource = \App\Services\PhysicalPlanningBillSources::has(request()->get('source')) ? request()->get('source') : null;
+                $ppLabel = $ppSource ? \App\Services\PhysicalPlanningBillSources::get($ppSource)['label'] : null;
+            @endphp
+            @if($ppCentral)
+                <div style="width: 60%; margin: 0 auto;">
+                    @include('programmes.partials.pp_bills_tabs', ['ppTabsPage' => 'bills'])
+                </div>
+            @endif
             <div class="bg-white rounded-lg shadow-sm" style="width: 60%; margin: 0 auto;">
                 <!-- Page Header -->
                 <div class="border-b border-gray-200 px-6 py-4">
@@ -35,18 +46,18 @@
                     <div class="max-w-md mx-auto">
                         <label for="filenoSelect" class="block text-sm font-medium text-gray-700 mb-3 text-center">
                             <i data-lucide="search" class="w-4 h-4 inline mr-2"></i>
-                            @if(request()->get('source') === 'pp_conversion')
-                                Search by Conversion File Number
+                            @if($ppSource)
+                                Search by {{ $ppLabel }} File Number
                             @elseif(request()->get('url') === 'physical_planning')
                                 Search by Primary File Number
                             @else
                                 Search by File Number
                             @endif
                         </label>
-                        @if(request()->get('source') === 'pp_conversion')
+                        @if($ppSource)
                             <p class="text-xs text-blue-600 text-center mb-3">
                                 <i data-lucide="info" class="w-3 h-3 inline mr-1"></i>
-                                Showing conversion application file numbers from JSI reports
+                                Showing {{ $ppLabel }} file numbers from inspection reports
                             </p>
                         @elseif(request()->get('url') === 'physical_planning')
                             <p class="text-xs text-blue-600 text-center mb-3">
@@ -56,8 +67,8 @@
                         @endif
                         <select id="filenoSelect" class="w-full" style="width: 100%;">
                             <option value="">
-                                @if(request()->get('source') === 'pp_conversion')
-                                    Select a conversion file number to view bills...
+                                @if($ppSource)
+                                    Select a {{ $ppLabel }} file number to view bills...
                                 @elseif(request()->get('url') === 'physical_planning')
                                     Select a primary file number to view bills...
                                 @else
@@ -71,7 +82,7 @@
                                     data-unit-type="{{ $file['unit_type'] ?? '' }}"
                                     data-existing-site-area="{{ $file['existing_site_area'] ?? '' }}"
                                     data-existing-structure-total="{{ $file['existing_structure_total'] ?? '' }}">
-                                    {{ strtoupper($file['fileno']) }} - {{ strtoupper($file['owner_name']) }} ({{ ucfirst($file['type']) }})
+                                    {{ strtoupper($file['fileno']) }} - {{ strtoupper($file['owner_name']) }} ({{ $file['type_label'] ?? ucfirst($file['type']) }})
                                 </option>
                             @endforeach
                         </select>
@@ -755,11 +766,13 @@
             // Check URL parameter to conditionally hide betterment bill actions
             const urlParams = new URLSearchParams(window.location.search);
             const isPhysicalPlan = urlParams.get('url') === 'physical_planning';
-            const isConversion = urlParams.get('source') === 'pp_conversion';
+            const isConversion = @json((bool) $ppSource);
 
             // Store this globally for use in other functions
             window.isPhysicalPlanMode = isPhysicalPlan;
             window.isConversionMode = isConversion;
+            window.ppBillLabel = @json($ppLabel ?? 'Conversion');
+            window.ppBillSource = @json($ppSource);
 
             // In conversion mode: hide Initial Bill and Bill Balance tabs, activate Betterment
             if (isConversion) {
@@ -965,7 +978,7 @@
 
         function formatApplicationTypeLabel(fileType, unitType) {
             if (fileType === 'conversion') {
-                return 'Conversion Application';
+                return (window.ppBillLabel || 'Conversion') + ' Application';
             }
             if (fileType === 'unit') {
                 const normalized = (unitType || '').toString().toUpperCase();
@@ -1136,8 +1149,8 @@
 
                         html += createBillCard({
                             id: billId,
-                            title: 'Conversion Betterment Bill',
-                            subtitle: 'Ref: ' + (bill.ref_id || 'N/A') + ' — ' + (bill.jsi_land_use || bill.applied_land_use || 'Conversion'),
+                            title: window.ppBillLabel + ' Betterment Bill',
+                            subtitle: 'Ref: ' + (bill.ref_id || 'N/A') + ' — ' + (bill.jsi_land_use || bill.applied_land_use || window.ppBillLabel),
                             items: [
                                 { label: 'Total Area', amount: area.toFixed(2) + ' m²' },
                                 { label: 'Rate per extra m²', amount: '₦' + rate.toFixed(2) },
@@ -1392,6 +1405,12 @@
 
             console.log('Printing bill:', billType, billId);
 
+            // Physical Planning betterment bills print from the billing row itself.
+            if (window.isConversionMode && billType === 'betterment') {
+                window.open(@json(url('physical-planning/bills')) + '/' + billId + '/print', '_blank');
+                return;
+            }
+
             // Open print view in new window
             const baseUrl = window.location.origin;
             const printUrl = `${baseUrl}/programmes/bill/print/${billType}/${billId}`;
@@ -1557,7 +1576,7 @@
             return `
                 <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
                     <div class="p-4 border-b">
-                        <h3 class="text-sm font-medium">Generate Conversion Betterment Bill</h3>
+                        <h3 class="text-sm font-medium">Generate ${window.ppBillLabel} Betterment Bill</h3>
                         <p class="text-xs text-gray-500">Calculate and generate betterment charges based on land-use category and total area</p>
                     </div>
 
@@ -2706,6 +2725,7 @@
                     url: '{{ route("physical-planning.conversion.bills.generate") }}',
                     method: 'POST',
                     data: {
+                        source: window.ppBillSource,
                         jsi_report_id: currentApplication.fileId,
                         file_number: currentApplication.fileno,
                         category: $('#conv-category').val(),
@@ -2794,7 +2814,7 @@
                                 </div>
                                 <div class="print-title">
                                     <h1>KANO STATE MINISTRY OF LAND AND PHYSICAL PLANNING</h1>
-                                    <h2>CONVERSION BETTERMENT CHARGES BILL</h2>
+                                    <h2>${window.ppBillLabel.toUpperCase()} BETTERMENT CHARGES BILL</h2>
                                 </div>
                                 <div class="print-logo-right">
                                     <img src="/assets/logo/logo3.jpeg" alt="Ministry Logo" class="print-logo">
@@ -2808,7 +2828,7 @@
                             </div>
                             <div style="margin-bottom: 20px;">
                                 <p>Dear Sir/Madam,</p>
-                                <p>I am directed to inform you that the betterment charges for the conversion of your property with the following particulars:</p>
+                                <p>I am directed to inform you that the betterment charges for ${window.ppBillLabel === 'Conversion' ? 'the conversion of your property' : 'your property'} with the following particulars:</p>
                             </div>
                             <div style="margin-bottom: 20px;">
                                 <p><strong>File No:</strong> ${currentApplication.fileno}</p>
@@ -2876,7 +2896,7 @@
             function printConversionBill() {
                 var printContents = document.getElementById('conv-receipt-container').innerHTML;
                 var printWindow = window.open('', '_blank', 'width=800,height=600');
-                printWindow.document.write('<html><head><title>Conversion Betterment Bill</title>');
+                printWindow.document.write('<html><head><title>' + window.ppBillLabel + ' Betterment Bill</title>');
                 printWindow.document.write('<style>body{font-family:Arial,sans-serif;margin:20px}.print-header{text-align:center;margin-bottom:20px}.print-logos{display:flex;justify-content:space-between;align-items:center}.print-logo{max-height:60px}.print-title h1{font-size:14px;margin:5px 0}.print-title h2{font-size:12px;margin:5px 0}.print-content{margin:20px 0}.print-table{width:100%;border-collapse:collapse;margin:15px 0}.print-table th,.print-table td{border:1px solid #333;padding:8px;font-size:12px}.print-table th{background-color:#f0f0f0}.total-row{font-weight:bold;background-color:#f9f9f9}.print-footer{margin-top:20px;font-size:11px}.print-date-ref{margin-bottom:15px}.ref-highlight{font-weight:bold;color:#1a56db}.no-print{display:none}</style>');
                 printWindow.document.write('</head><body>');
                 printWindow.document.write(printContents);

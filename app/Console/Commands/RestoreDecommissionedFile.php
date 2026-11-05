@@ -225,6 +225,13 @@ class RestoreDecommissionedFile extends Command
             return [null, 'already present (id ' . $existing->id . ')'];
         }
 
+        // Only a Change of Purpose renumbers the row away. The removal arm never deleted
+        // mls_file_no, so any other retirement with no row never had one: cloning a
+        // subdivision child's row would invent a commissioning record (COM-2010-47).
+        if (stripos((string) $archive->decommissioning_reason, 'Change of Purpose') === false) {
+            return [null, 'none — not a Change of Purpose, so it never had one here'];
+        }
+
         // "CON-RES-2026-3004" -> land use CON-RES, year 2026, serial 3004.
         if (! preg_match('/^(.*)-(\d{4})-(\d+)$/', $fileNo, $m)) {
             return [null, 'missing — file number does not parse, skipped'];

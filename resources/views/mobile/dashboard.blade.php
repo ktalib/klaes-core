@@ -1956,7 +1956,26 @@ async function searchFile() {
           <div style="margin-top:4px;padding-left:22px;font-size:11px;color:var(--muted);">${esc(d.duplicate_flag.file_title)}</div>` : '')}
         </div>` : '';
 
+      // Old file numbers, as on web Quick Search: rose for a true duplicate, amber for a
+      // previous number.
+      const oldTone = dup => dup ? '#be123c' : '#b45309';
+      const oldBox = (color, body) => `
+        <div style="margin-bottom:10px;background:${color}14;border:1px solid ${color}55;border-radius:12px;padding:10px 12px;font-size:12px;color:${color};">
+          <i class="fas fa-copy" style="margin-right:5px;"></i>${body}
+        </div>`;
+      const searchedOld = d.searched_old_number;
+      const oldFileHtml = [
+        searchedOld ? oldBox(oldTone(searchedOld.is_duplicate),
+          `<strong>${esc(searchedOld.file_number)}</strong> is the ${esc(searchedOld.label)} of <strong>${esc(d.file_number)}</strong>. Showing the current file.`) : '',
+        ...(d.old_number_of || []).map(f => oldBox(oldTone(f.is_duplicate),
+          `This is the ${esc(f.label)} of <strong>${esc(f.file_number)}</strong>${f.file_title ? ` (${esc(f.file_title)})` : ''}
+           <button type="button" data-open-file="${esc(f.file_number)}" style="display:block;margin-top:6px;border:0;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;color:#fff;background:${oldTone(f.is_duplicate)};">Open ${esc(f.file_number)}</button>`)),
+        ...(d.old_file_numbers || []).filter(o => !searchedOld || o.file_number !== searchedOld.file_number).map(o => oldBox(oldTone(o.is_duplicate),
+          `${esc(o.label)}: <strong>${esc(o.file_number)}</strong>${o.file_title ? ` (${esc(o.file_title)})` : ''}`)),
+      ].join('');
+
       result.innerHTML = `
+          ${oldFileHtml}
           ${duplicateFlagHtml}
           ${/* The pick-a-file gate sits ABOVE the result card, not inside it: until a
                 record is chosen the card below describes only ONE of the files sharing
@@ -3653,12 +3672,27 @@ $('#fileSearchSelect').select2({
     url: '{{ url("/digital-request/file-numbers") }}',
     dataType: 'json',
     delay: 250,
-    data: params => ({ q: params.term }),
+    // with_old_numbers: old file numbers mostly have no indexing row of their own.
+    data: params => ({ q: params.term, with_old_numbers: 1 }),
     processResults: data => ({ results: data.results || [] }),
     cache: true,
   },
 });
 $('#fileSearchSelect').on('select2:select', searchFile);
+// "Open <file>" on an old-number notice: run the search on the current file.
+document.getElementById('fileSearchResult')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-open-file]');
+  if (!btn) return;
+  const fileNo = btn.dataset.openFile;
+  if (document.getElementById('fsBlindToggle')?.checked) {
+    document.getElementById('fileSearchManual').value = fileNo;
+  } else {
+    const $sel = $('#fileSearchSelect');
+    if (!$sel.find('option').filter((_, o) => o.value === fileNo).length) $sel.append(new Option(fileNo, fileNo, true, true));
+    $sel.val(fileNo).trigger('change');
+  }
+  searchFile();
+});
 // Blind request: typed file number — Enter runs the lookup; pausing after typing
 // auto-loads the result so the user doesn't have to click the button.
 document.getElementById('fileSearchManual')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(blindAutoLoadTimer); searchFile(); } });

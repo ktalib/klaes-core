@@ -5147,6 +5147,12 @@ class MlsFileNoController extends Controller
                 'location_entries.*.phone_no' => ['nullable', 'string', 'max:100', new NigerianPhone()],
                 'location_entries.*.address' => 'nullable|string|max:500',
                 'location_entries.*.gender' => 'nullable|string|in:Male,Female,Corporate,Joint',
+                // Per-file applicant details, set file by file or through "Apply to All"'s
+                // field picker. Each falls back to the batch-wide value when absent.
+                'location_entries.*.customer_type' => 'nullable|string|in:Individual,Corporate,Multiple',
+                'location_entries.*.email' => 'nullable|email|max:150',
+                'location_entries.*.rep_phone_no' => ['nullable', 'string', 'max:100', new NigerianPhone()],
+                'location_entries.*.rep_address' => 'nullable|string|max:500',
                 // Per-file purpose (a duplex's stages carry different land uses); the
                 // batch-wide purpose_id is the fallback.
                 'location_entries.*.purpose_id' => 'nullable|integer',
@@ -5733,6 +5739,21 @@ class MlsFileNoController extends Controller
                     }
 
                     $entryGender = ($entry['gender'] ?? null) ?: ($validated['gender'] ?? null);
+                    $entryCustomerType = ($entry['customer_type'] ?? null) ?: $validated['customer_type'];
+                    // An entry that carries the key speaks for itself (blank = none);
+                    // only an entry without it takes the batch-wide value.
+                    $entryText = function (string $key, $fallback = null) use ($entry) {
+                        if (!array_key_exists($key, $entry)) {
+                            return $fallback;
+                        }
+                        $value = trim((string) $entry[$key]);
+
+                        return $value !== '' ? $value : null;
+                    };
+                    $entryEmail = $entryText('email', $validated['email'] ?? null);
+                    $entryAddress = $entryText('address');
+                    $entryRepPhone = $entryText('rep_phone_no');
+                    $entryRepAddress = $entryText('rep_address');
 
                     // Prepare MLS  File numbers record
                     $mlsData[] = [
@@ -5749,7 +5770,7 @@ class MlsFileNoController extends Controller
                         'lga' => $entry['lga'] ?? null,
                         'district' => $entry['district'] ?? null,
                         'tracking_id' => $trackingId,
-                        'customer_type' => $validated['customer_type'],
+                        'customer_type' => $entryCustomerType,
                         'gender' => $entryGender,
                         'gender_source' => $entryGender ? \App\Services\GenderNormalizer::SOURCE_CAPTURED : null,
                         'file_option' => $validated['file_option'],
@@ -5767,7 +5788,12 @@ class MlsFileNoController extends Controller
                         // so batch-commissioned files had no number at all. The
                         // batch-wide number covers the entries that carry none.
                         'phone_no' => $entry['phone_no'] ?? ($validated['phone_no'] ?? null),
-                        'email' => $entry['email'] ?? ($validated['email'] ?? null),
+                        'email' => $entryEmail,
+                        // Applicant / Local Rep details: validated per entry but never
+                        // written, so batch files had none of them.
+                        'address' => $entryAddress,
+                        'rep_phone_no' => $entryRepPhone,
+                        'rep_address' => $entryRepAddress,
                         'created_at' => $now,
                         'updated_at' => $now
                     ];
@@ -5789,7 +5815,10 @@ class MlsFileNoController extends Controller
                         'is_deleted' => 0,
                         'created_by' => $commissionedBy,
                         'phone_no' => $entry['phone_no'] ?? ($validated['phone_no'] ?? null),
-                        'email' => $entry['email'] ?? ($validated['email'] ?? null),
+                        'email' => $entryEmail,
+                        'address' => $entryAddress,
+                        'rep_phone_no' => $entryRepPhone,
+                        'rep_address' => $entryRepAddress,
                         'created_at' => $now,
                         'updated_at' => $now
                     ];
@@ -5827,7 +5856,7 @@ class MlsFileNoController extends Controller
                     try {
                         // Create separate entity for each file in the batch
                         $entityId = DB::connection('sqlsrv')->table('entities_staging')->insertGetId([
-                            'entity_type' => $validated['customer_type'] ?? 'Individual',
+                            'entity_type' => $entryCustomerType ?? 'Individual',
                             'entity_name' => $entry['file_name'] ?? ($validated['file_name'] ?? 'N/A'),
                             'file_number' => $fullFileNumber,
                             'created_at' => $now,
@@ -5844,7 +5873,7 @@ class MlsFileNoController extends Controller
                         $propertyAddress = implode(', ', $addressParts);
 
                         DB::connection('sqlsrv')->table('customers_staging')->insert([
-                            'customer_type' => $validated['customer_type'] ?? 'Individual',
+                            'customer_type' => $entryCustomerType ?? 'Individual',
                             'file_number' => $fullFileNumber,
                             'customer_name' => $entry['file_name'] ?? ($validated['file_name'] ?? 'N/A'),
                             'property_address' => $propertyAddress ?: 'N/A',

@@ -13,7 +13,7 @@ class ProcessAutoLogout extends Command
         {--limit=0 : Maximum number of sessions to evaluate}
         {--now= : Override the current timestamp (Y-m-d H:i)}';
 
-    protected $description = 'Enforce auto logout for online sessions that exceeded configured work hours.';
+    protected $description = 'Close attendance records of sessions past their work hours. Never signs anyone out.';
 
     public function handle(): int
     {

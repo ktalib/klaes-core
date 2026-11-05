@@ -73,7 +73,7 @@
                 </table>
             </div>
             <div class="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-                <strong>Note:</strong> Login Days are calculated from configured shift hours. 8-hour shift employees need 8 hours for 1 day, 4-hour shift employees need 4 hours for 1 day. Overtime is only accumulated when authorised; otherwise sessions auto-logout at shift end.
+                <strong>Note:</strong> Login Days are calculated from configured shift hours. 8-hour shift employees need 8 hours for 1 day, 4-hour shift employees need 4 hours for 1 day. Overtime is only accumulated when authorised; otherwise time beyond the shift hours is not counted. Staff are not signed out at shift end.
             </div>
         </div>
     </div>

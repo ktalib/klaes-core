@@ -817,6 +817,21 @@ class FileNumberApiController extends Controller
             // Temporary-file toggle (Create File Tracker "Is Temporary File"): restrict
             // the selector to temporary "(T)" file numbers only.
             $tempOnly = filter_var($request->get('temp_only', false), FILTER_VALIDATE_BOOLEAN);
+            // Prefix scope (e.g. "CON-" for the Conversion JSI): only file numbers that
+            // start with one of these. Letters, digits and hyphens only, so they are safe
+            // inside LIKE.
+            $onlyPrefixes = collect(explode(',', (string) $request->get('only_prefixes', '')))
+                ->map(fn ($p) => strtoupper(trim($p)))
+                ->filter(fn ($p) => $p !== '' && preg_match('/^[A-Z0-9-]+$/', $p))
+                ->values()
+                ->all();
+            $prefixWhere = function ($q, string $column) use ($onlyPrefixes) {
+                $q->where(function ($q2) use ($column, $onlyPrefixes) {
+                    foreach ($onlyPrefixes as $prefix) {
+                        $q2->orWhereRaw("UPPER(LTRIM({$column})) LIKE ?", [$prefix . '%']);
+                    }
+                });
+            };
 
             $query = DB::connection('sqlsrv')
                 ->table('dbo.fileNumber')
@@ -840,6 +855,10 @@ class FileNumberApiController extends Controller
             // LIKE, parentheses are literal so '%(T)%' matches the "(T)" suffix.
             if ($tempOnly) {
                 $query->where('mlsfNo', 'LIKE', '%(T)%');
+            }
+
+            if ($onlyPrefixes) {
+                $prefixWhere($query, 'mlsfNo');
             }
 
             // Exclude matching if requested
@@ -882,7 +901,7 @@ class FileNumberApiController extends Controller
                 // Skipped in temp-only mode: this loose top-level OR would otherwise
                 // escape the "(T)" AND-constraint and pull in non-temp rows, filling
                 // the limit before the temp-only guard/file_indexings pass runs.
-                if (!$tempOnly) {
+                if (!$tempOnly && !$onlyPrefixes) {
                     $query->orWhere(function ($q) use ($search) {
                         $q->where('temp_file_no', 'LIKE', "%{$search}%")
                           ->orWhere('temp_fileno', 'LIKE', "%{$search}%");
@@ -949,6 +968,10 @@ class FileNumberApiController extends Controller
                     });
                 }
 
+                if ($onlyPrefixes) {
+                    $prefixWhere($indexingQuery, "ISNULL(file_number, '')");
+                }
+
                 if (!$includeAllRegistries) {
                     // Keep this MLS endpoint MLS/Lands-only: exclude file_indexings rows
                     // that belong to other registries (KANGIS / New KANGIS / SLTR / ST /
@@ -998,6 +1021,44 @@ class FileNumberApiController extends Controller
                         'temp_file_no' => $r->temp_file_no,
                     ]);
                 }
+            }
+
+            // Quick Search: an old number usually has no record of its own, so without this
+            // the selector could not find it. Opt-in; old_of marks the pick as one, which
+            // the modal lets through without a record behind it.
+            if (filter_var($request->get('with_old_numbers', false), FILTER_VALIDATE_BOOLEAN) && !empty($search)) {
+                foreach (app(\App\Services\OldFileNumberService::class)->search((string) $search) as $pair) {
+                    if ($files->contains('file_number', $pair['old_file_number'])) {
+                        continue;
+                    }
+                    $files->push([
+                        'mlsFNo' => $pair['old_file_number'],
+                        'file_number' => $pair['old_file_number'],
+                        'id' => 'old_' . md5($pair['old_file_number']),
+                        'FileName' => $pair['file_title'],
+                        'file_name' => $pair['file_title'],
+                        'location' => null,
+                        'plot_no' => null,
+                        'tp_no' => null,
+                        'temp_file_no' => null,
+                        'old_of' => $pair['file_number'],
+                        'old_label' => $pair['label'],
+                    ]);
+                }
+            }
+
+            // Same safety net for the prefix scope (the indexing pass may display
+            // temp_file_no instead of file_number).
+            if ($onlyPrefixes) {
+                $files = $files->filter(function ($f) use ($onlyPrefixes) {
+                    $no = strtoupper(ltrim((string) ($f['file_number'] ?? '')));
+                    foreach ($onlyPrefixes as $prefix) {
+                        if (strpos($no, $prefix) === 0) {
+                            return true;
+                        }
+                    }
+                    return false;
+                })->values();
             }
 
             // Final safety net: guarantee the temp-only selector never surfaces a

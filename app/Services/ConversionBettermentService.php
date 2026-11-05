@@ -126,14 +126,24 @@ class ConversionBettermentService
      * @param  string $category      Land-use category for rate lookup
      * @param  float  $totalArea     Total site area in m²
      * @param  int|null $applicationId
+     * @param  string $billingSource    billing.source of this application type
+     * @param  string|null $reportTable  table holding the existing-structure entry, if any
      * @return array  ['success','bill','calculation']
      */
-    public function generateBill(int $jsiReportId, string $fileNumber, string $category, float $totalArea, ?int $applicationId = null): array
+    public function generateBill(
+        int $jsiReportId,
+        string $fileNumber,
+        string $category,
+        float $totalArea,
+        ?int $applicationId = null,
+        string $billingSource = 'PP_BETTERMENT_BILL',
+        ?string $reportTable = 'joint_site_inspection_reports'
+    ): array
     {
         try {
             $calc = $this->calculate($category, $totalArea);
 
-            $existingStructureMeta = $this->resolveExistingStructureCharge($jsiReportId);
+            $existingStructureMeta = $this->resolveExistingStructureCharge($jsiReportId, $reportTable);
             $calc['base_total_fee'] = (float) $calc['total_fee'];
             $calc['existing_structure_rate'] = self::EXISTING_STRUCTURE_RATE;
             $calc['has_existing_structure'] = $existingStructureMeta['has_existing_structure'];
@@ -149,9 +159,14 @@ class ConversionBettermentService
             // Check for existing bill
             $existing = DB::connection('sqlsrv')
                 ->table('billing')
-                ->where('source', 'PP_BETTERMENT_BILL')
+                ->where('source', $billingSource)
                 ->where('source_id', (string) $jsiReportId)
                 ->first();
+
+            // A receipted bill is settled history: regenerating would reset it to Pending.
+            if ($existing && !empty($existing->Betterment_receipt)) {
+                return ['success' => false, 'message' => 'This bill already has a receipt and cannot be regenerated.'];
+            }
 
             $refId = $existing->ref_id ?? $this->generateRefId();
             $now = now();
@@ -163,7 +178,7 @@ class ConversionBettermentService
                 'property_value' => (string) $totalArea,
                 'betterment_rate' => (string) $calc['rate_per_extra_sqm'],
                 'ref_id' => $refId,
-                'source' => 'PP_BETTERMENT_BILL',
+                'source' => $billingSource,
                 'source_id' => (string) $jsiReportId,
                 'Payment_Status' => 'Pending',
                 'updated_at' => $now,
@@ -205,7 +220,7 @@ class ConversionBettermentService
         }
     }
 
-    protected function resolveExistingStructureCharge(int $jsiReportId): array
+    protected function resolveExistingStructureCharge(int $jsiReportId, ?string $reportTable = 'joint_site_inspection_reports'): array
     {
         $default = [
             'has_existing_structure' => false,
@@ -214,8 +229,12 @@ class ConversionBettermentService
             'charge' => 0.0,
         ];
 
+        if ($reportTable === null) {
+            return $default;
+        }
+
         $report = DB::connection('sqlsrv')
-            ->table('joint_site_inspection_reports')
+            ->table($reportTable)
             ->select('existing_site_measurement_entries')
             ->where('id', $jsiReportId)
             ->first();

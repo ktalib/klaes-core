@@ -868,18 +868,66 @@ class VfsFolioPresenter
             ];
         }
 
-        $blind = $this->blindScanQuery($file)->count();
-        if ($blind > 0) {
+        // One card per folder on disk when the pages come from several (e.g. "RES-2001-924"
+        // and "RES-2001-924_T"), so neither hides inside the other's count.
+        $blindFolders = $this->blindScanFolders($file);
+        if (count($blindFolders) > 1) {
+            foreach ($blindFolders as $name => $count) {
+                $folders[] = [
+                    'key' => self::BLIND_FOLDER . ':' . $name,
+                    'label' => 'Blind Scan · ' . $name,
+                    'count' => $count,
+                    'classified' => false,
+                    'blind' => true,
+                ];
+            }
+        } elseif ($blindFolders) {
             $folders[] = [
                 'key' => self::BLIND_FOLDER,
                 'label' => 'Blind Scan',
-                'count' => $blind,
+                'count' => array_sum($blindFolders),
                 'classified' => false,
                 'blind' => true,
             ];
         }
 
         return $folders;
+    }
+
+    /**
+     * This file's blind-scan page counts by source folder, read from document_path
+     * ("EDMS/BLIND_SCAN/Lands_Registry_Raw/<folder>/A4/IMG_0001.jpg"). A path that
+     * does not follow that shape collapses everything into one unnamed group.
+     *
+     * @return array<string,int>
+     */
+    private function blindScanFolders(FileIndexing $file): array
+    {
+        $counts = [];
+        foreach ($this->blindScanQuery($file)->pluck('document_path') as $path) {
+            $name = $this->blindSourceFolder($path);
+            if ($name === null) {
+                $total = $this->blindScanQuery($file)->count();
+
+                return $total ? ['' => $total] : [];
+            }
+            $counts[$name] = ($counts[$name] ?? 0) + 1;
+        }
+        ksort($counts, SORT_NATURAL);
+
+        return $counts;
+    }
+
+    private function blindSourceFolder($path): ?string
+    {
+        $parts = explode('/', str_replace('\\', '/', (string) $path));
+        foreach ($parts as $i => $part) {
+            if (preg_match('/_Raw$/i', $part) && isset($parts[$i + 2]) && $parts[$i + 1] !== '') {
+                return $parts[$i + 1];
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -901,10 +949,17 @@ class VfsFolioPresenter
             });
     }
 
-    /** Tiles for the Blind Scan folder, shaped like page tiles plus is_blind. */
-    private function blindScanPage(FileIndexing $file, int $page, int $perPage): LengthAwarePaginator
+    /** Tiles for the Blind Scan folder (or one source folder of it), shaped like page tiles plus is_blind. */
+    private function blindScanPage(FileIndexing $file, int $page, int $perPage, ?string $sourceFolder = null): LengthAwarePaginator
     {
-        $paginator = $this->blindScanQuery($file)
+        $query = $this->blindScanQuery($file);
+        if ($sourceFolder !== null && $sourceFolder !== '') {
+            $like = '%[_]Raw/' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $sourceFolder) . '/%';
+            $query->where(fn ($q) => $q->where('document_path', 'like', $like)
+                ->orWhere('document_path', 'like', str_replace('/', '\\', $like)));
+        }
+
+        $paginator = $query
             ->select(['id', 'original_filename', 'document_path', 'paper_size', 'created_at'])
             ->orderBy('document_path')
             ->paginate($perPage, ['*'], 'page', $page)
@@ -1020,6 +1075,9 @@ class VfsFolioPresenter
         }
         if ($folder === self::BLIND_FOLDER) {
             return $this->blindScanPage($file, $page, $perPage);
+        }
+        if (is_string($folder) && str_starts_with($folder, self::BLIND_FOLDER . ':')) {
+            return $this->blindScanPage($file, $page, $perPage, substr($folder, strlen(self::BLIND_FOLDER) + 1));
         }
 
         $query = PageTyping::query()
