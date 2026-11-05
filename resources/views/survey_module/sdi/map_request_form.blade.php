@@ -32,7 +32,7 @@
     @media (max-width: 1100px) { .survey-proto .mrq-layout { grid-template-columns: 1fr; } .survey-proto .mrq-map-col { position: static; } #mrqMap { height: 420px; } }
 </style>
 
-<form method="POST" id="mrqForm" action="{{ $m->exists ? route('survey-module.sdi.map-requests.update', $m) : route('survey-module.sdi.map-requests.store') }}">
+<form method="POST" id="mrqForm" enctype="multipart/form-data" action="{{ $m->exists ? route('survey-module.sdi.map-requests.update', $m) : route('survey-module.sdi.map-requests.store') }}">
     @csrf
     @if ($m->exists) @method('PUT') @endif
 
@@ -118,6 +118,17 @@
                             <label><input type="radio" name="priority" value="{{ $k }}" @checked(old('priority', $m->priority) === $k) required /> {{ $l }}</label>
                         @endforeach
                     </div>
+                </div>
+                {{-- What the requester brought: a scanned map or a sketch (CR 03112026 item 12). --}}
+                <div class="form-group full">
+                    <label>Scanned Map or Sketch</label>
+                    <input type="file" name="request_file" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.dwg,.dxf,.zip,.kml,.kmz" />
+                    @if ($m->request_file_path)
+                        <p class="helper-text">On file: <a href="{{ route('survey-module.sdi.map-requests.request-file', $m) }}">{{ $m->request_file_name }}</a>. A new file replaces it.</p>
+                    @else
+                        <p class="helper-text">Optional. PDF, image, DWG/DXF, KML/KMZ or ZIP, up to 50 MB.</p>
+                    @endif
+                    @error('request_file')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
                 </div>
                 <div class="form-group">
                     <label>Date Received <span class="required">*</span></label>

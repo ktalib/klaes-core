@@ -26,8 +26,8 @@ class SurveyBeaconRegister extends SurveyModel
 
     public const PAYMENT_MODES = ['E-Payment', 'Cash', 'Other'];
 
-    /** Stored value => label. The first choice on the form. */
-    public const LAYOUT_TYPES = ['Government' => 'Government', 'Private' => 'Private'];
+    /** Stored value => label. The first choice on the form. Government shows as Public (CR 03112026 item 13); stored values stay. */
+    public const LAYOUT_TYPES = ['Government' => 'Public', 'Private' => 'Private'];
 
     public function getLayoutTypeLabelAttribute(): ?string
     {
@@ -43,6 +43,24 @@ class SurveyBeaconRegister extends SurveyModel
         $code = strtoupper(preg_replace('/\s+/', '', (string) $code));
 
         return $code === '' ? null : $code;
+    }
+
+    /**
+     * How a number reads on screen: three or more letters, a space, four digits (KDJ0001 reads KDJ 0001,
+     * CR 03112026 item 14). Numbers are stored without the space, and every other shape shows as stored.
+     */
+    public static function display(?string $code): string
+    {
+        return preg_replace('/^([A-Z]{3,})(\d{4})$/', '$1 $2', (string) $code);
+    }
+
+    /** A series as a group name: "KB|" reads KB, "A|B" reads A…B, "|" reads No letters. */
+    public static function seriesLabel(string $series): string
+    {
+        [$prefix, $suffix] = array_pad(explode('|', $series, 2), 2, '');
+        if ($prefix === '' && $suffix === '') return 'No letters';
+
+        return $suffix === '' ? $prefix : $prefix . '…' . $suffix;
     }
 
     /**
@@ -109,6 +127,33 @@ class SurveyBeaconRegister extends SurveyModel
         return $out;
     }
 
+    /**
+     * Numbers and ranges pasted as text, separated by commas or lines: "KB1088, A1404B\nKB1100 to KB1120".
+     * Also reads "-", an en or em dash, or an arrow between the two ends.
+     *
+     * @return array{ranges: array<int, array>, bad: array<int, string>}
+     */
+    public static function parseList(string $text): array
+    {
+        $ranges = [];
+        $bad = [];
+        foreach (preg_split('/[\r\n,;]+/', $text) as $part) {
+            $part = trim($part);
+            if ($part === '') continue;
+            $ends = preg_split('/\s+to\s+|\s*(?:→|–|—|-)\s*/iu', $part);
+            $range = count($ends) === 2 ? self::parseRange($ends[0], $ends[1]) : self::parseRange($part, null);
+            if (! $range) {
+                $bad[] = $part;
+            } elseif ($range['count'] > self::MAX_RANGE) {
+                $bad[] = $part . ' (more than ' . self::MAX_RANGE . ' numbers)';
+            } else {
+                $ranges[] = $range;
+            }
+        }
+
+        return ['ranges' => $ranges, 'bad' => $bad];
+    }
+
     /** The line's file numbers, in the order picked (user, 2026-10-23). */
     public function files()
     {
@@ -132,8 +177,8 @@ class SurveyBeaconRegister extends SurveyModel
     public function getIssuedRangeAttribute(): string
     {
         return $this->beacon_to && $this->beacon_to !== $this->beacon_from
-            ? "{$this->beacon_from} → {$this->beacon_to}"
-            : (string) $this->beacon_from;
+            ? self::display($this->beacon_from) . ' → ' . self::display($this->beacon_to)
+            : self::display($this->beacon_from);
     }
 
     public function getPaymentLabelAttribute(): ?string

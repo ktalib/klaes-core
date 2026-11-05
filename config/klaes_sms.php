@@ -616,6 +616,118 @@ return [
          | editable here, which is why they carry no template.
          */
 
+        SmsSetting::KEY_SURVEY_PORTAL_REGISTERED => [
+            // CR 03112026: Surveyor General's Office portal. Ships off, like every message here.
+            'sender' => 'department',
+            'group' => 'Surveyor Portal',
+            'label' => 'Surveyor registered',
+            'audience' => 'applicant',
+            'recipient' => 'The surveyor, when they register on the portal.',
+            'default_enabled' => false,
+            'tokens' => ['Name', 'Ref'],
+            'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'KSSGOF-REG-2026-00001'],
+            'template' => 'Dear [Name], your KSSGOF registration [Ref] has been received. You can sign in once the Surveyor General confirms it.',
+            'fallback' => 'Dear [Name], we have your KSSGOF registration [Ref]. We will text you when you can sign in.',
+        ],
+
+        SmsSetting::KEY_SURVEY_PORTAL_ACTIVE => [
+            // CR 03112026: Surveyor General's Office portal. Ships off, like every message here.
+            'sender' => 'department',
+            'group' => 'Surveyor Portal',
+            'label' => 'Surveyor account confirmed',
+            'audience' => 'applicant',
+            'recipient' => 'The surveyor, when the SG confirms the account.',
+            'default_enabled' => false,
+            'tokens' => ['Name', 'Ref'],
+            'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'KSSGOF-SV-2026-0001'],
+            'template' => 'Dear [Name], your KSSGOF account is active. Your Surveyor ID is [Ref]. You can now sign in to the portal.',
+            'fallback' => 'Dear [Name], you can now sign in to the KSSGOF portal. Your Surveyor ID is [Ref].',
+        ],
+
+        SmsSetting::KEY_SURVEY_PORTAL_DECLINED => [
+            // CR 03112026: Surveyor General's Office portal. Ships off, like every message here.
+            'sender' => 'department',
+            'group' => 'Surveyor Portal',
+            'label' => 'Surveyor account not confirmed',
+            'audience' => 'applicant',
+            'recipient' => 'The surveyor, when the SG does not confirm the account.',
+            'default_enabled' => false,
+            'tokens' => ['Name', 'Ref'],
+            'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'KSSGOF-REG-2026-00001'],
+            'template' => 'Dear [Name], your KSSGOF registration [Ref] was not confirmed. Please contact the Office of the Surveyor General.',
+            'fallback' => 'Dear [Name], please contact the Office of the Surveyor General about your registration [Ref].',
+        ],
+
+        SmsSetting::KEY_SURVEY_BEACON_REQUEST => [
+            // CR 03112026: Surveyor General's Office portal. Ships off, like every message here.
+            'sender' => 'staff',
+            'group' => 'Surveyor Portal',
+            'label' => 'New beacon request (to the SG)',
+            'audience' => 'officer',
+            'recipient' => 'Every holder of the Survey - SG role, when a request comes in.',
+            'default_enabled' => false,
+            'tokens' => ['Ref', 'Name', 'Qty'],
+            'sample' => ['Ref' => 'BRQ-2026-0001', 'Name' => 'Peak Profile', 'Qty' => '4'],
+            'template' => 'Beacon request [Ref]: [Name] asked for [Qty] beacons. Please review it in KLAES.',
+            'fallback' => 'New beacon request [Ref] from [Name] for [Qty] beacons in KLAES.',
+        ],
+
+        SmsSetting::KEY_SURVEY_BEACON_RECEIVED => [
+            // CR 03112026: Surveyor General's Office portal. Ships off, like every message here.
+            'sender' => 'department',
+            'group' => 'Surveyor Portal',
+            'label' => 'Beacon request received',
+            'audience' => 'applicant',
+            'recipient' => 'The surveyor, when a request is submitted on the portal.',
+            'default_enabled' => false,
+            'tokens' => ['Ref'],
+            'sample' => ['Ref' => 'BRQ-2026-0001'],
+            'template' => 'Your beacon request [Ref] has been submitted to the Surveyor General.',
+            'fallback' => 'We have your beacon request [Ref].',
+        ],
+
+        SmsSetting::KEY_SURVEY_BEACON_READY => [
+            // CR 03112026: Surveyor General's Office portal. Ships off, like every message here.
+            'sender' => 'department',
+            'group' => 'Surveyor Portal',
+            'label' => 'Beacons ready',
+            'audience' => 'applicant',
+            'recipient' => 'The surveyor, when the SG issues the numbers.',
+            'default_enabled' => false,
+            'tokens' => ['Ref'],
+            'sample' => ['Ref' => 'BRQ-2026-0001'],
+            'template' => 'Your beacons for request [Ref] are ready. Please sign in to the KSSGOF portal to accept them.',
+            'fallback' => 'Please sign in to the KSSGOF portal about your request [Ref].',
+        ],
+
+        SmsSetting::KEY_SURVEY_BEACON_DECLINED => [
+            // CR 03112026: Surveyor General's Office portal. Ships off, like every message here.
+            'sender' => 'department',
+            'group' => 'Surveyor Portal',
+            'label' => 'Beacon request not issued',
+            'audience' => 'applicant',
+            'recipient' => 'The surveyor, when the SG does not issue a request.',
+            'default_enabled' => false,
+            'tokens' => ['Ref'],
+            'sample' => ['Ref' => 'BRQ-2026-0001'],
+            'template' => 'Your beacon request [Ref] was not issued. Please check the KSSGOF portal for the reason.',
+            'fallback' => 'Please check the KSSGOF portal about your request [Ref].',
+        ],
+
+        SmsSetting::KEY_SURVEY_FARM_CAPTURED => [
+            // CR 03112026 item 8. Ships off, like every message here.
+            'sender' => 'department',
+            'group' => 'Survey',
+            'label' => 'Farm captured',
+            'audience' => 'applicant',
+            'recipient' => 'Each farmer on a farm assessment, when it is submitted.',
+            'default_enabled' => false,
+            'tokens' => ['Name', 'FarmerId', 'FarmId', 'Section', 'FarmNo'],
+            'sample' => ['Name' => 'Musa Ibrahim', 'FarmerId' => 'FMR-000123', 'FarmId' => 'FRM-000456', 'Section' => '3', 'FarmNo' => '12'],
+            'template' => 'Dear [Name], your farm has been captured. Farmer ID [FarmerId], Farm ID [FarmId], Section [Section], Farm No [FarmNo]. Keep these details.',
+            'fallback' => 'Dear [Name], your farm is recorded. Farmer ID [FarmerId], Farm ID [FarmId], Section [Section], Farm No [FarmNo].',
+        ],
+
         SmsSetting::KEY_ATTENDANCE_LOGIN => [
             // To a member of staff -- goes out as KLAES.
             'sender' => 'staff',

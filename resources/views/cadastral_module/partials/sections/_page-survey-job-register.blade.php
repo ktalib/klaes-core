@@ -155,6 +155,7 @@
         <button type="submit" class="btn btn-primary" data-wizard-submit><i data-lucide="save"></i> Save Job</button>
     </div>
 </form>
+@include('cadastral_module.partials._job_survey_details')
 @endif
 
 {{-- The Instruction to Surveyor --}}

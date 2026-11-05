@@ -147,11 +147,10 @@ class SurveyTpNumber extends SurveyModel
         return $out;
     }
 
-    /** Register order: the drawing register's S/N, then (entries added on the page) serial number, serial text, prefix. */
+    /** Serial order (recording 2026-11-05: 1, 2 ... 14, not 14 before 2): the serial's number, its text, then the prefix. */
     public function scopeSerialOrder($q)
     {
-        return $q->orderByRaw('CASE WHEN register_sn IS NULL THEN 1 ELSE 0 END')->orderBy('register_sn')
-            ->orderByRaw('CASE WHEN serial_sort IS NULL THEN 1 ELSE 0 END')
-            ->orderBy('serial_sort')->orderBy('serial_no')->orderBy('prefix')->orderBy('id');
+        return $q->orderByRaw('CASE WHEN serial_sort IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('serial_sort')->orderByRaw('LEN(serial_no)')->orderBy('serial_no')->orderBy('prefix')->orderBy('id');
     }
 }

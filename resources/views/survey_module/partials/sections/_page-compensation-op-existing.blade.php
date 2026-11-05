@@ -57,6 +57,48 @@
     <button type="button" class="btn btn-primary" onclick="document.getElementById('opExistingForm').classList.add('open')"><i class="fas fa-plus"></i> Capture Existing OP</button>
 </div>
 
+{{-- List or By TP No. (CR 03112026 item 2). --}}
+@php $opViewUrl = fn (array $p) => route('survey-module.compensation.op', ['tab' => 'existing'] + $p); @endphp
+<div style="display:flex;gap:6px;margin-bottom:12px;">
+    <a class="btn btn-sm {{ $byTp ? 'btn-outline' : 'btn-primary' }}" href="{{ $opViewUrl([]) }}"><i class="fas fa-list"></i> List</a>
+    <a class="btn btn-sm {{ $byTp ? 'btn-primary' : 'btn-outline' }}" href="{{ $opViewUrl(['view' => 'tp']) }}"><i class="fas fa-layer-group"></i> By TP No.</a>
+</div>
+
+@if ($byTp)
+<form method="GET" class="table-toolbar">
+    <input type="hidden" name="tab" value="existing">
+    <input type="hidden" name="view" value="tp">
+    <div class="left" style="flex-wrap:wrap;gap:8px;">
+        <input type="text" name="q" value="{{ request('q') }}" placeholder="TP number…" style="{{ $field }}width:240px;" />
+        <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
+        @if (request()->filled('q'))<a class="btn btn-outline btn-sm" href="{{ $opViewUrl(['view' => 'tp']) }}">Clear</a>@endif
+    </div>
+</form>
+<div class="table-wrapper">
+    <div class="table-scroll">
+        <table>
+            <thead><tr><th>S/N</th><th>TP No.</th><th>Agency</th><th>Serial No.</th><th>OPs</th><th>Resettlement</th><th>Direct Allocation</th><th>In Public Layout Plans</th></tr></thead>
+            <tbody>
+                @forelse ($byTp as $g)
+                    <tr>
+                        <td>{{ $byTp->firstItem() + $loop->index }}</td>
+                        <td style="white-space:nowrap;"><a href="{{ $opViewUrl(['tp' => $g->id]) }}"><strong>{{ $g->label }}</strong></a>@if ($g->needs_review)<div class="helper-text" style="margin:0;">Needs checking</div>@endif</td>
+                        <td>{{ $g->agency ?: '—' }}</td>
+                        <td>{{ $g->serial ?: '—' }}</td>
+                        <td>{{ number_format($g->op_count) }}</td>
+                        <td>{{ number_format($g->resettlement_count) }}</td>
+                        <td>{{ number_format($g->direct_count) }}</td>
+                        <td>{{ $g->register_rows ? 'Yes' . ($g->register_rows > 1 ? ' (' . $g->register_rows . ' rows)' : '') : 'No' }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="8" style="text-align:center;padding:22px;color:var(--gray-500);">No layout matches the filter.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+    <div class="table-footer"><span>{{ number_format($byTp->total()) }} layouts</span><div class="pagination">{{ $byTp->links() }}</div></div>
+</div>
+@else
 <form method="GET" class="table-toolbar">
     <input type="hidden" name="tab" value="existing">
     <div class="left" style="flex-wrap:wrap;">
@@ -65,12 +107,17 @@
             <option value="">All types</option>
             @foreach ($kinds as $k)<option value="{{ $k }}" @selected(request('kind') === $k)>{{ $k }}</option>@endforeach
         </select>
+        <select name="tp" class="sv-searchable" style="{{ $field }}max-width:260px;">
+            <option value="">All TP Nos.</option>
+            @foreach ($tpGroups as $g)<option value="{{ $g->id }}" @selected(request('tp') === (string) $g->id)>{{ $g->label }} ({{ number_format($g->op_count) }})</option>@endforeach
+            <option value="none" @selected(request('tp') === 'none')>No TP No.</option>
+        </select>
         <select name="project" class="sv-searchable" style="{{ $field }}max-width:320px;">
             <option value="">All projects</option>
             @foreach ($projects as $p)<option value="{{ $p->id }}" @selected((string) request('project') === (string) $p->id)>{{ $p->project_code }} · {{ $p->name }}</option>@endforeach
         </select>
         <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
-        @if (request()->hasAny(['q', 'project', 'kind']))<a class="btn btn-outline btn-sm" href="{{ route('survey-module.compensation.op', ['tab' => 'existing']) }}">Clear</a>@endif
+        @if (request()->hasAny(['q', 'project', 'kind', 'tp']))<a class="btn btn-outline btn-sm" href="{{ route('survey-module.compensation.op', ['tab' => 'existing']) }}">Clear</a>@endif
     </div>
 </form>
 
@@ -79,7 +126,7 @@
         <table>
             <thead>
                 {{-- Property order: Plot No., District, LGA, Location. --}}
-                <tr><th>S/N</th><th>File No.</th><th>OP Serial</th><th>Type</th><th>Allottee</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Date</th><th>Source</th><th></th></tr>
+                <tr><th>S/N</th><th>File No.</th><th>OP Serial</th><th>Type</th><th>Allottee</th><th>TP No.</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Date</th><th>Source</th><th></th></tr>
             </thead>
             <tbody>
                 @forelse ($ops as $op)
@@ -89,6 +136,7 @@
                         <td style="white-space:nowrap;"><strong>{{ $op->serial ?: '—' }}</strong></td>
                         <td style="white-space:nowrap;">{{ $op->op_kind }}</td>
                         <td>{{ $op->allottee ?: '—' }}</td>
+                        <td style="white-space:nowrap;">{{ $op->tp_no ?: '—' }}</td>
                         <td>{{ $op->plot_no ?: '—' }}</td>
                         <td>{{ $op->district ?: '—' }}</td>
                         <td>{{ $op->lga ?: '—' }}</td>
@@ -108,7 +156,7 @@
                                     </button>
                                     <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                          :style="'top:' + top + 'px; left:' + left + 'px'" class="fixed z-50 w-48 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                                        <a href="{{ route('survey-module.compensation.op', ['tab' => 'existing', 'edit' => $op->rid] + request()->only(['q', 'project', 'kind', 'page'])) }}" class="{{ $svItem }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit</a>
+                                        <a href="{{ route('survey-module.compensation.op', ['tab' => 'existing', 'edit' => $op->rid] + request()->only(['q', 'project', 'kind', 'tp', 'page'])) }}" class="{{ $svItem }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit</a>
                                         <form method="POST" action="{{ route('survey-module.compensation.op.existing.destroy', $op->rid) }}" onsubmit="return confirm('Remove existing OP {{ addslashes((string) $op->serial) }}?');">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="{{ $svItem }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i> Remove</button>
@@ -119,8 +167,8 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="12" style="text-align:center;padding:22px;color:var(--gray-500);">
-                        {{ request()->hasAny(['q', 'project', 'kind']) ? 'No existing OP matches the filter.' : 'No existing OPs yet.' }}
+                    <tr><td colspan="13" style="text-align:center;padding:22px;color:var(--gray-500);">
+                        {{ request()->hasAny(['q', 'project', 'kind', 'tp']) ? 'No existing OP matches the filter.' : 'No existing OPs yet.' }}
                     </td></tr>
                 @endforelse
             </tbody>
@@ -128,3 +176,4 @@
     </div>
     <div class="table-footer"><span>{{ number_format($ops->total()) }} existing OPs · from Deeds, and any captured here</span><div class="pagination">{{ $ops->links() }}</div></div>
 </div>
+@endif

@@ -16,6 +16,7 @@ class SurveyCompCase extends SurveyModel
         'area_ha'   => 'decimal:4',
         'portion_size_ha' => 'decimal:4',
         'survey_project_surveyor_id' => 'integer',
+        'section_no'      => 'integer',
         'portion_no'      => 'integer',
         'captured_from_paper' => 'boolean',
     ];

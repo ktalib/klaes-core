@@ -115,6 +115,7 @@
                         <div style="min-width:0;">
                             <div class="main-t">{{ $b->full_name }}</div>
                             <small>{{ $b->phone ?: 'No phone' }}{{ $b->nin ? ' · NIN ' . $b->nin : '' }}</small>
+                            @if ($b->farm_id_no)<small style="display:block;">Section {{ $case->section_no }} · {{ $b->farm_id_no }} · Farm No. {{ $b->farm_no }}</small>@endif
                         </div>
                         <span class="pill {{ $b->status === 'Verified' ? 'st-done' : ($b->status === 'Review' ? 'st-review' : 'st-draft') }}">{{ $b->status }}</span>
                     </div>

@@ -9,6 +9,7 @@ use App\Models\Survey\SurveyorListEntry;
 use App\Models\Survey\SurveyPlotCheck as Check;
 use App\Models\Survey\SurveyTpNumber;
 use App\Services\Survey\OpLookup;
+use App\Services\Survey\OpTpGroups;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -26,37 +27,59 @@ use Illuminate\Validation\ValidationException;
  * Opened from Records > Plot Showing Register (user, 2026-11-02). Showings are recorded in the
  * field with the app, or here with Record Plot Showing (same rules: numbered per OP, latest
  * first, a reason from the 2nd showing on). Search, filters and S/N in display order.
+ *
+ * Two entries (CR 03112026 item 1): GKN > Plot Showing Register has Resettlement + Direct Allocation and
+ * every action; Compensation > Plot Showing Register - Resettlement is the same list, Resettlement only,
+ * view only. Old register lines are not a tab of their own: an attribute of the entry, shown in one list.
  */
 class PlotConfirmationController extends Controller
 {
-    public function index(Request $r)
+    private const GKN = 'survey-module.gkn.plot-showing';
+    private const COMPENSATION = 'survey-module.compensation.plot-confirmations';
+
+    /** GKN > Plot Showing Register: both OP types, with the actions. */
+    public function gkn(Request $r)
     {
+        return $this->index($r, true);
+    }
+
+    /** Compensation > Plot Showing Register - Resettlement: Resettlement only, view only, unless called as gkn(). */
+    public function index(Request $r, bool $gkn = false)
+    {
+        // Old links: Confirmation Forms lives on the GKN entry; the Old Register tab is now a filter.
+        if (! $gkn && $r->query('tab') === 'confirmation') {
+            session()->reflash();
+
+            return redirect()->route(self::GKN, $r->query());
+        }
+        $source = $r->query('tab') === 'old' ? 'old' : (string) $r->query('source', '');
+
         // Confirmation Forms is a tab here too (user, 2026-11-03); it switches without a page load.
-        $tab = in_array($r->query('tab'), ['checks', 'old', 'confirmation'], true) ? $r->query('tab') : 'showings';
+        $tab = $r->query('tab') === 'checks' ? 'checks' : ($gkn && $r->query('tab') === 'confirmation' ? 'confirmation' : 'showings');
+        // Compensation sees Resettlement only (CR 03112026 item 1).
+        $resettlementOnly = fn ($q) => $gkn ? $q : $q->where('op_type', Showing::RESETTLEMENT);
+        $resettlementChecks = fn ($q) => $gkn ? $q : $q->whereIn('survey_op_showing_id', Showing::query()->where('op_type', Showing::RESETTLEMENT)->select('id'));
         $term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')));
         $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
         $from = $r->query('from');
         $to = $r->query('to');
 
-        // OP showings only; the old register's entries (op_source 'old', no OP) have their own tab.
-        $showings = Showing::query()->whereNotNull('op_source')->where('op_source', '!=', Showing::SOURCE_OLD)->withCount('photos')
+        // One list (CR 03112026): OP showings and lines from the old book (op_source 'old', no OP), told apart by the Source column.
+        $showings = $resettlementOnly(Showing::query())->whereNotNull('op_source')->withCount('photos')
             ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('op_serial', 'like', $like)->orWhere('allottee_name', 'like', $like)
                 ->orWhere('plot_no', 'like', $like)->orWhere('district', 'like', $like)->orWhere('surveyor_name', 'like', $like)
-                ->orWhere('requester_name', 'like', $like)->orWhere('tp_no', 'like', $like)))
+                ->orWhere('requester_name', 'like', $like)->orWhere('tp_no', 'like', $like)->orWhere('notes', 'like', $like)))
+            ->when($source === 'old', fn ($q) => $q->where('op_source', Showing::SOURCE_OLD))
+            ->when($source === 'new', fn ($q) => $q->where('op_source', '!=', Showing::SOURCE_OLD))
+            ->when(in_array($r->query('type'), [Showing::RESETTLEMENT, Showing::DIRECT], true) && $gkn,
+                fn ($q) => $r->query('type') === Showing::RESETTLEMENT ? $q->where('op_type', Showing::RESETTLEMENT)
+                    : $q->where(fn ($w) => $w->whereNull('op_type')->orWhere('op_type', '!=', Showing::RESETTLEMENT)))
             ->when(in_array($r->query('reason'), Showing::REASONS, true), fn ($q) => $q->where('reason', $r->query('reason')))
-            ->when($r->query('reason') === 'first', fn ($q) => $q->where('showing_no', 1))
+            ->when($r->query('reason') === 'first', fn ($q) => $q->where('showing_no', 1)->where('op_source', '!=', Showing::SOURCE_OLD))
             ->when($from, fn ($q) => $q->whereDate('shown_on', '>=', $from))
             ->when($to, fn ($q) => $q->whereDate('shown_on', '<=', $to));
 
-        // Plot Showing Register (Old) (user, 2026-11-03): Date, Plot No., Allottee, C of O / OP No., Pointed Out By, Remark.
-        $old = Showing::query()->where('op_source', Showing::SOURCE_OLD)->withCount('photos')
-            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('op_serial', 'like', $like)->orWhere('allottee_name', 'like', $like)
-                ->orWhere('plot_no', 'like', $like)->orWhere('surveyor_name', 'like', $like)->orWhere('notes', 'like', $like)
-                ->orWhere('tp_no', 'like', $like)))
-            ->when($from, fn ($q) => $q->whereDate('shown_on', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('shown_on', '<=', $to));
-
-        $checks = Check::query()->withCount('photos')
+        $checks = $resettlementChecks(Check::query())->withCount('photos')
             ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('check_ref', 'like', $like)->orWhere('op_serial', 'like', $like)
                 ->orWhere('holder_name', 'like', $like)->orWhere('plot_no', 'like', $like)->orWhere('layout_no', 'like', $like)
                 ->orWhere('district', 'like', $like)->orWhere('surveyor_name', 'like', $like)->orWhere('beacons_found', 'like', $like)))
@@ -64,43 +87,65 @@ class PlotConfirmationController extends Controller
             ->when($from, fn ($q) => $q->whereDate('checked_on', '>=', $from))
             ->when($to, fn ($q) => $q->whereDate('checked_on', '<=', $to));
 
+        $opShowings = fn () => $resettlementOnly(Showing::query())->whereNotNull('op_source')->where('op_source', '!=', Showing::SOURCE_OLD);
+
         return view('survey_module.compensation.plot_confirmations', [
             'tab'      => $tab,
+            'isGkn'    => $gkn,
+            'register' => $gkn ? self::GKN : self::COMPENSATION,
+            'source'   => $source,
             'surveyors' => $this->surveyors(),
             // TP No. on Record Plot Showing (user, 2026-11-03): the Public Layout Plans register.
             // Only the numbers, each once (user, 2026-11-03): a number drawn twice in the register is its first entry,
             // the one an Other with that number is matched to.
             'tpNumbers' => SurveyTpNumber::listed()->whereNotNull('tp_no')->where('tp_no', '<>', '')->serialOrder()->get(['id', 'tp_no'])
                 ->groupBy(fn ($t) => mb_strtoupper(str_replace(' ', '', $t->tp_no)))->map(fn ($g) => $g->sortBy('id')->first())->values(),
+            // Record Plot Showing (New) starts from the layout (CR 03112026 item 3).
+            'tpGroups' => $gkn ? app(OpTpGroups::class)->options() : collect(),
             'totals'   => [
-                'showings'      => Showing::whereNotNull('op_source')->where('op_source', '!=', Showing::SOURCE_OLD)->count(),
-                'ops'           => Showing::whereNotNull('op_source')->where('op_source', '!=', Showing::SOURCE_OLD)->distinct()->count('op_source_id'),
-                'old'           => Showing::where('op_source', Showing::SOURCE_OLD)->count(),
-                'checks'        => Check::count(),
-                'discrepancies' => Check::where('result', Check::DISCREPANCY)->count(),
+                'showings'      => $opShowings()->count(),
+                'ops'           => $opShowings()->distinct()->count('op_source_id'),
+                'old'           => $resettlementOnly(Showing::query())->where('op_source', Showing::SOURCE_OLD)->count(),
+                'checks'        => $resettlementChecks(Check::query())->count(),
+                'discrepancies' => $resettlementChecks(Check::query())->where('result', Check::DISCREPANCY)->count(),
             ],
             'rows'     => match ($tab) {
                 'checks' => $checks->with('photos', 'showing:id,showing_no,shown_on')->orderByDesc('checked_on')->orderByDesc('id')->paginate(20)->withQueryString(),
-                'old'    => $old->with('photos')->orderByDesc('shown_on')->orderByDesc('id')->paginate(20)->withQueryString(),
                 default  => $showings->with('photos', 'groundChecks:id,survey_op_showing_id,check_ref,result')->orderByDesc('shown_on')->orderByDesc('id')->paginate(20)->withQueryString(),
             },
-            'editOld'  => $tab === 'old' && $r->query('edit') ? Showing::where('op_source', Showing::SOURCE_OLD)->find((int) $r->query('edit')) : null,
-        ] + app(ConfirmationFormController::class)->panelData($r));
+            'editOld'  => $gkn && $r->query('edit') ? Showing::where('op_source', Showing::SOURCE_OLD)->find((int) $r->query('edit')) : null,
+        ] + ($gkn ? app(ConfirmationFormController::class)->panelData($r) : []));
     }
 
     /** OPs for the Record Plot Showing form: Deeds OPs by OP serial number only (user, 2026-11-03), with the next showing. */
     public function opSearch(Request $r, OpLookup $ops)
     {
-        $results = $ops->searchSerial((string) $r->query('q', ''), 20);
-        $counts = Showing::whereNotNull('op_source')->selectRaw('op_source, op_source_id, MAX(showing_no) n')->groupBy('op_source', 'op_source_id')
-            ->get()->mapWithKeys(fn ($x) => [$x->op_source . '-' . $x->op_source_id => (int) $x->n]);
+        return response()->json($this->opRows($ops->searchSerial((string) $r->query('q', ''), 20)));
+    }
 
-        return response()->json(array_map(function ($op) use ($counts) {
+    /** The plots of a layout for Record Plot Showing (CR 03112026 item 3): pick the TP No., then the plot. */
+    public function tpPlots(Request $r, OpLookup $ops)
+    {
+        $group = (int) $r->query('group');
+        if ($group < 1) return response()->json([]);
+
+        return response()->json($this->opRows($ops->inGroup($group, (string) $r->query('plot', ''))));
+    }
+
+    /** OPs as the form uses them, with the next showing and the register row for the layout. */
+    private function opRows(array $results): array
+    {
+        $ids = array_column($results, 'id');
+        $counts = $ids ? Showing::whereNotNull('op_source')->whereIn('op_source_id', $ids)->selectRaw('op_source, op_source_id, MAX(showing_no) n')->groupBy('op_source', 'op_source_id')
+            ->get()->mapWithKeys(fn ($x) => [$x->op_source . '-' . $x->op_source_id => (int) $x->n]) : collect();
+        $groups = app(OpTpGroups::class);
+
+        return array_map(function ($op) use ($counts, $groups) {
             $next = ($counts[$op['key']] ?? 0) + 1;
 
             return array_intersect_key($op, array_flip(['key', 'serial', 'type', 'allottee', 'address', 'plot_no', 'district', 'lga', 'location', 'layout', 'file_number']))
-                + ['next' => $next, 'next_label' => Showing::ordinal($next) . ' showing'];
-        }, $results));
+                + ['next' => $next, 'next_label' => Showing::ordinal($next) . ' showing', 'tp_number_id' => $groups->forRaw($op['tp_no'])->survey_tp_number_id ?? null];
+        }, $results);
     }
 
     /**
@@ -123,7 +168,7 @@ class PlotConfirmationController extends Controller
             'created_by' => auth()->id(),
         ]);
 
-        return redirect()->route('survey-module.compensation.plot-confirmations', ['tab' => 'old'])->with('success', 'Old register entry saved.');
+        return redirect()->route(self::GKN, ['source' => 'old'])->with('success', 'Old register entry saved.');
     }
 
     public function updateOld(Request $r, Showing $showing)
@@ -131,7 +176,7 @@ class PlotConfirmationController extends Controller
         abort_unless($showing->op_source === Showing::SOURCE_OLD, 404);
         $showing->update($this->oldValues($r) + ['updated_by' => auth()->id()]);
 
-        return redirect()->route('survey-module.compensation.plot-confirmations', ['tab' => 'old'])->with('success', 'Old register entry updated.');
+        return redirect()->route(self::GKN, ['source' => 'old'])->with('success', 'Old register entry updated.');
     }
 
     public function destroyOld(Showing $showing)
@@ -140,7 +185,7 @@ class PlotConfirmationController extends Controller
         $showing->update(['updated_by' => auth()->id()]);
         $showing->delete();
 
-        return redirect()->route('survey-module.compensation.plot-confirmations', ['tab' => 'old'])->with('success', 'Old register entry removed.');
+        return redirect()->route(self::GKN, ['source' => 'old'])->with('success', 'Old register entry removed.');
     }
 
     private function oldValues(Request $r): array
@@ -155,6 +200,7 @@ class PlotConfirmationController extends Controller
             'pointed_by'    => 'nullable|string|max:50',
             'pointed_by_other' => ['nullable', 'string', 'max:255', Rule::requiredIf(fn () => $r->input('pointed_by') === 'other')],
             'notes'         => 'nullable|string|max:2000',
+            'op_type'       => ['nullable', Rule::in([Showing::RESETTLEMENT, Showing::DIRECT])],
             'tp'            => 'nullable|string|max:20',
             'tp_other'      => ['nullable', 'string', 'max:100', Rule::requiredIf(fn () => $r->input('tp') === 'other')],
             'requester_is_allottee' => 'nullable|in:0,1',
@@ -189,6 +235,7 @@ class PlotConfirmationController extends Controller
             'surveyors_list_id' => $staffId,
             'surveyor_name'     => $byName ?? '',
             'notes'         => $clean($d['notes'] ?? null),
+            'op_type'       => $d['op_type'] ?? null,
             // Requester (user, 2026-11-03): ticked, the allottee is the requester.
             'requester_is_allottee' => ($d['requester_is_allottee'] ?? '0') === '1',
             'requester_name' => ($d['requester_is_allottee'] ?? '0') === '1' ? $clean($d['allottee_name'] ?? null) : $clean($d['requester_name'] ?? null),
@@ -252,6 +299,8 @@ class PlotConfirmationController extends Controller
         // Who asked for the showing (user, 2026-11-02).
         $requester = \App\Services\Survey\ShowingRequester::resolve($r, $op);
         $tp = $this->tpValue($data['tp'] ?? null, $data['tp_other'] ?? null);
+        // Nobody picked one: the layout written on the OP, so the showing still groups by TP No.
+        if (! $tp['tp_no']) $tp = app(OpTpGroups::class)->showingValues($op['tp_no']);
 
         $stored = [];
         try {
@@ -262,6 +311,7 @@ class PlotConfirmationController extends Controller
                     'op_source'         => $op['source'],
                     'op_source_id'      => $op['id'],
                     'op_serial'         => $op['serial'],
+                    'op_type'           => Showing::typeOf($op['type']),
                     'allottee_name'     => $op['allottee'],
                     'plot_no'           => $op['plot_no'],
                     'district'          => $op['district'],
@@ -299,7 +349,7 @@ class PlotConfirmationController extends Controller
 
         \App\Services\Survey\LayoutRecords::forget();   // Layout Records counts showings
 
-        return redirect()->route('survey-module.compensation.plot-confirmations')
+        return redirect()->route(self::GKN)
             ->with('success', "{$showing->label} of OP {$showing->op_serial} recorded.");
     }
 

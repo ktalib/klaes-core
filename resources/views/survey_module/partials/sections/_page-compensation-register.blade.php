@@ -71,7 +71,8 @@
     $benRows = old('beneficiaries', $editing
         ? $case->beneficiaries->map(fn ($b) => [
             'id' => $b->id, 'full_name' => $b->full_name, 'phone' => $b->phone,
-            'nin' => $b->nin, 'status' => $b->status,
+            'nin' => $b->nin, 'status' => $b->status, 'farm_id_no' => $b->farm_id_no, 'farm_no' => $b->farm_no,
+            'survey_farmer_id' => $b->survey_farmer_id,
         ])->all()
         : []);
 
@@ -255,6 +256,12 @@
                                value="{{ old('survey_officer', $case->survey_officer) }}" placeholder="e.g. Clement Joseph" />
                     </div>
 
+                    {{-- Given by the system, the surveyor's next number (CR 03112026 item 5). --}}
+                    <div class="form-group">
+                        <label>Section No.</label>
+                        <input type="text" value="{{ $case->section_no }}" placeholder="Given on save" readonly tabindex="-1" style="background:var(--gray-100);" />
+                    </div>
+
                     <div class="form-group">
                         <label>Date <span class="required">*</span></label>
                         <input type="date" name="case_date" id="caseDate"
@@ -310,15 +317,23 @@
                         <div class="sv-group"><i class="fas fa-user"></i><span>Farmer</span></div>
                         <div class="form-group full">
                             <label>Farmer Name <span class="required">*</span></label>
-                            <input type="text" id="newBenName" placeholder="e.g. Chidi Okafor" />
+                            <input type="text" id="newBenName" placeholder="e.g. Chidi Okafor" autocomplete="off" oninput="caseReg.farmerSearch()" />
+                            {{-- "Is this the existing farmer?" (recording, 2026-11-05): offered, never applied on its own. --}}
+                            <div id="newBenMatches" hidden style="margin-top:8px;border:1px solid var(--gray-200);border-radius:8px;overflow:hidden;"></div>
+                            <input type="hidden" id="newBenFarmer" />
+                        </div>
+                        <div class="form-group full" id="newBenFarmBox" hidden>
+                            <label>Farm</label>
+                            <select id="newBenFarm"></select>
+                            <p class="helper-text">Same farm keeps its Farm ID in this section. A different farm gets a new one.</p>
                         </div>
                         <div class="form-group">
                             <label>Phone</label>
-                            <input type="text" id="newBenPhone" placeholder="e.g. 080-1234-5678" />
+                            <input type="text" id="newBenPhone" placeholder="e.g. 080-1234-5678" oninput="caseReg.farmerSearch()" />
                         </div>
                         <div class="form-group">
                             <label>NIN</label>
-                            <input type="text" id="newBenNin" placeholder="e.g. 12345678901" />
+                            <input type="text" id="newBenNin" placeholder="e.g. 12345678901" oninput="caseReg.farmerSearch()" />
                         </div>
                         <div class="form-group">
                             <label>Status</label>
@@ -351,7 +366,7 @@
 
                     {{-- Hidden prototype row; cloned by addBen() so no markup is built from user text. --}}
                     <div class="list-item" id="caseBenTemplate" style="display:none;">
-                        <span><input type="text" data-f="full_name" /><input type="hidden" data-f="id" /></span>
+                        <span><input type="text" data-f="full_name" /><input type="hidden" data-f="id" /><input type="hidden" data-f="survey_farmer_id" /><input type="hidden" data-f="farm_id_no" /></span>
                         <span><input type="text" data-f="phone" /></span>
                         <span class="hide-mobile"><input type="text" data-f="nin" /></span>
                         <span>
@@ -375,6 +390,8 @@
                                 <span>
                                     <input type="text" name="beneficiaries[{{ $i }}][full_name]" value="{{ $row['full_name'] ?? '' }}" />
                                     <input type="hidden" name="beneficiaries[{{ $i }}][id]" value="{{ $row['id'] ?? '' }}" />
+                                    <input type="hidden" name="beneficiaries[{{ $i }}][survey_farmer_id]" value="{{ $row['survey_farmer_id'] ?? '' }}" />
+                                    <input type="hidden" name="beneficiaries[{{ $i }}][farm_id_no]" value="{{ $row['farm_id_no'] ?? '' }}" />
                                 </span>
                                 <span><input type="text" name="beneficiaries[{{ $i }}][phone]" value="{{ $row['phone'] ?? '' }}" /></span>
                                 <span class="hide-mobile"><input type="text" name="beneficiaries[{{ $i }}][nin]" value="{{ $row['nin'] ?? '' }}" /></span>
@@ -385,7 +402,10 @@
                                         @endforeach
                                     </select>
                                 </span>
-                                <span class="hide-mobile">{{ !empty($row['id']) ? 'Saved' : 'New' }}</span>
+                                <span class="hide-mobile">
+                                    {{ !empty($row['id']) ? 'Saved' : 'New' }}
+                                    @if (! empty($row['farm_id_no']))<small style="display:block;color:var(--gray-500);">{{ $row['farm_id_no'] }} · Farm No. {{ $row['farm_no'] ?? '—' }}</small>@endif
+                                </span>
                                 <span>
                                     <button type="button" class="btn btn-danger btn-xs" onclick="caseReg.removeRow(this)">
                                         <i class="fas fa-trash"></i>
@@ -1041,19 +1061,86 @@
         var name = (qs('newBenName').value || '').trim();
         if (!name) { alert('Enter the farmer name first.'); qs('newBenName').focus(); return; }
 
-        cloneRow('caseBenTemplate', 'caseBenRows', 'beneficiaries', benIndex++, {
+        var farmer = qs('newBenFarmer').value, farm = qs('newBenFarm').value;
+        var row = cloneRow('caseBenTemplate', 'caseBenRows', 'beneficiaries', benIndex++, {
             full_name: name,
             phone:  (qs('newBenPhone').value || '').trim(),
             nin:    (qs('newBenNin').value || '').trim(),
             status: qs('newBenStatus').value,
+            survey_farmer_id: farmer,
+            farm_id_no: farmer ? farm : '',
             id: ''
         });
+        var marker = row.querySelector('[data-role="marker"]');
+        if (marker && farmer) marker.textContent = farm ? 'Existing farm' : 'Existing farmer';
 
         qs('newBenName').value = '';
         qs('newBenPhone').value = '';
         qs('newBenNin').value = '';
+        farmerClear();
         qs('caseBenForm').classList.remove('open');
         refreshCounts();
+    }
+
+    // Existing farmer (CR 03112026): typed details are matched against the farmers on record and offered.
+    var farmerTimer = null, farmerSeq = 0, farmerPicked = null, farmerUrl = @json(route('survey-module.compensation.cases.farmer-lookup'));
+    function farmerClear() {
+        farmerPicked = null;
+        qs('newBenFarmer').value = '';
+        qs('newBenFarm').innerHTML = '';
+        qs('newBenFarmBox').hidden = true;
+        qs('newBenMatches').hidden = true;
+        qs('newBenMatches').textContent = '';
+    }
+    function farmerPick(f) {
+        farmerPicked = f;
+        qs('newBenFarmer').value = f.id;
+        qs('newBenName').value = f.full_name;
+        if (f.phone) qs('newBenPhone').value = f.phone;
+        if (f.nin) qs('newBenNin').value = f.nin;
+        var box = qs('newBenMatches');
+        box.textContent = '';
+        var note = document.createElement('div');
+        note.style.cssText = 'padding:8px 12px;font-size:13px;background:var(--primary-50,#f0fdfa);';
+        note.textContent = 'Existing farmer ' + f.farmer_id_no + '. Their Farmer ID stays the same.';
+        box.appendChild(note);
+        var sel = qs('newBenFarm');
+        sel.innerHTML = '';
+        sel.add(new Option('A different farm (new Farm ID)', ''));
+        (f.farms || []).forEach(function (x) { sel.add(new Option(x.label, x.farm_id_no)); });
+        qs('newBenFarmBox').hidden = !(f.farms || []).length;
+    }
+    function farmerSearch() {
+        // Changing what was picked drops it, and what it filled.
+        if (farmerPicked && (qs('newBenName').value || '').trim() !== farmerPicked.full_name) { farmerClear(); qs('newBenPhone').value = ''; qs('newBenNin').value = ''; }
+        if (farmerPicked) return;
+        clearTimeout(farmerTimer);
+        var name = (qs('newBenName').value || '').trim(), phone = (qs('newBenPhone').value || '').trim(), nin = (qs('newBenNin').value || '').trim();
+        var box = qs('newBenMatches');
+        if (name.length < 3 && !phone && !nin) { box.hidden = true; box.textContent = ''; return; }
+        var mine = ++farmerSeq;
+        farmerTimer = setTimeout(function () {
+            fetch(farmerUrl + '?name=' + encodeURIComponent(name) + '&phone=' + encodeURIComponent(phone) + '&nin=' + encodeURIComponent(nin), { headers: { Accept: 'application/json' } })
+                .then(function (r) { return r.json(); })
+                .then(function (rows) {
+                    if (mine !== farmerSeq || farmerPicked) return;
+                    box.textContent = '';
+                    box.hidden = !rows.length;
+                    if (!rows.length) return;
+                    var head = document.createElement('div');
+                    head.style.cssText = 'padding:6px 12px;font-size:12px;font-weight:600;background:var(--gray-50,#f9fafb);';
+                    head.textContent = 'Is this an existing farmer?';
+                    box.appendChild(head);
+                    rows.forEach(function (f) {
+                        var b = document.createElement('button');
+                        b.type = 'button';
+                        b.style.cssText = 'display:block;width:100%;text-align:left;padding:7px 12px;border:0;border-top:1px solid var(--gray-100);background:#fff;cursor:pointer;font-size:13px;';
+                        b.textContent = f.farmer_id_no + ' · ' + f.full_name + (f.phone ? ' · ' + f.phone : '') + (f.nin ? ' · NIN ' + f.nin : '');
+                        b.addEventListener('click', function () { farmerPick(f); });
+                        box.appendChild(b);
+                    });
+                }).catch(function () {});
+        }, 300);
     }
 
     function addTree() {
@@ -1240,6 +1327,7 @@
         onProject: onProject,
         toggle: function (id) { var el = qs(id); if (el) el.classList.toggle('open'); },
         addBen: addBen,
+        farmerSearch: farmerSearch,
         addTree: addTree,
         removeRow: removeRow,
         lineTotal: lineTotal,

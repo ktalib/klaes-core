@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Cadastral\CadastralSurveyJob;
 use App\Models\Survey\SurveyIts;
 use App\Models\Survey\SurveyorListEntry;
+use App\Services\Survey\ItsBeacons;
+use App\Services\Survey\SurveySettings;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
@@ -27,6 +29,13 @@ use Illuminate\Validation\Rule;
  */
 class SurveyItsController extends Controller
 {
+    /** Beacon numbers typed on the form, held between validated() and the save. */
+    private ?string $beaconText = null;
+
+    public function __construct(private ItsBeacons $beacons)
+    {
+    }
+
     public function index(Request $r)
     {
         $term   = trim((string) $r->query('q', ''));
@@ -90,13 +99,19 @@ class SurveyItsController extends Controller
         $cfs = $this->computationFiles();
 
         return view('survey_module.gkn.its.form', ['its' => new SurveyIts(), 'surveyors' => $this->surveyors(), 'computationFiles' => $cfs,
-            'indexedLpkn' => $this->indexedLpknFiles($cfs->pluck('computation_no')->all())]);
+            'indexedLpkn' => $this->indexedLpknFiles($cfs->pluck('computation_no')->all()),
+            'surveyTypes' => SurveySettings::surveyTypes(), 'beaconList' => []]);
     }
 
     public function store(Request $r)
     {
         $data = $this->validated($r);
-        $its = SurveyIts::create($data + ['job_ref' => SurveyIts::nextRef('job_ref', 'SJ', 4), 'status' => SurveyIts::DRAFT]);
+        $its = DB::connection('sqlsrv')->transaction(function () use ($data) {
+            $its = SurveyIts::create($data + ['job_ref' => SurveyIts::nextRef('job_ref', 'SJ', 4), 'status' => SurveyIts::DRAFT]);
+            $this->beacons->save($this->beaconText, $its->surveyor_name, 'survey_its_id', $its->id);
+
+            return $its;
+        });
 
         return redirect()->route('survey-module.gkn.its.edit', $its)
             ->with('success', "Survey job {$its->job_ref} registered for {$its->file_number}. Check the instruction and issue it.");
@@ -107,7 +122,8 @@ class SurveyItsController extends Controller
         $cfs = $this->computationFiles();
 
         return view('survey_module.gkn.its.form', ['its' => $its, 'surveyors' => $this->surveyors($its->surveyor_id), 'computationFiles' => $cfs,
-            'indexedLpkn' => $this->indexedLpknFiles($cfs->pluck('computation_no')->all())]);
+            'indexedLpkn' => $this->indexedLpknFiles($cfs->pluck('computation_no')->all()),
+            'surveyTypes' => SurveySettings::surveyTypes(), 'beaconList' => $this->beacons->forSurveyIts($its->id)]);
     }
 
     public function update(Request $r, SurveyIts $its)
@@ -118,7 +134,10 @@ class SurveyItsController extends Controller
 
         // The file stays the job's own once registered.
         $data = $this->validated($r, $its);
-        $its->update($data);
+        DB::connection('sqlsrv')->transaction(function () use ($its, $data) {
+            $its->update($data);
+            $this->beacons->save($this->beaconText, $its->surveyor_name, 'survey_its_id', $its->id);
+        });
 
         return back()->with('success', "{$its->job_ref} updated.");
     }
@@ -169,7 +188,11 @@ class SurveyItsController extends Controller
         if ($its->isClosed()) return back()->with('error', "{$its->job_ref} is already {$its->status}.");
         if ($reason === '') return back()->with('error', 'Give a reason for cancelling.');
 
-        $its->update(['status' => SurveyIts::CANCELLED, 'remarks' => trim(($its->remarks ? $its->remarks . "\n" : '') . 'Cancelled ' . now()->format('d M Y') . ': ' . $reason)]);
+        DB::connection('sqlsrv')->transaction(function () use ($its, $reason) {
+            $its->update(['status' => SurveyIts::CANCELLED, 'remarks' => trim(($its->remarks ? $its->remarks . "\n" : '') . 'Cancelled ' . now()->format('d M Y') . ': ' . $reason)]);
+            // A cancelled job gives its beacons back to the surveyor.
+            DB::connection('sqlsrv')->table('survey_its_beacons')->where('survey_its_id', $its->id)->delete();
+        });
 
         return back()->with('success', "{$its->job_ref} cancelled.");
     }
@@ -178,7 +201,7 @@ class SurveyItsController extends Controller
     {
         if (! $its->isIssued()) return back()->with('error', "{$its->job_ref} has no instruction to print yet.");
 
-        return view('survey_module.gkn.its.print', ['its' => $its->load('surveyor')]);
+        return view('survey_module.gkn.its.print', ['its' => $its->load('surveyor'), 'beaconList' => $this->beacons->forSurveyIts($its->id)]);
     }
 
     /** Backfill for a number picked in the global file number selector. */
@@ -266,6 +289,10 @@ class SurveyItsController extends Controller
             'job_scope'   => 'nullable|string|max:4000',
             'its_instructions' => 'nullable|string|max:8000',
             'remarks'     => 'nullable|string|max:2000',
+            // Survey type + beacons (CR 03112026 item 11).
+            'survey_type'       => 'nullable|string|max:100',
+            'survey_type_other' => 'required_if:survey_type,Other|nullable|string|max:100',
+            'beacon_numbers'    => 'nullable|string|max:8000',
             // The Computation File this instruction is for (user, 2026-11-02).
             // ... or an LPKN file already in File Indexing, posted as "idx:<file number>" (user, 2026-11-03).
             'survey_computation_file_id' => ['nullable', 'string', 'max:120', function ($attr, $value, $fail) {
@@ -278,8 +305,11 @@ class SurveyItsController extends Controller
             'survey_computation_file_id.exists' => 'That Computation File no longer exists. Pick another.',
             'file_number.required' => 'Select the file with Select File Number.',
             'surveyor_other.required_if' => 'Surveyor is Other: please specify the surveyor\'s name.',
+            'survey_type_other.required_if' => 'Survey Type is Other: please specify it.',
         ]);
-        unset($data['surveyor_other']);
+        $data['survey_type'] = SurveySettings::surveyTypeValue($data['survey_type'] ?? null, $data['survey_type_other'] ?? null);
+        $this->beaconText = $data['beacon_numbers'] ?? null;
+        unset($data['surveyor_other'], $data['survey_type_other'], $data['beacon_numbers']);
         // Keep the number as it was when picked, beside the link.
         $pick = (string) ($data['survey_computation_file_id'] ?? '');
         if (str_starts_with($pick, 'idx:')) {

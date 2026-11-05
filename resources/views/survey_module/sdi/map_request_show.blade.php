@@ -78,6 +78,11 @@
             @if ($m->response_note)
                 <div style="margin-top:12px;">{!! $row($m->status === SdiMapRequest::REJECTED ? 'Reason' : 'Note', $m->response_note) !!}</div>
             @endif
+            @if ($m->request_file_path)
+                <a class="btn btn-secondary" style="margin-top:14px;" href="{{ route('survey-module.sdi.map-requests.request-file', $m) }}">
+                    <i class="fas fa-download"></i> Scanned request: {{ $m->request_file_name ?: 'Download' }}
+                </a>
+            @endif
             @if ($m->deliverable_path)
                 <a class="btn btn-success" style="margin-top:14px;" href="{{ route('survey-module.sdi.map-requests.deliverable', $m) }}">
                     <i class="fas fa-download"></i> {{ $m->deliverable_original_name ?: 'Download map' }}

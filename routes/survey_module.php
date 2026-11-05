@@ -101,13 +101,15 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Allocation Records: surveyor portions per project, read-only (2026-10-25)
         Route::get('/allocation-records', [AllocationRecordController::class, 'index'])->name('allocation-records');
 
-        // Letter of Grant: every Direct Allocation OP, from Deeds (2026-10-30).
-        Route::get('/letter-of-grant', [\App\Http\Controllers\Survey\LetterOfGrantController::class, 'index'])->name('letter-of-grant');
+        // Letter of Grant is now Recommendation + RofO (CR 03112026 items 9-10, App\Support\SurveyLandRoutes). The old
+        // list of Deeds OPs is gone from this page; no OP was changed. This keeps old links working.
+        Route::get('/letter-of-grant', fn () => redirect()->route('survey-module.lg.land-recommendations.index', ['type' => 'ROFO']))->name('letter-of-grant');
 
         // Plot Confirmation register: OP showings and ground checks from the field app (2026-10-30).
         Route::get('/plot-confirmations', [PlotConfirmationController::class, 'index'])->name('plot-confirmations');
         // Record Plot Showing from the office (user, 2026-11-02): the OP search and the save.
         Route::get('/plot-confirmations/op-search', [PlotConfirmationController::class, 'opSearch'])->name('plot-confirmations.op-search');
+        Route::get('/plot-confirmations/tp-plots', [PlotConfirmationController::class, 'tpPlots'])->name('plot-confirmations.tp-plots');
         Route::post('/plot-confirmations/showings', [PlotConfirmationController::class, 'storeShowing'])->name('plot-confirmations.showings.store');
         // Old register entries (user, 2026-11-03): showings captured from the old book, no OP needed.
         Route::post('/plot-confirmations/old', [PlotConfirmationController::class, 'storeOld'])->name('plot-confirmations.old.store');
@@ -146,7 +148,10 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/capture-list', [\App\Http\Controllers\Survey\CompensationCaptureController::class, 'create'])->name('capture-list');
         Route::post('/capture-list', [\App\Http\Controllers\Survey\CompensationCaptureController::class, 'store'])->name('capture-list.store');
         Route::post('/cases', [CaseController::class, 'store'])->name('cases.store');
+        // "Is this the existing farmer?" (CR 03112026). Before {case}, so it is not read as a case id.
+        Route::get('/cases/farmer-lookup', [CaseController::class, 'farmerLookup'])->name('cases.farmer-lookup');
         Route::get('/cases/{case}', [CaseController::class, 'show'])->name('cases.show');
+        Route::get('/cases/{case}/farm-sheet/{farm}', [CaseController::class, 'farmSheet'])->whereNumber('farm')->name('cases.farm-sheet');
         Route::get('/cases/{case}/edit', [CaseController::class, 'edit'])->name('cases.edit');
         Route::put('/cases/{case}', [CaseController::class, 'update'])->name('cases.update');
         Route::delete('/cases/{case}', [CaseController::class, 'destroy'])->name('cases.destroy');
@@ -197,6 +202,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
     /* ---------------------------------- GKN ---------------------------------- */
     Route::prefix('gkn')->name('gkn.')->group(function () {
+        // Plot Showing Register, Resettlement + Direct Allocation, with the actions (CR 03112026 item 1).
+        Route::get('/plot-showing', [PlotConfirmationController::class, 'gkn'])->name('plot-showing');
         Route::get('/dashboard', [DashboardController::class, 'gkn'])->name('dashboard');
         // Applications: GKN / LPKN / LPPL / Misc KN files in one typed table (2026-10-25).
         Route::get('/applications', [GknApplicationController::class, 'index'])->name('applications');
@@ -402,6 +409,9 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
             Route::get('/next-serial', [BeaconRegisterController::class, 'nextSerial'])->name('next-serial');
             // Issue Beacon No: numbers of a run already in the register (duplicate check, user 2026-11-02).
             Route::get('/check-range', [BeaconRegisterController::class, 'checkRange'])->name('check-range');
+            // CR 03112026: the next public numbers from the pool, and the Duplicate Checker.
+            Route::get('/next-public', [BeaconRegisterController::class, 'nextPublic'])->name('next-public');
+            Route::post('/duplicate-check', [BeaconRegisterController::class, 'duplicateCheck'])->name('duplicate-check');
             // Issue Beacon No: save every group in the table as its own entry (user, 2026-11-02).
             Route::post('/issue', [BeaconRegisterController::class, 'issueBatch'])->name('issue');
             Route::post('/', [BeaconRegisterController::class, 'store'])->name('store');
@@ -410,6 +420,16 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
             Route::post('/{entry}/review', [BeaconRegisterController::class, 'review'])->name('review');
             Route::post('/{entry}/audit', [BeaconRegisterController::class, 'audit'])->name('audit');
         });
+    });
+
+    /* ------------------- Beacon Requests (the SG's desk, CR 03112026) ------------------- */
+    Route::prefix('beacon-requests')->name('beacon-requests.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'index'])->name('index');
+        Route::post('/{request}/issue', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'issue'])->whereNumber('request')->name('issue');
+        Route::post('/{request}/reject', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'reject'])->whereNumber('request')->name('reject');
+        Route::get('/{request}/slip', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'slip'])->whereNumber('request')->name('slip');
+        Route::post('/accounts/{account}/approve', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'approveAccount'])->whereNumber('account')->name('accounts.approve');
+        Route::post('/accounts/{account}/reject', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'rejectAccount'])->whereNumber('account')->name('accounts.reject');
     });
 
     /* ---------------------------------- Tools ---------------------------------- */
@@ -430,6 +450,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/map-requests/create', [SdiMapRequestController::class, 'create'])->name('map-requests.create');
         Route::get('/map-requests/land-use-points', [SdiMapRequestController::class, 'landUsePoints'])->name('map-requests.land-use-points');
         Route::post('/map-requests', [SdiMapRequestController::class, 'store'])->name('map-requests.store');
+        Route::get('/map-requests/{mapRequest}/request-file', [SdiMapRequestController::class, 'requestFile'])->name('map-requests.request-file');
         Route::get('/map-requests/{mapRequest}', [SdiMapRequestController::class, 'show'])->whereNumber('mapRequest')->name('map-requests.show');
         Route::get('/map-requests/{mapRequest}/edit', [SdiMapRequestController::class, 'edit'])->whereNumber('mapRequest')->name('map-requests.edit');
         Route::put('/map-requests/{mapRequest}', [SdiMapRequestController::class, 'update'])->whereNumber('mapRequest')->name('map-requests.update');

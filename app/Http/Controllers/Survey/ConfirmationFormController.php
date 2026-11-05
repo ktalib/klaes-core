@@ -32,7 +32,7 @@ class ConfirmationFormController extends Controller
     public const MAX_BATCH = 500;
     private const ROUTE = 'survey-module.compensation.confirmation-forms';
     /** The Plot Showing Register, whose Confirmation Forms tab lists them. */
-    private const REGISTER = 'survey-module.compensation.plot-confirmations';
+    private const REGISTER = 'survey-module.gkn.plot-showing';
 
     /**
      * The forms are a tab of the Plot Showing Register (user, 2026-11-03), so this address opens that tab. The

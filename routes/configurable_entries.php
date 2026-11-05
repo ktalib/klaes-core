@@ -67,7 +67,7 @@ Route::middleware(['auth'])->prefix('system-admin/configurable-entries')->name('
     Route::post('/kano-mdas/{mda}/delete', [Entries::class, 'deleteKanoMda'])->whereNumber('mda')->name('kano-mdas.delete');
 
     // Survey (CR 30102026, 2026-10-31): sharing ratios, Classmark, land rates, beacon prefixes.
-    $surveyLists = ['ratios', 'classmarks', 'land-rates', 'beacon-prefixes'];
+    $surveyLists = ['ratios', 'classmarks', 'land-rates', 'beacon-prefixes', 'companies', 'survey-types'];
     Route::post('/survey/{list}', [\App\Http\Controllers\SystemAdmin\SurveySettingsController::class, 'save'])->whereIn('list', $surveyLists)->name('survey.store');
     Route::post('/survey/{list}/{id}', [\App\Http\Controllers\SystemAdmin\SurveySettingsController::class, 'save'])->whereIn('list', $surveyLists)->whereNumber('id')->name('survey.update');
     Route::post('/survey/{list}/{id}/toggle', [\App\Http\Controllers\SystemAdmin\SurveySettingsController::class, 'toggle'])->whereIn('list', $surveyLists)->whereNumber('id')->name('survey.toggle');

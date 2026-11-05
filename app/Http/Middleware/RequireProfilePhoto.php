@@ -84,7 +84,7 @@ class RequireProfilePhoto
     {
         // Public portals run on their own guards; a staff member browsing one is
         // not "using the system" in the sense this gate is about.
-        if ($request->is('laas', 'laas/*', 'phs', 'phs/*', 'online-legal-search', 'online-legal-search/*')) {
+        if ($request->is('laas', 'laas/*', 'phs', 'phs/*', 'online-legal-search', 'online-legal-search/*', 'kssgof', 'kssgof/*')) {
             return true;
         }
 

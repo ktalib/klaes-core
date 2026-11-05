@@ -171,6 +171,7 @@
 
             <div class="form-grid" style="margin-top:8px;">
                 <div class="form-group full">
+                    @php $farmerIds = \App\Models\Survey\SurveyFarmer::whereIn('id', $detail->beneficiaries->pluck('survey_farmer_id')->filter())->pluck('farmer_id_no', 'id'); @endphp
                     <label>Beneficiaries ({{ $detail->beneficiaries->count() }})</label>
                     <div class="beneficiary-list">
                         <div class="list-header">
@@ -179,7 +180,13 @@
                         </div>
                         @forelse ($detail->beneficiaries as $b)
                             <div class="list-item">
-                                <span><strong>{{ $b->full_name }}</strong></span>
+                                <span>
+                                    <strong>{{ $b->full_name }}</strong>
+                                    {{-- Section No., Farmer ID, Farm ID, Farm No. (CR 03112026 items 5-7). --}}
+                                    @if ($b->farm_id_no)
+                                        <small style="display:block;color:var(--gray-500);">Section {{ $detail->section_no ?: '—' }} · {{ $farmerIds[$b->survey_farmer_id] ?? '—' }} · {{ $b->farm_id_no }} · Farm No. {{ $b->farm_no ?: '—' }}</small>
+                                    @endif
+                                </span>
                                 <span>{{ $b->phone ?: '—' }}</span>
                                 <span class="hide-mobile">{{ $b->nin ?: '—' }}</span>
                                 <span>
@@ -189,10 +196,23 @@
                                 </span>
                                 <span class="hide-mobile">{{ $b->person_address ?: '—' }}</span>
                                 <span>
-                                    <a class="btn btn-secondary btn-xs"
-                                       href="{{ route('survey-module.compensation.beneficiaries.edit', $b) }}">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
+                                    <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
+                                        <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
+                                                @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open"
+                                                class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
+                                            <i data-lucide="more-vertical" class="w-5 h-5"></i>
+                                        </button>
+                                        <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
+                                             :style="'top:' + top + 'px; left:' + left + 'px'"
+                                             class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                            <a href="{{ route('survey-module.compensation.beneficiaries.edit', $b) }}" class="flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50">
+                                                <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
+                                            </a>
+                                            <a href="{{ route('survey-module.compensation.cases.farm-sheet', [$detail, $b->id]) }}" target="_blank" class="flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50">
+                                                <i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Print Confirmation Sheet
+                                            </a>
+                                        </div>
+                                    </div>
                                 </span>
                             </div>
                         @empty

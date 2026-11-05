@@ -7,6 +7,8 @@ use App\Models\Survey\SurveyBeaconNumber;
 use App\Models\Survey\SurveyBeaconRegister;
 use App\Models\Survey\SurveyBeaconRegisterFile;
 use App\Models\Survey\SurveyorListEntry;
+use App\Services\Survey\BeaconPool;
+use App\Services\Survey\SurveySettings;
 use App\Support\AddressBuilder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -33,6 +35,9 @@ class BeaconRegisterController extends Controller
     /** The module role for this page (user, 2026-10-23). */
     public const MODULE = 'Survey - Beacon Register';
 
+    /** Every private beacon number starts with this (user, 2026-11-05: A + serial + letters). */
+    public const PRIVATE_PREFIX = 'A';
+
     /**
      * EnforceModulePermission only refuses delete for now and records the rest,
      * so the page checks its own actions, as StCofoTdpController does.
@@ -47,7 +52,7 @@ class BeaconRegisterController extends Controller
     {
         $this->authorizeAction('view');
         $q = $this->filtered($r);
-        $view = $r->query('view') === 'numbers' ? 'numbers' : 'issues';
+        $view = in_array($r->query('view'), ['numbers', 'groups'], true) ? $r->query('view') : 'issues';
 
         $entries = (clone $q)->with([
                 'creator:id,first_name,last_name', 'reviewer:id,first_name,last_name', 'auditor:id,first_name,last_name',
@@ -70,6 +75,24 @@ class BeaconRegisterController extends Controller
             $numbers = $nq->orderBy('beacon_series')->orderBy('beacon_seq')->paginate(50)->withQueryString();
         }
 
+        // "By group": every number under its series, whatever the date (CR 03112026 item 14). One group opens at a time.
+        $groups = $groupNumbers = null;
+        $openGroup = null;
+        if ($view === 'groups') {
+            $groups = SurveyBeaconNumber::query()
+                ->whereIn('survey_beacon_register_id', (clone $q)->select('id'))
+                ->selectRaw('beacon_series, COUNT(*) AS issued, MIN(beacon_seq) AS lowest, MAX(beacon_seq) AS highest')
+                ->groupBy('beacon_series')->get()
+                ->sortBy(fn ($g) => sprintf('%03d|%s', strlen($g->beacon_series), $g->beacon_series))->values();
+            $openGroup = $groups->firstWhere('beacon_series', (string) $r->query('group'))?->beacon_series;
+            if ($openGroup !== null) {
+                $groupNumbers = SurveyBeaconNumber::query()
+                    ->whereIn('survey_beacon_register_id', (clone $q)->select('id'))
+                    ->where('beacon_series', $openGroup)->with('register.files')
+                    ->orderBy('beacon_seq')->paginate(50, ['*'], 'gpage')->withQueryString();
+            }
+        }
+
         $filteredBeacons = (int) (clone $q)->sum('total_issued');
         $filteredAmount  = (float) (clone $q)->sum('amount');
 
@@ -80,7 +103,7 @@ class BeaconRegisterController extends Controller
             'amount'         => (float) SurveyBeaconRegister::sum('amount'),
         ];
 
-        // The same four figures split Government / Private (user, 2026-10-26).
+        // The same four figures split Public / Private (user, 2026-10-26).
         $stats['by_type'] = [];
         foreach (array_keys(SurveyBeaconRegister::LAYOUT_TYPES) as $type) {
             $ofType = fn () => SurveyBeaconRegister::where('layout_type', $type);
@@ -99,6 +122,9 @@ class BeaconRegisterController extends Controller
         return view('survey_module.workflow.beacon_register', [
             'entries'         => $entries,
             'numbers'         => $numbers,
+            'groups'          => $groups,
+            'openGroup'       => $openGroup,
+            'groupNumbers'    => $groupNumbers,
             'view'            => $view,
             'stats'           => $stats,
             'years'           => $years,
@@ -107,12 +133,15 @@ class BeaconRegisterController extends Controller
             'filteredAmount'  => $filteredAmount,
             'pageBeacons'     => (int) $entries->getCollection()->sum('total_issued'),
             'surveyors'       => $this->surveyorOptions($editing),
+            'companies'       => SurveySettings::companies(),
+            'pool'            => BeaconPool::status(),
         ]);
     }
 
     /**
      * Issue Beacon No (WhatsApp, user 2026-10-31): the next free serial for a beacon prefix and
-     * optional letter after the serial, one above the highest already issued in that series.
+     * optional letter after the serial, one above the highest already issued in that series. Serials
+     * above 9999 (A46075, A13373) are not four-digit serials, so they do not set the next number.
      */
     public function nextSerial(Request $r)
     {
@@ -122,9 +151,66 @@ class BeaconRegisterController extends Controller
             return response()->json(['message' => 'Choose a beacon prefix.'], 422);
         }
         $series = $prefix . '|' . $suffix;
-        $last = (int) SurveyBeaconNumber::query()->where('beacon_series', $series)->max('beacon_seq');
+        $last = (int) SurveyBeaconNumber::query()->where('beacon_series', $series)->where('beacon_seq', '<=', BeaconPool::MAX_SEQ)->max('beacon_seq');
 
         return response()->json(['series' => $series, 'last' => $last ?: null, 'next' => $last + 1]);
+    }
+
+    /**
+     * Issue Beacon No, Public (CR 03112026): the next numbers from the pool, nothing taken yet. `skip`
+     * leaves out the numbers already in the window's table. The save takes them for real.
+     */
+    public function nextPublic(Request $r)
+    {
+        $this->authorizeAction('view');
+        $count = max(0, min(SurveyBeaconRegister::MAX_RANGE, (int) $r->query('count', 0)));
+
+        return response()->json(BeaconPool::peek($count, (int) $r->query('skip', 0)));
+    }
+
+    /**
+     * Duplicate Checker (user, 2026-11-05): paste numbers or ranges, separated by commas or lines, and
+     * see which are in the register and who holds them. Read-only.
+     */
+    public function duplicateCheck(Request $r)
+    {
+        $this->authorizeAction('view');
+        $parsed = SurveyBeaconRegister::parseList((string) $r->input('numbers', ''));
+        $bad = $parsed['bad'];
+        $wanted = [];
+        foreach ($parsed['ranges'] as $range) {
+            $wanted[$range['series']][] = [$range['start'], $range['end']];
+        }
+
+        $checked = 0;
+        foreach ($wanted as $spans) {
+            foreach ($spans as [$a, $b]) $checked += $b - $a + 1;
+        }
+        if ($checked > 5000) {
+            return response()->json(['message' => 'At most 5,000 numbers at a time.'], 422);
+        }
+
+        $found = collect();
+        foreach ($wanted as $series => $spans) {
+            $found = $found->concat(SurveyBeaconNumber::query()->with('register:id,surveyor_name,company_name,layout_type,issue_date,beacon_from,beacon_to')
+                ->where('beacon_series', $series)
+                ->where(function ($w) use ($spans) {
+                    foreach ($spans as [$a, $b]) $w->orWhereBetween('beacon_seq', [$a, $b]);
+                })->orderBy('beacon_seq')->limit(1000)->get());
+        }
+
+        return response()->json([
+            'checked' => $checked,
+            'bad'     => $bad,
+            'found'   => $found->map(fn ($n) => [
+                'no'       => SurveyBeaconRegister::display($n->beacon_no),
+                'type'     => $n->register?->layout_type_label,
+                'company'  => $n->register?->company_name,
+                'surveyor' => $n->register?->surveyor_name,
+                'date'     => optional($n->register?->issue_date)->format('d/m/Y'),
+                'entry'    => $n->register?->issued_range,
+            ])->values(),
+        ]);
     }
 
     /**
@@ -137,17 +223,19 @@ class BeaconRegisterController extends Controller
         $suffix = strtoupper(preg_replace('/[^A-Za-z]/', '', (string) $r->query('suffix', '')));
         $start = (int) $r->query('start', 0);
         $count = (int) $r->query('count', 0);
-        if ($prefix === '' || $start < 1 || $count < 1 || $count > SurveyBeaconRegister::MAX_RANGE) {
+        $except = (int) $r->query('except', 0);   // Capture / Edit: the line being edited does not clash with itself.
+        if (($prefix === '' && ! $r->boolean('capture')) || $start < 1 || $count < 1 || $count > SurveyBeaconRegister::MAX_RANGE) {
             return response()->json(['message' => 'Choose the prefix, the number of beacons and the start serial.'], 422);
         }
 
         $taken = SurveyBeaconNumber::query()->with('register:id,surveyor_name,issue_date,beacon_from,beacon_to')
             ->where('beacon_series', $prefix . '|' . $suffix)
             ->whereBetween('beacon_seq', [$start, $start + $count - 1])
+            ->when($except, fn ($w) => $w->where('survey_beacon_register_id', '<>', $except))
             ->orderBy('beacon_seq')->get()
             ->map(fn ($n) => [
                 'seq'      => (int) $n->beacon_seq,
-                'no'       => $n->beacon_no,
+                'no'       => SurveyBeaconRegister::display($n->beacon_no),
                 'surveyor' => $n->register?->surveyor_name,
                 'date'     => optional($n->register?->issue_date)->format('d/m/Y'),
                 'entry'    => $n->register?->issued_range,
@@ -162,7 +250,7 @@ class BeaconRegisterController extends Controller
         [$data, $range, $files] = $this->validated($r);
 
         $entry = $this->saving(function () use ($data, $range, $files) {
-            $entry = SurveyBeaconRegister::create($data);
+            $entry = SurveyBeaconRegister::create($this->withCompany($data, $range));
             $this->syncNumbers($entry, $range);
             $this->syncFiles($entry, $files);
 
@@ -192,12 +280,31 @@ class BeaconRegisterController extends Controller
             'groups.max'          => 'At most 50 groups in one save.',
         ]);
 
-        $fields = array_merge(['layout_type', 'beacon_from', 'beacon_to', 'surveyor_choice', 'surveyor_name_other'], AddressBuilder::columns('prop_'));
-        $entries = $this->saving(function () use ($r, $fields) {
+        $entries = $this->issueGroups(array_values($r->input('groups')), (string) $r->input('issue_date'));
+
+        $total = array_sum(array_map(fn ($e) => $e->total_issued, $entries));
+        session()->flash('success', "{$total} beacon(s) recorded in " . count($entries) . ' entr' . (count($entries) === 1 ? 'y' : 'ies') . ': '
+            . implode(', ', array_map(fn ($e) => $e->issued_range, $entries)) . '. Add the payment with Edit on each entry.');
+
+        return response()->json(['message' => 'Saved.', 'redirect' => route('survey-module.workflow.beacon-register.index')]);
+    }
+
+    /**
+     * Save groups as register entries, each through the same checks as New Entry. Also how the SG's Beacon
+     * Requests screen issues (App\Services\Survey\BeaconRequests), so a request gets the same pool and
+     * duplicate guard; that screen holds its own permission, so this one checks none.
+     *
+     * @return array<int, SurveyBeaconRegister>
+     */
+    public function issueGroups(array $groups, string $issueDate): array
+    {
+        $fields = array_merge(['layout_type', 'beacon_from', 'beacon_to', 'count', 'company_choice', 'company_other', 'surveyor_choice', 'surveyor_name_other'], AddressBuilder::columns('prop_'));
+        return $this->saving(function () use ($groups, $issueDate, $fields) {
             $out = [];
-            foreach (array_values($r->input('groups')) as $i => $g) {
+            foreach ($groups as $i => $g) {
                 $g = \Illuminate\Support\Arr::only((array) $g, $fields);
-                $label = 'Group ' . ($i + 1) . (! empty($g['beacon_from']) ? ' (' . $g['beacon_from'] . (! empty($g['beacon_to']) ? ' to ' . $g['beacon_to'] : '') . ')' : '');
+                $public = ($g['layout_type'] ?? null) === 'Government';
+                $label = 'Group ' . ($i + 1) . (! $public && ! empty($g['beacon_from']) ? ' (' . $g['beacon_from'] . (! empty($g['beacon_to']) ? ' to ' . $g['beacon_to'] : '') . ')' : '');
                 try {
                     // AddressBuilder's "Other needs specifying" rule reads the outer request, so it is checked here.
                     foreach (['street', 'district'] as $k) {
@@ -208,31 +315,49 @@ class BeaconRegisterController extends Controller
                     if (($g['surveyor_choice'] ?? '') === 'other' && trim((string) ($g['surveyor_name_other'] ?? '')) === '') {
                         throw ValidationException::withMessages(['surveyor_name_other' => "Type the surveyor's name."]);
                     }
-                    [$data, $range] = $this->validated(Request::create('/', 'POST', $g + ['issue_date' => $r->input('issue_date')]));
-                    // The prefix must belong to the group's beacon type (user, 2026-11-03); a prefix with no type fits both.
-                    if (preg_match('/^([A-Za-z\/-]+)/', (string) ($g['beacon_from'] ?? ''), $pm)) {
-                        $ptype = \App\Services\Survey\SurveySettings::beaconPrefixes(false)
-                            ->first(fn ($p) => mb_strtoupper($p->prefix) === mb_strtoupper($pm[1]))?->beacon_type ?? null;
-                        if ($ptype && $ptype !== ($g['layout_type'] ?? null)) {
-                            throw ValidationException::withMessages(['layout_type' => mb_strtoupper($pm[1]) . " is a {$ptype} prefix; choose {$ptype} or another prefix."]);
-                        }
+                    foreach ($public ? $this->publicRuns($g) : [$this->privateRun($g)] as $run) {
+                        [$data, $range] = $this->validated(Request::create('/', 'POST', array_merge($g, $run, ['issue_date' => $issueDate])));
+                        $entry = SurveyBeaconRegister::create($this->withCompany($data, $range));
+                        $this->syncNumbers($entry, $range);
+                        $out[] = $entry;
                     }
                 } catch (ValidationException $e) {
                     throw ValidationException::withMessages(['groups' => $label . ': ' . collect($e->errors())->flatten()->first()]);
                 }
-                $entry = SurveyBeaconRegister::create($data);
-                $this->syncNumbers($entry, $range);
-                $out[] = $entry;
             }
 
             return $out;
         });
+    }
 
-        $total = array_sum(array_map(fn ($e) => $e->total_issued, $entries));
-        session()->flash('success', "{$total} beacon(s) recorded in " . count($entries) . ' entr' . (count($entries) === 1 ? 'y' : 'ies') . ': '
-            . implode(', ', array_map(fn ($e) => $e->issued_range, $entries)) . '. Add the payment with Edit on each entry.');
+    /**
+     * Public: the numbers come from the pool, never from the client (CR 03112026). More than one run
+     * when the quantity crosses into the next prefix.
+     *
+     * @return array<int, array{beacon_from:string, beacon_to:?string}>
+     */
+    private function publicRuns(array $g): array
+    {
+        $count = (int) ($g['count'] ?? 0);
+        if ($count < 1 || $count > SurveyBeaconRegister::MAX_RANGE) {
+            throw ValidationException::withMessages(['count' => 'Enter the number of beacons, at most ' . SurveyBeaconRegister::MAX_RANGE . '.']);
+        }
 
-        return response()->json(['message' => 'Saved.', 'redirect' => route('survey-module.workflow.beacon-register.index')]);
+        return array_map(fn ($run) => ['beacon_from' => $run['from'], 'beacon_to' => $run['to'] === $run['from'] ? null : $run['to']], BeaconPool::claim($count));
+    }
+
+    /** Private: A + serial + the SG's letters (user, 2026-11-05), for a named company. */
+    private function privateRun(array $g): array
+    {
+        $a = SurveyBeaconRegister::parseBeacon($g['beacon_from'] ?? '');
+        if (! $a || $a['prefix'] !== self::PRIVATE_PREFIX || ! preg_match('/^[A-Z]{1,3}$/', $a['suffix'])) {
+            throw ValidationException::withMessages(['beacon_from' => 'A private beacon number is A, the serial, then one to three letters, e.g. A0001B.']);
+        }
+        if (trim((string) ($g['company_choice'] ?? '')) === '' || (($g['company_choice'] ?? '') === 'other' && trim((string) ($g['company_other'] ?? '')) === '')) {
+            throw ValidationException::withMessages(['company_choice' => 'Choose the company.']);
+        }
+
+        return ['beacon_from' => $g['beacon_from'], 'beacon_to' => $g['beacon_to'] ?? null];
     }
 
     public function update(Request $r, SurveyBeaconRegister $entry)
@@ -244,7 +369,7 @@ class BeaconRegisterController extends Controller
         [$data, $range, $files] = $this->validated($r, $entry);
 
         $this->saving(function () use ($entry, $data, $range, $files) {
-            $entry->update($data);
+            $entry->update($this->withCompany($data, $range));
             $this->syncNumbers($entry, $range);
             $this->syncFiles($entry, $files);
         });
@@ -263,6 +388,7 @@ class BeaconRegisterController extends Controller
         DB::connection('sqlsrv')->transaction(function () use ($entry) {
             // Releases the numbers: they may be issued again on a new line.
             $entry->numbers()->get()->each->delete();
+            BeaconPool::release($entry->id);
             $entry->delete();
         });
 
@@ -396,6 +522,7 @@ class BeaconRegisterController extends Controller
         }
 
         SurveyBeaconNumber::withTrashed()->where('survey_beacon_register_id', $entry->id)->forceDelete();
+        BeaconPool::release($entry->id);
 
         $now = now();
         $rows = [];
@@ -415,6 +542,51 @@ class BeaconRegisterController extends Controller
         foreach (array_chunk($rows, 200) as $chunk) {
             DB::connection('sqlsrv')->table('survey_beacon_numbers')->insert($chunk);
         }
+        // However the number reached the register, the pool must never offer it again.
+        BeaconPool::markIssued($entry->id, $range['series'], $range['start'], $range['end']);
+    }
+
+    /**
+     * The company chosen, or a typed one added to the list (user recording: "if it's not there they will
+     * enter it and it will update"). Run inside the save, so a refused save adds nothing.
+     */
+    private function withCompany(array $data, array $range): array
+    {
+        if (! empty($data['company_id']) || empty($data['company_name'])) return $data;
+
+        $db = DB::connection('sqlsrv');
+        $name = $data['company_name'];
+        $id = $db->table('survey_companies')->whereRaw('UPPER(name) = ?', [mb_strtoupper($name)])->value('id');
+        $data['company_id'] = $id ?: $db->table('survey_companies')->insertGetId([
+            'name'           => $name,
+            'beacon_letters' => $range['suffix'] !== '' && strlen($range['suffix']) <= 3 ? $range['suffix'] : null,
+            'surveyor_name'  => $data['surveyor_name'] ?? null,
+            'is_active'      => 1,
+            'created_by'     => Auth::id(), 'updated_by' => Auth::id(),
+            'created_at'     => now(), 'updated_at' => now(),
+        ]);
+
+        return $data;
+    }
+
+    /** The company for a Private line: a list entry, or a typed name (Other). Public lines carry none. */
+    private function resolveCompany(Request $r): array
+    {
+        $none = ['company_id' => null, 'company_name' => null];
+        $choice = (string) $r->input('company_choice');
+        if ($r->input('layout_type') !== 'Private' || $choice === '') return $none;
+
+        if ($choice === 'other') {
+            $name = preg_replace('/\s+/', ' ', trim((string) $r->input('company_other')));
+            if ($name === '') throw ValidationException::withMessages(['company_other' => "Type the company's name."]);
+
+            return ['company_id' => null, 'company_name' => mb_substr($name, 0, 255)];
+        }
+
+        $company = ctype_digit($choice) ? DB::connection('sqlsrv')->table('survey_companies')->find($choice) : null;
+        if (! $company) throw ValidationException::withMessages(['company_choice' => 'Choose a company from the list, or Other.']);
+
+        return ['company_id' => $company->id, 'company_name' => $company->name];
     }
 
     /**
@@ -447,6 +619,7 @@ class BeaconRegisterController extends Controller
                 $w->where('beacon_from', 'like', "%$term%")
                     ->orWhere('beacon_to', 'like', "%$term%")
                     ->orWhere('surveyor_name', 'like', "%$term%")
+                    ->orWhere('company_name', 'like', "%$term%")
                     ->orWhere('surveyor_registration', 'like', "%$term%")
                     ->orWhere('plan_no', 'like', "%$term%")
                     ->orWhere('teller_no', 'like', "%$term%")
@@ -595,6 +768,8 @@ class BeaconRegisterController extends Controller
             'file_numbers.*'        => 'nullable|string|max:100',
             'coord_x'               => 'nullable|numeric|between:-99999999999999,99999999999999',
             'coord_y'               => 'nullable|numeric|between:-99999999999999,99999999999999',
+            'company_choice'        => 'nullable|string|max:30',
+            'company_other'         => 'nullable|string|max:255',
             'surveyor_choice'       => 'nullable|string|max:30',
             'surveyor_name_other'   => 'nullable|string|max:255',
             'surveyor_registration' => 'nullable|string|max:50',
@@ -602,8 +777,8 @@ class BeaconRegisterController extends Controller
             'amount'                => 'nullable|numeric|min:0|max:9999999999999',
             'date_received'         => 'nullable|date|after_or_equal:issue_date',
         ] + AddressBuilder::rules('prop_', false), [
-            'layout_type.required'           => 'Choose the type: Government or Private.',
-            'layout_type.in'                 => 'Choose the type: Government or Private.',
+            'layout_type.required'           => 'Choose the type: Public or Private.',
+            'layout_type.in'                 => 'Choose the type: Public or Private.',
             'issue_date.required'            => 'The issue date is required.',
             'beacon_from.required'           => 'Enter the first beacon number of the range.',
             'coord_x.numeric'                => 'X must be a number.',
@@ -636,7 +811,7 @@ class BeaconRegisterController extends Controller
             'state'          => $data['prop_state'] ?? null,
         ]) ?: null;
 
-        $data = array_merge(\Illuminate\Support\Arr::except($data, ['surveyor_choice', 'surveyor_name_other']), $this->resolveSurveyor($r));
+        $data = array_merge(\Illuminate\Support\Arr::except($data, ['surveyor_choice', 'surveyor_name_other', 'company_choice', 'company_other']), $this->resolveSurveyor($r), $this->resolveCompany($r));
 
         $range = $this->checkedRange($data['beacon_from'], $data['beacon_to'] ?? null, $entry);
 
@@ -696,7 +871,7 @@ class BeaconRegisterController extends Controller
             ->orderBy('beacon_seq')->limit(6)->get();
         if ($taken->isNotEmpty()) {
             $first = $taken->first()->register;
-            $list = $taken->take(5)->pluck('beacon_no')->implode(', ') . ($taken->count() > 5 ? ', …' : '');
+            $list = $taken->take(5)->map(fn ($n) => SurveyBeaconRegister::display($n->beacon_no))->implode(', ') . ($taken->count() > 5 ? ', …' : '');
             throw ValidationException::withMessages(['beacon_from' => "Already issued: $list (to " . ($first->surveyor_name ?: 'no surveyor named') . " on "
                 . $first->issue_date->format('d/m/Y') . ", entry {$first->issued_range})."]);
         }

@@ -13,7 +13,7 @@
          class="fixed z-50 rounded-lg border border-gray-200 bg-white shadow-lg py-1" style="width:300px;">
         <a href="{{ route('survey-module.compensation.cases.register', $cpq) }}" role="menuitem" class="flex items-start gap-3 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50">
             <i data-lucide="file-plus" class="w-4 h-4 text-gray-500" style="margin-top:2px;"></i>
-            <span><strong>Capture Farmer</strong><br><span class="text-xs text-gray-500">A land assessed now: farmers, farm, trees and compensation.</span></span>
+            <span><strong>Capture Farm</strong><br><span class="text-xs text-gray-500">A land assessed now: farmers, farm, trees and compensation.</span></span>
         </a>
         <a href="{{ route('survey-module.compensation.capture-list', $cpq) }}" role="menuitem" class="flex items-start gap-3 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50">
             <i data-lucide="archive" class="w-4 h-4 text-gray-500" style="margin-top:2px;"></i>

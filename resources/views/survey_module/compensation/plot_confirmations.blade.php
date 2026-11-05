@@ -1,17 +1,19 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'Plot Showing Register — KLAES')
+@section('page-title', ($isGkn ? 'Plot Showing Register' : 'Plot Showing Register - Resettlement') . ' — KLAES')
 
 @php
   use App\Models\Survey\SurveyOpShowing as Showing;
   use App\Models\Survey\SurveyPlotCheck as Check;
 
   // Opened from Records > Plot Showing Register (user, 2026-11-02).
-  $PageTitle = 'Plot Showing Register';
-  $PageDescription = 'OP plots shown to their allottees (Showing History) and ground checks of plots against their layout and the Beacon Register: recorded here or with the Plot Confirmation app. Confirmation Forms are issued and captured on their own tab.';
+  $PageTitle = $isGkn ? 'Plot Showing Register' : 'Plot Showing Register - Resettlement';
+  $PageDescription = $isGkn
+      ? 'OP plots shown to their allottees (Showing History) and ground checks of plots against their layout and the Beacon Register: recorded here or with the Plot Confirmation app. Confirmation Forms are issued and captured on their own tab.'
+      : 'Resettlement OP plots shown to their allottees, and their ground checks. View only: they are recorded under GKN > Plot Showing Register.';
   $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
   $field = 'border:1.5px solid var(--gray-300);border-radius:6px;padding:7px 8px;';
-  $tabUrl = fn ($t) => route('survey-module.compensation.plot-confirmations', ['tab' => $t]);
+  $tabUrl = fn ($t) => route($register, $t === 'showings' ? [] : ['tab' => $t]);
   $beaconCls = ['registered' => 'completed', 'other_surveyor' => 'pending', 'unregistered' => 'rejected'];
 @endphp
 
@@ -20,6 +22,7 @@
 
 {{-- Plot Showing Register (Old) (user, 2026-11-03): an entry from the old register book. The book has no OP
      numbers, so nothing here is tied to an OP; "C of O No." may really be the OP number and is kept as written. --}}
+@if ($isGkn)
 @php
     $oldOpen = ($errors->any() && old('_form') === 'old') || $editOld;
     $ov = fn ($k, $col = null) => old($k, $editOld ? ($k === 'shown_on' ? optional($editOld->shown_on)->format('Y-m-d') : $editOld->{$col ?? $k}) : null);
@@ -42,19 +45,39 @@
 @endphp
 <form method="POST" id="pcOldForm" class="farmer-entry-form {{ $oldOpen ? 'open' : '' }}"
       action="{{ $editOld ? route('survey-module.compensation.plot-confirmations.old.update', $editOld) : route('survey-module.compensation.plot-confirmations.old.store') }}"
-      data-sv-modal="{{ $editOld ? 'Edit Old Register Entry' : 'Record Plot Showing (Old Register)' }}">
+      data-sv-modal="{{ $editOld ? 'Edit Old Register Entry' : 'Record Plot Showing' }}">
     @csrf
     @if ($editOld) @method('PUT') @endif
     <input type="hidden" name="_form" value="old">
     @if ($errors->any() && old('_form') === 'old')
         <div class="comp-type-note" style="margin-bottom:14px;border-color:#fecaca;background:#fef2f2;color:#991b1b;">{{ $errors->first() }}</div>
     @endif
+    @unless ($editOld)
+        {{-- One form, one attribute (recording 2026-11-05): New or Old Register. --}}
+        <div class="form-group" style="margin-bottom:10px;">
+            <label>Entry</label>
+            <div style="display:flex;gap:18px;">
+                <label style="display:inline-flex;align-items:center;gap:6px;font-weight:500;"><input type="radio" name="pc_entry_old" value="new" style="width:auto;" onchange="pcEntry('new')"> New</label>
+                <label style="display:inline-flex;align-items:center;gap:6px;font-weight:500;"><input type="radio" name="pc_entry_old" value="old" style="width:auto;" checked onchange="pcEntry('old')"> Old Register</label>
+            </div>
+        </div>
+    @endunless
     <p class="helper-text" style="margin:0 0 10px;">Copy the line as written in the old register. Give at least the plot no., the allottee or the number.</p>
     <div class="form-grid">
         <div class="form-group"><label>Date</label><input type="date" name="shown_on" value="{{ $ov('shown_on') }}" max="{{ now()->format('Y-m-d') }}"></div>
         <div class="form-group"><label>Plot No.</label><input type="text" name="plot_no" value="{{ $ov('plot_no') }}" maxlength="100"></div>
         <div class="form-group"><label>Allottee</label><input type="text" name="allottee_name" value="{{ $ov('allottee_name') }}" maxlength="255"></div>
         <div class="form-group"><label>C of O / OP No.</label><input type="text" name="op_serial" value="{{ $ov('op_serial') }}" maxlength="50"><p class="helper-text">As written in the book.</p></div>
+        <div class="form-group">
+            <label>OP Type</label>
+            <select name="op_type">
+                <option value="">— Select —</option>
+                @foreach ([Showing::RESETTLEMENT, Showing::DIRECT] as $opt)
+                    <option value="{{ $opt }}" @selected($ov('op_type') === $opt)>{{ $opt }}</option>
+                @endforeach
+            </select>
+            <p class="helper-text">Resettlement lines also show under Compensation.</p>
+        </div>
         <div class="form-group">
             <label>Pointed Out By</label>
             <select name="pointed_by" id="pcOldBy" class="sv-searchable">
@@ -96,7 +119,7 @@
         <div class="form-group full"><label>Remark</label><textarea name="notes" maxlength="2000" rows="2">{{ $ov('notes') }}</textarea></div>
     </div>
     <div class="form-actions">
-        <div class="left"><a class="btn btn-secondary" href="{{ $tabUrl('old') }}"><i class="fas fa-times"></i> Close</a></div>
+        <div class="left"><a class="btn btn-secondary" href="{{ route($register, ['source' => 'old']) }}"><i class="fas fa-times"></i> Close</a></div>
         <div class="right"><button class="btn btn-success" type="submit"><i class="fas fa-check"></i> {{ $editOld ? 'Save Changes' : 'Save' }}</button></div>
     </div>
 </form>
@@ -104,8 +127,9 @@
 {{-- Record Plot Showing (user, 2026-11-02): the same record the Plot Confirmation app makes. --}}
 @php $pcOpen = $errors->any() && old('_form') === 'showing'; @endphp
 <form method="POST" action="{{ route('survey-module.compensation.plot-confirmations.showings.store') }}" enctype="multipart/form-data"
-      id="pcShowForm" class="farmer-entry-form {{ $pcOpen ? 'open' : '' }}" data-sv-modal="Record Plot Showing (New)" data-sv-modal-size="lg" data-sv-modal-static
-      data-search="{{ route('survey-module.compensation.plot-confirmations.op-search') }}">
+      id="pcShowForm" class="farmer-entry-form {{ $pcOpen ? 'open' : '' }}" data-sv-modal="Record Plot Showing" data-sv-modal-size="lg" data-sv-modal-static
+      data-search="{{ route('survey-module.compensation.plot-confirmations.op-search') }}"
+      data-plots="{{ route('survey-module.compensation.plot-confirmations.tp-plots') }}">
     @csrf
     <input type="hidden" name="_form" value="showing">
     <input type="hidden" name="op" id="pcOp" value="{{ old('op') }}">
@@ -115,18 +139,42 @@
         </div>
     @endif
 
+    <div class="form-group" style="margin-bottom:10px;">
+        <label>Entry</label>
+        <div style="display:flex;gap:18px;">
+            <label style="display:inline-flex;align-items:center;gap:6px;font-weight:500;"><input type="radio" name="pc_entry_new" value="new" style="width:auto;" checked onchange="pcEntry('new')"> New</label>
+            <label style="display:inline-flex;align-items:center;gap:6px;font-weight:500;"><input type="radio" name="pc_entry_new" value="old" style="width:auto;" onchange="pcEntry('old')"> Old Register</label>
+        </div>
+    </div>
+
     <div class="form-grid cols-3">
         <div class="sv-group"><i class="fas fa-file-signature"></i><span>OP</span></div>
-        <div class="form-group span-2" style="position:relative;">
-            <label>Find the OP <span class="required">*</span></label>
-            <input type="text" id="pcOpSearch" autocomplete="off" placeholder="OP serial number" value="{{ old('op_label') }}">
-            <input type="hidden" name="op_label" id="pcOpLabel" value="{{ old('op_label') }}">
-            <div id="pcOpResults" style="display:none;position:absolute;z-index:60;left:0;right:0;top:100%;max-height:260px;overflow:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);"></div>
-            <p class="helper-text">OPs from Deeds, by serial number. Type at least 2 digits.</p>
+        {{-- The layout first, then the plot in it (CR 03112026 item 3). --}}
+        <div class="form-group span-2">
+            <label>TP No. <span class="required">*</span></label>
+            <select id="pcTpGroup" class="sv-searchable">
+                <option value="">— Select TP No. —</option>
+                @foreach ($tpGroups as $g)<option value="{{ $g->id }}">{{ $g->label }} ({{ number_format($g->op_count) }} OPs)</option>@endforeach
+            </select>
+            <p class="helper-text">{{ number_format($tpGroups->count()) }} layouts, grouped from the TP numbers on the OPs.</p>
         </div>
         <div class="form-group">
             <label>Showing</label>
             <input type="text" id="pcNext" readonly tabindex="-1" style="background:var(--gray-100);font-weight:700;" value="{{ old('op') ? '' : '—' }}">
+        </div>
+        <div class="form-group span-2" style="position:relative;">
+            <label>Plot No. <span class="required">*</span></label>
+            <input type="text" id="pcPlotSearch" autocomplete="off" placeholder="Choose the TP No. first" disabled>
+            <div id="pcPlotResults" style="display:none;position:absolute;z-index:60;left:0;right:0;top:100%;max-height:260px;overflow:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);"></div>
+            <p class="helper-text" id="pcPlotHint">Plots in the layout, numbers first, then the C, IND and SS series.</p>
+        </div>
+        {{-- For an OP with no TP number on it: about 12,500 have none. --}}
+        <div class="form-group" style="position:relative;">
+            <label>No TP No. on the OP?</label>
+            <input type="text" id="pcOpSearch" autocomplete="off" placeholder="OP serial number" value="{{ old('op_label') }}">
+            <input type="hidden" name="op_label" id="pcOpLabel" value="{{ old('op_label') }}">
+            <div id="pcOpResults" style="display:none;position:absolute;z-index:60;left:0;right:0;top:100%;max-height:260px;overflow:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);"></div>
+            <p class="helper-text">Find it by serial number.</p>
         </div>
         {{-- Property order: Plot No., District, LGA, Location (backfilled from the OP). --}}
         <div class="form-group"><label>Allottee</label><input type="text" id="pcAllottee" readonly tabindex="-1" style="background:var(--gray-100);"></div>
@@ -233,6 +281,14 @@
 </form>
 
 <script>
+// New or Old Register: one Record Plot Showing, the entry attribute swaps the fields it asks for.
+function pcEntry(kind) {
+    var show = document.getElementById('pcShowForm'), old = document.getElementById('pcOldForm');
+    if (!show || !old) return;
+    show.classList.toggle('open', kind === 'new');
+    old.classList.toggle('open', kind === 'old');
+    document.querySelectorAll('input[name="pc_entry_new"], input[name="pc_entry_old"]').forEach(function (r) { r.checked = r.value === kind; });
+}
 // Old register: "Requester is the allottee" copies the Allottee into Requester's Name and locks it.
 (function () {
     var same = document.getElementById('pcOldReqSame'), name = document.getElementById('pcOldReqName');
@@ -269,14 +325,15 @@ function pcTpOtherSync() {
     var other = document.getElementById('pcTp').value === 'other', box = document.getElementById('pcTpOtherBox'), input = document.getElementById('pcTpOther');
     box.style.display = other ? '' : 'none'; input.disabled = !other; input.required = other;
 }
-function pcTpFromOp(layout) {
+function pcTpFromOp(layout, tpNumberId) {
     var sel = document.getElementById('pcTp'), hint = document.getElementById('pcTpHint'); if (!sel) return;
     var norm = function (v) { return String(v || '').toUpperCase().replace(/\s+/g, ''); };
     if (pcTpAuto !== null && sel.value === pcTpAuto) pcTpSet('');
     pcTpAuto = null;
     hint.textContent = hint.dataset.base || (hint.dataset.base = hint.textContent);
     if (!layout || sel.value) return;
-    var hit = Array.prototype.find.call(sel.options, function (o) { return o.dataset.tp && norm(o.dataset.tp) === norm(layout); });
+    var hit = (tpNumberId && sel.querySelector('option[value="' + tpNumberId + '"]'))
+        || Array.prototype.find.call(sel.options, function (o) { return o.dataset.tp && norm(o.dataset.tp) === norm(layout); });
     if (hit) { pcTpSet(hit.value); pcTpAuto = hit.value; hint.textContent = "From the OP's layout (" + layout + ').'; }
     else hint.textContent = "The OP's layout " + layout + ' is not in Public Layout Plans: pick it, or Other.';
 }
@@ -314,14 +371,58 @@ document.addEventListener('DOMContentLoaded', function () {
         box.value = document.getElementById('pcOpLabel').value;
         set('pcNext', op.next_label); set('pcAllottee', op.allottee); set('pcPlot', op.plot_no);
         set('pcDistrict', op.district); set('pcLga', op.lga); set('pcLocation', op.location);
-        pcTpFromOp(op.layout);
+        pcTpFromOp(op.layout, op.tp_number_id);
         var again = op.next > 1;
         document.getElementById('pcReasonBox').style.display = again ? '' : 'none';
         document.getElementById('pcReason').required = again;
         if (!again) document.getElementById('pcReason').value = '';
         list.style.display = 'none';
+        plotList.style.display = 'none';
         syncRequester();
     }
+
+    // The layout, then the plot in it (CR 03112026 item 3). Picking a plot picks its OP; several OPs on one plot are all listed.
+    var grp = document.getElementById('pcTpGroup'), plotBox = document.getElementById('pcPlotSearch'),
+        plotList = document.getElementById('pcPlotResults'), plotHint = document.getElementById('pcPlotHint'), plotTimer = null, plotSeq = 0;
+    function plotRow(op) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.style.cssText = 'display:block;width:100%;text-align:left;padding:8px 12px;border:0;border-bottom:1px solid var(--gray-100);background:#fff;cursor:pointer;font-size:13px;';
+        var t = document.createElement('strong'); t.textContent = 'Plot ' + (op.plot_no || '—') + ' · ' + (op.allottee || '—');
+        var s = document.createElement('div'); s.style.color = 'var(--gray-500)';
+        s.textContent = ['OP ' + (op.serial || '—'), op.district, op.lga, op.file_number].filter(Boolean).join(' · ') + ' — next: ' + op.next_label;
+        b.appendChild(t); b.appendChild(s);
+        b.addEventListener('click', function () { box.value = ''; pick(op); box.value = ''; plotBox.value = op.plot_no || ''; });
+        return b;
+    }
+    function loadPlots() {
+        if (!grp.value) { plotList.style.display = 'none'; return; }
+        var mine = ++plotSeq;
+        fetch(form.dataset.plots + '?group=' + encodeURIComponent(grp.value) + '&plot=' + encodeURIComponent(plotBox.value.trim()), { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (rows) {
+                if (mine !== plotSeq) return;
+                plotList.innerHTML = '';
+                if (!rows.length) { plotList.innerHTML = '<div style="padding:10px 12px;color:var(--gray-500);font-size:13px;">No plot found in this layout.</div>'; }
+                rows.forEach(function (op) { plotList.appendChild(plotRow(op)); });
+                plotList.style.display = '';
+                plotHint.textContent = rows.length >= 100 ? 'Showing the first 100: type the plot number to narrow it.' : rows.length + ' plot record' + (rows.length === 1 ? '' : 's') + ' in the list.';
+            }).catch(function () { plotList.style.display = 'none'; });
+    }
+    function groupChanged() {
+        if (document.getElementById('pcOp').value) clearPick();
+        plotBox.value = '';
+        plotBox.disabled = !grp.value;
+        plotBox.placeholder = grp.value ? 'Type or choose the plot number' : 'Choose the TP No. first';
+        loadPlots();
+    }
+    if (window.jQuery) window.jQuery(grp).on('change', groupChanged); else grp.addEventListener('change', groupChanged);
+    plotBox.addEventListener('focus', loadPlots);
+    plotBox.addEventListener('input', function () {
+        if (document.getElementById('pcOp').value) clearPick();
+        clearTimeout(plotTimer);
+        plotTimer = setTimeout(loadPlots, 250);
+    });
     function clearPick() {
         current = null;
         ['pcOp', 'pcOpLabel', 'pcAllottee', 'pcPlot', 'pcDistrict', 'pcLga', 'pcLocation'].forEach(function (id) { set(id, ''); });
@@ -357,12 +458,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 }).catch(function () { list.style.display = 'none'; });
         }, 300);
     });
-    document.addEventListener('click', function (e) { if (!list.contains(e.target) && e.target !== box) list.style.display = 'none'; });
+    document.addEventListener('click', function (e) {
+        if (!list.contains(e.target) && e.target !== box) list.style.display = 'none';
+        if (!plotList.contains(e.target) && e.target !== plotBox) plotList.style.display = 'none';
+    });
     var sv = document.getElementById('pcSurveyor'), other = document.getElementById('pcSurveyorOther');
     function syncOther() { var on = sv.value === 'other'; other.style.display = on ? '' : 'none'; other.required = on; if (!on) other.value = ''; }
     if (window.jQuery) window.jQuery(sv).on('change', syncOther); else sv.addEventListener('change', syncOther);
     form.addEventListener('submit', function (e) {
-        if (!document.getElementById('pcOp').value) { e.preventDefault(); box.focus(); box.style.borderColor = '#dc2626'; alert('Find and pick the OP that was shown.'); }
+        if (!document.getElementById('pcOp').value) { e.preventDefault(); plotBox.style.borderColor = '#dc2626'; box.style.borderColor = '#dc2626'; alert('Choose the TP No. and the plot that was shown.'); }
     });
     // Back from a failed save with an OP chosen: look it up again so its details and the reason show.
     var keep = document.getElementById('pcOp').value;
@@ -372,6 +476,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 })();
 </script>
+@endif
 
 <style>
     .survey-proto .pc-tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px; }
@@ -390,9 +495,10 @@ document.addEventListener('DOMContentLoaded', function () {
      without a page load; so does going back to the tab the page was opened on. --}}
 <div class="pc-tabs" id="pcTabs" data-server-tab="{{ $tab }}">
     <a href="{{ $tabUrl('showings') }}" data-tab="showings" class="{{ $tab === 'showings' ? 'on' : '' }}">Plot Showing</a>
-    <a href="{{ $tabUrl('old') }}" data-tab="old" class="{{ $tab === 'old' ? 'on' : '' }}">Old Register</a>
     <a href="{{ $tabUrl('checks') }}" data-tab="checks" class="{{ $tab === 'checks' ? 'on' : '' }}">Ground Check</a>
-    <a href="{{ $tabUrl('confirmation') }}" data-tab="confirmation" class="{{ $tab === 'confirmation' ? 'on' : '' }}">Confirmation Forms</a>
+    @if ($isGkn)
+        <a href="{{ $tabUrl('confirmation') }}" data-tab="confirmation" class="{{ $tab === 'confirmation' ? 'on' : '' }}">Confirmation Forms</a>
+    @endif
 </div>
 
 <div id="pcMain" @if ($tab === 'confirmation') hidden @endif>
@@ -404,9 +510,8 @@ document.addEventListener('DOMContentLoaded', function () {
     {{-- Which register this is, and how it is recorded (user, 2026-11-03). --}}
     @php
       [$regName, $regIcon, $regHow] = match ($tab) {
-          'old'    => ['Old Register', 'fa-book', 'Lines from the old register book: Record Plot Showing › Old.'],
           'checks' => ['Ground Check', 'fa-map-marked-alt', 'Checked in the field with the Plot Confirmation app.'],
-          default  => ['Plot Showing', 'fa-street-view', 'Record Plot Showing › New, or the Plot Confirmation app in the field.'],
+          default  => ['Plot Showing', 'fa-street-view', $isGkn ? 'Record Plot Showing, or the Plot Confirmation app in the field.' : 'View only: recorded under GKN.'],
       };
     @endphp
     <div class="kpi-card" style="border-left:4px solid var(--primary, #2563eb);"><div class="kpi-label">Register</div>
@@ -414,97 +519,37 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="pc-sub">{{ $regHow }}</div></div>
 </div>
 
+{{-- One button; New or Old Register is an attribute on the form (recording 2026-11-05). --}}
+@if ($isGkn)
 <div class="page-header" style="margin-bottom:10px;">
     <div></div>
-    {{-- New (an OP brought to confirm) or Old (a line from the old register book) (user, 2026-11-03). --}}
-    <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
-        <button type="button" x-ref="btn" class="btn btn-primary" aria-haspopup="menu" :aria-expanded="open"
-                @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 300); open = !open">
-            <i class="fas fa-plus"></i> Record Plot Showing <i class="fas fa-chevron-down" style="font-size:11px;margin-left:4px;"></i>
-        </button>
-        <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false" role="menu"
-             :style="'top:' + top + 'px; left:' + left + 'px'" class="fixed z-50 rounded-lg border border-gray-200 bg-white shadow-lg py-1" style="width:300px;">
-            <button type="button" role="menuitem" class="flex items-start gap-3 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50"
-                    @click="open = false; document.getElementById('pcShowForm').classList.add('open')">
-                <i data-lucide="file-plus" class="w-4 h-4 text-gray-500" style="margin-top:2px;"></i>
-                <span><strong>New</strong><br><span class="text-xs text-gray-500">An OP brought to confirm: find the OP, record the showing.</span></span>
-            </button>
-            <button type="button" role="menuitem" class="flex items-start gap-3 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50"
-                    @click="open = false; document.getElementById('pcOldForm').classList.add('open')">
-                <i data-lucide="archive" class="w-4 h-4 text-gray-500" style="margin-top:2px;"></i>
-                <span><strong>Old</strong><br><span class="text-xs text-gray-500">A line from the old register book (no OP number).</span></span>
-            </button>
-        </div>
-    </div>
+    <button type="button" class="btn btn-primary" onclick="pcEntry('new')"><i class="fas fa-plus"></i> Record Plot Showing</button>
 </div>
+@endif
 
-@if ($tab === 'old')
-<div class="table-container">
-    <div class="table-header">
-        <h3>Old Register</h3>
-        <form method="GET" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-            <input type="hidden" name="tab" value="old">
-            <input type="text" name="q" value="{{ request('q') }}" placeholder="Plot, allottee, number, pointed out by…" style="{{ $field }}width:240px;">
-            <input type="date" name="from" value="{{ request('from') }}" style="{{ $field }}" title="From">
-            <input type="date" name="to" value="{{ request('to') }}" style="{{ $field }}" title="To">
-            <button class="btn btn-secondary btn-sm" type="submit"><i class="fas fa-search"></i></button>
-            @if (request()->hasAny(['q', 'from', 'to']))<a class="btn btn-secondary btn-sm" href="{{ $tabUrl('old') }}">Clear</a>@endif
-        </form>
-    </div>
-    <div class="table-scroll">
-        <table>
-            <thead><tr><th>S/N</th><th>Date</th><th>TP No.</th><th>Plot No.</th><th>Allottee</th><th>C of O / OP No.</th><th>Requester</th><th>Pointed Out By</th><th>Remark</th><th></th></tr></thead>
-            <tbody>
-                @forelse ($rows as $x)
-                    <tr>
-                        <td>{{ $rows->firstItem() + $loop->index }}</td>
-                        <td style="white-space:nowrap;">{{ $x->shown_on?->format('d M Y') ?? '—' }}</td>
-                        <td style="white-space:nowrap;">{{ $x->tp_no ?: '—' }}</td>
-                        <td>{{ $x->plot_no ?: '—' }}</td>
-                        <td>{{ $x->allottee_name ?: '—' }}</td>
-                        <td>{{ $x->op_serial ?: '—' }}</td>
-                        <td>{{ $x->requester_name ?: '—' }}@if ($x->requester_is_allottee)<div class="pc-sub">The allottee</div>@endif</td>
-                        <td>{{ $x->surveyor_name ?: '—' }}</td>
-                        <td>{{ $x->notes ?: '' }}</td>
-                        <td>
-                            <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
-                                <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
-                                        @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 200); open = !open"
-                                        class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
-                                    <i data-lucide="more-vertical" class="w-5 h-5"></i>
-                                </button>
-                                <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
-                                     :style="'top:' + top + 'px; left:' + left + 'px'" class="fixed z-50 w-48 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                                    <a href="{{ route('survey-module.compensation.plot-confirmations', ['tab' => 'old', 'edit' => $x->id] + request()->only(['q', 'from', 'to', 'page'])) }}" class="{{ $svItem }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit</a>
-                                    <form method="POST" action="{{ route('survey-module.compensation.plot-confirmations.old.destroy', $x) }}" onsubmit="return confirm('Remove this old register entry?');">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="{{ $svItem }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i> Remove</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="10" style="text-align:center;padding:22px;color:var(--gray-500);">No old register entries {{ request()->hasAny(['q', 'from', 'to']) ? 'match the filter' : 'yet. Use Record Plot Showing > Old' }}.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-    <div class="table-footer"><span>{{ number_format($rows->total()) }} old register entries</span><div class="pagination">{{ $rows->links() }}</div></div>
-</div>
-@else
 <div class="table-container">
     <div class="table-header">
         <h3>{{ $tab === 'checks' ? 'Ground Check' : 'Plot Showing' }}</h3>
         <form method="GET" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
             <input type="hidden" name="tab" value="{{ $tab }}">
-            <input type="text" name="q" value="{{ request('q') }}" placeholder="{{ $tab === 'checks' ? 'Ref, OP, plot, layout, beacon…' : 'OP, allottee, plot, surveyor…' }}" style="{{ $field }}width:220px;">
+            <input type="text" name="q" value="{{ request('q') }}" placeholder="{{ $tab === 'checks' ? 'Ref, OP, plot, layout, beacon…' : 'OP, allottee, plot, surveyor, remark…' }}" style="{{ $field }}width:220px;">
             @if ($tab === 'checks')
                 <select name="result" style="{{ $field }}">
                     <option value="">All results</option>
                     @foreach (Check::RESULTS as $x)<option value="{{ $x }}" @selected(request('result') === $x)>{{ $x }}</option>@endforeach
                 </select>
             @else
+                <select name="source" style="{{ $field }}">
+                    <option value="">All sources</option>
+                    <option value="new" @selected($source === 'new')>New</option>
+                    <option value="old" @selected($source === 'old')>Old Register</option>
+                </select>
+                @if ($isGkn)
+                    <select name="type" style="{{ $field }}">
+                        <option value="">All OP types</option>
+                        @foreach ([Showing::RESETTLEMENT, Showing::DIRECT] as $opt)<option value="{{ $opt }}" @selected(request('type') === $opt)>{{ $opt }}</option>@endforeach
+                    </select>
+                @endif
                 <select name="reason" style="{{ $field }}">
                     <option value="">All showings</option>
                     <option value="first" @selected(request('reason') === 'first')>1st showings</option>
@@ -514,7 +559,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <input type="date" name="from" value="{{ request('from') }}" style="{{ $field }}" title="From">
             <input type="date" name="to" value="{{ request('to') }}" style="{{ $field }}" title="To">
             <button class="btn btn-secondary btn-sm" type="submit"><i class="fas fa-search"></i></button>
-            @if (request()->hasAny(['q', 'result', 'reason', 'from', 'to']))<a class="btn btn-secondary btn-sm" href="{{ $tabUrl($tab) }}">Clear</a>@endif
+            @if (request()->hasAny(['q', 'result', 'reason', 'source', 'type', 'from', 'to']))<a class="btn btn-secondary btn-sm" href="{{ $tabUrl($tab) }}">Clear</a>@endif
         </form>
     </div>
     <div class="table-scroll">
@@ -522,7 +567,7 @@ document.addEventListener('DOMContentLoaded', function () {
             @if ($tab === 'checks')
                 <thead><tr><th>S/N</th><th>Ref</th><th>TP No. / Layout</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>OP</th><th>Checked</th><th>Surveyor</th><th>Beacons</th><th>Result</th><th></th></tr></thead>
             @else
-                <thead><tr><th>S/N</th><th>OP</th><th>Allottee</th><th>TP No.</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Showing</th><th>Shown</th><th>Surveyor</th><th>Allottee there</th><th>Requester</th><th>Ground Check</th><th></th></tr></thead>
+                <thead><tr><th>S/N</th><th>OP</th><th>Allottee</th><th>TP No.</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Source</th><th>OP Type</th><th>Showing</th><th>Shown</th><th>Surveyor / Pointed Out By</th><th>Allottee there</th><th>Requester</th><th>Ground Check</th><th></th></tr></thead>
             @endif
             <tbody>
                 @forelse ($rows as $x)
@@ -556,9 +601,12 @@ document.addEventListener('DOMContentLoaded', function () {
                             <td>{{ $x->district ?: '—' }}</td>
                             <td>{{ $x->lga ?: '—' }}</td>
                             <td>{{ $x->location ?: '—' }}</td>
-                            <td>{{ $x->label }}<div class="pc-sub">{{ $x->reason }}</div></td>
-                            <td>{{ $x->shown_on?->format('d M Y') }} <span class="pc-sub">{{ $x->shown_at }}</span></td>
-                            <td>{{ $x->surveyor_name }}</td>
+                            @php $isOld = $x->op_source === Showing::SOURCE_OLD; @endphp
+                            <td style="white-space:nowrap;">@if ($isOld)<span class="status-badge pending">Old Register</span>@else New @endif</td>
+                            <td style="white-space:nowrap;">{{ $x->op_type ?: ($isOld ? '—' : Showing::DIRECT) }}</td>
+                            <td>{{ $isOld ? '—' : $x->label }}<div class="pc-sub">{{ $x->reason }}</div></td>
+                            <td>{{ $x->shown_on?->format('d M Y') ?? '—' }} <span class="pc-sub">{{ $x->shown_at }}</span></td>
+                            <td>{{ $x->surveyor_name ?: '—' }}</td>
                             <td>{{ $x->allottee_present === null ? '—' : ($x->allottee_present ? 'Yes' : 'No') }}</td>
                             <td>{{ $x->requester_name ?: '—' }}@if ($x->requester_is_allottee)<div class="pc-sub">The allottee</div>@endif</td>
                             {{-- Step 2, the field's response to this showing (user, 2026-11-03). --}}
@@ -566,7 +614,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 @forelse ($x->groundChecks as $gc)
                                     <span class="status-badge {{ $gc->result === Check::CONFIRMED ? 'completed' : 'rejected' }}" title="{{ $gc->check_ref }}" style="margin:0 3px 3px 0;">{{ $gc->result }}</span>
                                 @empty
-                                    <span class="pc-sub">Awaiting</span>
+                                    <span class="pc-sub">{{ $x->op_source === Showing::SOURCE_OLD ? '—' : 'Awaiting' }}</span>
                                 @endforelse
                             </td>
                         @endif
@@ -602,24 +650,32 @@ document.addEventListener('DOMContentLoaded', function () {
                                     @if ($map)
                                         <a href="{{ $map }}" target="_blank" rel="noopener" class="{{ $svItem }}" @click="open = false"><i data-lucide="map-pin" class="w-4 h-4 text-gray-500"></i> Open in Maps</a>
                                     @endif
+                                    @if ($isGkn && $tab !== 'checks' && $x->op_source === Showing::SOURCE_OLD)
+                                        <a href="{{ route($register, ['edit' => $x->id] + request()->only(['q', 'source', 'type', 'from', 'to', 'page'])) }}" class="{{ $svItem }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit</a>
+                                        <form method="POST" action="{{ route('survey-module.compensation.plot-confirmations.old.destroy', $x) }}" onsubmit="return confirm('Remove this old register entry?');">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="{{ $svItem }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i> Remove</button>
+                                        </form>
+                                    @endif
                                 </div>
                             </div>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="15" style="text-align:center;padding:22px;color:var(--gray-500);">{{ $tab === 'checks' ? 'No ground checks' : 'No showings' }} {{ request()->hasAny(['q', 'result', 'reason', 'from', 'to']) ? 'match the filter' : 'recorded yet' }}.</td></tr>
+                    <tr><td colspan="17" style="text-align:center;padding:22px;color:var(--gray-500);">{{ $tab === 'checks' ? 'No ground checks' : 'No showings' }} {{ request()->hasAny(['q', 'result', 'reason', 'source', 'type', 'from', 'to']) ? 'match the filter' : 'recorded yet' }}.</td></tr>
                 @endforelse
             </tbody>
         </table>
     </div>
     <div class="table-footer"><span>{{ number_format($rows->total()) }} {{ $tab === 'checks' ? 'ground checks' : 'showings' }}</span><div class="pagination">{{ $rows->links() }}</div></div>
 </div>
-@endif
 </div>{{-- #pcMain --}}
 
+@if ($isGkn)
 <div id="pcConfirm" @unless ($tab === 'confirmation') hidden @endunless>
     @include('survey_module.compensation.partials._confirmation_forms_panel')
 </div>
+@endif
 
 <script>
 // Confirmation Forms opens without a page load, and so does going back to the tab the page was opened on;

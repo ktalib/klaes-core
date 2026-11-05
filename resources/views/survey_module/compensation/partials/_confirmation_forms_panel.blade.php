@@ -9,7 +9,7 @@
   $cfField = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;';
   $cfItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
   $cfRoute = 'survey-module.compensation.confirmation-forms';
-  $cfUrl = fn (array $p = []) => route('survey-module.compensation.plot-confirmations', ['tab' => 'confirmation'] + $p);
+  $cfUrl = fn (array $p = []) => route('survey-module.gkn.plot-showing', ['tab' => 'confirmation'] + $p);
   $cfBadge = [F::GENERATED => 'pending', F::PRINTED => 'pending', F::CAPTURED => 'active', F::VOIDED => 'rejected'];
 
   $e = $cfEditing;
@@ -340,7 +340,7 @@
   @endforeach
 </div>
 
-<form method="GET" action="{{ route('survey-module.compensation.plot-confirmations') }}" class="table-toolbar">
+<form method="GET" action="{{ route('survey-module.gkn.plot-showing') }}" class="table-toolbar">
   <input type="hidden" name="tab" value="confirmation" />
   <input type="hidden" name="cftab" value="{{ $cfTab }}" />
   <div class="left" style="flex-wrap:wrap;">

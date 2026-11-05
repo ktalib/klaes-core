@@ -89,6 +89,12 @@
             <td class="label">Scope</td>
             <td class="value" colspan="3">{{ $its->job_scope ?: '—' }}</td>
         </tr>
+        <tr>
+            <td class="label">Survey Type</td>
+            <td class="value">{{ $its->survey_type ?: '—' }}</td>
+            <td class="label">Beacon Nos.</td>
+            <td class="value">{{ implode(', ', $beaconList ?? []) ?: '—' }}</td>
+        </tr>
     </table>
 
     <p>Sir/Madam,</p>

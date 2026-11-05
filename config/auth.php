@@ -59,6 +59,12 @@ return [
             'driver' => 'session',
             'provider' => 'laas_applicants',
         ],
+
+        // Surveyor General's Office portal (KSSGOF): surveyors, separate from staff.
+        'surveyor' => [
+            'driver' => 'session',
+            'provider' => 'surveyor_portal_accounts',
+        ],
     ],
 
     /*
@@ -97,6 +103,11 @@ return [
         'laas_applicants' => [
             'driver' => 'eloquent',
             'model' => App\Models\Laas\LaasApplicant::class,
+        ],
+
+        'surveyor_portal_accounts' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Survey\SurveyorPortalAccount::class,
         ],
 
         // 'users' => [

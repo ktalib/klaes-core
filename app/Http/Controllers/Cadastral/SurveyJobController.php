@@ -6,11 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Cadastral\CadastralIndexCard;
 use App\Models\Cadastral\CadastralSurveyJob;
 use App\Models\Cadastral\CadastralSurveyor;
+use App\Models\Survey\SurveyBeaconRequest;
 use App\Http\Controllers\Cadastral\Concerns\LocksFileValues;
 use App\Services\AuditService;
 use App\Services\Cadastral\CadastralAddress;
 use App\Services\Cadastral\CadastralRegistryLookup;
 use App\Services\Cadastral\SurveyJobNumberGenerator;
+use App\Services\Survey\BeaconRequests;
+use App\Services\Survey\ItsBeacons;
+use App\Services\Survey\SurveySettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -250,6 +254,47 @@ class SurveyJobController extends Controller
         $this->log('CADASTRAL_ITS_ISSUED', $job);
 
         return back()->with('success', "Instruction {$job->its_number} issued to {$surveyor->display_name}.{$synced}");
+    }
+
+    /** Survey type and beacons on the job, as on Survey's own I to S (CR 03112026). */
+    public function surveyDetails(Request $r, CadastralSurveyJob $surveyJob)
+    {
+        if (in_array($surveyJob->status, ['Accepted', 'Cancelled'], true)) {
+            return back()->with('error', "{$surveyJob->job_number} is {$surveyJob->status} and can no longer be edited.");
+        }
+        $data = $r->validate([
+            'survey_type'       => 'nullable|string|max:100',
+            'survey_type_other' => 'required_if:survey_type,Other|nullable|string|max:100',
+            'beacon_numbers'    => 'nullable|string|max:8000',
+        ], ['survey_type_other.required_if' => 'Survey Type is Other: please specify it.']);
+
+        DB::connection('sqlsrv')->transaction(function () use ($surveyJob, $data) {
+            $surveyJob->update(['survey_type' => SurveySettings::surveyTypeValue($data['survey_type'] ?? null, $data['survey_type_other'] ?? null)]);
+            app(ItsBeacons::class)->save($data['beacon_numbers'] ?? null, $surveyJob->surveyor_name, 'cadastral_survey_job_id', $surveyJob->id);
+        });
+
+        return back()->with('success', "{$surveyJob->job_number}: survey type and beacons saved.");
+    }
+
+    /** Request for Beacons to the SG from the Cadastral I to S (user, 2026-11-05). */
+    public function requestBeacons(Request $r, CadastralSurveyJob $surveyJob)
+    {
+        $data = $r->validate([
+            'quantity' => 'required|integer|min:1|max:' . BeaconRequests::MAX_QUANTITY,
+            'remarks'  => 'nullable|string|max:2000',
+        ], ['quantity.required' => 'Enter the number of beacons.']);
+
+        $request = app(BeaconRequests::class)->fromCadastralJob($surveyJob, (int) $data['quantity'], trim((string) ($data['remarks'] ?? '')) ?: null);
+
+        return back()->with('success', "Request {$request->request_no} sent to the Surveyor General.");
+    }
+
+    public function acceptBeacons(CadastralSurveyJob $surveyJob, int $beaconRequest)
+    {
+        $request = SurveyBeaconRequest::where('cadastral_survey_job_id', $surveyJob->id)->findOrFail($beaconRequest);
+        app(BeaconRequests::class)->accept($request);
+
+        return back()->with('success', "{$request->request_no} accepted.");
     }
 
     public function printIts(CadastralSurveyJob $surveyJob)

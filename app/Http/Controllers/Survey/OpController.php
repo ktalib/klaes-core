@@ -89,12 +89,17 @@ class OpController extends Controller
         $term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')));
         $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
         $kind = in_array($r->query('kind'), self::OP_KINDS, true) ? $r->query('kind') : null;
+        $tpGroup = (string) $r->query('tp', '');
+        $byTp = $r->query('view') === 'tp';
 
         $ops = $this->existingQuery()
             ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('serial', 'like', $like)->orWhere('allottee', 'like', $like)
                 ->orWhere('plot_no', 'like', $like)->orWhere('file_no', 'like', $like)->orWhere('district', 'like', $like)->orWhere('lga', 'like', $like)))
             ->when($kind, fn ($q) => $q->where('op_kind', $kind))
             ->when($r->query('project'), fn ($q, $p) => $q->where('project_id', (int) $p))
+            // OPs of one layout, through the spellings of its TP number (CR 03112026 item 2).
+            ->when($tpGroup === 'none', fn ($q) => $q->whereNull('tp_no'))
+            ->when(ctype_digit($tpGroup), fn ($q) => $q->whereRaw('UPPER(tp_no) IN (SELECT raw_tp FROM op_tp_aliases WHERE op_tp_group_id = ?)', [(int) $tpGroup]))
             ->orderByRaw('CASE WHEN issued IS NULL THEN 1 ELSE 0 END, issued DESC, rid DESC')
             ->paginate(20)->withQueryString();
 
@@ -108,6 +113,12 @@ class OpController extends Controller
             'kinds'    => self::OP_KINDS,
             'projects' => SurveyProject::orderBy('name')->get(['id', 'project_code', 'name']),
             'editing'  => $r->query('edit') ? SurveyOpRecord::existing()->find((int) $r->query('edit')) : null,
+            'tpGroups' => app(\App\Services\Survey\OpTpGroups::class)->options(),
+            // By TP No. (CR 03112026 item 2): one row per layout, biggest serials in order.
+            'byTp'     => $byTp ? \Illuminate\Support\Facades\DB::connection('sqlsrv')->table('op_tp_groups')
+                ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('label', 'like', $like)->orWhere('group_key', 'like', $like)))
+                ->orderByRaw('CASE WHEN serial_sort IS NULL THEN 1 ELSE 0 END')->orderBy('serial_sort')->orderBy('group_key')
+                ->paginate(25, ['*'], 'page')->withQueryString() : null,
             // Dashboard cards (user, 2026-11-03).
             'stats'    => [
                 'total'        => (int) $totals->total,
@@ -133,19 +144,19 @@ class OpController extends Controller
 
         $capture = $db->table('instrument_capture as ic')->where('ic.instrument_type', $op)->where($live('ic'))
             ->selectRaw("'capture' AS src, ic.id AS rid, {$t('ic.op_serial_number', 50)} AS serial, {$kind('ic.op_type')} AS op_kind, "
-                . "{$t('ic.party_2_name')} AS allottee, {$t('ic.plot_number', 100)} AS plot_no, {$t('ic.district', 150)} AS district, {$t('ic.lga', 150)} AS lga, "
+                . "{$t('ic.party_2_name')} AS allottee, {$t('ic.tp_no')} AS tp_no, {$t('ic.plot_number', 100)} AS plot_no, {$t('ic.district', 150)} AS district, {$t('ic.lga', 150)} AS lga, "
                 . "COALESCE({$t('ic.property_location', 500)}, {$t('ic.property_description', 500)}) AS location, COALESCE({$t('ic.mlsFNo', 100)}, {$t('ic.temp_fileno', 100)}) AS file_no, "
                 . "TRY_CAST(ic.reg_date AS date) AS issued, CAST(NULL AS int) AS project_id, CAST(NULL AS NVARCHAR(2000)) AS remarks");
 
         $pra = $db->table('pra as p')->where('p.instrument_type', $op)->whereNull('p.instrument_capture_id')->where($live('p'))
             ->selectRaw("'pra' AS src, p.id AS rid, {$t('p.op_serial_number', 50)} AS serial, {$kind('p.op_type')} AS op_kind, "
-                . "{$t('p.Grantee')} AS allottee, {$t('p.plot_no', 100)} AS plot_no, {$t('p.districtName', 150)} AS district, CAST(NULL AS NVARCHAR(150)) AS lga, "
+                . "{$t('p.Grantee')} AS allottee, {$t('p.tp_no')} AS tp_no, {$t('p.plot_no', 100)} AS plot_no, {$t('p.districtName', 150)} AS district, CAST(NULL AS NVARCHAR(150)) AS lga, "
                 . "COALESCE({$t('p.location', 500)}, {$t('p.property_description', 500)}) AS location, COALESCE({$t('p.mlsFNo', 100)}, {$t('p.temp_fileno', 100)}) AS file_no, "
                 . "TRY_CAST(p.reg_date AS date) AS issued, CAST(NULL AS int) AS project_id, CAST(NULL AS NVARCHAR(2000)) AS remarks");
 
         $klaes = $db->table('survey_op_records as o')->where('o.is_existing', 1)->whereNull('o.deleted_at')
             ->selectRaw("'klaes' AS src, o.id AS rid, {$t('o.op_number', 50)} AS serial, 'Resettlement' AS op_kind, "
-                . "{$t('o.allottee_name')} AS allottee, {$t('o.plot_no', 100)} AS plot_no, {$t('o.district', 150)} AS district, {$t('o.lga', 150)} AS lga, "
+                . "{$t('o.allottee_name')} AS allottee, CAST(NULL AS NVARCHAR(255)) AS tp_no, {$t('o.plot_no', 100)} AS plot_no, {$t('o.district', 150)} AS district, {$t('o.lga', 150)} AS lga, "
                 . "CAST(NULL AS NVARCHAR(500)) AS location, CAST(NULL AS NVARCHAR(100)) AS file_no, "
                 . "TRY_CAST(o.issued_at AS date) AS issued, o.survey_project_id AS project_id, {$t('o.remarks', 2000)} AS remarks");
 

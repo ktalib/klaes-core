@@ -180,6 +180,7 @@ class CaseController extends Controller
                 return [$case, "{$msg} It was saved as a draft and not submitted: {$problem}", true];
             }
             $case->update(['status' => self::STATUS_REVIEW]);
+            $this->tellFarmers($case);
             $msg .= ' Submitted — now Pending Review.';
         }
 
@@ -252,6 +253,38 @@ class CaseController extends Controller
         return back()->with('success', "Farm Assessment {$ref} deleted.");
     }
 
+    /** Farm Capture Confirmation Sheet for one farmer (CR 03112026 item 8). */
+    public function farmSheet(SurveyCompCase $case, int $farm)
+    {
+        $row = $case->beneficiaries()->findOrFail($farm);
+
+        return view('survey_module.compensation.farm_capture_sheet', [
+            'case' => $case->load(['project', 'trees']), 'farm' => $row,
+            'farmer' => $row->survey_farmer_id ? \App\Models\Survey\SurveyFarmer::find($row->survey_farmer_id) : null,
+        ]);
+    }
+
+    /** "Is this the existing farmer?" on Add Farmer (recording, 2026-11-05). */
+    public function farmerLookup(Request $r)
+    {
+        return response()->json(app(\App\Services\Survey\FarmIds::class)->matches(
+            (string) $r->query('name', ''), (string) $r->query('phone', ''), (string) $r->query('nin', '')));
+    }
+
+    /** The confirmation SMS, once the assessment is submitted (item 8). Placeholder phones are skipped by the dispatcher. */
+    protected function tellFarmers(SurveyCompCase $case): void
+    {
+        $sms = app(\App\Services\Sms\KlaesSmsDispatcher::class);
+        $farmers = \App\Models\Survey\SurveyFarmer::whereIn('id', $case->beneficiaries()->whereNotNull('survey_farmer_id')->pluck('survey_farmer_id'))->pluck('farmer_id_no', 'id');
+
+        foreach ($case->beneficiaries()->whereNotNull('farm_id_no')->get() as $b) {
+            $sms->queue(\App\Models\SmsSetting::KEY_SURVEY_FARM_CAPTURED, $b->phone, [
+                'Name' => $b->full_name, 'FarmerId' => (string) ($farmers[$b->survey_farmer_id] ?? ''), 'FarmId' => $b->farm_id_no,
+                'Section' => (string) $case->section_no, 'FarmNo' => (string) $b->farm_no,
+            ], ['dedupe_key' => 'farm-capture:' . $b->id]);
+        }
+    }
+
     /** The Preview step's Submit button posts here; moves the case to Pending Review. */
     public function submit(Request $r, SurveyCompCase $case)
     {
@@ -263,6 +296,7 @@ class CaseController extends Controller
         }
 
         $case->update(['status' => self::STATUS_REVIEW]);
+        $this->tellFarmers($case);
 
         return redirect()
             ->route('survey-module.compensation.cases')
@@ -502,6 +536,9 @@ class CaseController extends Controller
             'beneficiaries.*.phone'     => 'nullable|string|max:50',
             'beneficiaries.*.nin'       => 'nullable|string|max:20',
             'beneficiaries.*.status'    => ['required', Rule::in(self::BEN_STATUSES)],
+            // An existing farmer picked on the form, and the farm of theirs being recaptured (CR 03112026).
+            'beneficiaries.*.survey_farmer_id' => 'nullable|integer',
+            'beneficiaries.*.farm_id_no'       => 'nullable|string|max:20',
 
             // Step 4 is the valuation basis for a monetary case, so it is required
             // there. For land-to-land it is not applicable and is dropped instead.
@@ -553,6 +590,12 @@ class CaseController extends Controller
     protected function syncBeneficiaries(SurveyCompCase $case, array $rows): void
     {
         $keep = [];
+        $ids = app(\App\Services\Survey\FarmIds::class);
+
+        // Section No: the surveyor's next, once, when the assessment first has a farmer (CR 03112026 item 5).
+        if ($rows && ! $case->section_no && trim((string) $case->survey_officer) !== '') {
+            $case->update(['section_no' => $ids->nextSection((string) $case->survey_officer)]);
+        }
 
         foreach ($rows as $row) {
             $attrs = [
@@ -568,7 +611,8 @@ class CaseController extends Controller
                 $existing->update($attrs);
                 $keep[] = $existing->id;
             } else {
-                $keep[] = $case->beneficiaries()->create($attrs)->id;
+                // Farmer ID, Farm ID and Farm No (items 6-7), on the server so a phone gets them when it syncs.
+                $keep[] = $case->beneficiaries()->create($attrs + $ids->assign($case, $row))->id;
             }
         }
 

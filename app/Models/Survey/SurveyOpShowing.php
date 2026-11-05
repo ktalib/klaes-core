@@ -14,6 +14,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class SurveyOpShowing extends SurveyModel
 {
+    public const RESETTLEMENT = 'Resettlement';
+    public const DIRECT = 'Direct Allocation';
+
     protected $table = 'survey_op_showings';
 
     protected $casts = [
@@ -64,6 +67,12 @@ class SurveyOpShowing extends SurveyModel
     public function getLabelAttribute(): string
     {
         return self::ordinal($this->showing_no) . ' Showing';
+    }
+
+    /** The showing's type from its OP's: Resettlement, or Direct Allocation for anything else (blank included). */
+    public static function typeOf(?string $opType): string
+    {
+        return stripos((string) $opType, 'Resettlement') !== false ? self::RESETTLEMENT : self::DIRECT;
     }
 
     public static function ordinal(int $n): string

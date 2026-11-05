@@ -136,6 +136,41 @@ class SurveySettings
             ->orderBy('prefix')->get();
     }
 
+    /** Private survey companies with their beacon letters (CR 03112026 items 15-16). */
+    public static function companies(bool $activeOnly = true): Collection
+    {
+        if (! Schema::connection('sqlsrv')->hasTable('survey_companies')) return collect();
+
+        return self::db()->table('survey_companies')
+            ->when($activeOnly, fn ($q) => $q->where('is_active', 1))
+            ->orderBy('name')->get();
+    }
+
+    /** Survey types for the I to S (CR 03112026 item 11). */
+    public static function surveyTypes(bool $activeOnly = true): Collection
+    {
+        if (! Schema::connection('sqlsrv')->hasTable('survey_types')) return collect();
+
+        return self::db()->table('survey_types')
+            ->when($activeOnly, fn ($q) => $q->where('is_active', 1))
+            ->orderBy('id')->get();
+    }
+
+    /**
+     * The value to store from a survey type dropdown: a listed name, or the typed Other. A typed name
+     * already on the list (any case or spacing) is taken as that entry.
+     */
+    public static function surveyTypeValue(?string $choice, ?string $other): ?string
+    {
+        $choice = trim((string) $choice);
+        if ($choice !== 'Other') return $choice === '' ? null : $choice;
+
+        $typed = preg_replace('/\s+/', ' ', trim((string) $other));
+        $match = self::surveyTypes(false)->first(fn ($t) => mb_strtoupper($t->name) === mb_strtoupper($typed));
+
+        return $match->name ?? ($typed === '' ? null : mb_substr($typed, 0, 100));
+    }
+
     /** What the Configurable Entities > Survey tab shows. */
     public static function tabData(): array
     {
@@ -144,6 +179,8 @@ class SurveySettings
             'svClassmarks'=> self::classmarks(false),
             'svLandRates' => self::landRates(false),
             'svPrefixes'  => self::beaconPrefixes(false),
+            'svCompanies' => self::companies(false),
+            'svTypes'     => self::surveyTypes(false),
             'svInstalled' => self::installed(),
         ];
     }

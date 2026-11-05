@@ -255,6 +255,7 @@ class MobileCaseController extends CaseController
         }
 
         $case->update(['status' => self::STATUS_REVIEW]);
+        $this->tellFarmers($case);
 
         return $back->with('success', "{$case->case_ref} submitted. It is now Pending Review.");
     }

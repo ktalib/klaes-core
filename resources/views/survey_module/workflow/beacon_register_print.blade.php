@@ -65,15 +65,16 @@
                 <col style="width:13%"><col style="width:8%"><col style="width:7%"><col style="width:7%"><col style="width:8%"><col style="width:9%">
             </colgroup>
             <thead>
-                <tr><th>Date</th><th>Issued Number</th><th>Plan No</th><th>Surveyor's Name</th><th>Registration</th>
+                <tr><th>Date</th><th>Issued Number</th><th>Plan No</th><th>Company</th><th>Surveyor's Name</th><th>Registration</th>
                     <th>Location</th><th>Teller No</th><th>Amount (₦)</th><th>Date Received</th><th>Signature</th><th>Remark</th></tr>
             </thead>
             <tbody>
                 @foreach ($page as $r)
                     <tr>
                         <td>{{ optional($r->issue_date)->format('d/m/Y') }}</td>
-                        <td>{{ $r->beacon_to && strcasecmp($r->beacon_to, $r->beacon_from) !== 0 ? $r->beacon_from . ' – ' . $r->beacon_to : $r->beacon_from }}@if ($r->total_issued > 1) ({{ $r->total_issued }})@endif</td>
+                        <td>{{ str_replace(' → ', ' – ', $r->issued_range) }}@if ($r->total_issued > 1) ({{ $r->total_issued }})@endif</td>
                         <td>{{ $r->plan_no }}</td>
+                        <td>{{ $r->company_name }}</td>
                         <td>{{ $r->surveyor_name }}</td>
                         <td>{{ $r->surveyor_registration }}</td>
                         <td>{{ $r->location ?: $r->property_location }}</td>
@@ -85,7 +86,7 @@
                     </tr>
                 @endforeach
                 @for ($i = $page->count(); $i < 20; $i++)
-                    <tr class="blank">@for ($c = 0; $c < 11; $c++)<td></td>@endfor</tr>
+                    <tr class="blank">@for ($c = 0; $c < 12; $c++)<td></td>@endfor</tr>
                 @endfor
             </tbody>
         </table>

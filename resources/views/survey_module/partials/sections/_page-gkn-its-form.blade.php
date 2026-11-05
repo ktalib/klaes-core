@@ -152,6 +152,38 @@
                 </div>
             </div>
 
+            {{-- Survey type + beacons (CR 03112026 item 11). --}}
+            @php
+                $stNames = collect($surveyTypes ?? [])->pluck('name');
+                $stSaved = $its->survey_type;
+                $stPick = old('survey_type', $stSaved === null ? '' : ($stNames->contains($stSaved) ? $stSaved : 'Other'));
+                $stOther = old('survey_type_other', $stPick === 'Other' ? $stSaved : '');
+            @endphp
+            <div class="form-grid cols-3">
+                <div class="sv-group"><i class="fas fa-map-pin"></i><span>Survey Type &amp; Beacons</span></div>
+                <div class="form-group">
+                    <label>Survey Type</label>
+                    <select name="survey_type" id="itsSurveyType" @disabled($locked)
+                            onchange="var o=document.getElementById('itsSurveyTypeOther'),on=this.value==='Other';o.style.display=on?'':'none';o.disabled=!on;o.required=on;">
+                        <option value="">Select survey type…</option>
+                        @foreach ($surveyTypes ?? [] as $st)
+                            <option value="{{ $st->name }}" @selected($stPick === $st->name)>{{ $st->name }}</option>
+                        @endforeach
+                        <option value="Other" @selected($stPick === 'Other')>Other (specify)</option>
+                    </select>
+                    <input type="text" name="survey_type_other" id="itsSurveyTypeOther" maxlength="100" value="{{ $stOther }}" placeholder="Specify the survey type *" aria-label="Specify the survey type"
+                           style="margin-top:6px;{{ $stPick === 'Other' ? '' : 'display:none;' }}" class="@error('survey_type_other') is-invalid @enderror"
+                           @if ($stPick === 'Other' && ! $locked) required @else disabled @endif />
+                    @error('survey_type_other')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
+                </div>
+                <div class="form-group span-2">
+                    <label>Beacon Numbers</label>
+                    <textarea name="beacon_numbers" rows="3" maxlength="8000" placeholder="KDJ 0001 to KDJ 0004, A1404B" class="@error('beacon_numbers') is-invalid @enderror" @disabled($locked)>{{ old('beacon_numbers', implode(', ', $beaconList ?? [])) }}</textarea>
+                    @error('beacon_numbers')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
+                    <p class="helper-text">The beacons this surveyor will use. Each must be in the Beacon Register, not issued to another surveyor, and not on another job.</p>
+                </div>
+            </div>
+
             <div class="form-actions">
                 <div class="left">
                     <a class="btn btn-secondary" href="{{ route('survey-module.gkn.its.index') }}"><i class="fas fa-arrow-left"></i> Back</a>

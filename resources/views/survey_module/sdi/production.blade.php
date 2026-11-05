@@ -105,6 +105,9 @@
                                             <i data-lucide="x-circle" class="w-4 h-4"></i> Reject
                                         </button>
                                     @endif
+                                    @if ($m->request_file_path)
+                                        <a href="{{ route('survey-module.sdi.map-requests.request-file', $m) }}" class="{{ $svItem }}"><i data-lucide="file-down" class="w-4 h-4 text-gray-500"></i> Download Scanned Request</a>
+                                    @endif
                                     @if ($m->deliverable_path)
                                         <a href="{{ route('survey-module.sdi.map-requests.deliverable', $m) }}" class="{{ $svItem }}"><i data-lucide="download" class="w-4 h-4 text-gray-500"></i> Download Map</a>
                                     @endif

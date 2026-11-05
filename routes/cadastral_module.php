@@ -124,6 +124,10 @@ Route::middleware(['auth'])->prefix('cadastral-module')->name('cadastral-module.
         Route::get('/{surveyJob}/its/print', [SurveyJobController::class, 'printIts'])->name('its.print');
         Route::post('/{surveyJob}/submitted', [SurveyJobController::class, 'markSubmitted'])->name('mark-submitted');
         Route::post('/{surveyJob}/accepted', [SurveyJobController::class, 'markAccepted'])->name('mark-accepted');
+        // Survey type + beacons, and the request for beacons to the SG (CR 03112026).
+        Route::post('/{surveyJob}/survey-details', [SurveyJobController::class, 'surveyDetails'])->name('survey-details');
+        Route::post('/{surveyJob}/request-beacons', [SurveyJobController::class, 'requestBeacons'])->name('request-beacons');
+        Route::post('/{surveyJob}/beacon-requests/{beaconRequest}/accept', [SurveyJobController::class, 'acceptBeacons'])->whereNumber('beaconRequest')->name('accept-beacons');
     });
 
     // Registered surveyor / firm directory

@@ -69,6 +69,7 @@ class SdiMapRequestController extends Controller
         $data['requested_by'] = Auth::id();
 
         $m = SdiMapRequest::create($data);
+        $this->storeRequestFile($r, $m);
 
         return redirect()->route('survey-module.sdi.map-requests.show', $m)
             ->with('success', "Map request {$m->request_ref} logged; it is now in the Production Unit queue.");
@@ -91,6 +92,7 @@ class SdiMapRequestController extends Controller
         }
 
         $mapRequest->update($this->validated($r));
+        $this->storeRequestFile($r, $mapRequest);
 
         return redirect()->route('survey-module.sdi.map-requests.show', $mapRequest)
             ->with('success', "Map request {$mapRequest->request_ref} updated.");
@@ -145,6 +147,30 @@ class SdiMapRequestController extends Controller
         return response()->json($points->all())->header('Cache-Control', 'private, max-age=600');
     }
 
+    /** The scanned map or sketch the requester brought (CR 03112026 item 12), streamed from the private disk. */
+    public function requestFile(SdiMapRequest $mapRequest)
+    {
+        abort_unless($mapRequest->request_file_path && Storage::disk(SdiMapRequest::DISK)->exists($mapRequest->request_file_path), 404);
+
+        return Storage::disk(SdiMapRequest::DISK)->download(
+            $mapRequest->request_file_path,
+            $mapRequest->request_file_name ?: basename($mapRequest->request_file_path)
+        );
+    }
+
+    /** Beside the produced map. A new file replaces the old one, and the old one goes. */
+    private function storeRequestFile(Request $r, SdiMapRequest $m): void
+    {
+        $file = $r->file('request_file');
+        if (! $file) return;
+
+        $old = $m->request_file_path;
+        $ext = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'bin');
+        $path = $file->storeAs("app/survey/sdi/map-requests/{$m->id}/request", \Illuminate\Support\Str::uuid() . '.' . $ext, SdiMapRequest::DISK);
+        $m->update(['request_file_path' => $path, 'request_file_name' => mb_substr($file->getClientOriginalName(), 0, 255)]);
+        if ($old) Storage::disk(SdiMapRequest::DISK)->delete($old);
+    }
+
     /** The produced map, streamed from the private disk. */
     public function deliverable(SdiMapRequest $mapRequest)
     {
@@ -171,6 +197,12 @@ class SdiMapRequestController extends Controller
     private function validated(Request $r): array
     {
         $data = $r->validate([
+            'request_file'     => ['nullable', 'file', 'max:51200', 'mimes:pdf,png,jpg,jpeg,tif,tiff,dwg,dxf,zip,kml,kmz', function ($attr, $file, $fail) {
+                // mimes reads the contents; a wrong name is refused too.
+                if (! in_array(strtolower($file->getClientOriginalExtension()), ['pdf', 'png', 'jpg', 'jpeg', 'tif', 'tiff', 'dwg', 'dxf', 'zip', 'kml', 'kmz'], true)) {
+                    $fail('Upload a PDF, image, DWG/DXF, KML/KMZ, or a ZIP.');
+                }
+            }],
             'mda_id'           => ['required', 'string'],
             'requester_other'  => ['nullable', 'string', 'max:300', Rule::requiredIf(fn () => $r->input('mda_id') === self::REQUESTER_OTHER)],
             'contact_name'     => 'required|string|max:200',
@@ -187,6 +219,7 @@ class SdiMapRequestController extends Controller
             'due_date'         => 'nullable|date|after_or_equal:received_date',
             'geometry_geojson' => 'required|json',
         ], [
+            'request_file.mimes'       => 'Upload a PDF, image, DWG/DXF, KML/KMZ, or a ZIP.',
             'mda_id.required'          => 'Choose the requesting MDA, or Other.',
             'requester_other.required' => 'Name the requesting body.',
             'map_type_id.required'     => 'Choose the type of map needed.',
@@ -194,6 +227,7 @@ class SdiMapRequestController extends Controller
             'geometry_geojson.required'=> 'Draw the area to be mapped.',
             'due_date.after_or_equal'  => 'The due date cannot be before the date received.',
         ]);
+        unset($data['request_file']);   // saved on its own by storeRequestFile()
 
         $one = fn ($v) => ($v = trim(preg_replace('/\s+/', ' ', (string) $v))) === '' ? null : $v;
 

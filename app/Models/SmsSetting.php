@@ -84,6 +84,16 @@ class SmsSetting extends Model
      */
     public const KEY_PHONE_OTP = 'phone_otp';
 
+    // Surveyor General's Office portal (CR 03112026 items 18-21).
+    public const KEY_SURVEY_PORTAL_REGISTERED = 'survey_portal_registered';
+    public const KEY_SURVEY_PORTAL_ACTIVE = 'survey_portal_active';
+    public const KEY_SURVEY_PORTAL_DECLINED = 'survey_portal_declined';
+    public const KEY_SURVEY_BEACON_REQUEST = 'survey_beacon_request';
+    public const KEY_SURVEY_BEACON_RECEIVED = 'survey_beacon_received';
+    public const KEY_SURVEY_BEACON_READY = 'survey_beacon_ready';
+    public const KEY_SURVEY_BEACON_DECLINED = 'survey_beacon_declined';
+    public const KEY_SURVEY_FARM_CAPTURED = 'survey_farm_captured';
+
     private const CACHE_KEY = 'klaes_sms.settings';
 
     protected $fillable = [

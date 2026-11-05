@@ -149,7 +149,7 @@
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
                                     {{-- Menu wording from the user's notes (2026-11-03): Capture Farmer, Update Farmers List, View Lands, Update Project. --}}
                                     <a href="{{ route('survey-module.compensation.cases.register', ['project' => $p->id]) }}" class="{{ $svItem }}">
-                                        <i data-lucide="user-plus" class="w-4 h-4 text-gray-500"></i> Capture Farmer
+                                        <i data-lucide="user-plus" class="w-4 h-4 text-gray-500"></i> Capture Farm
                                     </a>
                                     <a href="{{ route('survey-module.compensation.capture-list', ['project' => $p->id]) }}" class="{{ $svItem }}">
                                         <i data-lucide="clipboard-list" class="w-4 h-4 text-gray-500"></i> Update Farmers List

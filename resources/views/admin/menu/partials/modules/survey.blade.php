@@ -110,7 +110,7 @@
                  ground checks, with Record Plot Showing (user, 2026-11-02; was the lands list ?view=showing earlier that day). --}}
             <a href="{{ route('survey-module.compensation.plot-confirmations') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.plot-confirmations') ? 'active' : '' }}">
               <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Plot Showing Register</span>
+              <span>Plot Showing Register - Resettlement</span>
             </a>
             {{-- Showings and ground checks from the Plot Confirmation app (2026-10-30); hidden from the sidebar for now (user, 2026-10-30). --}}
             @if (false)
@@ -171,9 +171,22 @@
               <i data-lucide="file-signature" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>OP</span>
             </a>
-            <a href="{{ route('survey-module.compensation.letter-of-grant') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.letter-of-grant') ? 'active' : '' }}">
-              <i data-lucide="scroll-text" class="h-3.5 w-3.5 text-pink-400"></i><span>Letter of Grant</span>
-            </a>
+            {{-- Letter of Grant, Direct Allocation: Recommendation and RofO (sidebar outline, CR 03112026 items 9-10). --}}
+            <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-comp-lg">
+              <div class="flex items-center gap-2">
+                <i data-lucide="scroll-text" class="h-3.5 w-3.5 text-pink-400"></i>
+                <span>Letter of Grant – Direct Allocation</span>
+              </div>
+              <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-comp-lg"></i>
+            </div>
+            <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-comp-lg">
+              <a href="{{ route('survey-module.lg.land-recommendations.index', ['type' => 'ROFO']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.lg.land-recommendations.*') ? 'active' : '' }}">
+                <i data-lucide="file-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Recommendation</span>
+              </a>
+              <a href="{{ route('survey-module.lg.land-rofos.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.lg.land-rofos.*') ? 'active' : '' }}">
+                <i data-lucide="file-badge" class="h-3.5 w-3.5 text-pink-400"></i><span>RofO</span>
+              </a>
+            </div>
           </div>
 
           {{-- b.v Complaints --}}
@@ -276,6 +289,10 @@
             </a>
           </div>
           </div>
+          {{-- Resettlement + Direct Allocation, with the actions (CR 03112026 item 1). --}}
+          <a href="{{ route('survey-module.gkn.plot-showing') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.plot-showing') ? 'active' : '' }}">
+            <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Plot Showing Register</span>
+          </a>
           {{-- CR 30102026 item 21 (2026-10-31): a first version of the form; Survey will give its fields. --}}
           <a href="{{ route('survey-module.gkn.passing-checks') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.passing-checks') ? 'active' : '' }}">
             <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Passing &amp; Checking (Final Survey Plan)</span>
@@ -450,7 +467,7 @@
             {!! $svOdGroup('survey-other-cadastral', 'Cadastral', 'map', true) !!}
             <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-other-cadastral">
               @if($svComp)
-                {!! $svOdLink('Compensation Check', 'compensation_unit', 'scale') !!}
+                {!! $svOdLink('Compensation Status', 'compensation_unit', 'scale') !!}
               @endif
               @if($svDsg)
                 {!! $svOdGroup('survey-other-dsg', 'DSG', 'user-check', true) !!}
@@ -465,6 +482,11 @@
                 {!! $svOdGroup('survey-other-sg', 'SG', 'award', true) !!}
                 <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-other-sg">
                   {!! $svOdLink('Approval', 'surveyor_general', 'check-circle') !!}
+                  {{-- Surveyor registrations and beacon requests from the KSSGOF portal and Cadastral I to S (CR 03112026 items 18-21). --}}
+                  <a href="{{ route('survey-module.beacon-requests.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.beacon-requests.*') ? 'active' : '' }}">
+                    <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i>
+                    <span>Beacon Requests</span>
+                  </a>
                 </div>
               @endif
             </div>

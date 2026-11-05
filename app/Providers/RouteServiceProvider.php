@@ -75,6 +75,9 @@ class RouteServiceProvider extends ServiceProvider
                 ->group(base_path('routes/laas.php'));
 
             Route::middleware('web')
+                ->group(base_path('routes/surveyor_portal.php'));
+
+            Route::middleware('web')
                 ->group(base_path('routes/bills_api.php'));
 
             Route::middleware('web')
@@ -91,6 +94,9 @@ class RouteServiceProvider extends ServiceProvider
                 ->group(base_path('routes/tdp.php'));
 
             // PageTyping routes removed — file no longer present
+
+            // Survey's Letter of Grant repeats the Lands routes, so this comes after every route file (CR 03112026 item 10).
+            \App\Support\SurveyLandRoutes::mirror();
         });
     }
 

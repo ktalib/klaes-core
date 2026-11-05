@@ -274,7 +274,19 @@
                                    placeholder="{{ __('Search name, username, email, phone or role...') }}"
                                    class="search-input w-full rounded-lg border-gray-300 pl-9 pr-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500">
                         </div>
-                        @if ($activeTab !== 'mdc')
+                        @if ($activeTab === 'mdc')
+                        <div class="flex items-center gap-2">
+                            <label for="unit" class="text-sm text-gray-600 whitespace-nowrap">{{ __('Unit') }}</label>
+                            <select id="unit" name="unit" onchange="this.form.submit()"
+                                    class="rounded-lg border-gray-300 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <option value="">{{ __('All Units') }}</option>
+                                @foreach ($unitOptions as $unitKey => $unitOption)
+                                    <option value="{{ $unitOption['label'] }}" @selected($unit !== '' && mb_strtolower($unit) === $unitKey)>{{ $unitOption['label'] }}</option>
+                                @endforeach
+                                <option value="{{ $unitNotSet }}" @selected($unit === $unitNotSet)>{{ __('No unit set') }}</option>
+                            </select>
+                        </div>
+                        @else
                         <div class="flex items-center gap-2">
                             <label for="department" class="text-sm text-gray-600 whitespace-nowrap">{{ __('Department') }}</label>
                             <select id="department" name="department" onchange="this.form.submit()"
@@ -297,7 +309,7 @@
                             <button type="submit" class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors">
                                 {{ __('Search') }}
                             </button>
-                            @if ($search !== '' || $departmentId)
+                            @if ($search !== '' || $departmentId || $unit !== '')
                                 <a href="{{ route('users.index', ['tab' => $activeTab, 'per_page' => $perPage, 'sort' => $sort, 'dir' => $direction]) }}"
                                    class="inline-flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 rounded-lg border border-gray-200 hover:bg-gray-50">
                                     {{ __('Clear') }}
@@ -313,8 +325,8 @@
                         'users' => $users,
                         'tableId' => $activeTab . 'UsersTable',
                         'emptyStateTitle' => $activeTab === 'mdc' ? __('No MDC users found') : __('No MLPP users found'),
-                        'emptyStateSubtitle' => $search !== '' || $departmentId
-                            ? ($search === '' ? __('No user in this department. Try another department.') : __('No user matches ":term". Try a different search.', ['term' => $search]))
+                        'emptyStateSubtitle' => $search !== '' || $departmentId || $unit !== ''
+                            ? ($search === '' ? ($unit !== '' ? __('No user in this unit. Try another unit.') : __('No user in this department. Try another department.')) : __('No user matches ":term". Try a different search.', ['term' => $search]))
                             : ($activeTab === 'mdc' ? __('Invite new MDC users or adjust filters.') : __('Create a new MLPP user or adjust filters.')),
                     ])
 

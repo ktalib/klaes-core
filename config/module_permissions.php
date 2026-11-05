@@ -104,6 +104,7 @@ return [
     */
     'exempt_paths' => [
         'laas', 'laas/*',
+        'kssgof', 'kssgof/*',
         'phs', 'phs/*',
         'online-legal-search', 'online-legal-search/*',
         'api/*',
@@ -177,6 +178,7 @@ return [
         'survey_record.*' => 'Survey - Records',
         // Its own role (user, 2026-10-23); must stay above survey-module.* (first match wins).
         'survey-module.workflow.beacon-register.*' => 'Survey - Beacon Register',
+        'survey-module.beacon-requests.*' => 'Survey - SG',
         'survey-module.*' => 'Survey - Records',
         'gkn-generation.*' => 'Generate New FileNo (GKNFileNo)',
 
@@ -251,6 +253,7 @@ return [
     'alternatives' => [
         'survey-module.compensation.*'           => ['Survey - Compensation'],
         'survey-module.tools.plot-allocation*'   => ['Survey - Compensation'],
+        'survey-module.lg.*'                     => ['Survey - Compensation'],
         'survey-module.records.lpkn*'            => ['Survey - Public Survey'],
         'survey-module.records.private-layouts*' => ['Survey - Public Survey'],
         'survey-module.records.layout-records*'  => ['Survey - Public Survey'],

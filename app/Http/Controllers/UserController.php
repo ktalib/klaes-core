@@ -113,6 +113,22 @@ class UserController extends Controller
             $departmentId = 0;
         }
 
+        // Unit filter on the MDC tab (user, 2026-11-05): an MDC user's unit is their
+        // work station (PRA, File Indexing, Page Typing...). The list is the configured
+        // stations plus any other value MDC users hold, matched ignoring case/spaces.
+        $unitOptions = $activeTab === 'mdc' ? $this->mdcUnitOptions($scope) : [];
+        $unit = trim((string) $request->query('unit', ''));
+        if ($activeTab !== 'mdc' || ($unit !== self::UNIT_NOT_SET && !array_key_exists(mb_strtolower($unit), $unitOptions))) {
+            $unit = '';
+        }
+        $unitFilter = function ($query) use ($unit) {
+            if ($unit === self::UNIT_NOT_SET) {
+                $query->whereRaw("LTRIM(RTRIM(ISNULL([work_station], ''))) = ''");
+            } elseif ($unit !== '') {
+                $query->whereRaw('LOWER(LTRIM(RTRIM([work_station]))) = ?', [mb_strtolower($unit)]);
+            }
+        };
+
         $sort = $request->query('sort', 'name');
         if (!array_key_exists($sort, self::SORTABLE_COLUMNS)) {
             $sort = 'name';
@@ -151,6 +167,7 @@ class UserController extends Controller
             ->with(['department:id,name'])
             ->whereRaw(self::TAB_PREDICATES[$activeTab])
             ->when($departmentId, fn ($query) => $query->where('department_id', $departmentId))
+            ->tap($unitFilter)
             ->when($search !== '', function ($query) use ($search) {
                 $like = '%' . $search . '%';
                 $query->where(function ($match) use ($like) {
@@ -187,6 +204,10 @@ class UserController extends Controller
             ->first()
             ->getAttributes();
 
+        $mdcCount = $unit !== ''
+            ? $scope()->whereRaw(self::TAB_PREDICATES['mdc'])->tap($unitFilter)->count()
+            : null;
+
         $tabCounts = (array) $scope()
             ->selectRaw('SUM(CASE WHEN ' . self::TAB_PREDICATES['mdc'] . ' THEN 1 ELSE 0 END) as mdc')
             ->selectRaw(
@@ -195,6 +216,9 @@ class UserController extends Controller
             )
             ->first()
             ->getAttributes();
+        if ($mdcCount !== null) {
+            $tabCounts['mdc'] = $mdcCount;
+        }
 
         return view('user.index', compact(
             'users',
@@ -204,12 +228,50 @@ class UserController extends Controller
             'search',
             'departments',
             'departmentId',
+            'unit',
+            'unitOptions',
             'sort',
             'direction',
             'perPage',
             'PageTitle',
             'PageDescription'
-        ) + ['perPageOptions' => self::PER_PAGE_OPTIONS]);
+        ) + ['perPageOptions' => self::PER_PAGE_OPTIONS, 'unitNotSet' => self::UNIT_NOT_SET]);
+    }
+
+    /** The Unit filter's value for MDC users with no work station. */
+    private const UNIT_NOT_SET = '__none';
+
+    /**
+     * Units for the MDC tab's filter: lower-cased name => [label, count]. The configured
+     * work stations come first in their configured order, then any other value MDC users
+     * hold. Case/space variants of one name are one option.
+     */
+    private function mdcUnitOptions(\Closure $scope): array
+    {
+        $counts = $scope()
+            ->whereRaw(self::TAB_PREDICATES['mdc'])
+            ->whereRaw("LTRIM(RTRIM(ISNULL([work_station], ''))) <> ''")
+            ->selectRaw('LTRIM(RTRIM([work_station])) as unit, COUNT(*) as total')
+            ->groupByRaw('LTRIM(RTRIM([work_station]))')
+            ->toBase()
+            ->get();
+
+        $options = [];
+        foreach (array_keys($this->workStationOptions()) as $label) {
+            $options[mb_strtolower($label)] = ['label' => $label, 'count' => 0];
+        }
+        $extra = [];
+        foreach ($counts as $row) {
+            $key = mb_strtolower((string) $row->unit);
+            if (isset($options[$key])) {
+                $options[$key]['count'] += (int) $row->total;
+            } else {
+                $extra[$key] = ['label' => $row->unit, 'count' => ($extra[$key]['count'] ?? 0) + (int) $row->total];
+            }
+        }
+        uasort($extra, fn ($a, $b) => strcasecmp($a['label'], $b['label']));
+
+        return $options + $extra;
     }
 
 

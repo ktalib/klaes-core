@@ -10,6 +10,8 @@ class SurveyBeneficiary extends SurveyModel
 
     protected $table = 'survey_beneficiaries';
 
+    protected $casts = ['survey_farmer_id' => 'integer', 'farm_no' => 'integer'];
+
     public function case(): BelongsTo
     {
         return $this->belongsTo(SurveyCompCase::class, 'survey_comp_case_id');

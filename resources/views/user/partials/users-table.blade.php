@@ -29,6 +29,7 @@
                                 'tab' => $activeTab,
                                 'search' => $search,
                                 'department' => ($departmentId ?? 0) ?: null,
+                                'unit' => ($unit ?? '') !== '' ? $unit : null,
                                 'per_page' => $perPage,
                                 'sort' => $column['key'],
                                 'dir' => $nextDirection,

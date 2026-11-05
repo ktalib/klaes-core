@@ -100,6 +100,7 @@
     .br-actions .br-btn-print { background: #475569; }
     .br-actions .br-btn-issue { background: #d97706; }
     .br-actions .br-btn-new { background: #0f766e; }
+    .br-actions .br-btn-dup { background: #4f46e5; }
 </style>
 <div class="page-header">
     <div></div>
@@ -107,6 +108,8 @@
         {{-- The register as the printed book, for the current filters (2026-10-25). --}}
         <a href="{{ route('survey-module.workflow.beacon-register.print', request()->only(['q', 'layout', 'year', 'quarter', 'month', 'status'])) }}"
            target="_blank" class="btn btn-sm br-btn-print"><i class="fas fa-print"></i> Print Register</a>
+        {{-- Duplicate Checker (user, 2026-11-05): are these numbers already in the register, and whose are they? --}}
+        <button type="button" class="btn btn-sm br-btn-dup" onclick="brDupOpen()"><i class="fas fa-clone"></i> Duplicate Checker</button>
         @if ($brCan['create'])
             {{-- Issue Beacon No (WhatsApp, user 2026-10-31; groups 2026-11-02). --}}
             @unless ($e)
@@ -121,10 +124,32 @@
     </div>
 </div>
 
+<div id="brDup" class="br-modal" role="dialog" aria-modal="true" aria-labelledby="brDupTitle">
+  <div class="br-modal-backdrop" onclick="brDupClose()"></div>
+  <div class="br-modal-dialog" style="max-width:860px;">
+    <div class="br-modal-header">
+        <h4 id="brDupTitle">Duplicate Checker</h4>
+        <button type="button" class="br-modal-x" aria-label="Close" onclick="brDupClose()">&times;</button>
+    </div>
+    <div class="br-modal-body">
+        <div class="form-group">
+            <label for="brDupInput">Beacon numbers or ranges</label>
+            <textarea id="brDupInput" rows="4" placeholder="KB1088, A1404B&#10;KB1100 to KB1120" style="width:100%;padding:8px 12px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;"></textarea>
+            <p class="helper-text">Separate them with commas or new lines. Spaces and capitals do not matter.</p>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" id="brDupRun" onclick="brDupRun()"><i class="fas fa-search"></i> Check</button>
+        <p id="brDupMsg" style="margin:12px 0 6px;font-weight:600;"></p>
+        <div id="brDupWrap" hidden style="max-height:320px;overflow:auto;border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;">
+            <table style="width:100%;font-size:13px;">
+                <thead><tr><th>S/N</th><th>Beacon No.</th><th>Type</th><th>Company</th><th>Surveyor's Name</th><th>Date</th><th>Issue Entry</th></tr></thead>
+                <tbody id="brDupRows"></tbody>
+            </table>
+        </div>
+    </div>
+  </div>
+</div>
+
 @if ($brCan['create'] && ! $e)
-@php
-    $brPrefixes = \App\Services\Survey\SurveySettings::beaconPrefixes();
-@endphp
 <style>
     #brIssue .bi-sec { border: 1px solid var(--gray-200, #e5e7eb); border-radius: 8px; padding: 10px 14px 4px; margin: 0 0 12px; }
     #brIssue .bi-sec > legend { padding: 0 6px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--primary, #0f766e); }
@@ -152,9 +177,6 @@
         <button type="button" class="br-modal-x" aria-label="Close" onclick="brIssueClose()">&times;</button>
     </div>
     <div style="padding:16px 20px;overflow-y:auto;flex:1;min-height:0;">
-        @if ($brPrefixes->isEmpty())
-            <p class="helper-text">No beacon prefix is set yet. Add them in Configurable Entities &gt; Survey &gt; Beacon Prefixes.</p>
-        @else
         {{-- Several groups in one go (user, 2026-11-02): each run of numbers with its own type, surveyor and
              location is added to the table at the bottom; Save records every group as its own register entry. --}}
         <fieldset class="bi-sec">
@@ -179,31 +201,54 @@
             </div>
         </fieldset>
 
+        {{-- Private only: the company comes first and fills its letters and surveyor (CR 03112026 item 16). --}}
+        <fieldset class="bi-sec" id="brIssueCompanyBox" style="display:none;">
+            <legend>Company</legend>
+            <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+                <div class="form-group">
+                    <label>Company <span class="required">*</span></label>
+                    <select id="brIssueCompany" onchange="brIssueCompanyChanged()">
+                        <option value="">Select company…</option>
+                        @foreach ($companies as $c)<option value="{{ $c->id }}" data-letters="{{ $c->beacon_letters }}" data-surveyor="{{ $c->surveyor_name }}">{{ $c->name }}{{ $c->beacon_letters ? ' · ' . $c->beacon_letters : '' }}</option>@endforeach
+                        <option value="other">Other (specify)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="brIssueCompanyOtherWrap" style="display:none;">
+                    <label>Specify company <span class="required">*</span></label>
+                    <input type="text" id="brIssueCompanyOther" maxlength="255" />
+                </div>
+            </div>
+        </fieldset>
+
         <fieldset class="bi-sec">
             <legend>Beacon Numbers</legend>
-            <div class="bi-grid">
+            <p class="helper-text" id="brIssueTypeHint" style="margin:4px 0 10px;">Choose the beacon type first.</p>
+            {{-- Public: always the next prefix and the next numbers from the pool, nothing to choose.
+                 Private: A, the serial, then the SG's letters (user, 2026-11-05: A0001B, A0001AB). --}}
+            <div class="bi-grid" id="brIssueNumbers" style="display:none;">
                 <div class="form-group">
-                    <label>Beacon Prefix <span class="required">*</span></label>
-                    {{-- Each prefix belongs to a beacon type, set in Configurable Entities > Survey (user, 2026-11-03: AAA, ABC Government). --}}
-                    <select id="brIssuePrefix" onchange="brIssuePrefixChanged()">
-                        <option value="">Select prefix…</option>
-                        @foreach ($brPrefixes as $p)<option value="{{ $p->prefix }}" data-type="{{ $p->beacon_type ?? '' }}">{{ $p->prefix }}{{ ($p->beacon_type ?? null) ? ' · ' . $p->beacon_type : '' }}{{ $p->description ? ' · ' . $p->description : '' }}</option>@endforeach
-                    </select>
+                    <label>Beacon Prefix</label>
+                    <input type="text" id="brIssuePrefix" readonly tabindex="-1" style="background:var(--gray-100);font-weight:600;" />
                 </div>
                 <div class="form-group">
                     <label>Number of Beacons <span class="required">*</span></label>
                     <input type="number" id="brIssueCount" min="1" max="{{ \App\Models\Survey\SurveyBeaconRegister::MAX_RANGE }}" value="4" oninput="brIssuePreview()" />
                 </div>
                 <div class="form-group">
-                    <label style="display:flex;align-items:center;gap:8px;font-weight:400;">
-                        <input type="checkbox" id="brIssueAuto" checked style="width:auto;" onchange="brIssueMode()" /> Automatic serial
-                    </label>
-                    <input type="number" id="brIssueStart" min="1" placeholder="Start serial" disabled oninput="brIssuePreview()" />
-                    <p class="helper-text" id="brIssueNextNote">Choose a prefix to get the next serial.</p>
+                    <label>Start Serial</label>
+                    <input type="text" id="brIssueStart" inputmode="numeric" maxlength="6" oninput="brIssueStartInput()" />
+                    <p class="helper-text" id="brIssueNextNote"></p>
                 </div>
-                <div class="form-group">
-                    <label>Alphabet after the serial</label>
-                    <input type="text" id="brIssueSuffix" maxlength="3" placeholder="Optional, e.g. B" style="text-transform:uppercase;" oninput="this.value = this.value.replace(/[^a-z]/gi, ''); brIssueNext()" />
+                <div class="form-group" id="brIssueLettersBox">
+                    <label>Letters <span class="required">*</span></label>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        @foreach ([1, 2, 3] as $li)
+                            <input type="text" id="brIssueL{{ $li }}" maxlength="1" aria-label="Letter {{ $li }}" oninput="brIssueLettersChanged()"
+                                   style="width:44px;text-align:center;text-transform:uppercase;font-weight:600;{{ $li === 3 ? 'display:none;' : '' }}" />
+                        @endforeach
+                        <button type="button" class="btn btn-outline btn-sm" id="brIssueLPlus" onclick="brIssueLetterAdd()" aria-label="Add a third letter" title="Add a third letter"><i class="fas fa-plus"></i></button>
+                    </div>
+                    <input type="hidden" id="brIssueSuffix" />
                 </div>
             </div>
             {{-- Duplicate check: against the register and against the groups already in the table. --}}
@@ -261,18 +306,17 @@
         <div id="brIssueTableWrap" data-column-picker="off" style="max-height:340px;overflow:auto;border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;">
             <table class="bi-table">
                 <thead>
-                    <tr><th style="width:48px;">S/N</th><th>Beacon No.</th><th>Type</th><th>Surveyor</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th style="width:44px;"></th></tr>
+                    <tr><th style="width:48px;">S/N</th><th>Beacon No.</th><th>Type</th><th>Company</th><th>Surveyor</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th style="width:44px;"></th></tr>
                 </thead>
                 <tbody id="brIssueRows"></tbody>
             </table>
         </div>
-        @endif
     </div>
     <div class="form-actions" style="padding:12px 20px;border-top:1px solid var(--gray-200,#e5e7eb);margin:0;">
         <div class="left"><button type="button" class="btn btn-secondary" onclick="brIssueClose()">Cancel</button></div>
         <div class="right" style="display:flex;align-items:center;gap:12px;">
             <span id="brIssueSaveMsg" class="helper-text" style="color:var(--danger, #b91c1c);margin:0;"></span>
-            @unless ($brPrefixes->isEmpty())<button type="button" class="btn btn-success" id="brIssueSave" onclick="brIssueSave()" disabled><i class="fas fa-save"></i> <span>Save</span></button>@endunless
+            <button type="button" class="btn btn-success" id="brIssueSave" onclick="brIssueSave()" disabled><i class="fas fa-save"></i> <span>Save</span></button>
         </div>
     </div>
   </div>
@@ -314,7 +358,7 @@
         <div class="br-layout @error('layout_type') is-invalid @enderror" role="radiogroup" aria-label="Type">
             @foreach ($layoutTypes as $key => $label)
                 <label class="br-layout-opt">
-                    <input type="radio" name="layout_type" value="{{ $key }}" required @checked($val('layout_type') === $key) />
+                    <input type="radio" name="layout_type" value="{{ $key }}" required @checked($val('layout_type') === $key) onchange="brCompanyShow()" />
                     <span><i class="fas {{ $key === 'Government' ? 'fa-landmark' : 'fa-user' }}"></i> {{ $label }}</span>
                 </label>
             @endforeach
@@ -390,11 +434,29 @@
             <div class="br-preview-head" id="brPreviewHead"></div>
             <div class="br-chips" id="brPreviewChips"></div>
         </div>
+        <p id="brDupLive" class="br-sub" style="margin:8px 0 0;"></p>
     </fieldset>
 
     {{-- 3. Surveyor --}}
     <fieldset class="br-section">
         <legend>Surveyor</legend>
+        @php
+            $brCompanyChoice = old('company_choice', $e ? ($e->company_id ?: ($e->company_name ? 'other' : '')) : '');
+        @endphp
+        <div class="br-grid" id="brCompanyRow" style="margin-bottom:14px;">
+            <div>
+                <label>Company</label>
+                <select name="company_choice" id="brCompany" onchange="brCompanyShow()" class="@error('company_choice') is-invalid @enderror">
+                    <option value="">Select company…</option>
+                    @foreach ($companies as $c)<option value="{{ $c->id }}" @selected((string) $brCompanyChoice === (string) $c->id)>{{ $c->name }}</option>@endforeach
+                    <option value="other" @selected($brCompanyChoice === 'other')>Other (specify)</option>
+                </select>
+            </div>
+            <div id="brCompanyOtherWrap">
+                <label>Specify company <span class="required">*</span></label>
+                <input type="text" name="company_other" id="brCompanyOther" maxlength="255" value="{{ old('company_other', $e && ! $e->company_id ? $e->company_name : null) }}" class="@error('company_other') is-invalid @enderror" />
+            </div>
+        </div>
         <div class="br-grid">
             <div>
                 <label>Surveyor's Name</label>
@@ -545,15 +607,19 @@
        class="{{ $view === 'numbers' ? 'on' : '' }}" role="tab" aria-selected="{{ $view === 'numbers' ? 'true' : 'false' }}">
         <i class="fas fa-th"></i> By beacon number
     </a>
+    <a href="{{ route('survey-module.workflow.beacon-register.index', \Illuminate\Support\Arr::except(request()->query(), ['page', 'edit', 'new', 'group', 'gpage']) + ['view' => 'groups']) }}"
+       class="{{ $view === 'groups' ? 'on' : '' }}" role="tab" aria-selected="{{ $view === 'groups' ? 'true' : 'false' }}">
+        <i class="fas fa-layer-group"></i> By group
+    </a>
 </div>
 
 <form method="GET" class="table-toolbar">
-    @if ($view === 'numbers')
-        <input type="hidden" name="view" value="numbers" />
+    @if ($view !== 'issues')
+        <input type="hidden" name="view" value="{{ $view }}" />
     @endif
     <div class="left" style="flex-wrap:wrap;gap:8px;">
         @php $fs = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;'; @endphp
-        <input type="text" name="q" value="{{ request('q') }}" placeholder="Beacon no., surveyor, plan, teller…" style="{{ $fs }}width:240px;" />
+        <input type="text" name="q" value="{{ request('q') }}" placeholder="Beacon no., company, surveyor, plan, teller…" style="{{ $fs }}width:240px;" />
         <select name="layout" style="{{ $fs }}">
             <option value="">All Types</option>
             @foreach ($layoutTypes as $key => $label)
@@ -586,7 +652,7 @@
         </select>
         <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
         @if (request()->hasAny(['q', 'layout', 'year', 'quarter', 'month', 'status']))
-            <a class="btn btn-outline btn-sm" href="{{ route('survey-module.workflow.beacon-register.index', $view === 'numbers' ? ['view' => 'numbers'] : []) }}">Clear</a>
+            <a class="btn btn-outline btn-sm" href="{{ route('survey-module.workflow.beacon-register.index', $view !== 'issues' ? ['view' => $view] : []) }}">Clear</a>
         @endif
     </div>
 </form>
@@ -611,6 +677,7 @@
                     <th>Issued Number</th>
                     <th>Total</th>
                     <th>Plan No.</th>
+                    <th>Company</th>
                     <th>Surveyor's Name</th>
                     <th>Registration</th>
                     <th>Plot No.</th>
@@ -645,7 +712,7 @@
                         </td>
                         <td>{{ number_format($row->total_issued) }}</td>
                         <td>{{ $row->plan_no ?: '—' }}</td>
-                        <td>{{ $row->surveyor_name ?: '—' }}</td>
+                        <td>{{ $row->company_name ?: '—' }}</td><td>{{ $row->surveyor_name ?: '—' }}</td>
                         <td>{{ $row->surveyor_registration ?: '—' }}</td>
                         <td>{{ $row->prop_plot ?: '—' }}</td>
                         <td>{{ $row->resolvedDistrict('prop_') ?: '—' }}</td>
@@ -727,10 +794,10 @@
                                 <td style="white-space:nowrap;">{{ $row->layout_type_label ?: '—' }}</td>
                                 <td style="white-space:nowrap;">@forelse ($row->fileNumberList() as $fno)<div>{{ $fno }}</div>@empty — @endforelse</td>
                                 <td>{{ $row->register_no ?: '—' }}</td>
-                                <td style="white-space:nowrap;"><span class="br-num-no">{{ $n->beacon_no }}</span></td>
+                                <td style="white-space:nowrap;"><span class="br-num-no">{{ \App\Models\Survey\SurveyBeaconRegister::display($n->beacon_no) }}</span></td>
                                 <td>1</td>
                                 <td>{{ $row->plan_no ?: '—' }}</td>
-                                <td>{{ $row->surveyor_name ?: '—' }}</td>
+                                <td>{{ $row->company_name ?: '—' }}</td><td>{{ $row->surveyor_name ?: '—' }}</td>
                                 <td>{{ $row->surveyor_registration ?: '—' }}</td>
                                 <td>{{ $row->prop_plot ?: '—' }}</td>
                                 <td>{{ $rowDistrict }}</td>
@@ -750,7 +817,7 @@
                     @endif
                 @empty
                     <tr>
-                        <td colspan="23" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="24" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-map-pin" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             No beacon issues recorded{{ request()->hasAny(['q', 'layout', 'year', 'quarter', 'month', 'status']) ? ' for this selection' : ' yet' }}.
                             @if ($brCan['create'])<a href="#" onclick="brOpenNew();return false;">Record one</a>.@endif
@@ -768,7 +835,7 @@
         <div class="pagination">{{ $entries->links() }}</div>
     </div>
 </div>
-@else
+@elseif ($view === 'numbers')
 {{-- By beacon number: one row per expanded number; the details are its issue line's. --}}
 <div class="table-wrapper">
     <div class="table-scroll">
@@ -780,6 +847,7 @@
                     <th>Date</th>
                     <th>Type</th>
                     <th>File No.</th>
+                    <th>Company</th>
                     <th>Surveyor's Name</th>
                     <th>Registration</th>
                     <th>Plan No.</th>
@@ -798,10 +866,11 @@
                     @php $line = $n->register; @endphp
                     <tr>
                         <td>{{ $numbers->firstItem() + $loop->index }}</td>
-                        <td style="white-space:nowrap;"><strong>{{ $n->beacon_no }}</strong></td>
+                        <td style="white-space:nowrap;"><strong>{{ \App\Models\Survey\SurveyBeaconRegister::display($n->beacon_no) }}</strong></td>
                         <td style="white-space:nowrap;">{{ optional($line?->issue_date)->format('d/m/Y') ?: '—' }}</td>
                         <td style="white-space:nowrap;">{{ $line?->layout_type_label ?: '—' }}</td>
                         <td style="white-space:nowrap;">@forelse (($line ? $line->fileNumberList() : []) as $fno)<div>{{ $fno }}</div>@empty — @endforelse</td>
+                        <td>{{ $line?->company_name ?: '—' }}</td>
                         <td>{{ $line?->surveyor_name ?: '—' }}</td>
                         <td>{{ $line?->surveyor_registration ?: '—' }}</td>
                         <td>{{ $line?->plan_no ?: '—' }}</td>
@@ -822,7 +891,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="16" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="17" style="text-align:center;padding:28px;color:var(--gray-500);">
                             No beacon numbers{{ request()->hasAny(['q', 'layout', 'year', 'quarter', 'month', 'status']) ? ' for this selection' : ' issued yet' }}.
                         </td>
                     </tr>
@@ -834,6 +903,84 @@
         <span>Showing {{ $numbers->firstItem() ?? 0 }}–{{ $numbers->lastItem() ?? 0 }} of {{ number_format($numbers->total()) }} beacon numbers</span>
         <div class="pagination">{{ $numbers->links() }}</div>
     </div>
+</div>
+@else
+{{-- By group (CR 03112026 item 14): every number under its letters, whatever the date. Click a group to open it. --}}
+@php
+    $groupBase = \Illuminate\Support\Arr::except(request()->query(), ['group', 'gpage', 'edit', 'new']);
+    $groupMax = \App\Services\Survey\BeaconPool::MAX_SEQ;
+@endphp
+<div class="table-wrapper">
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>S/N</th>
+                    <th>Group</th>
+                    <th>Numbers Issued</th>
+                    <th>Of {{ number_format($groupMax) }}</th>
+                    <th>Lowest</th>
+                    <th>Highest</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse ($groups as $g)
+                    @php $isOpen = $openGroup === $g->beacon_series; @endphp
+                    <tr>
+                        <td>{{ $loop->iteration }}</td>
+                        <td style="white-space:nowrap;">
+                            <a href="{{ route('survey-module.workflow.beacon-register.index', $isOpen ? $groupBase : $groupBase + ['group' => $g->beacon_series]) }}" aria-expanded="{{ $isOpen ? 'true' : 'false' }}">
+                                <i class="fas {{ $isOpen ? 'fa-chevron-down' : 'fa-chevron-right' }}" style="width:14px;"></i>
+                                <strong>{{ \App\Models\Survey\SurveyBeaconRegister::seriesLabel($g->beacon_series) }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ number_format($g->issued) }}</td>
+                        <td>{{ number_format(($g->issued / $groupMax) * 100, 1) }}%</td>
+                        <td>{{ number_format($g->lowest, 0, '', '') }}</td>
+                        <td>{{ number_format($g->highest, 0, '', '') }}</td>
+                    </tr>
+                    @if ($isOpen && $groupNumbers)
+                        <tr>
+                            <td colspan="6" style="padding:0 0 0 24px;background:var(--gray-50,#f9fafb);">
+                                <div class="table-scroll">
+                                    <table>
+                                        <thead>
+                                            <tr><th>S/N</th><th>Beacon No.</th><th>Date</th><th>Type</th><th>File No.</th><th>Company</th><th>Surveyor's Name</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($groupNumbers as $n)
+                                                @php $line = $n->register; @endphp
+                                                <tr>
+                                                    <td>{{ $groupNumbers->firstItem() + $loop->index }}</td>
+                                                    <td style="white-space:nowrap;"><strong>{{ \App\Models\Survey\SurveyBeaconRegister::display($n->beacon_no) }}</strong></td>
+                                                    <td style="white-space:nowrap;">{{ optional($line?->issue_date)->format('d/m/Y') ?: '—' }}</td>
+                                                    <td style="white-space:nowrap;">{{ $line?->layout_type_label ?: '—' }}</td>
+                                                    <td style="white-space:nowrap;">@forelse (($line ? $line->fileNumberList() : []) as $fno)<div>{{ $fno }}</div>@empty — @endforelse</td>
+                                                    <td>{{ $line?->company_name ?: '—' }}</td>
+                                                    <td>{{ $line?->surveyor_name ?: '—' }}</td>
+                                                    <td>{{ $line?->prop_plot ?: '—' }}</td>
+                                                    <td>{{ $line ? ($line->resolvedDistrict('prop_') ?: '—') : '—' }}</td>
+                                                    <td>{{ $line ? (mb_strtoupper((string) \App\Support\AddressBuilder::resolve($line->prop_lga)) ?: '—') : '—' }}</td>
+                                                    <td>{{ $line ? ($line->resolvedStreet('prop_') ?: '—') : '—' }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="table-footer">
+                                    <span>Showing {{ $groupNumbers->firstItem() ?? 0 }}–{{ $groupNumbers->lastItem() ?? 0 }} of {{ number_format($groupNumbers->total()) }} numbers</span>
+                                    <div class="pagination">{{ $groupNumbers->links() }}</div>
+                                </div>
+                            </td>
+                        </tr>
+                    @endif
+                @empty
+                    <tr><td colspan="6" style="text-align:center;padding:28px;color:var(--gray-500);">No beacon numbers{{ request()->hasAny(['q', 'layout', 'year', 'quarter', 'month', 'status']) ? ' for this selection' : ' issued yet' }}.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+    <div class="table-footer"><span>{{ $groups->count() }} {{ $groups->count() === 1 ? 'group' : 'groups' }}</span></div>
 </div>
 @endif
 
@@ -1009,6 +1156,74 @@
         });
     })();
 
+    // Duplicate Checker (user, 2026-11-05). Reads only.
+    function brDupOpen() { document.getElementById('brDup').classList.add('open'); document.body.style.overflow = 'hidden'; document.getElementById('brDupInput').focus(); }
+    function brDupClose() { document.getElementById('brDup').classList.remove('open'); document.body.style.overflow = ''; }
+    function brDupRun() {
+        var msg = document.getElementById('brDupMsg'), wrap = document.getElementById('brDupWrap'), body = document.getElementById('brDupRows'), btn = document.getElementById('brDupRun');
+        var text = document.getElementById('brDupInput').value;
+        wrap.hidden = true; body.textContent = ''; msg.style.color = '';
+        if (!text.trim()) { msg.textContent = 'Enter at least one beacon number.'; return; }
+        msg.textContent = 'Checking…'; btn.disabled = true;
+        fetch(@json(route('survey-module.workflow.beacon-register.duplicate-check')), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': @json(csrf_token()) },
+            body: JSON.stringify({ numbers: text })
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); }).then(function (x) {
+            btn.disabled = false;
+            if (!x.ok) { msg.style.color = 'var(--danger, #b91c1c)'; msg.textContent = x.d.message || 'Could not check.'; return; }
+            var d = x.d, found = d.found || [], bad = d.bad || [];
+            var head = d.checked.toLocaleString() + ' number' + (d.checked === 1 ? '' : 's') + ' checked. ';
+            if (found.length) {
+                msg.style.color = 'var(--danger, #b91c1c)';
+                msg.textContent = head + found.length.toLocaleString() + ' already in the register.';
+                found.forEach(function (n, i) {
+                    var tr = document.createElement('tr');
+                    [i + 1, n.no, n.type || '—', n.company || '—', n.surveyor || '—', n.date || '—', n.entry || '—'].forEach(function (v) { var td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+                    body.appendChild(tr);
+                });
+                wrap.hidden = false;
+            } else {
+                msg.style.color = '#15803d';
+                msg.textContent = d.checked ? head + 'None of them is in the register.' : '';
+            }
+            if (bad.length) msg.textContent += ' Not read as beacon numbers: ' + bad.join(', ') + '.';
+        }).catch(function () { btn.disabled = false; msg.style.color = 'var(--danger, #b91c1c)'; msg.textContent = 'Could not reach the server.'; });
+    }
+
+    // Capture / Edit: the same live warning Issue has. The save still checks.
+    var brLiveTimer = null, brLiveSeq = 0, BR_EDITING = {{ (int) ($e->id ?? 0) }};
+    function brCaptureCheck(a, count) {
+        var note = document.getElementById('brDupLive');
+        clearTimeout(brLiveTimer);
+        var mine = ++brLiveSeq;
+        note.textContent = ''; note.style.color = '';
+        if (!a || !(count > 0) || count > BR_MAX) return;
+        brLiveTimer = setTimeout(function () {
+            var url = BR_ISSUE_CHECK_URL + '?capture=1&prefix=' + encodeURIComponent(a.prefix) + '&suffix=' + encodeURIComponent(a.suffix) + '&start=' + a.n + '&count=' + count + '&except=' + BR_EDITING;
+            fetch(url, { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); }).then(function (d) {
+                if (mine !== brLiveSeq) return;
+                var taken = d.taken || [];
+                if (!taken.length) { note.style.color = '#15803d'; note.textContent = 'No duplicates in the register.'; return; }
+                var t = taken[0];
+                note.style.color = 'var(--danger, #b91c1c)';
+                note.textContent = taken.length + ' already issued: ' + taken.slice(0, 6).map(function (x) { return x.no; }).join(', ') + (taken.length > 6 ? ', …' : '')
+                    + ' (' + (t.surveyor ? 'to ' + t.surveyor + ' ' : '') + (t.date ? 'on ' + t.date : '') + ').';
+            }).catch(function () {});
+        }, 300);
+    }
+
+    // Capture / Edit: company is for Private lines; Other reveals the name box.
+    function brCompanyShow() {
+        var t = document.querySelector('#brForm input[name="layout_type"]:checked');
+        var isPrivate = !!(t && t.value === 'Private');
+        var row = document.getElementById('brCompanyRow'), sel = document.getElementById('brCompany'), other = sel.value === 'other' && isPrivate;
+        row.style.display = isPrivate ? '' : 'none';
+        sel.disabled = !isPrivate;
+        document.getElementById('brCompanyOtherWrap').style.visibility = other ? 'visible' : 'hidden';
+        document.getElementById('brCompanyOther').disabled = !other;
+    }
+
     // Mirrors SurveyBeaconRegister::parseBeacon / parseRange / expand. The server re-checks on save.
     var BR_MAX = {{ \App\Models\Survey\SurveyBeaconRegister::MAX_RANGE }};
     function brParse(code) {
@@ -1021,12 +1236,18 @@
         return a.prefix + d + a.suffix;
     }
 
-    // Issue Beacon No (user, 2026-10-31): PREFIX + serial + optional letter, a run of N numbers.
+    var BR_ISSUE_CHECK_URL = @json(route('survey-module.workflow.beacon-register.check-range'));
+    var BR_PRIVATE_PREFIX = @json(\App\Http\Controllers\Survey\BeaconRegisterController::PRIVATE_PREFIX);
+    var BR_TYPE_LABELS = @json($layoutTypes);
+
+    // Issue Beacon No (CR 03112026): Public takes the next numbers from the pool; Private is A + serial + letters.
     // Groups (user, 2026-11-02): each run, with its type, surveyor and location, is added to the table;
     // Save records every group as its own register entry in one go. Nothing is saved before that.
     var brIssueServerNext = null, brIssueGroups = [], brIssueGid = 0, brIssueState = 'none', brIssueEditAt = null;
+    var brIssuePeek = null, brIssuePeekSeq = 0, brIssueStartTyped = false;
     var BR_ISSUE_URL = {
         next: @json(route('survey-module.workflow.beacon-register.next-serial')),
+        nextPublic: @json(route('survey-module.workflow.beacon-register.next-public')),
         check: @json(route('survey-module.workflow.beacon-register.check-range')),
         save: @json(route('survey-module.workflow.beacon-register.issue'))
     };
@@ -1043,43 +1264,85 @@
     function brIssuePendingMax(series) {
         return brIssueGroups.reduce(function (m, g) { return g.series === series ? Math.max(m, g.start + g.count - 1) : m; }, 0);
     }
+    function brIssueIsPublic() { var t = document.querySelector('input[name="br_issue_type"]:checked'); return !!(t && t.value === 'Government'); }
+    function brIssuePad(n) { var d = String(n); while (d.length < 4) d = '0' + d; return d; }
     function brIssueMode() {
-        var auto = brIssueEl('brIssueAuto').checked, start = brIssueEl('brIssueStart');
-        start.disabled = auto;
-        if (auto) {
+        var start = brIssueEl('brIssueStart');
+        if (!brIssueIsPublic() && !brIssueStartTyped) {
             var pend = brIssuePendingMax(brIssueSeries());
-            start.value = brIssueServerNext ? Math.max(brIssueServerNext, pend + 1) : '';
+            start.value = brIssueServerNext ? brIssuePad(Math.max(brIssueServerNext, pend + 1)) : '';
         }
         brIssuePreview();
     }
+    function brIssueStartInput() {
+        var start = brIssueEl('brIssueStart');
+        start.value = start.value.replace(/\D/g, '');
+        brIssueStartTyped = start.value !== '';
+        brIssuePreview();
+    }
     function brIssueNext() {
+        if (brIssueIsPublic()) { brIssuePublicNext(); return; }
         var prefix = brIssueEl('brIssuePrefix').value, suffix = brIssueEl('brIssueSuffix').value.toUpperCase();
         var note = brIssueEl('brIssueNextNote');
         brIssueServerNext = null;
-        if (!prefix) { note.textContent = 'Choose a prefix to get the next serial.'; brIssueMode(); return; }
+        if (!prefix || !suffix) { note.textContent = prefix ? 'Enter the letters to get the next serial.' : ''; brIssueMode(); return; }
         note.textContent = 'Checking the last serial issued…';
         fetch(BR_ISSUE_URL.next + '?prefix=' + encodeURIComponent(prefix) + '&suffix=' + encodeURIComponent(suffix), { headers: { Accept: 'application/json' } })
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 brIssueServerNext = d.next;
                 var pend = brIssuePendingMax(prefix + '|' + suffix);
-                note.textContent = (d.last ? 'Last issued: ' + prefix + d.last + suffix + '.' : 'None issued yet under ' + prefix + (suffix ? ' … ' + suffix : '') + '.')
-                    + (pend >= d.next ? ' In the table up to ' + prefix + pend + suffix + '.' : '')
-                    + ' Next: ' + Math.max(d.next, pend + 1) + '.';
+                note.textContent = (d.last ? 'Last issued: ' + prefix + brIssuePad(d.last) + suffix + '.' : 'None issued yet with ' + suffix + '.')
+                    + (pend >= d.next ? ' In the table up to ' + prefix + brIssuePad(pend) + suffix + '.' : '');
                 brIssueMode();
             })
-            .catch(function () { note.textContent = 'The last serial could not be checked; untick Automatic and enter it.'; });
+            .catch(function () { note.textContent = 'The last serial could not be checked; type the serial.'; });
+    }
+    // Public: what the pool would give now, leaving out what is already in the table. Nothing is taken until Save.
+    function brIssuePublicNext() {
+        var count = parseInt(brIssueEl('brIssueCount').value, 10) || 0;
+        var skip = brIssueGroups.reduce(function (n, g) { return n + (g.isPublic ? g.count : 0); }, 0);
+        var note = brIssueEl('brIssueDupNote'), mine = ++brIssuePeekSeq;
+        brIssueState = 'checking';
+        fetch(BR_ISSUE_URL.nextPublic + '?count=' + count + '&skip=' + skip, { headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (mine !== brIssuePeekSeq) return;
+                brIssuePeek = d;
+                var nos = d.numbers || [], first = nos[0] || '';
+                var m = first.match(/^([A-Z]+)\s*(\d+)$/);
+                brIssueEl('brIssuePrefix').value = m ? m[1] : (d.prefix || '');
+                brIssueEl('brIssueStart').value = m ? m[2] : '';
+                brIssueEl('brIssueNextNote').textContent = d.available ? d.available.toLocaleString() + ' free in the pool.' : '';
+                brIssueEl('brIssuePreview').textContent = nos.length ? (nos.length === 1 ? first : first + ' to ' + nos[nos.length - 1]) + ' (' + nos.length + ' beacon' + (nos.length === 1 ? '' : 's') + ')' : '';
+                note.style.color = '';
+                if (!d.prefix) { brIssueState = 'clash'; note.style.color = 'var(--danger, #b91c1c)'; note.textContent = 'The public beacon pool has not been filled yet.'; return; }
+                if (count < 1) { brIssueState = 'none'; note.textContent = ''; return; }
+                if (nos.length < count) { brIssueState = 'clash'; note.style.color = 'var(--danger, #b91c1c)'; note.textContent = 'Only ' + nos.length + ' free in the pool.'; return; }
+                brIssueState = 'ok';
+                note.textContent = 'The numbers are taken when you Save, so they may move on if someone else issues first.';
+            })
+            .catch(function () { if (mine === brIssuePeekSeq) { brIssueState = 'clash'; note.textContent = 'The pool could not be read. Try again.'; } });
     }
     function brIssueRange() {
+        var count = parseInt(brIssueEl('brIssueCount').value, 10);
+        if (brIssueIsPublic()) {
+            var nos = brIssuePeek && brIssuePeek.numbers ? brIssuePeek.numbers : [];
+            if (!(count > 0) || nos.length !== count) return null;
+            return { isPublic: true, prefix: brIssueEl('brIssuePrefix').value, suffix: '', series: '', start: 0, count: count, from: nos[0], to: nos[nos.length - 1], nos: nos.slice() };
+        }
         var prefix = brIssueEl('brIssuePrefix').value, suffix = brIssueEl('brIssueSuffix').value.toUpperCase();
-        var count = parseInt(brIssueEl('brIssueCount').value, 10), start = parseInt(brIssueEl('brIssueStart').value, 10);
-        if (!prefix || !(count > 0) || !(start > 0)) return null;
-        return { prefix: prefix, suffix: suffix, series: prefix + '|' + suffix, start: start, count: count,
-                 from: prefix + start + suffix, to: prefix + (start + count - 1) + suffix };
+        var start = parseInt(brIssueEl('brIssueStart').value, 10);
+        if (!prefix || !suffix || !(count > 0) || !(start > 0)) return null;
+        var list = [];
+        for (var i = 0; i < Math.min(count, BR_MAX); i++) list.push(prefix + brIssuePad(start + i) + suffix);
+        return { isPublic: false, prefix: prefix, suffix: suffix, series: prefix + '|' + suffix, start: start, count: count,
+                 from: list[0], to: prefix + brIssuePad(start + count - 1) + suffix, nos: list };
     }
     // Duplicate check (user, 2026-11-02): against the register (server) and the groups in the table.
     var brIssueTimer = null, brIssueSeq = 0;
     function brIssuePreview() {
+        if (brIssueIsPublic()) { clearTimeout(brIssueTimer); brIssueTimer = setTimeout(brIssuePublicNext, 250); return; }
         var r = brIssueRange(), p = brIssueEl('brIssuePreview'), note = brIssueEl('brIssueDupNote');
         p.textContent = r ? (r.count === 1 ? r.from : r.from + ' to ' + r.to) + ' (' + r.count + ' beacon' + (r.count === 1 ? '' : 's') + ')' : '';
         note.textContent = ''; note.style.color = '';
@@ -1092,7 +1355,7 @@
         brIssueGroups.forEach(function (g, gi) {
             if (g.series !== r.series) return;
             var lo = Math.max(g.start, r.start), hi = Math.min(g.start + g.count - 1, r.start + r.count - 1);
-            if (lo <= hi) inTable.push((lo === hi ? r.prefix + lo + r.suffix : r.prefix + lo + r.suffix + ' to ' + r.prefix + hi + r.suffix) + ' (group ' + (gi + 1) + ')');
+            if (lo <= hi) inTable.push((lo === hi ? r.prefix + brIssuePad(lo) + r.suffix : r.prefix + brIssuePad(lo) + r.suffix + ' to ' + r.prefix + brIssuePad(hi) + r.suffix) + ' (group ' + (gi + 1) + ')');
         });
         brIssueState = 'checking';
         note.textContent = 'Checking for duplicates…';
@@ -1147,9 +1410,12 @@
         var msg = brIssueEl('brIssueAddMsg'), fail = function (t, el) { msg.textContent = t; if (el && el.focus) el.focus(); };
         msg.textContent = ''; brIssueEl('brIssueSaveMsg').textContent = '';
         var typeEl = document.querySelector('input[name="br_issue_type"]:checked');
-        if (!typeEl) { brIssueEl('brIssueType').classList.add('is-invalid'); return fail('Choose the beacon type: Government or Private.'); }
+        if (!typeEl) { brIssueEl('brIssueType').classList.add('is-invalid'); return fail('Choose the beacon type: Public or Private.'); }
+        var isPublic = typeEl.value === 'Government', coSel = brIssueEl('brIssueCompany'), co = coSel.value, coOther = brIssueEl('brIssueCompanyOther').value.trim().replace(/\s+/g, ' ');
+        if (!isPublic && !co) return fail('Choose the company.', coSel);
+        if (!isPublic && co === 'other' && !coOther) return fail("Type the company's name.", brIssueEl('brIssueCompanyOther'));
         var r = brIssueRange();
-        if (!r) return fail('Choose the prefix, the number of beacons and the start serial.', brIssueEl('brIssuePrefix'));
+        if (!r) return fail(isPublic ? 'Enter the number of beacons.' : 'Enter the letters, the number of beacons and the start serial.', brIssueEl(isPublic ? 'brIssueCount' : 'brIssueL1'));
         if (brIssueState === 'checking') return fail('Still checking for duplicates; try again in a moment.');
         if (brIssueState === 'clash') return fail('Some of these numbers are taken; change the start serial or the number of beacons.', brIssueEl('brIssueCount'));
         var svSel = brIssueEl('brIssueSurveyor'), sv = svSel.value, svOther = brIssueEl('brIssueSurveyorOther').value.trim().replace(/\s+/g, ' ');
@@ -1157,14 +1423,16 @@
         var a = brIssueAddr();
         if (a.street.indexOf('Other') >= 0 && !a.street_other) return fail('Specify the street.');
         if (a.district.indexOf('Other') >= 0 && !a.district_other) return fail('Specify the district.');
-        var opt = svSel.options[svSel.selectedIndex];
+        var opt = svSel.options[svSel.selectedIndex], coOpt = coSel.options[coSel.selectedIndex];
 
         // A group taken back with Edit returns to its place in the table.
         var at = brIssueEditAt === null ? brIssueGroups.length : Math.min(brIssueEditAt, brIssueGroups.length);
         brIssueEditAt = null;
         brIssueGroups.splice(at, 0, {
-            id: ++brIssueGid, type: typeEl.value, series: r.series, prefix: r.prefix, suffix: r.suffix, start: r.start, count: r.count, from: r.from, to: r.to,
-            auto: brIssueEl('brIssueAuto').checked,
+            id: ++brIssueGid, type: typeEl.value, typeLabel: BR_TYPE_LABELS[typeEl.value] || typeEl.value, isPublic: isPublic,
+            series: r.series, prefix: r.prefix, suffix: r.suffix, start: r.start, count: r.count, from: r.from, to: r.to, nos: r.nos,
+            co: isPublic ? '' : co, coOther: !isPublic && co === 'other' ? coOther : '',
+            coLabel: isPublic ? '' : (co === 'other' ? coOther : (coOpt ? coOpt.text.replace(/ · [A-Z]+$/, '') : '')),
             sv: sv, svOther: sv === 'other' ? svOther : '', svLabel: sv === 'other' ? svOther : (sv && opt ? (opt.dataset.name || opt.text) : ''),
             addr: a,
             show: { plot: a.plot || (a.house ? 'House ' + a.house : ''), district: brIssueShow(a.district, a.district_other),
@@ -1181,41 +1449,68 @@
     function brIssueClearForm() {
         Array.prototype.forEach.call(document.querySelectorAll('input[name="br_issue_type"]'), function (r) { r.checked = false; });
         brIssueEl('brIssueType').classList.remove('is-invalid');
-        brIssueEl('brIssueSuffix').value = '';
+        brIssueSetLetters('');
+        brIssueSetSelect(brIssueEl('brIssueCompany'), '');
+        brIssueEl('brIssueCompanyOther').value = '';
+        brIssueEl('brIssueCompanyOtherWrap').style.display = 'none';
         brIssueEl('brIssueCount').value = 4;
-        brIssueEl('brIssueAuto').checked = true;
         brIssueEl('brIssueStart').value = '';
+        brIssueStartTyped = false;
         brIssueSetSelect(brIssueEl('brIssueSurveyor'), '');
         brIssueEl('brIssueSurveyorOther').value = '';
         brIssueEl('brIssueSurveyorOtherWrap').style.display = 'none';
         brIssueEl('brIssueAddMsg').textContent = '';
         brIssueAddrClear();
         brIssueTypeChanged();
-        brIssueSetSelect(brIssueEl('brIssuePrefix'), '');
-        brIssueMode();
-        brIssueNext();
     }
 
-    // Only the chosen type's prefixes can be picked; a prefix with no type is offered for both.
+    // The type decides what the numbers section asks for.
     function brIssueTypeChanged() {
-        var t = document.querySelector('input[name="br_issue_type"]:checked'), type = t ? t.value : '';
-        var sel = brIssueEl('brIssuePrefix'), cleared = false;
-        Array.prototype.forEach.call(sel.options, function (o) {
-            if (!o.value) return;
-            var off = !!(type && o.dataset.type && o.dataset.type !== type);
-            o.disabled = off; o.hidden = off;
-            if (off && o.selected) cleared = true;
-        });
-        if (cleared) { brIssueSetSelect(sel, ''); brIssueNext(); }
-        else if (window.jQuery && jQuery(sel).data('select2')) jQuery(sel).trigger('change.select2');
+        var t = document.querySelector('input[name="br_issue_type"]:checked'), type = t ? t.value : '', isPublic = type === 'Government';
+        brIssueEl('brIssueTypeHint').style.display = type ? 'none' : '';
+        brIssueEl('brIssueNumbers').style.display = type ? '' : 'none';
+        brIssueEl('brIssueCompanyBox').style.display = type === 'Private' ? '' : 'none';
+        brIssueEl('brIssueLettersBox').style.display = isPublic ? 'none' : '';
+        var start = brIssueEl('brIssueStart');
+        start.readOnly = isPublic;
+        start.style.background = isPublic ? 'var(--gray-100)' : '';
+        start.value = ''; brIssueStartTyped = false; brIssuePeek = null;
+        brIssueEl('brIssuePrefix').value = type === 'Private' ? BR_PRIVATE_PREFIX : '';
+        brIssueEl('brIssuePreview').textContent = ''; brIssueEl('brIssueDupNote').textContent = ''; brIssueEl('brIssueNextNote').textContent = '';
+        brIssueState = 'none';
+        if (type) brIssueNext();
     }
-    // Picking a prefix first sets its beacon type.
-    function brIssuePrefixChanged() {
-        var sel = brIssueEl('brIssuePrefix'), o = sel.options[sel.selectedIndex];
-        if (o && o.dataset.type) {
-            var radio = document.querySelector('input[name="br_issue_type"][value="' + o.dataset.type + '"]');
-            if (radio && !radio.checked) { radio.checked = true; brIssueEl('brIssueType').classList.remove('is-invalid'); brIssueTypeChanged(); }
-        }
+
+    // Letters: two boxes, + opens a third; they read as one (user recording, 2026-11-05).
+    function brIssueLetterBox(i) { return brIssueEl('brIssueL' + i); }
+    function brIssueLettersChanged() {
+        var all = '';
+        [1, 2, 3].forEach(function (i) { var b = brIssueLetterBox(i); b.value = b.value.replace(/[^a-z]/gi, '').toUpperCase(); all += b.value; });
+        brIssueEl('brIssueSuffix').value = all;
+        brIssueStartTyped = false;
+        brIssueNext();
+    }
+    function brIssueLetterAdd() { brIssueLetterBox(3).style.display = ''; brIssueEl('brIssueLPlus').style.display = 'none'; brIssueLetterBox(3).focus(); }
+    function brIssueSetLetters(letters) {
+        letters = String(letters || '').toUpperCase();
+        [1, 2, 3].forEach(function (i) { brIssueLetterBox(i).value = letters.charAt(i - 1); });
+        var third = letters.length > 2;
+        brIssueLetterBox(3).style.display = third ? '' : 'none';
+        brIssueEl('brIssueLPlus').style.display = third ? 'none' : '';
+        brIssueEl('brIssueSuffix').value = letters;
+    }
+    // Choosing a company fills its letters and surveyor, and clears what the last one filled.
+    function brIssueCompanyChanged() {
+        var sel = brIssueEl('brIssueCompany'), o = sel.options[sel.selectedIndex], other = sel.value === 'other';
+        brIssueEl('brIssueCompanyOtherWrap').style.display = other ? '' : 'none';
+        if (!other) brIssueEl('brIssueCompanyOther').value = '';
+        brIssueSetLetters(o && o.dataset.letters ? o.dataset.letters : '');
+        brIssueStartTyped = false;
+        var name = (o && o.dataset.surveyor ? o.dataset.surveyor : '').trim(), sv = brIssueEl('brIssueSurveyor');
+        var match = name ? Array.prototype.find.call(sv.options, function (x) { return (x.dataset.name || '').toUpperCase() === name.toUpperCase(); }) : null;
+        brIssueSetSelect(sv, match ? match.value : (name ? 'other' : ''));
+        brIssueEl('brIssueSurveyorOther').value = !match && name ? name : '';
+        brIssueEl('brIssueSurveyorOtherWrap').style.display = sv.value === 'other' ? '' : 'none';
         brIssueNext();
     }
 
@@ -1229,10 +1524,10 @@
             for (var i = 0; i < g.count; i++) {
                 var tr = document.createElement('tr');
                 if (i === 0) tr.className = 'bi-first';
-                var cells = [++sn, g.prefix + (g.start + i) + g.suffix];
+                var cells = [++sn, g.nos[i]];
                 cells.forEach(function (v, ci) { var td = document.createElement('td'); td.textContent = v; if (ci === 1) td.className = 'bi-no'; tr.appendChild(td); });
                 if (i === 0) {
-                    [g.type, g.svLabel || '—', g.show.plot || '—', g.show.district || '—', g.show.lga || '—', g.show.location || '—'].forEach(function (v) {
+                    [g.typeLabel, g.coLabel || '—', g.svLabel || '—', g.show.plot || '—', g.show.district || '—', g.show.lga || '—', g.show.location || '—'].forEach(function (v) {
                         var td = document.createElement('td'); td.rowSpan = g.count; td.textContent = v; tr.appendChild(td);
                     });
                     var act = document.createElement('td'); act.rowSpan = g.count;
@@ -1244,7 +1539,7 @@
             }
         });
         if (!sn) {
-            body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--gray-500);padding:18px 10px;">No beacons added yet. Fill in the type, numbers, surveyor and location above, then Add to table.</td></tr>';
+            body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--gray-500);padding:18px 10px;">No beacons added yet. Fill in the type, numbers, surveyor and location above, then Add to table.</td></tr>';
         }
         var total = brIssueTotal(), groups = brIssueGroups.length;
         brIssueEl('brIssueSummary').textContent = groups ? total + ' beacon' + (total === 1 ? '' : 's') + ' in ' + groups + ' group' + (groups === 1 ? '' : 's') : '';
@@ -1293,13 +1588,16 @@
         brIssueGroups = brIssueGroups.filter(function (x) { return x.id !== gid; });
         var radio = document.querySelector('input[name="br_issue_type"][value="' + g.type + '"]');
         if (radio) radio.checked = true;
-        brIssueTypeChanged();
-        brIssueEl('brIssueSuffix').value = g.suffix;
         brIssueEl('brIssueCount').value = g.count;
-        brIssueEl('brIssueAuto').checked = false;
-        brIssueEl('brIssueStart').disabled = false;
-        brIssueEl('brIssueStart').value = g.start;
-        brIssueSetSelect(brIssueEl('brIssuePrefix'), g.prefix);
+        brIssueTypeChanged();
+        if (!g.isPublic) {
+            brIssueSetLetters(g.suffix);
+            brIssueSetSelect(brIssueEl('brIssueCompany'), g.co);
+            brIssueEl('brIssueCompanyOther').value = g.coOther;
+            brIssueEl('brIssueCompanyOtherWrap').style.display = g.co === 'other' ? '' : 'none';
+            brIssueEl('brIssueStart').value = brIssuePad(g.start);
+            brIssueStartTyped = true;
+        }
         var svSel = brIssueEl('brIssueSurveyor');
         brIssueSetSelect(svSel, g.sv);
         svSel.dispatchEvent(new Event('change'));
@@ -1323,7 +1621,11 @@
             issue_date: on,
             groups: brIssueGroups.map(function (g) {
                 return {
-                    layout_type: g.type, beacon_from: g.from, beacon_to: g.count === 1 ? '' : g.to,
+                    layout_type: g.type,
+                    // Public sends only the quantity: the server takes the numbers from the pool.
+                    count: g.isPublic ? g.count : undefined,
+                    beacon_from: g.isPublic ? undefined : g.from, beacon_to: g.isPublic || g.count === 1 ? '' : g.to,
+                    company_choice: g.co, company_other: g.coOther,
                     surveyor_choice: g.sv, surveyor_name_other: g.svOther,
                     prop_house: g.addr.house, prop_plot: g.addr.plot, prop_street: g.addr.street, prop_street_other: g.addr.street_other,
                     prop_district: g.addr.district, prop_district_other: g.addr.district_other, prop_lga: g.addr.lga, prop_state: g.addr.state
@@ -1353,6 +1655,7 @@
             total.value = '';
             hint.textContent = msg; hint.style.color = msg ? 'var(--danger)' : '';
             box.hidden = true;
+            brCaptureCheck(null, 0);
         };
         if (from === '') { bad(''); hint.textContent = 'Counted from the range'; return; }
 
@@ -1366,6 +1669,7 @@
         total.value = count;
         if (count > BR_MAX) return bad('Too many: one entry can hold at most ' + BR_MAX.toLocaleString());
         hint.textContent = 'Counted from the range'; hint.style.color = '';
+        brCaptureCheck(a, count);
 
         // Show every number up to 60; beyond that the first and last 25.
         var list = [];
@@ -1427,7 +1731,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        brCount(); brPeriod(); brSurveyorChanged(true);
+        brCount(); brPeriod(); brSurveyorChanged(true); brCompanyShow();
         document.getElementById('brIssueDate').addEventListener('change', brPeriod);
         @if ($formOpen)
             brShow();

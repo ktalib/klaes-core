@@ -109,6 +109,12 @@
             <td class="label">Scope</td>
             <td class="value" colspan="3">{{ $job->job_scope ?: '—' }}</td>
         </tr>
+        <tr>
+            <td class="label">Survey Type</td>
+            <td class="value">{{ $job->survey_type ?: '—' }}</td>
+            <td class="label">Beacon Nos.</td>
+            <td class="value">{{ implode(', ', app(\App\Services\Survey\ItsBeacons::class)->forCadastralJob($job->id)) ?: '—' }}</td>
+        </tr>
     </table>
 
     <p>Sir/Madam,</p>

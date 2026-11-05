@@ -26,6 +26,41 @@ class LandRecommendation extends Model
                 $q->whereNull($table . '.is_deleted')->orWhere($table . '.is_deleted', 0);
             });
         });
+
+        // Lists show their own module's records (CR 03112026 item 10). A single-file lookup is not a list:
+        // duplicate checks, file status and QR codes still see every record.
+        static::addGlobalScope('origin', fn ($query) => self::listOrigin($query, $query->getModel()->getTable()));
+
+        // What Survey's Letter of Grant screens save is Survey's.
+        static::creating(function (self $record) {
+            if (str_starts_with((string) optional(self::currentRoute())->getName(), \App\Support\SurveyLandRoutes::NAME)) {
+                $record->origin_module = self::ORIGIN_SURVEY;
+            }
+        });
+    }
+
+    public const ORIGIN_SURVEY = 'survey';
+
+    /** The Lands routes that list records. Survey's copies of them list Survey's records. */
+    private const LIST_ROUTES = ['land-recommendations.index', 'land-recommendations.export', 'land-rofos.index', 'land-rofos.export', 'land-rofos.unprinted-json'];
+
+    private static function currentRoute()
+    {
+        return app()->bound('request') ? request()->route() : null;
+    }
+
+    /** Narrow a list to its module: NULL for Lands, 'survey' for Survey. Off the list routes, nothing changes. */
+    public static function listOrigin($query, string $table = 'land_recommendations')
+    {
+        $name = (string) optional(self::currentRoute())->getName();
+        if (in_array($name, self::LIST_ROUTES, true)) {
+            $query->whereNull($table . '.origin_module');
+        } elseif (str_starts_with($name, \App\Support\SurveyLandRoutes::NAME)
+            && in_array(substr($name, strlen(\App\Support\SurveyLandRoutes::NAME)), self::LIST_ROUTES, true)) {
+            $query->where($table . '.origin_module', self::ORIGIN_SURVEY);
+        }
+
+        return $query;
     }
 
     /**

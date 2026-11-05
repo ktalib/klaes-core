@@ -93,6 +93,12 @@
       </div>
     </div>
 
+    @if ($job)
+      @cadCan('edit')
+        @include('cadastral_module.partials._job_survey_details')
+      @endcadCan
+    @endif
+
     @if ($canReassign)
       @cadCan('edit')
         <form method="POST" action="{{ route('cadastral-dept.field-jackets.reassign.update', $jacket->id) }}"

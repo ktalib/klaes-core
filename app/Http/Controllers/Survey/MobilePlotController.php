@@ -129,9 +129,10 @@ class MobilePlotController extends Controller
         // Who asked for the showing (user, 2026-11-02). Not required of a showing queued on a phone
         // before the app asked for it, so the offline queue still syncs.
         $requester = \App\Services\Survey\ShowingRequester::resolve($r, $record, false);
+        $tp = app(\App\Services\Survey\OpTpGroups::class)->showingValues($record['tp_no']);
 
         try {
-            $showing = DB::connection('sqlsrv')->transaction(function () use ($record, $data, $staffId, $name, $uuid, $requester) {
+            $showing = DB::connection('sqlsrv')->transaction(function () use ($record, $data, $staffId, $name, $uuid, $requester, $tp) {
                 // Re-read inside the transaction so two officers saving at once do not share a number.
                 $no = (int) Showing::where('op_source', $record['source'])->where('op_source_id', $record['id'])->lockForUpdate()->max('showing_no') + 1;
 
@@ -139,6 +140,10 @@ class MobilePlotController extends Controller
                     'op_source'         => $record['source'],
                     'op_source_id'      => $record['id'],
                     'op_serial'         => $record['serial'],
+                    'op_type'           => Showing::typeOf($record['type']),
+                    // The layout written on the OP, so field showings group by TP No. too (CR 03112026 item 2).
+                    'survey_tp_number_id' => $tp['survey_tp_number_id'],
+                    'tp_no'             => $tp['tp_no'],
                     'allottee_name'     => $record['allottee'],
                     'plot_no'           => $record['plot_no'],
                     'district'          => $record['district'],

@@ -86,6 +86,12 @@ class Kernel extends ConsoleKernel
         // REV-M recurring bills: next-payment-due SMS, and the next cycle's bill on the due date.
         $schedule->command('bills:cycle')->dailyAt('07:30')->withoutOverlapping();
 
+        // Survey public beacon pool (CR 03112026): fills the next prefix only when the free numbers run low.
+        $schedule->command('survey:beacon-pool --apply')->dailyAt('04:15')->withoutOverlapping();
+
+        // OPs grouped by layout (CR 03112026 item 2): new spellings of a TP number join their group. Writes no Deeds row.
+        $schedule->command('survey:sync-op-tp-groups --apply')->dailyAt('04:30')->withoutOverlapping();
+
         /*
          | Lift caveats that have run their six months.
          |

@@ -94,6 +94,26 @@ class OpLookup
         return $r ? $this->fromPra($r) : null;
     }
 
+    /**
+     * The OPs of a layout (CR 03112026 items 2-3), through the spellings of its TP number. Plots in order,
+     * optionally narrowed by plot number; a large layout has thousands, so the list stops at $limit.
+     */
+    public function inGroup(int $group, string $plot = '', int $limit = 100): array
+    {
+        $plot = trim($plot);
+        $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $plot) . '%';
+        $spellings = fn ($q) => $q->from('op_tp_aliases')->select('raw_tp')->where('op_tp_group_id', $group);
+
+        $capture = $this->captureQuery()->whereIn(DB::raw('UPPER(LTRIM(RTRIM(ic.tp_no)))'), $spellings)
+            ->when($plot !== '', fn ($q) => $q->where('ic.plot_number', 'like', $like))->get();
+        $pra = $this->praQuery()->whereIn(DB::raw('UPPER(LTRIM(RTRIM(p.tp_no)))'), $spellings)
+            ->when($plot !== '', fn ($q) => $q->where('p.plot_no', 'like', $like))->get();
+
+        $ops = $capture->map(fn ($r) => $this->fromCapture($r))->merge($pra->map(fn ($r) => $this->fromPra($r)))->all();
+
+        return array_slice(OpTpGroups::sortByPlot($ops), 0, $limit);
+    }
+
     public static function key(?string $source, $id): ?string
     {
         return $source && $id ? "{$source}-{$id}" : null;
@@ -136,6 +156,7 @@ class OpLookup
             'lga'         => $this->s($r->lga),
             'location'    => $this->s($r->property_location) ?? $this->s($r->property_description),
             'layout'      => $this->s($r->lpkn_no) ?? $this->s($r->tp_no),
+            'tp_no'       => $this->s($r->tp_no),
             'file_number' => $this->s($r->mlsFNo) ?? $this->s($r->temp_fileno),
             'reg_no'      => $this->s($r->registration_number),
             'land_use'    => $this->s($r->land_use),
@@ -159,6 +180,7 @@ class OpLookup
             'lga'         => null,
             'location'    => $this->s($r->location) ?? $this->s($r->property_description),
             'layout'      => $this->s($r->lpkn_no) ?? $this->s($r->tp_no) ?? $this->s($r->layout),
+            'tp_no'       => $this->s($r->tp_no),
             'file_number' => $this->s($r->mlsFNo) ?? $this->s($r->temp_fileno),
             'reg_no'      => $this->s($r->regNo),
             'land_use'    => null,

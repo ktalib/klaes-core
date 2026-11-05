@@ -454,7 +454,7 @@ class LandRofoController extends Controller
                           WHEN LOWER(LTRIM(RTRIM(ground_rent_unit))) = 'ha' THEN ground_rent * area_sqm / 10000.0
                      END
                 END) AS total_ground_rent
-        ")->where(function ($q) { $q->whereNull('is_deleted')->orWhere('is_deleted', 0); })->first();
+        ")->where(function ($q) { $q->whereNull('is_deleted')->orWhere('is_deleted', 0); })->tap(fn ($q) => LandRecommendation::listOrigin($q))->first();
 
         // Printed / Not-Printed counts — same printedPredicateSql() the tabs use, so the
         // card totals cannot disagree with the rows listed. Scoped to the same record set
@@ -462,6 +462,7 @@ class LandRofoController extends Controller
         // whole RofO register.
         $rofoScopeQuery = DB::connection('sqlsrv')->table('land_recommendations')
             ->where(function ($q) { $q->whereNull('is_deleted')->orWhere('is_deleted', 0); });
+        LandRecommendation::listOrigin($rofoScopeQuery);
         if ($ossViewOnly) {
             $rofoScopeQuery->whereRaw("UPPER(ISNULL(type,'')) = 'OSS'");
         } else {
