@@ -39,7 +39,10 @@
 
         <h1 class="text-2xl font-bold text-gray-900">Enter your sign-in code</h1>
         <p class="mt-2 text-sm leading-relaxed text-gray-600">
-          @if ($channel === 'email' && $maskedEmail)
+          @if ($channel === 'admin')
+            ICT has issued a {{ $codeLength }}-digit sign-in code for your account.
+            Enter the code they gave you.
+          @elseif ($channel === 'email' && $maskedEmail)
             We emailed a {{ $codeLength }}-digit code to
             <span class="font-semibold text-gray-900 whitespace-nowrap">{{ $maskedEmail }}</span>.
           @else

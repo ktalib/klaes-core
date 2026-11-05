@@ -336,6 +336,13 @@ class InstrumentController extends Controller
                 $rules['op_serial_number'] = \App\Support\OpSerial::rules();
             }
 
+            // An OP must name its layout, in the right shape (user, 2026-11-05). See TpNumberKey::problem().
+            if (\App\Support\OpSerial::isMother(['instrument_type' => $instrumentType])) {
+                $rules['tp_no'] = ['required', function ($attribute, $value, $fail) {
+                    if ($problem = \App\Support\TpNumberKey::problem(is_string($value) ? $value : null)) $fail($problem);
+                }];
+            }
+
             $isAssignmentOrGift = stripos((string) $instrumentType, 'Deed of Assignment') !== false
                 || stripos((string) $instrumentType, 'Deed of Gift') !== false;
 
@@ -361,6 +368,7 @@ class InstrumentController extends Controller
                 'secondPartyPhone.required' => 'Party 2 phone number is required — the registration notice is sent to it.',
                 'secondPartyGender.required' => 'Party 2 gender is required — please select one.',
                 'secondPartyGender.in' => 'Party 2 gender must be one of: ' . implode(', ', Gender::options()) . '.',
+                'tp_no.required' => 'TP No is required for an Occupancy Permit (OP).',
             ];
 
             $validator = Validator::make($request->all(), $rules, $messages);
@@ -1983,6 +1991,20 @@ class InstrumentController extends Controller
         }
 
         $existing = DB::connection('sqlsrv')->table('instrument_capture')->where('id', $id)->first();
+
+        // An OP's TP No is checked when it is changed (user, 2026-11-05), so an older OP with a blank or
+        // misspelt one can still be edited for something else.
+        if ($existing && $request->has('tp_no')
+            && \App\Support\OpSerial::isMother(['instrument_type' => $request->input('instrument_type') ?: $existing->instrument_type])
+            && strcasecmp(trim((string) $request->input('tp_no')), trim((string) ($existing->tp_no ?? ''))) !== 0
+            && ($tpProblem = \App\Support\TpNumberKey::problem((string) $request->input('tp_no')))) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => $tpProblem, 'errors' => ['tp_no' => [$tpProblem]], 'ref' => $ref], 422);
+            }
+
+            return redirect()->back()->withErrors(['tp_no' => $tpProblem])->withInput();
+        }
+
         if ($existing) {
             $newType = $request->input('instrument_type') ?: $existing->instrument_type;
             $newConsent = $request->filled('consent_application_id')
@@ -2461,6 +2483,12 @@ class InstrumentController extends Controller
         }
 
         return $patterns;
+    }
+
+    /** The note under the TP No box on Capture OP: can it be saved, and which layout it names. Read only. */
+    public function checkTpNumber(Request $request)
+    {
+        return response()->json(app(\App\Services\Survey\OpTpGroups::class)->check((string) $request->query('tp_no', '')));
     }
 
     public function storeTpLookup(Request $request)

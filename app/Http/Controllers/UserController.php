@@ -1152,6 +1152,28 @@ class UserController extends Controller
         return redirect()->route('users.index')->with('success', __('User successfully suspended.'));
     }
 
+    /**
+     * "Generate OTP" (row action menu): a sign-in code for $user, shown to the admin to read
+     * to the officer. The same gate as Suspend; the rules live in LoginOtpService.
+     */
+    public function generateLoginOtp(User $user)
+    {
+        $this->authorizeModule(self::MODULE, 'edit');
+
+        $result = app(\App\Services\LoginOtpService::class)->issueByAdmin($user, Auth::user());
+
+        return response()->json([
+            'success' => $result['issued'],
+            'message' => $result['message'],
+            'data' => [
+                'code' => $result['code'],
+                'expiresIn' => $result['expires_in'],
+                'name' => $user->name,
+                'username' => $user->username,
+            ],
+        ], $result['issued'] ? 200 : 422)->header('Cache-Control', 'no-store');
+    }
+
     public function unsuspend(User $user)
     {
         $this->authorizeModule(self::MODULE, 'edit');

@@ -53,4 +53,45 @@ class TpNumberKeyTest extends TestCase
             $this->assertNull(TpNumberKey::key($blank));
         }
     }
+
+    /** The OP TP No rule (user, 2026-11-05). tests/js/tp-no-rule.test.js holds the same lists for the form's copy. */
+    public static function goodTpNumbers(): array
+    {
+        return array_map(fn ($t) => [$t], ['TP/KN/215M', 'TP/K/358E', 'TP/MLPP/DKD/001', 'TP/K/UC/DKD/14', 'TP/KNUPDA/UC/DTF/17',
+            'TP/KAS/277', 'TP/KASEPPA/244', 'BLM/PP/005', 'TP/UDB/5A', 'TP/MB/4', 'tp/kn/215m', ' TP / KN / 215M ', 'TP/MLPP/KBT/256G']);
+    }
+
+    public static function badTpNumbers(): array
+    {
+        return [
+            'blank'               => ['', 'required'],
+            'spaces only'         => ['   ', 'required'],
+            'letter O for zero'   => ['TP/MLPP/DKD/0O1', 'not a layout number'],
+            'comma in agency'     => ['TP/,LPP/DKD/001', 'not a known agency'],
+            'unknown agency KNP'  => ['TP/KNP/215M', 'not a known agency'],
+            'MLLP'                => ['TP/MLLP/KBT/338G', 'not a known agency'],
+            'no agency'           => ['TP/UC/GZ/02', 'not a known agency'],
+            'dot separator'       => ['TP.MLPP/KBT/338G', 'must start with TP/'],
+            'backslashes'         => ['TP\\KN\\UC\\DTF\\16', 'must start with TP/'],
+            'pipe separator'      => ['TP/KASEPPA|244', 'needs the agency and the layout number'],
+            'agency only'         => ['TP/KNUPDA', 'needs the agency and the layout number'],
+            'double slash'        => ['TP/MLPP//KBT/307D', 'empty part'],
+            'serial joined'       => ['TP/MLPP/KBT3070', 'not a layout number'],
+            'digit in area code'  => ['TP/KN/UC/G2/02', 'not an area code'],
+            'RD number'           => ['RDKN 123', 'must start with TP/'],
+            'Other placeholder'   => ['__other__', 'must start with TP/'],
+        ];
+    }
+
+    /** @dataProvider goodTpNumbers */
+    public function test_a_well_formed_tp_number_is_accepted(string $tp): void
+    {
+        $this->assertNull(TpNumberKey::problem($tp));
+    }
+
+    /** @dataProvider badTpNumbers */
+    public function test_a_blank_or_misspelt_tp_number_is_refused(string $tp, string $why): void
+    {
+        $this->assertStringContainsString($why, (string) TpNumberKey::problem($tp));
+    }
 }

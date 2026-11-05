@@ -8,7 +8,7 @@
     <div class="bg-white rounded-xl shadow-xl w-full max-w-lg" role="dialog" aria-modal="true" aria-labelledby="movement-title">
         <div class="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
             <div>
-                <h3 id="movement-title" class="text-base font-bold text-gray-900" x-text="movementAsk.mode === 'in' ? 'Receive a file' : 'Send a file'"></h3>
+                <h3 id="movement-title" class="text-base font-bold text-gray-900" x-text="(movementAsk.mode === 'in' ? 'Receive' : 'Send') + (movementAsk.many ? ' files' : ' a file')"></h3>
                 <p class="text-xs text-gray-500" x-text="(movementAsk.label ? movementAsk.label + ': ' : '') + (movementAsk.step === 'choose' ? 'Department or In-Unit?' : 'Choose the unit.')"></p>
             </div>
             <button type="button" class="p-1 text-gray-400 hover:text-gray-600" aria-label="Close" @click="movementAsk.open = false"><i data-lucide="x" class="w-5 h-5"></i></button>

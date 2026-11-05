@@ -37,7 +37,9 @@
             <div>
                 <label for="tp_no_prop" class="text-xs text-gray-600">
                     TP No
-                    <span class="text-gray-400 hidden" data-visible-when="property">(optional)</span>
+                    <span class="text-gray-400 hidden" data-visible-when="property" data-role="tp-optional">(optional)</span>
+                    {{-- Required on an Occupancy Permit (OP); pra/form-controller.js applyTpRequired() shows it. --}}
+                    <span class="hidden" data-role="tp-required-star" style="color:#dc2626;font-weight:700;" title="Required for an Occupancy Permit (OP)">*</span>
                 </label>
                 <input id="tp_no_prop" name="tp_no" type="text" class="form-input text-sm property-input"
                        placeholder="Enter TP number (optional)" data-model="tpNo" value="{{ old('tp_no') }}"

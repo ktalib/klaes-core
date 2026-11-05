@@ -47,6 +47,41 @@ class OpTpGroups
             ->where('a.raw_tp', $raw)->first(['g.id', 'g.label', 'g.survey_tp_number_id']);
     }
 
+    /**
+     * The live check behind the TP No box on Capture OP (user, 2026-11-05): whether the number can be
+     * saved, and which layout in Public Layout Plans it names. Not being in the register is only a note.
+     *
+     * @return array{ok:bool, message:?string, layout:?string, in_register:bool, ops:int}
+     */
+    public function check(?string $tp): array
+    {
+        if ($problem = TpNumberKey::problem($tp)) {
+            return ['ok' => false, 'message' => $problem, 'layout' => null, 'in_register' => false, 'ops' => 0];
+        }
+
+        $key = TpNumberKey::key($tp);
+        $register = \Illuminate\Support\Facades\Cache::remember('survey:tp-register-keys', 600, function () {
+            $out = [];
+            foreach (SurveyTpNumber::listed()->whereNotNull('tp_no')->get(['tp_no']) as $t) {
+                if ($k = TpNumberKey::key($t->tp_no)) $out[$k][] = trim($t->tp_no);
+            }
+
+            return $out;
+        });
+        $ops = self::installed() ? (int) $this->db()->table('op_tp_groups')->where('group_key', $key)->value('op_count') : 0;
+        $layouts = array_values(array_unique($register[$key] ?? []));
+
+        return [
+            'ok' => true,
+            'message' => $layouts
+                ? (count($layouts) > 1 ? 'In Public Layout Plans more than once: ' . implode(', ', $layouts) . '.' : "Layout {$layouts[0]} in Public Layout Plans.")
+                : 'Not in Public Layout Plans. It will still save; check the number if this layout should be there.',
+            'layout' => $layouts[0] ?? null,
+            'in_register' => (bool) $layouts,
+            'ops' => $ops,
+        ];
+    }
+
     /** What a showing records for an OP's layout, when nobody picked one: the register row if linked, else the number as written. */
     public function showingValues(?string $tp): array
     {
@@ -129,6 +164,19 @@ class OpTpGroups
             unset($groups[$k]);
         }
 
+        // Typing slips someone has said belong to another layout (op_tp_merges, user 2026-11-05). A merge whose
+        // target has no OPs left is skipped, so nothing is folded into a group that is not there.
+        $merged = [];
+        $merges = self::merges();
+        foreach ($merges as $from => $to) {
+            for ($hops = 0; isset($merges[$to]) && $to !== $from && $hops < 10; $hops++) $to = $merges[$to];   // a chain a -> b -> c
+            if (! isset($groups[$from], $groups[$to]) || $from === $to) continue;
+            foreach (['ops', 'res', 'direct'] as $f) $groups[$to][$f] += $groups[$from][$f];
+            foreach ($groups[$from]['spell'] as $s => $n) $groups[$to]['spell'][$s] = ($groups[$to]['spell'][$s] ?? 0) + $n;
+            unset($groups[$from]);
+            $merged[] = $from;
+        }
+
         // The Public Layout Plans register. A number drawn twice there cannot name one layout, so it stays unlinked.
         $register = [];
         foreach (SurveyTpNumber::listed()->whereNotNull('tp_no')->get(['id', 'tp_no']) as $t) {
@@ -180,6 +228,9 @@ class OpTpGroups
             }
         }
         foreach ($aliases as $raw => $a) {
+            // A spelling that is all digits ("3991") comes back as an int array key; compared as an int, SQL
+            // Server would try to read every raw_tp as a number and fail. Always a string.
+            $raw = (string) $raw;
             $id = $haveGroups[$a['key']];
             if (array_key_exists($raw, $haveAliases)) {
                 $db->table('op_tp_aliases')->where('raw_tp', $raw)->update(['op_tp_group_id' => $id, 'op_count' => $a['n'], 'updated_at' => $now]);
@@ -188,6 +239,31 @@ class OpTpGroups
             }
         }
 
+        // A merged-away group has no spellings left now; its row goes so the dropdowns stop offering it.
+        if ($merged) {
+            $gone = array_values(array_intersect_key($haveGroups, array_flip($merged)));
+            $still = $gone ? $db->table('op_tp_aliases')->whereIn('op_tp_group_id', $gone)->count() : 0;
+            if ($gone && $still === 0) $db->table('op_tp_groups')->whereIn('id', $gone)->delete();
+        }
+        $stats['merged'] = count($merged);
+
         return $stats;
+    }
+
+    private static ?array $mergeMap = null;
+
+    /** from_key => to_key, from op_tp_merges. */
+    public static function merges(): array
+    {
+        if (self::$mergeMap !== null) return self::$mergeMap;
+        if (! Schema::connection('sqlsrv')->hasTable('op_tp_merges')) return self::$mergeMap = [];
+
+        return self::$mergeMap = DB::connection('sqlsrv')->table('op_tp_merges')->pluck('to_key', 'from_key')->all();
+    }
+
+    /** Forget the cached merge list (after adding merges in the same process). */
+    public static function forgetMerges(): void
+    {
+        self::$mergeMap = null;
     }
 }

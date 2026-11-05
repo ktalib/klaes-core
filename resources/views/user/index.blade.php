@@ -455,6 +455,121 @@ $(document).ready(function() {
     attachModalHandlers();
     attachConfirmDialogs();
 
+    /**
+     * Generate OTP (row action menu). Delegated, because the menu is teleported to <body>
+     * by Alpine and may not exist yet when this runs.
+     */
+    function escapeHtml(value) {
+        return $('<div>').text(value == null ? '' : String(value)).html();
+    }
+
+    function showLoginOtp(data, message) {
+        const code = String(data.code || '');
+        let left = parseInt(data.expiresIn, 10) || 0;
+        let timer = null;
+
+        const html =
+            '<p class="text-sm text-gray-600 mb-3">' + escapeHtml(message) + '</p>' +
+            '<div id="loginOtpCode" class="font-mono font-bold text-4xl tracking-widest text-gray-900 bg-gray-100 rounded-lg py-4 select-all">' + escapeHtml(code) + '</div>' +
+            '<p id="loginOtpExpiry" class="mt-2 text-xs text-gray-500"></p>' +
+            '<p class="mt-3 text-xs text-left text-yellow-800 bg-yellow-50 border border-yellow-200 rounded p-2">' +
+            escapeHtml(@json(__('Give this code only to :name, after confirming who they are. They type it on the "Enter your sign-in code" screen after their password. It replaces any code already sent to them.')).replace(':name', data.name || '')) +
+            '</p>';
+
+        if (typeof Swal === 'undefined') {
+            window.alert(message + '\n\n' + code);
+            return;
+        }
+
+        Swal.fire({
+            title: @json(__('Sign-in code')),
+            html: html,
+            icon: 'success',
+            showCancelButton: true,
+            confirmButtonText: @json(__('Copy code')),
+            cancelButtonText: @json(__('Close')),
+            confirmButtonColor: '#4f46e5',
+            cancelButtonColor: '#6b7280',
+            allowOutsideClick: false,
+            customClass: { container: 'swal-topmost' },
+            preConfirm: function () {
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(code).catch(function () {});
+                } else {
+                    const range = document.createRange();
+                    range.selectNodeContents(document.getElementById('loginOtpCode'));
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    try { document.execCommand('copy'); } catch (e) {}
+                }
+                Swal.showValidationMessage(@json(__('Copied.')));
+                return false;
+            },
+            didOpen: function () {
+                const out = document.getElementById('loginOtpExpiry');
+                (function tick() {
+                    if (!document.body.contains(out)) { return; }
+                    if (left <= 0) {
+                        out.textContent = @json(__('This code has expired. Generate a new one.'));
+                        out.className = 'mt-2 text-xs text-red-600 font-medium';
+                        return;
+                    }
+                    const m = Math.floor(left / 60), s = left % 60;
+                    out.textContent = @json(__('Expires in')) + ' ' + m + ':' + (s < 10 ? '0' : '') + s;
+                    left -= 1;
+                    timer = setTimeout(tick, 1000);
+                })();
+            },
+            willClose: function () { if (timer) { clearTimeout(timer); } }
+        });
+    }
+
+    $(document).off('click.loginOtp').on('click.loginOtp', '.generate-login-otp', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const url = $(this).data('url');
+        const name = $(this).data('name');
+
+        confirmAction({
+            title: @json(__('Generate a sign-in code?')),
+            text: @json(__('A one-time sign-in code will be generated for :name and shown to you. Any code already sent to them stops working.')).replace(':name', name),
+            confirmText: @json(__('Yes, generate')),
+            variant: 'info'
+        }).then(function (confirmed) {
+            if (!confirmed) {
+                return;
+            }
+
+            $.ajax({
+                url: url,
+                type: 'POST',
+                dataType: 'json',
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                    'Accept': 'application/json'
+                },
+                success: function (response) {
+                    if (response.success && response.data && response.data.code) {
+                        showLoginOtp(response.data, response.message);
+                    } else {
+                        notify('error', response.message || @json(__('Could not generate a code.')));
+                    }
+                },
+                error: function (xhr) {
+                    let msg = @json(__('Could not generate a code.'));
+                    if (xhr.status === 429) {
+                        msg = @json(__('Too many codes generated in the last minute. Wait a moment and try again.'));
+                    } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                        msg = xhr.responseJSON.message;
+                    }
+                    notify(xhr.status === 422 ? 'info' : 'error', msg);
+                }
+            });
+        });
+    });
+
     window.openImportModal = function() {
         $.ajax({
             url: '{{ route("users.import.form") }}',

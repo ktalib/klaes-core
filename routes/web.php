@@ -266,6 +266,10 @@ Route::group(['prefix' => 'users', 'middleware' => ['auth', 'XSS']], function ()
     Route::delete('/{user}/profile-photo', [UserController::class, 'removeProfilePhoto'])->name('users.profile-photo.destroy');
     Route::patch('/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
     Route::patch('/{user}/unsuspend', [UserController::class, 'unsuspend'])->name('users.unsuspend');
+    // "Generate OTP" in the row action menu: a sign-in code the admin reads to the officer.
+    Route::post('/{user}/login-otp', [UserController::class, 'generateLoginOtp'])
+        ->middleware('throttle:20,1')
+        ->name('users.login-otp');
 });
 
 Route::resource('users', UserController::class)->middleware(
@@ -724,6 +728,7 @@ Route::group(['middleware' => ['auth'], 'prefix' => 'instruments'], function () 
     Route::get('/get-lgas/{stateId}', [App\Http\Controllers\InstrumentController::class, 'getLgas'])->name('instruments.getLgas');
     Route::get('/tp-lookups/search', [App\Http\Controllers\InstrumentController::class, 'searchTpLookups'])->name('instruments.tpLookups.search');
     Route::post('/tp-lookups', [App\Http\Controllers\InstrumentController::class, 'storeTpLookup'])->name('instruments.tpLookups.store');
+    Route::get('/tp-lookups/check', [App\Http\Controllers\InstrumentController::class, 'checkTpNumber'])->name('instruments.tpLookups.check');
     Route::get('/tp-lookups/location', [App\Http\Controllers\InstrumentController::class, 'tpLookupLocation'])->name('instruments.tpLookups.location');
     Route::get('/district-lookups/lga', [App\Http\Controllers\InstrumentController::class, 'districtLookupLga'])->name('instruments.districtLookups.lga');
     Route::get('/preview-registration-number', [App\Http\Controllers\InstrumentController::class, 'previewRegistrationNumber'])->name('instruments.previewRegistrationNumber');

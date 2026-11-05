@@ -21,6 +21,10 @@
         if (el.multiple || el.hasAttribute('data-no-search')) return false;
         if (el.classList.contains('select2-hidden-accessible')) return false;
         if (el.closest('template, [data-no-search]')) return false;
+        // The shared file number selector (2026-11-05: its Manual Entry Prefix "not working"). It sits at
+        // z-index 2000000 and runs its own select2 boxes inside itself; a box made here opens its list in
+        // the page body at 10050, hidden behind the selector.
+        if (el.closest('#global-fileno-modal')) return false;
         if (/__i__/.test(el.name || '')) return false;
         return el.classList.contains('sv-searchable') || el.options.length > MIN_OPTIONS;
     }

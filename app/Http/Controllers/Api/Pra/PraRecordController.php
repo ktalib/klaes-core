@@ -238,9 +238,25 @@ class PraRecordController extends Controller
         ]);
     }
 
+    /**
+     * The Capture OP form (Instrument Registration, OSS, MLS/MLPP) marks its own saves with check_op_tp, and
+     * those must carry a well-formed TP No on the OP itself (user, 2026-11-05). Other callers copy older
+     * OPs through here, blank TP and all, so they are not checked.
+     */
+    private function opTpProblem(Request $request): ?string
+    {
+        if (! $request->boolean('check_op_tp')) return null;
+        if (! \App\Support\OpSerial::isMother(['instrument_type' => (string) $request->input('instrument_type'), 'transaction_type' => (string) $request->input('transaction_type')])) return null;
+
+        return \App\Support\TpNumberKey::problem((string) $request->input('tp_no'));
+    }
+
     public function store(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), (new PraStoreRequest())->rules());
+        if ($tpProblem = $this->opTpProblem($request)) {
+            $validator->after(fn ($v) => $v->errors()->add('tp_no', $tpProblem));
+        }
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
@@ -412,6 +428,9 @@ class PraRecordController extends Controller
     public function update(Request $request, string $propId): JsonResponse
     {
         $validator = Validator::make($request->all(), (new PraUpdateRequest())->rules());
+        if ($tpProblem = $this->opTpProblem($request)) {
+            $validator->after(fn ($v) => $v->errors()->add('tp_no', $tpProblem));
+        }
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,

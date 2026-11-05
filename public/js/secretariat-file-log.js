@@ -2131,6 +2131,7 @@ window.secretariatFileLog = function (config) {
                 where: (t && (t.office_name || t.office_code)) || m.from || '',
                 purpose: m.purpose || '',
                 to_officer: m.to_officer || '',
+                to_unit: m.to_unit || (t && t.unit) || '',
                 via,
                 state: 'ready',
                 message: '',
@@ -2174,20 +2175,45 @@ window.secretariatFileLog = function (config) {
                 if (i.state === 'error') { i.state = 'ready'; i.message = ''; }
             });
         },
-        batchItemValid(i) {
+        // A Department send needs an office and an officer on every file; an In-Unit
+        // send needs neither (the unit comes from the card, the officer is automatic).
+        batchItemValid(i, inUnit = false) {
             if (this.mode === 'in') return true;
             // A request purpose is optional; "Other" must still be typed.
             const purposeOk = i.request_purpose_id !== 'other' || String(i.purpose_other || '').trim() !== '';
+            if (inUnit) return purposeOk && (i.receiving_officer_id !== 'other' || String(i.officer_other || '').trim() !== '');
             return !!(i.to_office && i.to_office !== this.office && chosen(i.receiving_officer_id, i.officer_other) && purposeOk);
         },
-        batchReady() {
+        batchReady(inUnit = false) {
             const todo = this.batchPending();
-            return todo.length > 0 && !this.batch.running && todo.every(i => this.batchItemValid(i));
+            return todo.length > 0 && !this.batch.running && todo.every(i => this.batchItemValid(i, inUnit));
+        },
+        // The button opens: files can still go In-Unit, which needs no office.
+        batchCanStart() {
+            return this.batchReady() || this.batchReady(true);
+        },
+        // Receive all / Send all ask Department or In-Unit first, like a row's buttons
+        // (user, 2026-11-05). The choice covers every file in the batch. A receive batch
+        // whose files were all sent to units skips the card: each keeps its own unit.
+        startBatch() {
+            if (!this.batchCanStart()) return;
+            const todo = this.batchPending();
+            const label = todo.length === 1 ? (todo[0].file_number || todo[0].file_title) : todo.length + ' files';
+            if (this.mode === 'in' && todo.every(i => i.to_unit)) return this.runBatch(null);
+            this.askMovement(this.mode, label, (unit) => {
+                if (!unit && !this.batchReady()) {
+                    this.notify('error', 'For Department, every file needs an office and a receiving officer. Use Apply to all if they are the same.');
+                    return;
+                }
+                this.runBatch(unit);
+            });
+            this.movementAsk.many = todo.length > 1;
         },
         // One file at a time, through the same endpoint a single scan uses; a
-        // failure is shown on that file and the rest carry on.
-        async runBatch() {
-            if (!this.batchReady()) return;
+        // failure is shown on that file and the rest carry on. unit: the In-Unit
+        // choice from the card, or null for Department.
+        async runBatch(unit = null) {
+            if (!this.batchReady(!!unit)) return;
             const sending = this.mode === 'out';
             this.batch.running = true;
             this.busy = true;
@@ -2200,12 +2226,13 @@ window.secretariatFileLog = function (config) {
                         ? {
                             office: this.office,
                             tracker_id: i.tracker_id,
-                            to_office: i.to_office,
+                            to_office: unit ? null : i.to_office,
                             request_purpose_id: listed(i.request_purpose_id),
                             request_purpose_other: typed(i.request_purpose_id, i.purpose_other),
                             receiving_officer_id: listed(i.receiving_officer_id),
                             receiving_officer_other: typed(i.receiving_officer_id, i.officer_other),
                             notes: this.batch.notes,
+                            ...(unit ? this.unitFields({ in_unit: true, ...unit }) : {}),
                         }
                         : {
                             office: this.office,
@@ -2215,6 +2242,8 @@ window.secretariatFileLog = function (config) {
                             file_title: i.file_title,
                             notes: this.batch.notes,
                             received_via: i.via === 'scan' ? 'scan' : 'manual',
+                            // A file already sent to a unit keeps it.
+                            ...(i.to_unit ? {} : this.receiveUnitFields(unit)),
                         };
                     let data;
                     try {

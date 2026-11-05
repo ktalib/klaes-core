@@ -253,14 +253,25 @@
         <table>
             <thead>
                 <tr>
-                    <th>S/N</th><th>Registration ID</th><th>Surveyor ID</th><th>Date</th><th>Type</th><th>Company</th><th>Surveyor's Name</th><th>SURCON No.</th>
-                    <th>Phone</th><th>Email</th><th>Status</th><th style="width:48px;"></th>
+                    <th>S/N</th><th>Passport</th><th>Registration ID</th><th>Surveyor ID</th><th>Date</th><th>Type</th><th>Company</th><th>Surveyor's Name</th><th>SURCON No.</th>
+                    <th>Phone</th><th>Email</th><th>Address</th><th>Status</th><th style="width:48px;"></th>
                 </tr>
             </thead>
             <tbody>
                 @forelse ($accounts as $a)
                     <tr>
                         <td>{{ $accounts->firstItem() + $loop->index }}</td>
+                        <td>
+                            {{-- Passport photograph given at registration (2026-11-05); opens full size. --}}
+                            @if ($a->passport_path)
+                                <a href="{{ route('survey-module.beacon-requests.accounts.passport', $a) }}" target="_blank" rel="noopener" title="Open {{ $a->name }}'s passport photograph">
+                                    <img src="{{ route('survey-module.beacon-requests.accounts.passport', $a) }}" alt="Passport of {{ $a->name }}" loading="lazy"
+                                         style="width:40px;height:50px;object-fit:cover;border-radius:4px;border:1px solid var(--gray-300, #d1d5db);display:block;">
+                                </a>
+                            @else
+                                <span style="color:var(--gray-500);">—</span>
+                            @endif
+                        </td>
                         <td style="white-space:nowrap;"><strong>{{ $a->registration_id }}</strong></td>
                         <td style="white-space:nowrap;">{{ $a->surveyor_id_no ?: '—' }}</td>
                         <td style="white-space:nowrap;">{{ optional($a->created_at)->format('d/m/Y') }}</td>
@@ -270,6 +281,7 @@
                         <td>{{ $a->surcon_number ?: '—' }}</td>
                         <td style="white-space:nowrap;">{{ $a->phone }}</td>
                         <td>{{ $a->email }}</td>
+                        <td style="min-width:180px;">{{ $a->person_address ?: '—' }}</td>
                         <td style="white-space:nowrap;">
                             <span class="status-badge {{ $badge($a->status) }}"><span class="dot"></span>{{ ['pending' => 'Waiting', 'active' => 'Approved', 'rejected' => 'Not approved', 'suspended' => 'Suspended'][$a->status] ?? $a->status }}</span>
                             @if ($a->review_note)<div class="helper-text" style="margin:2px 0 0;white-space:normal;">{{ $a->review_note }}</div>@endif
@@ -301,7 +313,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="12" style="text-align:center;padding:28px;color:var(--gray-500);">No registrations{{ $filtered ? ' for this selection' : ' yet' }}.</td></tr>
+                    <tr><td colspan="14" style="text-align:center;padding:28px;color:var(--gray-500);">No registrations{{ $filtered ? ' for this selection' : ' yet' }}.</td></tr>
                 @endforelse
             </tbody>
         </table>

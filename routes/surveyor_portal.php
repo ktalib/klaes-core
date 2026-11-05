@@ -9,11 +9,19 @@ use Illuminate\Support\Facades\Route;
  | register here and ask the SG for beacon numbers. Own guard, separate from staff logins.
  */
 Route::prefix('kssgof')->name('surveyor-portal.')->group(function () {
-    Route::get('/', [AuthController::class, 'showLogin'])->name('login');
+    // The front page (user, 2026-11-05: "a nice landing page, and hero"); sign-in moved to /kssgof/login.
+    Route::get('/', [AuthController::class, 'landing'])->name('home');
+    Route::get('login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1')->name('login.submit');
     Route::get('register', [AuthController::class, 'showRegister'])->name('register');
     Route::post('register', [AuthController::class, 'register'])->middleware('throttle:10,1')->name('register.submit');
     Route::get('registered', [AuthController::class, 'registered'])->name('registered');
+
+    // The address builder's search, open to someone registering. Place names only; the staff lookups need a login.
+    Route::middleware('throttle:60,1')->prefix('lookup')->name('lookup.')->group(function () {
+        Route::get('districts', [\App\Http\Controllers\Survey\LookupController::class, 'districts'])->name('districts');
+        Route::get('streets', [\App\Http\Controllers\Survey\LookupController::class, 'streets'])->name('streets');
+    });
 
     Route::get('password/forgot', [AuthController::class, 'showForgot'])->name('password.forgot');
     Route::post('password/forgot', [AuthController::class, 'sendCode'])->middleware('throttle:5,1')->name('password.send');

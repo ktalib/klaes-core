@@ -1113,6 +1113,15 @@ class PropertyRecordController extends Controller
             'fourthParty' => 'nullable|string|max:500',
         ]);
 
+        // TP No on an Occupancy Permit (OP): required and in the right shape (user, 2026-11-05). See TpNumberKey::problem().
+        $validator->after(function ($validator) use ($request) {
+            $type = $request->input('transactionType') ?: $request->input('transaction_type');
+            if (\App\Support\OpSerial::isMother(['transaction_type' => (string) $type])
+                && ($problem = \App\Support\TpNumberKey::problem((string) $request->input('tp_no')))) {
+                $validator->errors()->add('tp_no', $problem);
+            }
+        });
+
         // Add conditional validation for parties based on transaction type
         $validator->after(function ($validator) use ($request) {
             if (\App\Support\OpSerial::isOp(['transaction_type' => $request->transactionType])) {
@@ -1964,6 +1973,22 @@ class PropertyRecordController extends Controller
             'firstParty' => 'nullable|string|max:500',
             'secondParty' => 'nullable|string|max:500',
         ]);
+
+        // TP No on an Occupancy Permit (OP), checked when it is changed (user, 2026-11-05), so an older OP
+        // with a blank or misspelt one can still be edited for something else.
+        $validator->after(function ($validator) use ($request, $targetTable, $id) {
+            $type = $request->input('transactionType') ?: $request->input('transaction_type');
+            if (! $request->has('tp_no') || ! \App\Support\OpSerial::isMother(['transaction_type' => (string) $type])) return;
+            try {
+                $stored = (string) DB::connection('sqlsrv')->table($targetTable)->where('id', $id)->value('tp_no');
+            } catch (\Throwable $e) {
+                $stored = '';
+            }
+            if (strcasecmp(trim((string) $request->input('tp_no')), trim($stored)) === 0) return;
+            if ($problem = \App\Support\TpNumberKey::problem((string) $request->input('tp_no'))) {
+                $validator->errors()->add('tp_no', $problem);
+            }
+        });
 
         // Add conditional validation for parties based on transaction type
         $validator->after(function ($validator) use ($request) {

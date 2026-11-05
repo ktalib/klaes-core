@@ -1414,6 +1414,29 @@
             }
         }
 
+        /**
+         * TP No is required on an Occupancy Permit (OP) (user, 2026-11-05): the label reads "TP No *" and
+         * the "(optional)" tag goes. The save checks the shape too (PropertyRecordController, TpNumberKey).
+         * The tag is hidden with an inline style so applyFormMode's class toggling cannot bring it back.
+         */
+        applyTpRequired(isOp) {
+            this.tpRequired = !!isOp;
+            const input = this.form?.querySelector('#tp_no_prop');
+            const label = this.form?.querySelector('label[for="tp_no_prop"]');
+            if (!input || !label) return;
+            label.querySelector('[data-role="tp-required-star"]')?.classList.toggle('hidden', !isOp);
+            const optional = label.querySelector('[data-role="tp-optional"]');
+            if (optional) optional.style.display = isOp ? 'none' : '';
+            input.required = !!isOp;
+            if (isOp) {
+                input.setAttribute('placeholder', 'Enter TP number, e.g. TP/KN/215M');
+            } else {
+                const indexMode = this.modelElements?.get?.('formMode')?.value === 'index';
+                const placeholder = (indexMode && input.dataset.indexPlaceholder) || input.dataset.placeholderDefault || 'Enter TP number (optional)';
+                input.setAttribute('placeholder', placeholder);
+            }
+        }
+
         applyFormMode(mode) {
             const normalizedMode = mode === 'index' ? 'index' : 'property';
             if (this.modelElements.has('formMode')) {
@@ -1443,6 +1466,8 @@
                     element.removeAttribute('placeholder');
                 }
             });
+            // The mode reset the TP No placeholder; an OP keeps its own.
+            if (this.tpRequired) this.applyTpRequired(true);
 
             const titleElement = this.dialog ? this.dialog.querySelector('#form-title') : null;
             if (titleElement) {
@@ -1554,6 +1579,7 @@
             if (this.opFieldsWrapper) {
                 this.opFieldsWrapper.classList.toggle('hidden', !isOpTransaction);
             }
+            this.applyTpRequired(isOpTransaction);
 
             // Deed of Purchase carries what was paid. Matched on "deed of
             // purchase" rather than the full configured name so the legacy

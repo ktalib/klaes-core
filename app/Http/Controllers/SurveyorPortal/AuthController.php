@@ -4,6 +4,7 @@ namespace App\Http\Controllers\SurveyorPortal;
 
 use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyorPortalAccount as Account;
+use App\Services\Cadastral\CadastralAddress;
 use App\Services\Survey\SurveyorAccounts;
 use App\Services\Survey\SurveySettings;
 use Illuminate\Http\Request;
@@ -26,6 +27,12 @@ class AuthController extends Controller
     private function guard()
     {
         return Auth::guard('surveyor');
+    }
+
+    /** The portal's front page. Signed-in surveyors see it too, with a way back to their dashboard. */
+    public function landing()
+    {
+        return view('surveyor_portal.landing', ['signedIn' => $this->guard()->check()]);
     }
 
     public function showLogin()
@@ -76,7 +83,18 @@ class AuthController extends Controller
             'email'          => 'required|email|max:150',
             'surcon_number'  => 'nullable|string|max:50',
             'password'       => 'required|string|min:8|confirmed',
-        ], ['surveyor_type.required' => 'Choose Public or Private.']);
+            // Passport photograph (user, 2026-11-05). 2 MB, as at MLPP commissioning.
+            'passport'       => 'required|file|image|mimes:jpg,jpeg,png|max:2048',
+            // The address builder, one value each: the Cadastral directory's rules, except that District is
+            // optional here (user, 2026-11-05). Choosing Other still needs the name typed.
+            'addr_district'  => 'nullable|string|max:255',
+        ] + CadastralAddress::rules('addr_'), CadastralAddress::messages('addr_') + [
+            'surveyor_type.required' => 'Choose Public or Private.',
+            'passport.required' => 'Upload your passport photograph.',
+            'passport.image' => 'The passport photograph must be a JPG or PNG picture.',
+            'passport.mimes' => 'The passport photograph must be a JPG or PNG picture.',
+            'passport.max' => 'The passport photograph must be 2 MB or smaller.',
+        ]);
 
         $phone = Account::normalizePhone($data['phone']);
         if (! $phone) {
@@ -92,16 +110,28 @@ class AuthController extends Controller
 
         [$companyId, $companyName] = $this->company($data);
 
-        $account = $this->accounts->register([
-            'surveyor_type' => $data['surveyor_type'],
-            'company_id'    => $companyId,
-            'company_name'  => $companyName,
-            'name'          => preg_replace('/\s+/', ' ', trim($data['name'])),
-            'phone'         => $phone,
-            'email'         => $email,
-            'surcon_number' => trim((string) ($data['surcon_number'] ?? '')) ?: null,
-            'password'      => $data['password'],
-        ]);
+        // Kept on the private disk, never under public/: only the SG's page streams it.
+        $file = $r->file('passport');
+        $passport = $file->storeAs('surveyor_portal/passports', \Illuminate\Support\Str::uuid() . '.' . strtolower($file->extension() ?: 'jpg'), 'local');
+
+        $address = array_intersect_key(CadastralAddress::normalise($data, 'addr_'), array_flip(Account::addressColumns('addr_')));
+
+        try {
+            $account = $this->accounts->register($address + [
+                'passport_path' => $passport,
+                'surveyor_type' => $data['surveyor_type'],
+                'company_id'    => $companyId,
+                'company_name'  => $companyName,
+                'name'          => preg_replace('/\s+/', ' ', trim($data['name'])),
+                'phone'         => $phone,
+                'email'         => $email,
+                'surcon_number' => trim((string) ($data['surcon_number'] ?? '')) ?: null,
+                'password'      => $data['password'],
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Storage::disk('local')->delete($passport);   // no account, no photo left behind
+            throw $e;
+        }
 
         return redirect()->route('surveyor-portal.registered')->with('registration_id', $account->registration_id);
     }

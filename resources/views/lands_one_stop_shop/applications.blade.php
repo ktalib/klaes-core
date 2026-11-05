@@ -227,17 +227,6 @@
                                 $opBatchOn = url()->current() . '?' . http_build_query(array_merge(request()->except('page'), ['op_batch' => 1]));
                                 $opBatchOff = url()->current() . '?' . http_build_query(request()->except(['page', 'op_batch']));
                             @endphp
-                            <a href="{{ $isOpBatchMode ? $opBatchOff : $opBatchOn }}"
-                                id="btn-op-batch-commissioning"
-                                class="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold shadow-sm transition {{ $isOpBatchMode ? 'bg-amber-600 text-white hover:bg-amber-700' : 'bg-white border border-amber-300 text-amber-700 hover:bg-amber-50' }}"
-                                title="{{ $isOpBatchMode ? 'Back to the full FC listing' : 'Show only files commissioned through the mistaken Batch Mode, grouped by batch' }}">
-                                <i data-lucide="layers" class="w-4 h-4"></i>
-                                View OP Batch
-                                @if($isOpBatchMode)
-                                    <i data-lucide="x" class="w-3.5 h-3.5 opacity-80"></i>
-                                @endif
-                            </a>
-
                             <button type="button" id="btn-file-commissioning"
                                 class="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold shadow-sm hover:bg-blue-700 transition">
                                 <i data-lucide="file-plus-2" class="w-4 h-4"></i>
@@ -254,6 +243,17 @@
                                 <i data-lucide="file-search-2" class="w-4 h-4"></i>
                                 Capture OP for Commissioned File
                             </button>
+
+                            <a href="{{ $isOpBatchMode ? $opBatchOff : $opBatchOn }}"
+                                id="btn-op-batch-commissioning"
+                                class="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold shadow-sm transition {{ $isOpBatchMode ? 'bg-amber-600 text-white hover:bg-amber-700' : 'bg-white border border-amber-300 text-amber-700 hover:bg-amber-50' }}"
+                                title="{{ $isOpBatchMode ? 'Back to the full FC listing' : 'Show only files commissioned through the mistaken Batch Mode, grouped by batch' }}">
+                                <i data-lucide="layers" class="w-4 h-4"></i>
+                                View OP Batch
+                                @if($isOpBatchMode)
+                                    <i data-lucide="x" class="w-3.5 h-3.5 opacity-80"></i>
+                                @endif
+                            </a>
                         @endif
 
                         @if(!isset($recordType) || $recordType === 'fefr')
@@ -698,11 +698,7 @@
                                         @endphp
                                         @if($isOP)
                                             <div class="inline-flex flex-col items-start leading-tight gap-1">
-                                                @if($isFC)
-                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap">FC Record</span>
-                                                @else
-                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-200 whitespace-nowrap">FEFR Record</span>
-                                                @endif
+                                                {{-- FC Record / FEFR Record badges removed (user, 2026-11-05): the tab says which. --}}
                                                 <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border {{ $badge['classes'] }} whitespace-nowrap">{{ $badge['label'] }}</span>
                                                 
                                                 @if(!$isChangeOfName)
@@ -715,11 +711,6 @@
                                             </div>
                                         @else
                                             <div class="inline-flex flex-col items-start leading-tight gap-1">
-                                                @if($isFC)
-                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap">FC Record</span>
-                                                @else
-                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-200 whitespace-nowrap">FEFR Record</span>
-                                                @endif
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
                                                     style="{{ \App\Support\SourceBadge::style($src) }}">
                                                     {{ $src }}
@@ -3835,6 +3826,20 @@
                 var needed = key === 'op_serial_number' ? !opSerialValid(existing) : !existing;
                 if (!needed) return '<p class="text-xs text-slate-600 mt-2"><b>' + label + ':</b> ' + opSerialEsc(existing) + '</p>';
                 var entered = (o.entered || {})[key] || '';
+                // TP No is picked from the TP list (Public Layout Plans), with Other for one not listed (user, 2026-11-05).
+                if (key === 'tp_no') {
+                    var tid = 'opDetail' + i + '_tp_no';
+                    return '<label for="' + tid + '" class="block text-xs font-semibold text-slate-700 mt-3">' + label + ' <span class="text-red-500">*</span></label>'
+                        + '<div class="op-detail-tp mt-1" data-pra-id="' + opSerialEsc(o.pra_id) + '">'
+                        + '<select id="' + tid + '" class="op-detail-tp-select w-full" style="width:100%;">'
+                        + '<option value="">Select TP No</option>'
+                        + (entered ? '<option value="' + opSerialEsc(entered) + '" selected>' + opSerialEsc(entered) + '</option>' : '')
+                        + '</select>'
+                        + '<input type="text" class="op-detail-tp-other hidden mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" maxlength="100" placeholder="Type the TP No, e.g. TP/KN/215M" aria-label="TP No (not in the list)">'
+                        + '</div>'
+                        + '<p class="text-[11px] text-slate-500 mt-1">Search the TP list. Pick Other only if the layout is not listed.</p>'
+                        + ((o.errors || {})[key] && entered ? '<p class="text-xs text-red-600">' + opSerialEsc(o.errors[key]) + '</p>' : '');
+                }
                 var value = key === 'op_serial_number' ? (o.suggested || opSerialSuggest(o.current)) : entered;
                 var hint = key === 'regNo' ? 'Serial/Page/Volume, for example 12/34/56.'
                     : key === 'op_serial_number' ? 'Digits only, with no leading zero. Check the paper OP.' : '';
@@ -3869,11 +3874,59 @@
             allowOutsideClick: false,
             focusConfirm: false,
             didOpen: function () {
-                var first = Swal.getPopup().querySelector('.op-detail-input');
+                var popup = Swal.getPopup();
+                var first = popup.querySelector('.op-detail-input');
                 if (first) first.focus();
+                // TP No: a search box over the TP list, its own list kept inside this card so it opens on top.
+                var searchUrl = (window.InstrumentCaptureConfig && window.InstrumentCaptureConfig.urls && window.InstrumentCaptureConfig.urls.tpLookupSearch)
+                    || '{{ route('instruments.tpLookups.search') }}';
+                popup.querySelectorAll('.op-detail-tp').forEach(function (box) {
+                    var sel = box.querySelector('select'), other = box.querySelector('.op-detail-tp-other');
+                    var toggle = function () {
+                        var isOther = sel.value === '__other__';
+                        other.classList.toggle('hidden', !isOther);
+                        if (isOther) other.focus();
+                    };
+                    if (window.jQuery && jQuery.fn.select2) {
+                        jQuery(sel).select2({
+                            width: '100%', placeholder: 'Type to search TP No', allowClear: true, dropdownParent: jQuery(popup),
+                            minimumInputLength: 1,
+                            language: { inputTooShort: function () { return 'Type part of the TP No, e.g. 215 or DKD'; } },
+                            ajax: { url: searchUrl, dataType: 'json', delay: 250, data: function (p) { return { q: p.term || '' }; },
+                                // Exactly one Other, last, whatever the endpoint sends (user, 2026-11-05).
+                                processResults: function (d) {
+                                    var rows = ((d && d.results) || []).filter(function (r) {
+                                        return r.id !== '__other__' && !/^others?$/i.test(String(r.text || '').trim());
+                                    });
+                                    rows.push({ id: '__other__', text: 'Other (specify)' });
+                                    return { results: rows };
+                                }, cache: true }
+                        }).on('select2:select select2:clear', toggle);
+                    }
+                    sel.addEventListener('change', toggle);
+                    other.addEventListener('input', function () { other.value = other.value.toUpperCase(); });
+                });
             },
             preConfirm: function () {
                 var out = {};
+                // TP No first: picked, or typed under Other, and in the right shape for an OP.
+                var tpBoxes = Swal.getPopup().querySelectorAll('.op-detail-tp');
+                for (var t = 0; t < tpBoxes.length; t++) {
+                    var box = tpBoxes[t], sel = box.querySelector('select'), other = box.querySelector('.op-detail-tp-other');
+                    var tp = sel.value === '__other__' ? other.value.trim() : String(sel.value || '').trim();
+                    if (!tp) {
+                        (sel.value === '__other__' ? other : sel).focus();
+                        Swal.showValidationMessage(sel.value === '__other__' ? 'Type the TP No.' : 'Select the TP No.');
+                        return false;
+                    }
+                    var tpProblem = window.KlaesTpNo && window.KlaesTpNo.problem ? window.KlaesTpNo.problem(tp) : '';
+                    if (tpProblem) {
+                        Swal.showValidationMessage(tpProblem);
+                        return false;
+                    }
+                    out[box.dataset.praId] = out[box.dataset.praId] || {};
+                    out[box.dataset.praId].tp_no = tp;
+                }
                 var inputs = Swal.getPopup().querySelectorAll('.op-detail-input');
                 for (var i = 0; i < inputs.length; i++) {
                     var input = inputs[i];

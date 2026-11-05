@@ -11,6 +11,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  */
 class SurveyorPortalAccount extends Authenticatable
 {
+    use \App\Models\Concerns\HasAddressBuilder;   // person_address, from the addr_* columns
+
     protected $connection = 'sqlsrv';
     protected $table = 'surveyor_portal_accounts';
 

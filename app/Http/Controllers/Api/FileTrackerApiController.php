@@ -540,6 +540,11 @@ class FileTrackerApiController extends Controller
 
             DB::commit();
 
+            // "Your File Request ... has been logged to your office": only when this
+            // log-out answers the receiving officer's open File Request. After the
+            // commit, so a rolled-back log-out never texts anyone; never throws.
+            app(\App\Services\FileTracking\FileRequestSmsNotifier::class)->notifyLogged($tracker);
+
             $this->decorateTracker($tracker);
             if ($requiresReceivingAcceptance && !$isOtherOfficer && $receivingOfficerId) {
                 $this->notifyReceivingOfficer($tracker, [

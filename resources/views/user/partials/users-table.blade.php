@@ -285,6 +285,21 @@
                                         </form>
                                         @endif
 
+                                        {{-- Generate OTP: a sign-in code the admin reads to the officer when
+                                             the SMS or email has not arrived. Same gate as Suspend. --}}
+                                        @canDo('User Account', 'edit')
+                                        @if((int) $user->id !== (int) auth()->id() && (int) ($user->is_active ?? 1) === 1)
+                                        <button type="button" class="generate-login-otp flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                            data-url="{{ route('users.login-otp', $user->id) }}"
+                                            data-name="{{ $user->name }}" @click="open = false">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                                            </svg>
+                                            {{ __('Generate OTP') }}
+                                        </button>
+                                        @endif
+                                        @endcanDo
+
                                         {{-- Suspending is an edit, not a delete: the account stays, it just
                                              loses access. Deleting a user is gated separately below. --}}
                                         @canDo('User Account', 'edit')

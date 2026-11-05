@@ -1789,104 +1789,14 @@ HTML;
     }
 
     /**
-     * "Your File Request has been logged to your office" -- to the requester.
-     *
-     * Sent when the file is actually logged OUT to them, which is a different
-     * moment from the request being raised, and the one that starts the return
-     * clock. Everything the message quotes is tracker-level and was written a few
-     * lines earlier: the receiving office, the purpose, and the timeline.
-     *
-     * The recipient is the File Requester named on the tracker, whose user id the
-     * form supplies. When that names somebody outside the system -- the tracker
-     * allows a free-text officer -- there is no number to use and the dispatcher
-     * records a skipped row saying so.
-     *
-     * THE CLOCK: [DateTime] is rendered on the Lagos clock by the dispatcher, not
-     * on config('app.timezone'), which is UTC here. A message telling an officer
-     * their file was logged out an hour before it was is worse than none.
+     * "Your File Request has been logged to your office" -- to the requesting
+     * officer, only when this log-out answers their open request. The logic is
+     * shared with Api\FileTrackerApiController::store(), which is the path the
+     * log-out form actually uses -- see FileRequestSmsNotifier.
      */
     protected function sendFileLoggedSms(FileTracker $tracker): void
     {
-        try {
-            $key = \App\Models\SmsSetting::KEY_FILE_REQUEST_LOGGED;
-            $dispatcher = app(\App\Services\Sms\KlaesSmsDispatcher::class);
-
-            if (!$dispatcher->enabled($key)) {
-                return;
-            }
-
-            $phone = null;
-
-            if (!empty($tracker->receiving_officer_id)) {
-                $phone = DB::connection('sqlsrv')->table('users')
-                    ->where('id', $tracker->receiving_officer_id)
-                    ->value('phone_number');
-            }
-
-            $dispatcher->queue($key, $phone, [
-                'FileNo(s)' => $tracker->file_number,
-                'Requester Office' => $tracker->receiving_office_name
-                    ?: ($tracker->destination ?: $tracker->department),
-                'DateTime' => $this->smsMoment($tracker->date_requested ?? $tracker->date_created),
-                'Purpose' => $tracker->request_purpose_name ?: 'official use',
-                'Timeline' => $this->smsTimeline($tracker),
-            ], [
-                'dedupe_key' => $key . ':' . $tracker->id,
-                'file_number' => $tracker->file_number,
-                'subject_type' => 'file_tracker',
-                'subject_id' => $tracker->id,
-                'event_at' => $tracker->date_requested ?? $tracker->date_created,
-                'phone_confirmed' => true,
-            ]);
-        } catch (\Throwable $e) {
-            Log::warning('CreateFileTrackerController: file logged SMS not queued', [
-                'tracker_id' => $tracker->id ?? null,
-                'message' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    /** A moment as the office clock shows it, for an SMS body. */
-    protected function smsMoment($moment): string
-    {
-        $timezone = config('klaes_sms.timezone', 'Africa/Lagos');
-        $format = config('klaes_sms.datetime_format', 'd/m/Y h:i A');
-
-        try {
-            return \Carbon\Carbon::parse($moment ?: now())
-                ->setTimezone($timezone)
-                ->format($format);
-        } catch (\Throwable $e) {
-            return \Carbon\Carbon::now($timezone)->format($format);
-        }
-    }
-
-    /**
-     * How long the requester has the file for, in words.
-     *
-     * timeline_days is the explicit "Timeline (Days)" field; a tracker created
-     * from a purpose instead carries only a deadline, so that is counted back
-     * into days rather than left blank.
-     */
-    protected function smsTimeline(FileTracker $tracker): string
-    {
-        $days = $tracker->timeline_days;
-
-        if (!$days && !empty($tracker->deadline)) {
-            try {
-                $days = \Carbon\Carbon::parse($tracker->date_created ?: now())
-                    ->startOfDay()
-                    ->diffInDays(\Carbon\Carbon::parse($tracker->deadline)->startOfDay());
-            } catch (\Throwable $e) {
-                $days = null;
-            }
-        }
-
-        if (!$days) {
-            return 'the agreed period';
-        }
-
-        return $days . ' ' . ((int) $days === 1 ? 'day' : 'days');
+        app(\App\Services\FileTracking\FileRequestSmsNotifier::class)->notifyLogged($tracker);
     }
 
     /**
@@ -1946,30 +1856,7 @@ HTML;
      */
     protected function fileRequesterPhone($userId, ?string $name): ?string
     {
-        $users = DB::connection('sqlsrv')->table('users')->where('is_active', 1);
-
-        if (is_numeric($userId)) {
-            $row = (clone $users)->where('id', (int) $userId)->first(['first_name', 'last_name', 'phone_number']);
-            // The id must still be the officer named on the request.
-            if ($row && ($name === null || strcasecmp(
-                preg_replace('/\s+/', ' ', trim(($row->first_name ?? '') . ' ' . ($row->last_name ?? ''))),
-                preg_replace('/\s+/', ' ', trim($name))
-            ) === 0)) {
-                return $row->phone_number ?: null;
-            }
-        }
-
-        $name = preg_replace('/\s+/', ' ', trim((string) $name));
-        if ($name === '') {
-            return null;
-        }
-
-        $matches = $users
-            ->whereRaw("UPPER(LTRIM(RTRIM(ISNULL(first_name,'') + ' ' + ISNULL(last_name,'')))) = ?", [mb_strtoupper($name)])
-            ->limit(2)
-            ->pluck('phone_number');
-
-        return $matches->count() === 1 ? ($matches->first() ?: null) : null;
+        return app(\App\Services\FileTracking\FileRequestSmsNotifier::class)->requesterPhone($userId, $name);
     }
 
     protected function sendNewKangisTrackerSms(FileTracker $tracker, ?FileIndexing $linkedIndexing, ?string $officeName): array

@@ -259,6 +259,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (typeData) {
                     // Update current logic for the selected subtype
                     currentInstrumentType = subtype; // Update global state
+                    updateRequiredStars();
 
                     elements.dialogTitle.textContent = captureDialogTitle(subtype, typeData);
                     applyDialogTitleAccent();
@@ -1658,10 +1659,86 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function getTpLookupUrls() {
         const urls = window.InstrumentCaptureConfig?.urls || {};
+        const search = urls.tpLookupSearch || '/instruments/tp-lookups/search';
         return {
-            search: urls.tpLookupSearch || '/instruments/tp-lookups/search',
+            search,
             store: urls.tpLookupStore || '/instruments/tp-lookups',
+            check: urls.tpLookupCheck || search.replace(/\/search(\?.*)?$/, '/check'),
         };
+    }
+
+    // The same rule as App\Support\TpNumberKey::problem() (user, 2026-11-05): an OP's TP No is required,
+    // and reads TP or BLM / a known agency / letter-only area codes / the layout number. Keep the two alike.
+    const TP_AGENCIES = ['K', 'KN', 'KNUP', 'KNUPDA', 'KUNPDA', 'KNUPD', 'KW', 'KANO', 'KAS', 'KASEPPA', 'KASSEPA', 'KASSEPPA',
+        'KASSEP', 'KASEPA', 'KSSEPA', 'MLPP', 'MIPP', 'MLP', 'MLUPP', 'PP', 'UDB', 'UBD', 'MB'];
+    function tpNoProblem(raw) {
+        const shown = (raw || '').toString().trim();
+        const s = shown.replace(/\s+/g, '').toUpperCase();
+        if (!s) return 'TP No is required for an Occupancy Permit (OP).';
+        const parts = s.split('/');
+        if (!['TP', 'BLM'].includes(parts[0])) return `TP No "${shown}" must start with TP/ (or BLM/) and use / between parts, e.g. TP/KN/215M.`;
+        if (parts.length < 3) return `TP No "${shown}" needs the agency and the layout number, e.g. TP/KN/215M or TP/MLPP/DKD/001.`;
+        if (parts.includes('')) return `TP No "${shown}" has an empty part (two slashes together, or one at the end).`;
+        if (!TP_AGENCIES.includes(parts[1])) return `TP No "${shown}": "${parts[1]}" is not a known agency. Use K, KN, KNUPDA, MLPP, KASEPPA, PP, UDB or MB.`;
+        for (const seg of parts.slice(2, -1)) {
+            if (!/^[A-Z]+$/.test(seg)) return `TP No "${shown}": "${seg}" is not an area code. Area codes are letters only (DKD, KBT, UC).`;
+        }
+        const serial = parts[parts.length - 1];
+        if (!/^\d+[A-Z]{0,2}$/.test(serial)) return `TP No "${shown}": "${serial}" is not a layout number. It is digits, then up to two letters (215M, 001, 5A).`;
+        return '';
+    }
+
+    // The same rule for other OP screens on pages that load this file (OSS Match OP's "OP details needed").
+    window.KlaesTpNo = { problem: tpNoProblem };
+
+    function isOpCapture() {
+        return currentInstrumentType === 'occupancy-permit' || currentInstrumentType === 'Occupancy Permit';
+    }
+
+    // The red * on TP No: shown while an OP is being captured, the only time it is required.
+    function updateRequiredStars() {
+        document.getElementById('tp_no_required_star')?.classList.toggle('hidden', !isOpCapture());
+    }
+
+    // Editing an OP: the TP No it was saved with. Left as it was, it is not checked, so an older OP with a
+    // blank or misspelt one can still be edited for something else (InstrumentController::update does the same).
+    function rememberLoadedTp(value) {
+        const selectEl = document.getElementById('tp_no');
+        if (selectEl) selectEl.dataset.loaded = (value || '').toString().trim();
+    }
+
+    function isEditingWithLoadedTp() {
+        const storeUrl = document.getElementById('storeUrl')?.value || '';
+        const selectEl = document.getElementById('tp_no');
+        if (!selectEl || selectEl.dataset.loaded === undefined) return false;
+        if (!storeUrl.includes(getCaptureEndpoints().base + '/') || storeUrl.endsWith('/store')) return false;
+        return getTpLookupValue().toUpperCase() === selectEl.dataset.loaded.toUpperCase();
+    }
+
+    function showTpNote(text, tone) {
+        const note = document.getElementById('tp_no_note');
+        if (!note) return;
+        note.textContent = text || '';
+        note.classList.toggle('hidden', !text);
+        note.style.color = tone === 'error' ? '#dc2626' : (tone === 'warn' ? '#b45309' : '#047857');
+    }
+
+    // Under the TP No box on an OP: red when it cannot be saved, amber when it is not in Public Layout
+    // Plans (still saves), green with the layout it names. Other instrument types get no note.
+    let tpCheckSeq = 0;
+    async function runTpCheck() {
+        const value = getTpLookupValue();
+        const seq = ++tpCheckSeq;
+        if (!isOpCapture() || !value || value === '__other__') { showTpNote(''); return; }
+        const problem = tpNoProblem(value);
+        if (problem) { showTpNote(problem, 'error'); return; }
+        try {
+            const res = await fetch(getTpLookupUrls().check + '?tp_no=' + encodeURIComponent(value), { headers: { Accept: 'application/json' } });
+            const d = res.ok ? await res.json() : null;
+            if (seq !== tpCheckSeq || !d) return;
+            const ops = d.ops ? ` ${d.ops.toLocaleString()} OP(s) already on this layout.` : '';
+            showTpNote((d.message || '') + (d.ok ? ops : ''), !d.ok ? 'error' : (d.in_register ? 'ok' : 'warn'));
+        } catch (e) { /* the note is a help only; the save still checks */ }
     }
 
     /**
@@ -1709,6 +1786,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const manualEl = document.getElementById('manual_tp_no');
         const value = manualEl?.value?.trim().toUpperCase() || '';
         if (!selectEl || selectEl.value !== '__other__' || !value || value === 'OTHER' || value === 'OTHERS') {
+            return value;
+        }
+        // A misspelt number would join the TP list everyone picks from; the note under the box says why.
+        if (tpNoProblem(value)) {
             return value;
         }
 
@@ -1767,14 +1848,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
             jQuery(selectEl).on('select2:select', function (event) {
                 setTpLookupManualVisibility(event.params?.data?.id === '__other__');
+                runTpCheck();
             });
             jQuery(selectEl).on('select2:clear', function () {
                 setTpLookupManualVisibility(false);
+                runTpCheck();
             });
         }
 
         selectEl.addEventListener('change', () => {
             setTpLookupManualVisibility(selectEl.value === '__other__');
+            runTpCheck();
         });
 
         const manualEl = document.getElementById('manual_tp_no');
@@ -1784,6 +1868,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 updatePropertyDescription();
             });
             manualEl.addEventListener('blur', () => {
+                runTpCheck();
                 persistManualTpLookup().catch(error => console.warn(error.message || error));
             });
         }
@@ -4870,6 +4955,7 @@ document.addEventListener('DOMContentLoaded', function () {
             storeUrlInput.value = `${getCaptureEndpoints().base}/${record.id}`;
             setHidden('_method', 'PUT');
         }
+        rememberLoadedTp(record.tp_no);
 
         populateForm(record);
         
@@ -6132,6 +6218,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Update URL to the update route: /instruments/{id}
             storeUrlInput.value = `${getCaptureEndpoints().base}/${data.id}`;
         }
+        rememberLoadedTp(data.tp_no);
 
         safeSetValue('firstPartyName', data.party_1_name);
         safeSetValue('secondPartyName', data.party_2_name);
@@ -6953,6 +7040,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         currentInstrumentType = typeKey;
+        updateRequiredStars();
         // Every open starts on the vault's own next number and re-surveys the
         // missing ones, even for the register that was on screen last time: a gap
         // filled elsewhere must not still be on offer. Where a notice popup asked
@@ -10595,6 +10683,8 @@ document.addEventListener('DOMContentLoaded', function () {
             land_use: getVal('land_use') || null,
             plot_no: getVal('plotNumber') || null,
             tp_no: getVal('tp_no') || null,
+            // Asks the PRA API to apply the OP TP No rule to this save (PraRecordController::opTpProblem).
+            check_op_tp: 1,
             lpkn_no: getVal('lpkn_no') || null,
             plot_size: getVal('plotSize') || getVal('size') || null,
             house_no: getVal('house_no') || null,
@@ -10647,6 +10737,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const todayDate = new Date().toISOString().split('T')[0];
             if (!opTypeSelected) {
                 errors.push('Occupancy Permit Type is required (Resettlement or Direct Allocation).');
+            }
+            // TP No: required and well formed on every OP capture (user, 2026-11-05).
+            const tpProblem = isEditingWithLoadedTp() ? '' : tpNoProblem(getTpLookupValue());
+            if (tpProblem) {
+                errors.push(tpProblem);
+                showTpNote(tpProblem, 'error');
             }
             if (!isInstrumentCaptureCreatePage) {
                 if (!transactionDate) {

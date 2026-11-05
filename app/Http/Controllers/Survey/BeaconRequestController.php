@@ -96,6 +96,16 @@ class BeaconRequestController extends Controller
         return view('surveyor_portal.requests.slip', ['request' => $request->load('lines.numbers')]);
     }
 
+    /** The passport photograph a surveyor gave at registration, for the SG's review. Private disk only. */
+    public function passport(SurveyorPortalAccount $account)
+    {
+        $this->authorizeSg();
+        $path = $account->passport_path;
+        abort_unless($path && \Illuminate\Support\Facades\Storage::disk('local')->exists($path), 404);
+
+        return \Illuminate\Support\Facades\Storage::disk('local')->response($path, null, ['Cache-Control' => 'private, max-age=3600']);
+    }
+
     public function approveAccount(SurveyorPortalAccount $account)
     {
         $this->authorizeSg();

@@ -368,7 +368,10 @@
                                                 <div class="font-semibold text-gray-900" x-text="item.file_number || 'Document'"></div>
                                                 <div class="text-xs text-gray-500" x-text="(nice(item.file_title) || '').toUpperCase()"></div>
                                             </td>
-                                            <td class="px-3 py-2 text-gray-600" x-show="mode === 'in'" x-text="nice(item.where) || '—'"></td>
+                                            <td class="px-3 py-2 text-gray-600" x-show="mode === 'in'">
+                                                <div x-text="nice(item.where) || '—'"></div>
+                                                <div x-show="item.to_unit" class="text-xs text-purple-700" x-text="'Sent to unit: ' + item.to_unit"></div>
+                                            </td>
                                             <td class="px-3 py-2" x-show="mode === 'out'">
                                                 <select x-model="item.to_office" :disabled="item.state === 'done' || batch.running"
                                                         class="w-full border rounded-lg text-sm px-2 py-1.5 bg-white" :class="item.to_office || item.state === 'done' ? 'border-gray-300' : 'border-red-300'" style="min-width:11rem">
@@ -433,7 +436,7 @@
                             <div class="flex items-center gap-2">
                                 <button type="button" x-show="batchCount('done')" :disabled="batch.running" @click="clearBatchDone()"
                                         class="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50">Clear done</button>
-                                <button type="button" :disabled="!batchReady()" @click="runBatch()"
+                                <button type="button" :disabled="!batchCanStart()" @click="startBatch()"
                                         class="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-50"
                                         :class="mode === 'in' ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'">
                                     <i data-lucide="check-check" class="w-4 h-4"></i>
@@ -441,8 +444,8 @@
                                 </button>
                             </div>
                         </div>
-                        <p x-show="mode === 'out' && batchPending().length && !batchReady() && !batch.running" class="text-xs text-red-600 text-right">
-                            Every file needs an office and a receiving officer. Use Apply to all if they are the same.
+                        <p x-show="mode === 'out' && batchPending().length && !batchReady() && !batch.running" class="text-xs text-gray-500 text-right">
+                            For Department, every file needs an office and a receiving officer (use Apply to all if they are the same). For In-Unit, only the unit is needed.
                         </p>
                     </div>
                 </div>

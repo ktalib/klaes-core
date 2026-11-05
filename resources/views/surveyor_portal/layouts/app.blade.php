@@ -6,7 +6,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'KSSGOF Portal')</title>
     <meta name="theme-color" content="#0B3A7E">
-    <link rel="icon" href="{{ asset('assets/logo/kssgof-seal.jpg') }}">
+    <link rel="icon" type="image/png" href="{{ asset('assets/logo/kssgof-favicon.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/logo/kssgof-logo.png') }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@0.429.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
     <style>
@@ -37,6 +38,12 @@
         .ks-flash.bad { background: #FFE4E6; color: #881337; }
         .ks-nav a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 600; color: var(--ks-soft); text-decoration: none; }
         .ks-nav a.on, .ks-nav a:hover { background: #E8EDF5; color: var(--ks-blue); }
+        .ks-topbar { background: rgba(255,255,255,.94); backdrop-filter: blur(6px); border-bottom: 1px solid var(--ks-line); position: sticky; top: 0; z-index: 20; }
+        .ks-guest-banner { position: relative; background: #fff; border-right: 1px solid var(--ks-line); overflow: hidden; }
+        .ks-guest-banner::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+            background-image: linear-gradient(rgba(11,58,126,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(11,58,126,.06) 1px, transparent 1px);
+            background-size: 40px 40px; -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%); mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%); }
+        .ks-guest-banner::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: linear-gradient(90deg, var(--ks-blue) 0 33.3%, var(--ks-green) 33.3% 66.6%, var(--ks-gold) 66.6% 100%); }
     </style>
     @stack('styles')
 </head>

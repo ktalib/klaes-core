@@ -55,6 +55,11 @@ class OpMatchDetails
                 $errors[$field] = $validator->errors()->first($field);
                 continue;
             }
+            // An OP's TP No must be in the right shape (user, 2026-11-05; TpNumberKey::problem).
+            if ($field === 'tp_no' && ($problem = TpNumberKey::problem($value))) {
+                $errors[$field] = $problem;
+                continue;
+            }
             $updates[$field] = $value;
             if ($field === 'regNo') {
                 [$updates['serialNo'], $updates['pageNo'], $updates['volumeNo']] = explode('/', $value);

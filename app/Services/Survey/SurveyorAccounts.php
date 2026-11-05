@@ -88,7 +88,8 @@ class SurveyorAccounts
             $id = $a->surcon_number
                 ? $this->db()->table('cadastral_surveyors')->whereNull('deleted_at')->whereRaw('UPPER(surcon_number) = ?', [mb_strtoupper($a->surcon_number)])->value('id')
                 : null;
-            $id = $id ?: $this->db()->table('cadastral_surveyors')->insertGetId([
+            // A new directory row takes the address given at registration. A row that already exists keeps its own.
+            $id = $id ?: $this->db()->table('cadastral_surveyors')->insertGetId($a->only(SurveyorPortalAccount::addressColumns('addr_')) + [
                 'surcon_number' => $a->surcon_number, 'full_name' => $a->name, 'firm_name' => $a->company_name,
                 'phone' => $a->phone, 'email' => $a->email, 'licence_status' => 'Active', 'is_active' => 1,
                 'created_by' => Auth::id(), 'updated_by' => Auth::id(), 'created_at' => now(), 'updated_at' => now(),

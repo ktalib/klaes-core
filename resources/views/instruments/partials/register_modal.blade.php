@@ -909,8 +909,11 @@
                                 <x-instrument-input id="plotNumber" label="" icon="hash"
                                     placeholder="Plot Number" value="{{ $record->plot_number ?? '' }}" />
                                 <div>
-                                    <div class="relative">
-                                        <select id="tp_no" name="tp_no" class="tp-lookup-select w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all text-sm">
+                                    <div class="relative" style="position:relative;">
+                                        {{-- Required on an OP only; instruments-capture.js shows it (updateRequiredStars). --}}
+                                        <span id="tp_no_required_star" class="hidden" title="Required for an Occupancy Permit (OP)" aria-hidden="true"
+                                            style="position:absolute;top:-7px;right:-5px;z-index:10;color:#dc2626;font-weight:700;font-size:15px;line-height:1;pointer-events:none;">*</span>
+                                        <select id="tp_no" name="tp_no" @if(isset($record) && $record) data-loaded="{{ $record->tp_no ?? '' }}" @endif class="tp-lookup-select w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all text-sm">
                                             <option value="">TP No</option>
                                             @if(!empty($record->tp_no))
                                                 <option value="{{ $record->tp_no }}" selected>{{ $record->tp_no }}</option>
@@ -921,6 +924,8 @@
                                         <x-instrument-input id="manual_tp_no" name="manual_tp_no" label="" icon="edit-3"
                                             placeholder="Enter TP No" value="{{ old('manual_tp_no') }}" />
                                     </div>
+                                    {{-- Whether the TP No can be saved on an OP, and which layout it names (instruments-capture.js runTpCheck). --}}
+                                    <p id="tp_no_note" class="text-[11px] leading-snug mt-1 hidden" aria-live="polite"></p>
                                 </div>
                             </div>
                             
@@ -952,9 +957,14 @@
                                 </div>
                                 {{-- Multi-select: one property/layout can straddle more than one LGA.
                                      Read back as a comma-separated string (see getSelectValueString). --}}
-                                <x-instrument-select id="desc_lga" label="" icon="map" :options="$lgas"
-                                    placeholder="Select LGA " value="{{ $record->lga ?? '' }}"
-                                    optionValue="name" optionLabel="name" :multiple="true" />
+                                <div style="position:relative;">
+                                    {{-- Required on every instrument (validateForm: "Property LGA is required."). --}}
+                                    <span title="Required" aria-hidden="true"
+                                        style="position:absolute;top:-7px;right:-5px;z-index:10;color:#dc2626;font-weight:700;font-size:15px;line-height:1;pointer-events:none;">*</span>
+                                    <x-instrument-select id="desc_lga" label="" icon="map" :options="$lgas"
+                                        placeholder="Select LGA " value="{{ $record->lga ?? '' }}"
+                                        optionValue="name" optionLabel="name" :multiple="true" />
+                                </div>
                             </div>
 
                             <div>

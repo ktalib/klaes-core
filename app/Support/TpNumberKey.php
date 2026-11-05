@@ -73,4 +73,35 @@ class TpNumberKey
     {
         return self::parse($raw)['key'];
     }
+
+    /**
+     * Why a TP No typed on an OP cannot be saved, or null when it can (user, 2026-11-05: required, and in
+     * the right shape, on PRA, Instrument and OSS Capture OP). The shape is TP or BLM / a known agency /
+     * letter-only area codes / the layout number: TP/KN/215M, TP/MLPP/DKD/001, TP/K/UC/DKD/14, BLM/PP/005.
+     * Spaces are ignored; nothing is rewritten. A layout missing from Public Layout Plans is not refused.
+     */
+    public static function problem(?string $raw): ?string
+    {
+        $s = strtoupper(preg_replace('/\s+/', '', (string) $raw));
+        if ($s === '') return 'TP No is required for an Occupancy Permit (OP).';
+
+        $parts = explode('/', $s);
+        if (! in_array($parts[0], self::PREFIXES, true)) {
+            return "TP No \"{$raw}\" must start with TP/ (or BLM/) and use / between parts, e.g. TP/KN/215M.";
+        }
+        if (count($parts) < 3) return "TP No \"{$raw}\" needs the agency and the layout number, e.g. TP/KN/215M or TP/MLPP/DKD/001.";
+        if (in_array('', $parts, true)) return "TP No \"{$raw}\" has an empty part (two slashes together, or one at the end).";
+        if (! isset(self::AGENCIES[$parts[1]])) {
+            return "TP No \"{$raw}\": \"{$parts[1]}\" is not a known agency. Use K, KN, KNUPDA, MLPP, KASEPPA, PP, UDB or MB.";
+        }
+        foreach (array_slice($parts, 2, -1) as $seg) {
+            if (! preg_match('/^[A-Z]+$/', $seg)) return "TP No \"{$raw}\": \"{$seg}\" is not an area code. Area codes are letters only (DKD, KBT, UC).";
+        }
+        $serial = end($parts);
+        if (! preg_match('/^\d+[A-Z]{0,2}$/', $serial)) {
+            return "TP No \"{$raw}\": \"{$serial}\" is not a layout number. It is digits, then up to two letters (215M, 001, 5A).";
+        }
+
+        return null;
+    }
 }
