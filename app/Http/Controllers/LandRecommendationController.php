@@ -152,7 +152,17 @@ class LandRecommendationController extends Controller
     private const SUBDIVISION_TEMPLATE_MESSAGES = [
         'old_file_number.required_if' =>
             'Enter the Mother File Number, or set Use Subdivision Template back to No.',
+        'application_date.date_format' => self::APPLICATION_DATE_MESSAGE,
+        'application_date.after_or_equal' => self::APPLICATION_DATE_MESSAGE,
+        'application_date.before_or_equal' => self::APPLICATION_DATE_MESSAGE,
     ];
+
+    /**
+     * Plain `date` is not enough here: PHP reads a five-digit year as a time, so
+     * 20210-11-27 passed and was stored as 27 Nov 2000 20:21.
+     */
+    private const APPLICATION_DATE_RULE = 'required|date_format:Y-m-d|after_or_equal:1900-01-01|before_or_equal:today';
+    private const APPLICATION_DATE_MESSAGE = 'Application Date is not a real date. Check the year: it must be four digits and not in the future.';
 
     /**
      * Application types a mother-file batch can be captured under, and where each
@@ -1626,7 +1636,7 @@ class LandRecommendationController extends Controller
                 'development_value' => 'nullable|numeric',
                 'development_charge' => 'nullable|string',
                 'tracking_id' => 'nullable|string',
-                'application_date' => 'required|date',
+                'application_date' => self::APPLICATION_DATE_RULE,
                 'applicant_address' => 'required|string|max:500',
                 'applicant_phone' => ['required', 'string', 'max:30', new NigerianPhone],
                 'type' => 'nullable|string',
@@ -2315,12 +2325,23 @@ class LandRecommendationController extends Controller
                 ->get(['full_file_number', 'file_name', 'plot_no', 'location', 'lga', 'district', 'land_use', 'tracking_id', 'address']));
 
             $indexByFile = $indexByFile->merge(DB::connection('sqlsrv')->table('file_indexings')
-                ->whereIn('file_number', $slice)
-                ->get(['file_number', 'file_title', 'plot_number', 'district', 'lga', 'land_use_type',
-                    'residence_address', 'location', 'current_holder', 'original_holder']));
+                ->where(function ($q) use ($slice) {
+                    $q->whereIn('file_number', $slice)->orWhereIn('temp_file_no', $slice);
+                })
+                ->get(['file_number', 'temp_file_no', 'file_title', 'plot_number', 'district', 'lga', 'land_use_type',
+                    'residence_address', 'location', 'current_holder', 'original_holder', 'tracking_id']));
         }
         $mlsByFile = $mlsByFile->keyBy(fn ($r) => $key($r->full_file_number));
-        $indexByFile = $indexByFile->keyBy(fn ($r) => $key($r->file_number));
+        // A temporary (T) file is indexed under temp_file_no with file_number blank.
+        $indexRows = $indexByFile;
+        $indexByFile = $indexRows->filter(fn ($r) => $key($r->file_number) !== '')
+            ->keyBy(fn ($r) => $key($r->file_number));
+        foreach ($indexRows as $row) {
+            $temp = $key($row->temp_file_no);
+            if ($temp !== '' && !$indexByFile->has($temp)) {
+                $indexByFile->put($temp, $row);
+            }
+        }
 
         // Fourth name source, and the one the other three miss most often. A file
         // commissioned outside the MLS path (KANGIS, ST, a temporary number) has its
@@ -2348,12 +2369,13 @@ class LandRecommendationController extends Controller
                         $q->whereIn('mlsfNo', $numbers)
                             ->orWhereIn('kangisFileNo', $numbers)
                             ->orWhereIn('NewKANGISFileNo', $numbers)
-                            ->orWhereIn('st_file_no', $numbers);
+                            ->orWhereIn('st_file_no', $numbers)
+                            ->orWhereIn('temp_fileno', $numbers);
                     })
                     ->where(function ($q) {
                         $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
                     })
-                    ->get(['mlsfNo', 'kangisFileNo', 'NewKANGISFileNo', 'st_file_no', 'FileName', 'address'])
+                    ->get(['mlsfNo', 'kangisFileNo', 'NewKANGISFileNo', 'st_file_no', 'temp_fileno', 'FileName', 'address'])
             );
         }
 
@@ -2364,7 +2386,7 @@ class LandRecommendationController extends Controller
                 continue;
             }
 
-            foreach ([$row->mlsfNo, $row->kangisFileNo, $row->NewKANGISFileNo, $row->st_file_no] as $number) {
+            foreach ([$row->mlsfNo, $row->kangisFileNo, $row->NewKANGISFileNo, $row->st_file_no, $row->temp_fileno] as $number) {
                 $lookup = $key($number);
                 // A file number can carry several registry rows (a re-commissioning,
                 // a KANGIS alias). The first row that actually names someone wins;
@@ -2512,7 +2534,7 @@ class LandRecommendationController extends Controller
                     'page'           => (string) ($rec->page ?? ''),
                     'page_2'         => (string) ($rec->page_2 ?? ''),
                     'page_3'         => (string) ($rec->page_3 ?? ''),
-                    'tracking_id'    => trim((string) ($mls->tracking_id ?? '')),
+                    'tracking_id'    => $pick($mls->tracking_id ?? null, $index->tracking_id ?? null),
                     'is_legacy'      => $legacy !== null && $mls === null,
                     // Nothing on file anywhere. The row is still rendered — the number
                     // was picked deliberately — but the picker says so, because an
@@ -3011,7 +3033,7 @@ class LandRecommendationController extends Controller
             // ticked with batch mode), so Direct / Conversion is live and has to be
             // saved — print() routes on it once the application type is stood down.
             'type'               => 'nullable|string',
-            'application_date'   => 'required|date',
+            'application_date'   => self::APPLICATION_DATE_RULE,
             'meeting_date'       => 'nullable|date',
             'effective_date'     => 'nullable|date',
             'term'               => 'nullable|string',
@@ -3198,7 +3220,7 @@ class LandRecommendationController extends Controller
         }
 
         try {
-            $validated = $request->validate($this->batchRules($kind));
+            $validated = $request->validate($this->batchRules($kind), self::SUBDIVISION_TEMPLATE_MESSAGES);
             $validated = \App\Support\BatchPlotSize::validate($validated);
         } catch (ValidationException $e) {
             RecLog::warning('Batch rejected by validation', [
@@ -3579,7 +3601,7 @@ class LandRecommendationController extends Controller
 
         $kind = $request->input('batch_kind') === 'regular' ? 'regular' : 'subdivision';
 
-        $validated = $request->validate($this->batchRules($kind));
+        $validated = $request->validate($this->batchRules($kind), self::SUBDIVISION_TEMPLATE_MESSAGES);
         $validated = \App\Support\BatchPlotSize::validate($validated, $existing);
 
         // Same truncation guard as the capture path — see storeBatch().
@@ -3623,6 +3645,12 @@ class LandRecommendationController extends Controller
         $common['rofo_licensed_surveyor'] = ($request->rofo_survey_method === 'LICENSED') ? 'YES' : 'NO';
         $common['use_standard_template']  = $request->boolean('use_standard_template');
         $common['updated_by']             = Auth::id();
+
+        // Compared by day against the date the form opened with. A form that does
+        // not send it counts as unchanged, which is how issued files always behaved.
+        $loadedDate = trim((string) $request->input('application_date_loaded', ''));
+        $applicationDateEdited = $request->has('application_date_loaded')
+            && \Illuminate\Support\Carbon::parse($validated['application_date'])->toDateString() !== $loadedDate;
 
         // Files posted that are not yet in the batch — they join it.
         $incomingKeys = collect($validated['children'])->map(fn ($c) => $key($c['file_number']))->unique()->values();
@@ -3727,7 +3755,12 @@ class LandRecommendationController extends Controller
                     // blank over a value, and nothing equal to what is stored.
                     // The form posts a per-file condition for these rows only when
                     // the officer changed it, so a field left alone is never sent.
+                    // Application Date is the one batch-wide exception: there is one
+                    // box for the whole batch, so a change to it is meant for all.
                     if ($record->rofo_status === LandRecommendation::ROFO_GENERATED) {
+                        if ($applicationDateEdited) {
+                            $record->application_date = $validated['application_date'];
+                        }
                         if ($this->applyIssuedBatchCorrections($record, $posted, $child, $row)) {
                             $record->updated_by = Auth::id();
                             $record->save();
@@ -4401,7 +4434,7 @@ class LandRecommendationController extends Controller
             'development_value' => 'nullable|numeric',
             'development_charge' => 'nullable|string',
             'tracking_id' => 'nullable|string',
-            'application_date' => 'required|date',
+            'application_date' => self::APPLICATION_DATE_RULE,
             'applicant_address' => 'required|string|max:500',
             'applicant_phone' => ['required', 'string', 'max:30', new NigerianPhone],
             'edit_reason' => 'nullable|string',

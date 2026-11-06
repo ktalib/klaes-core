@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Auth;
  */
 class BeaconRequestController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function __construct(private BeaconRequests $requests, private SurveyorAccounts $accounts)
     {
     }
@@ -36,19 +38,9 @@ class BeaconRequestController extends Controller
         $term = trim((string) $r->query('q', ''));
         $status = (string) $r->query('status', '');
 
-        $requests = SurveyBeaconRequest::query()->with('lines:id,survey_beacon_request_id')
-            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('request_no', 'like', "%$term%")->orWhere('company_name', 'like', "%$term%")
-                ->orWhere('surveyor_name', 'like', "%$term%")->orWhere('job_name', 'like', "%$term%")->orWhere('issued_numbers', 'like', "%$term%")))
-            ->when($tab === 'requests' && $status !== '', fn ($q) => $q->where('status', $status))
-            ->orderByRaw("CASE WHEN status = 'Submitted' THEN 0 ELSE 1 END")->orderByDesc('id')
-            ->paginate(20, ['*'], 'page')->withQueryString();
+        $requests = $this->requestsQuery($r)->paginate(20, ['*'], 'page')->withQueryString();
 
-        $accounts = SurveyorPortalAccount::query()
-            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('name', 'like', "%$term%")->orWhere('company_name', 'like', "%$term%")
-                ->orWhere('registration_id', 'like', "%$term%")->orWhere('surveyor_id_no', 'like', "%$term%")->orWhere('phone', 'like', "%$term%")))
-            ->when($tab === 'registrations' && $status !== '', fn ($q) => $q->where('status', $status))
-            ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")->orderByDesc('id')
-            ->paginate(20, ['*'], 'page')->withQueryString();
+        $accounts = $this->accountsQuery($r)->paginate(20, ['*'], 'page')->withQueryString();
 
         return view('survey_module.beacon_requests.index', [
             'tab' => $tab, 'requests' => $requests, 'accounts' => $accounts, 'status' => $status,
@@ -112,7 +104,7 @@ class BeaconRequestController extends Controller
         $done = $this->accounts->approve($account);
 
         return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations'])
-            ->with('success', "{$done->name} approved. Surveyor ID {$done->surveyor_id_no}.");
+            ->with('success', "{$done->holder_name} approved. Surveyor ID {$done->surveyor_id_no}.");
     }
 
     public function rejectAccount(Request $r, SurveyorPortalAccount $account)
@@ -121,6 +113,59 @@ class BeaconRequestController extends Controller
         $data = $r->validate(['review_note' => 'required|string|max:1000'], ['review_note.required' => 'Give the reason.']);
         $done = $this->accounts->reject($account, trim($data['review_note']));
 
-        return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations'])->with('success', "{$done->name}'s registration was not approved.");
+        return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations'])->with('success', "{$done->holder_name}'s registration was not approved.");
+    }
+
+    /** The Requests tab's filters and order, shared with Export Records. */
+    private function requestsQuery(Request $r)
+    {
+        $tab = $r->query('tab') === 'registrations' ? 'registrations' : 'requests';
+        $term = trim((string) $r->query('q', ''));
+        $status = (string) $r->query('status', '');
+
+        return SurveyBeaconRequest::query()->with('lines:id,survey_beacon_request_id')
+            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('request_no', 'like', "%$term%")->orWhere('company_name', 'like', "%$term%")
+                ->orWhere('surveyor_name', 'like', "%$term%")->orWhere('job_name', 'like', "%$term%")->orWhere('issued_numbers', 'like', "%$term%")))
+            ->when($tab === 'requests' && $status !== '', fn ($q) => $q->where('status', $status))
+            ->orderByRaw("CASE WHEN status = 'Submitted' THEN 0 ELSE 1 END")->orderByDesc('id');
+    }
+
+    /** The Registrations tab's filters and order, shared with Export Records. */
+    private function accountsQuery(Request $r)
+    {
+        $tab = $r->query('tab') === 'registrations' ? 'registrations' : 'requests';
+        $term = trim((string) $r->query('q', ''));
+        $status = (string) $r->query('status', '');
+
+        return SurveyorPortalAccount::query()
+            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('name', 'like', "%$term%")->orWhere('company_name', 'like', "%$term%")
+                ->orWhere('registration_id', 'like', "%$term%")->orWhere('surveyor_id_no', 'like', "%$term%")->orWhere('phone', 'like', "%$term%")))
+            ->when($tab === 'registrations' && $status !== '', fn ($q) => $q->where('status', $status))
+            ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")->orderByDesc('id');
+    }
+
+    public function export(Request $r)
+    {
+        $this->authorizeSg();
+
+        if ($r->query('tab') === 'registrations') {
+            return $this->exportRecords($r, fn () => $this->accountsQuery($r), [
+                'registration_id' => 'Registration ID', 'surveyor_id' => 'Surveyor ID', 'date' => 'Date', 'type' => 'Type', 'company' => 'Company', 'rc_no' => 'RC No.', 'name' => "Surveyor's Name",
+                'surcon' => 'SURCON No.', 'phone' => 'Phone', 'email' => 'Email', 'address' => 'Address', 'status' => 'Status',
+            ], fn ($a) => [
+                'registration_id' => $a->registration_id, 'surveyor_id' => $a->surveyor_id_no, 'date' => $this->exportDate($a->created_at, 'd/m/Y'), 'type' => $a->type_label,
+                'company' => $a->company_name, 'rc_no' => $a->company_rc_no, 'name' => $a->name, 'surcon' => $a->surcon_number, 'phone' => $a->phone, 'email' => $a->email, 'address' => $a->person_address,
+                'status' => $a->status,
+            ]);
+        }
+
+        return $this->exportRecords($r, fn () => $this->requestsQuery($r), [
+            'request_no' => 'Request No.', 'date' => 'Date', 'from' => 'From', 'type' => 'Type', 'company' => 'Company', 'surveyor' => "Surveyor's Name", 'job' => 'Job', 'beacons' => 'Beacons',
+            'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'location' => 'Location', 'latitude' => 'Latitude', 'longitude' => 'Longitude', 'status' => 'Status', 'issued' => 'Issued Numbers',
+        ], fn ($q) => [
+            'request_no' => $q->request_no, 'date' => $this->exportDate($q->created_at, 'd/m/Y'), 'from' => $q->source_label, 'type' => $q->type_label, 'company' => $q->company_name,
+            'surveyor' => $q->surveyor_name, 'job' => $q->job_name, 'beacons' => $q->quantity, 'plot_no' => $q->plot_no, 'district' => $q->district,
+            'lga' => $q->lga ? mb_strtoupper($q->lga) : null, 'location' => $q->location, 'latitude' => $q->latitude, 'longitude' => $q->longitude, 'status' => $q->status, 'issued' => $q->issued_numbers,
+        ]);
     }
 }

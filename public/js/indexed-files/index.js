@@ -187,7 +187,7 @@ function renderRows(rows) {
           }
         })
         .join('');
-      return `<tr class="hover:bg-gray-50 ${genderClass}" ${genderData} ${rtData} data-row-id="${row.id}">${rowCells}${config.hideActions ? '' : `<td class="p-3 whitespace-nowrap text-center">${buildActionsMenu(row, viewUrl)}</td>`}</tr>`;
+      return `<tr class="hover:bg-gray-50 ${genderClass}${row.is_crossed_out ? ' crossed-out-row' : ''}" ${genderData} ${rtData} data-row-id="${row.id}">${rowCells}${config.hideActions ? '' : `<td class="p-3 whitespace-nowrap text-center">${row.is_crossed_out ? '<span class="text-gray-300">&mdash;</span>' : buildActionsMenu(row, viewUrl)}</td>`}</tr>`;
     }
 
     const rowCells = isKangisVariant
@@ -339,9 +339,9 @@ function renderRows(rows) {
       `;
 
     return `
-      <tr class="hover:bg-gray-50 ${genderClass}" ${genderData} ${rtData} data-row-id="${row.id}">
+      <tr class="hover:bg-gray-50 ${genderClass}${row.is_crossed_out ? ' crossed-out-row' : ''}" ${genderData} ${rtData} data-row-id="${row.id}">
         ${rowCells}
-        ${config.hideActions ? '' : `<td class="p-3 whitespace-nowrap text-center">${buildActionsMenu(row, viewUrl)}</td>`}
+        ${config.hideActions ? '' : `<td class="p-3 whitespace-nowrap text-center">${row.is_crossed_out ? '<span class="text-gray-300">&mdash;</span>' : buildActionsMenu(row, viewUrl)}</td>`}
       </tr>
     `;
   }).join('');
@@ -500,6 +500,18 @@ function buildActionsMenu(row, viewUrl) {
   const viewScannedButton = !config.scanCheckUrl ? '' : `<button type="button" class="view-scanned-file-btn flex items-start gap-2.5 w-full text-left px-4 py-2.5 text-sm ${hasScannedTarget ? 'text-emerald-700 hover:bg-emerald-50' : 'text-gray-400 cursor-not-allowed opacity-40'} transition-colors" data-file-id="${id}" data-file-number="${escapeHtml(scannedFileNumber)}" ${hasScannedTarget ? '' : 'disabled="disabled"'}>
           <i data-lucide="scan-line" class="h-4 w-4 mt-0.5 shrink-0 ${hasScannedTarget ? 'text-emerald-600' : 'text-gray-300'}"></i>
           <span class="leading-snug">View Scanned File</span>
+        </button>`;
+
+  // The Doc-WARE / Page Typing actions on the file's scans, next to View Scanned File
+  // (user, 2026-11-05). config.canManageScans is set only where the page loads the two
+  // dialogs, i.e. the main Files table.
+  const moveToNrButton = !config.canManageScans ? '' : `<button type="button" class="move-to-nr-btn flex items-start gap-2.5 w-full text-left px-4 py-2.5 text-sm text-blue-700 hover:bg-blue-50 transition-colors" data-file-id="${id}" data-file-number="${escapeHtml(scannedFileNumber)}">
+          <i data-lucide="folder-symlink" class="h-4 w-4 mt-0.5 shrink-0 text-blue-600"></i>
+          <span class="leading-snug">Move to NR</span>
+        </button>`;
+  const reassignFileNoButton = !config.canManageScans ? '' : `<button type="button" class="reassign-fileno-btn flex items-start gap-2.5 w-full text-left px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 transition-colors" data-file-id="${id}" data-file-number="${escapeHtml(scannedFileNumber)}">
+          <i data-lucide="unlink" class="h-4 w-4 mt-0.5 shrink-0 text-amber-600"></i>
+          <span class="leading-snug">Reassign FileNo</span>
         </button>`;
 
   // config.canEdit / canPrint come from the blade component and mirror the module
@@ -716,6 +728,8 @@ function buildActionsMenu(row, viewUrl) {
           </div>
           ${viewButton}
           ${viewScannedButton}
+          ${moveToNrButton}
+          ${reassignFileNoButton}
           ${viewTransactionsButton}
           ${moveTransactionButton}
           ${viewRelatedFilesButton}
@@ -995,6 +1009,28 @@ function handleTableBodyClick(event) {
     event.stopPropagation();
     closeAllActionMenus();
     openScannedFile(scannedBtn.getAttribute('data-file-number'));
+    return;
+  }
+
+  const moveToNrBtn = event.target.closest('.move-to-nr-btn');
+  if (moveToNrBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeAllActionMenus();
+    if (!window.EdmsRegistryTransfer) {
+      Swal.fire({ icon: 'error', title: 'Unavailable', text: 'The registry transfer dialog did not load on this page.' });
+      return;
+    }
+    window.EdmsRegistryTransfer.open(moveToNrBtn.getAttribute('data-file-id'), moveToNrBtn.getAttribute('data-file-number'), () => loadTable());
+    return;
+  }
+
+  const reassignFileNoBtn = event.target.closest('.reassign-fileno-btn');
+  if (reassignFileNoBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeAllActionMenus();
+    openReassignFileNo(reassignFileNoBtn.getAttribute('data-file-id'), reassignFileNoBtn.getAttribute('data-file-number'));
     return;
   }
 
@@ -1453,6 +1489,37 @@ function openRelatedFilesModal(id, options) {
  */
 const SCAN_SOURCE_ORDER = ['blind_scan', 'scan_upload', 'upload', 'records_server'];
 
+/**
+ * Reassign FileNo, as on Doc-WARE and Page Typing. The dialog works on scan ids, so the
+ * file's scans are fetched first.
+ */
+async function openReassignFileNo(fileIndexingId, fileNumber) {
+  if (!window.scanReassignmentManager) {
+    Swal.fire({ icon: 'error', title: 'Reassignment unavailable', text: 'The reassignment dialog did not load on this page.' });
+    return;
+  }
+
+  try {
+    const response = await fetch(`/scan-uploads/file-scans?file_indexing_id=${encodeURIComponent(fileIndexingId)}`, {
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const payload = await response.json();
+    const documents = payload?.data?.documents || [];
+
+    if (!documents.length) {
+      Swal.fire({ icon: 'info', title: 'Nothing to reassign', text: `${fileNumber || 'This file'} has no scanned documents to move.` });
+      return;
+    }
+
+    window.scanReassignmentManager.openModal(documents.map((doc) => doc.id), documents, { title: 'Reassign FileNo' });
+  } catch (error) {
+    Swal.fire({ icon: 'error', title: 'Could not load the documents', text: error.message });
+  }
+}
+
+// The table's scan counts change with the file the scans moved to or from.
+window.addEventListener('scans-reassigned', () => loadTable());
+
 function openScannedFile(fileNumber) {
   fileNumber = String(fileNumber || '').trim();
   const notify = (icon, title, text) => (window.Swal ? Swal.fire({ icon, title, text }) : alert(title + '\n\n' + text));
@@ -1476,9 +1543,13 @@ function openScannedFile(fileNumber) {
       if (!ok || !d.success) throw new Error(d.message || 'The scan check failed.');
 
       const sources = Array.isArray(d.sources) ? d.sources : [];
-      const folders = sources
+      const scanned = sources
         .filter(s => s.token && SCAN_SOURCE_ORDER.includes(s.source))
         .sort((a, b) => (SCAN_SOURCE_ORDER.indexOf(a.source) - SCAN_SOURCE_ORDER.indexOf(b.source)) || ((b.pages || 0) - (a.pages || 0)));
+      // The Correspondence File sits in its own folder under the same number, so it is
+      // kept apart from the main file's scans (user, 2026-11-06).
+      const correspondence = scanned.filter(s => s.is_correspondence);
+      const folders = scanned.filter(s => !s.is_correspondence);
       const blind = folders.filter(s => s.source === 'blind_scan');
       const archive = sources.find(s => s.source === 'digital_archive' && s.view_url);
 
@@ -1491,6 +1562,14 @@ function openScannedFile(fileNumber) {
       });
 
       const choices = blind.length ? blind : folders;
+      if (correspondence.length && window.Swal) {
+        chooseScannedFile(fileNumber, choices, choices.length ? null : archive, correspondence, openSource);
+        return;
+      }
+      if (correspondence.length && !choices.length) {
+        openSource(correspondence[0]);
+        return;
+      }
       if (choices.length === 1) {
         openSource(choices[0]);
         return;
@@ -1523,6 +1602,60 @@ function openScannedFile(fileNumber) {
       if (window.Swal) Swal.close();
       notify('error', 'Could not open the scanned file', err.message || 'Please try again.');
     });
+}
+
+/**
+ * A file with a Correspondence File: the Main File and the Correspondence File side by side,
+ * so one is never opened and taken for the other. Says so plainly when the Correspondence
+ * File is all that has been scanned. Inline styles: the Tailwind v2 CDN has no rose palette.
+ */
+function chooseScannedFile(fileNumber, mainFolders, archive, correspondence, openSource) {
+  const pages = n => `${n || 0} page${n === 1 ? '' : 's'}`;
+  const row = (index, title, detail, colour) => `
+    <button type="button" data-scan-choice="${index}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:10px 12px;margin-top:6px;text-align:left;background:#fff;border:1px solid #e2e8f0;border-left:4px solid ${colour};border-radius:8px;cursor:pointer;">
+      <span style="min-width:0;">
+        <span style="display:block;font-size:13px;font-weight:600;color:#1e293b;">${escapeHtml(title)}</span>
+        <span style="display:block;font-size:11px;color:#64748b;word-break:break-all;">${escapeHtml(detail)}</span>
+      </span>
+      <span style="flex-shrink:0;font-size:12px;font-weight:600;color:#2563eb;">Open</span>
+    </button>`;
+  const heading = (text, colour) => `<p style="margin:14px 0 2px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${colour};">${text}</p>`;
+
+  const actions = [];
+  const add = (action, ...rowArgs) => { actions.push(action); return row(actions.length - 1, ...rowArgs); };
+
+  const mainRows = mainFolders.map(s => add(() => openSource(s), s.label, `${s.folder} · ${pages(s.pages)}`, '#059669'));
+  if (archive) {
+    mainRows.push(add(() => window.open(archive.view_url, '_blank'), archive.label, `${archive.folder} · ${pages(archive.pages)}`, '#059669'));
+  }
+  const correspondenceRows = correspondence.map(s => add(() => openSource(s), s.label, `${s.folder} · ${pages(s.pages)}`, '#d97706'));
+
+  const mainBlock = mainRows.length
+    ? mainRows.join('')
+    : `<div style="margin-top:6px;padding:10px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;">
+        No Main File scan was found for this number. Only the Correspondence File has been scanned.
+      </div>`;
+
+  Swal.fire({
+    title: 'Scanned files',
+    width: 560,
+    showConfirmButton: false,
+    showCancelButton: true,
+    cancelButtonText: 'Close',
+    html: `<div style="text-align:left;">
+        <p style="font-size:13px;color:#475569;"><strong>${escapeHtml(fileNumber)}</strong> has a Correspondence File, kept apart from the Main File.</p>
+        ${heading('Main File', '#047857')}${mainBlock}
+        ${heading('Correspondence File', '#b45309')}${correspondenceRows.join('')}
+      </div>`,
+    didOpen: (popup) => {
+      popup.querySelectorAll('[data-scan-choice]').forEach((button) => {
+        button.addEventListener('click', () => {
+          Swal.close();
+          actions[Number(button.getAttribute('data-scan-choice'))]();
+        });
+      });
+    },
+  });
 }
 
 function openEdmsFilesModal(id, fileNumber, registryFolder) {

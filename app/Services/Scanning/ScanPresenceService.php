@@ -31,6 +31,13 @@ class ScanPresenceService
         'records_server' => 'Raw scans (records server)',
     ];
 
+    /**
+     * Folders under Cadastral_Registry / Cadastral_Registry1 / Cadastral_Registry_Raw are the
+     * file's Correspondence File, named after the same number as the main file, so they are
+     * labelled apart wherever the sources are listed (user, 2026-11-06).
+     */
+    public const CORRESPONDENCE_LABEL = 'Correspondence File';
+
     private const BLIND_ROOT = 'app/public/EDMS/BLIND_SCAN';
 
     /**
@@ -302,9 +309,12 @@ class ScanPresenceService
 
     private function folderSource(string $source, string $relative, int $pages): array
     {
+        $correspondence = (bool) preg_match('/^cadastral_/i', $relative);
+
         return [
             'source' => $source,
-            'label' => self::SOURCE_LABELS[$source],
+            'label' => $correspondence ? self::CORRESPONDENCE_LABEL : self::SOURCE_LABELS[$source],
+            'is_correspondence' => $correspondence,
             'folder' => $relative,
             'pages' => $pages,
             'file_indexing_id' => null,

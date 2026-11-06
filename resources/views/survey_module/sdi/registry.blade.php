@@ -31,11 +31,13 @@
 <div x-data="{ mda: null, type: null }">
     <div class="page-header">
         <div style="color:var(--gray-600);font-size:14px;">{{ $tab === 'types' ? number_format($mapTypes->count()) . ' map types' : number_format($mdas->total()) . ' MDAs' }}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.sdi.registry.export'), 'title' => $tab === 'types' ? 'Map Types' : 'MDAs', 'dates' => false])
         @if ($tab === 'mdas')
             <button type="button" class="btn btn-primary" @click.stop="mda = @js($blankMda)"><i class="fas fa-plus"></i> Add MDA</button>
         @else
             <button type="button" class="btn btn-primary" @click.stop="type = { url: @js(route('survey-module.sdi.registry.types.store')), method: 'POST', title: 'Add Map Type', name: '' }"><i class="fas fa-plus"></i> Add Map Type</button>
         @endif
+        </div>
     </div>
 
     @if ($tab === 'mdas')

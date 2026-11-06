@@ -58,6 +58,8 @@ class PortalController extends Controller
             'plot_no'     => 'nullable|string|max:100',
             'district'    => 'nullable|string|max:255',
             'lga'         => ['nullable', Rule::in(CompensationListReader::LGAS)],
+            'latitude'    => 'nullable|numeric|between:-90,90|required_with:longitude',
+            'longitude'   => 'nullable|numeric|between:-180,180|required_with:latitude',
             'remarks'     => 'nullable|string|max:2000',
         ], [
             'job_name.required' => 'Enter the name of the survey this is for.',

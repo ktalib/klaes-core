@@ -231,6 +231,12 @@ class FileNumberController extends Controller
                                           OR LTRIM(RTRIM(ms_new.file_option)) = ''
                                           OR LOWER(LTRIM(RTRIM(ms_new.file_option))) <> 'temporary'
                                       )
+                                    UNION
+                                    -- Crossed out: their numbers have moved, so the tests above
+                                    -- cannot find them. The tab was noted at the delete.
+                                    SELECT f3.id FROM fileNumber f3
+                                    WHERE f3.deleted_numbers IS NOT NULL
+                                      AND JSON_VALUE(f3.deleted_numbers, '$.list') = 'New'
                                 )
                                 AND " . OssOpCommissionFilter::notExistsSql('fn.mlsfNo');
             } elseif ($source === 'All') {
@@ -256,8 +262,9 @@ class FileNumberController extends Controller
                                        OR fn.lga             LIKE ?
                                        OR fn.location        LIKE ?
                                        OR fn.plot_no         LIKE ?
-                                       OR fn.tp_no           LIKE ?)";
-                $searchBindings = [$pct, $pct, $pct, $pct, $pct, $pct, $pct, $pct, $pct, $pct];
+                                       OR fn.tp_no           LIKE ?
+                                       OR fn.deleted_numbers LIKE ?)";
+                $searchBindings = [$pct, $pct, $pct, $pct, $pct, $pct, $pct, $pct, $pct, $pct, $pct];
 
                 if ($batchOnly) {
                     // Batch Commissioned tab: a hit on ANY member (or the batch number)
@@ -301,7 +308,7 @@ class FileNumberController extends Controller
                 $sourceWhere .= " AND NULLIF(LTRIM(RTRIM(mls.batch_no)), '') IS NOT NULL";
             }
 
-            $recordsTotal = Cache::remember("file_numbers_total_v4_{$source}" . ($batchOnly ? '_batch' : ''), 300, function () use ($sourceWhere) {
+            $recordsTotal = Cache::remember("file_numbers_total_v5_{$source}" . ($batchOnly ? '_batch' : ''), 300, function () use ($sourceWhere) {
                 $row = DB::connection('sqlsrv')->selectOne(
                     "SELECT COUNT(DISTINCT COALESCE(NULLIF(mls.batch_no,''), CAST(fn.id AS VARCHAR(20)))) AS cnt
                      FROM fileNumber fn
@@ -309,7 +316,7 @@ class FileNumberController extends Controller
                          SELECT TOP 1 batch_no FROM mls_file_no
                          WHERE full_file_number = fn.mlsfNo ORDER BY id DESC
                      ) AS mls
-                     WHERE (fn.is_deleted IS NULL OR fn.is_deleted = 0)
+                     WHERE (fn.is_deleted IS NULL OR fn.is_deleted = 0 OR fn.deleted_numbers IS NOT NULL)
                        AND {$sourceWhere}"
                 );
                 return (int) ($row->cnt ?? 0);
@@ -351,7 +358,7 @@ class FileNumberController extends Controller
                          SELECT TOP 1 batch_no FROM mls_file_no
                          WHERE full_file_number = fn.mlsfNo ORDER BY id DESC
                      ) AS mls
-                     WHERE (fn.is_deleted IS NULL OR fn.is_deleted = 0)
+                     WHERE (fn.is_deleted IS NULL OR fn.is_deleted = 0 OR fn.deleted_numbers IS NOT NULL)
                        AND {$sourceWhere}
                        {$searchSql}",
                     $searchBindings
@@ -427,7 +434,7 @@ class FileNumberController extends Controller
                         WHERE m.full_file_number = fn.mlsfNo
                         ORDER BY m.id DESC
                     ) AS mls
-                    WHERE (fn.is_deleted IS NULL OR fn.is_deleted = 0)
+                    WHERE (fn.is_deleted IS NULL OR fn.is_deleted = 0 OR fn.deleted_numbers IS NOT NULL)
                       AND {$sourceWhere}
                       {$searchSql}
                 ) AS w
@@ -497,7 +504,7 @@ class FileNumberController extends Controller
             // still reads the current records, so only pagination metadata is cached.
             $pageCacheVersion = (string) Cache::get('file_numbers_datatable_version', '1');
             // v2: batch-tab search now matches whole batches.
-            $pageCacheKey = 'file_numbers_phase1_v2_' . sha1(json_encode([
+            $pageCacheKey = 'file_numbers_phase1_v3_' . sha1(json_encode([
                 $pageCacheVersion,
                 $source,
                 $batchOnly,
@@ -555,7 +562,7 @@ class FileNumberController extends Controller
                 SELECT
                     fn.id, fn.kangisFileNo, fn.mlsfNo, fn.NewKANGISFileNo, fn.FileName,
                     fn.st_file_no, fn.plot_no, fn.tp_no, fn.location, fn.tracking_id,
-                    fn.type, fn.created_at, fn.SOURCE,
+                    fn.type, fn.created_at, fn.SOURCE, fn.deleted_numbers,
                     -- The Edit modal's file-number field lands in one of two places
                     -- depending on its \"Old File Number\" checkbox, so the column has to
                     -- read both: related_fileno is a JSON array on fileNumber, old_fileno
@@ -607,7 +614,11 @@ class FileNumberController extends Controller
                         m.source, m.source_instrument_capture_id, m.source_pra_id, m.lga, m.district, m.created_by, m.purpose_id,
                         m.old_fileno, m.phone_no, m.rep_phone_no, m.file_option
                     FROM mls_file_no m
-                    WHERE m.full_file_number = fn.mlsfNo
+                    WHERE m.full_file_number = COALESCE(
+                        fn.mlsfNo,
+                        JSON_VALUE(fn.deleted_numbers, '$.mls_tombstone'),
+                        JSON_VALUE(fn.deleted_numbers, '$.mlsfNo')
+                    )
                     ORDER BY m.id DESC
                 ) AS mls
                 OUTER APPLY (
@@ -696,6 +707,7 @@ class FileNumberController extends Controller
                     if (!isset($enrichedMap[$id]))
                         continue;
                     $row = $enrichedMap[$id];
+                    \App\Services\FileNumber\CrossedOutFiles::restoreNumbers($row);
                     // Overlay correct batch aggregates from phase 1
                     $row->derived_batch_no = $batchMeta[$id]['batch_no'] ?? '';
                     $row->batch_count = $batchMeta[$id]['batch_count'] ?? 1;
@@ -825,6 +837,7 @@ class FileNumberController extends Controller
                     'source_temp_fileno' => trim($row->derived_source_temp_fileno ?? '') ?: 'N/A',
                     'batch_no' => trim($row->derived_batch_no ?? ''),
                     'batch_count' => (int) $row->batch_count,
+                    'is_crossed_out' => \App\Services\FileNumber\CrossedOutFiles::isCrossedOut($row),
                     'batch_first_file' => trim($row->batch_first_file ?? ''),
                     'commissioning_date' => $row->derived_commissioning_date ? date('Y-m-d', strtotime($row->derived_commissioning_date)) : 'N/A',
                     'has_commissioning_sheet' => (bool) $row->has_commissioning_sheet,
@@ -2093,6 +2106,16 @@ class FileNumberController extends Controller
      */
     public function update(Request $request, $id)
     {
+        // A crossed-out file is read-only. The ids of the list's other row types collide
+        // with fileNumber's, so only a row from this table is checked.
+        if (\App\Support\MlsRowTarget::entity($request->input('entity')) === \App\Support\MlsRowTarget::FILE_NUMBER
+            && DB::connection('sqlsrv')->table('fileNumber')->where('id', $id)->whereNotNull('deleted_numbers')->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This file has been deleted and is read-only.',
+            ], 422);
+        }
+
         $validator = Validator::make($request->all(), [
             'file_name' => 'required|string|max:255',
             'kangis_file_no' => 'nullable|string|max:255',
@@ -3744,6 +3767,13 @@ class FileNumberController extends Controller
             ], 404);
         }
 
+        if (!empty($fileRecord->is_deleted)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This file has already been deleted.',
+            ], 422);
+        }
+
         // A batch row stands for N files but carries one id. Deleting only that id left
         // the row on screen (redrawn from the next member), reading as a failed delete.
         $records = collect([$fileRecord]);
@@ -3895,7 +3925,9 @@ class FileNumberController extends Controller
 
         $records = empty($ids)
             ? collect()
-            : DB::connection('sqlsrv')->table('fileNumber')->whereIn('id', $ids)->get()->keyBy('id');
+            : DB::connection('sqlsrv')->table('fileNumber')->whereIn('id', $ids)
+                ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                ->get()->keyBy('id');
         $missingIds = array_values(array_diff($ids, $records->keys()->all()));
 
         // Expand batch rows. Each selected row may stand for many files, so the real
@@ -3998,16 +4030,19 @@ class FileNumberController extends Controller
         $lineage = app(\App\Services\FileNumber\MasterDeleteLineageCleanup::class)
             ->purge([$mlsfNo, $kangisFileNo, $newKangisFileNo, $stFileNo]);
 
-        // 1. Delete from mls_file_no
-        $deletedMlsFileNo = 0;
+        // 1. Cross out in mls_file_no
+        $crossedOutFiles = app(\App\Services\FileNumber\CrossedOutFiles::class);
+        $mlsIds = [];
         if ($mlsfNo !== '') {
-            $deletedMlsFileNo += DB::connection('sqlsrv')->table('mls_file_no')
-                ->where('full_file_number', $mlsfNo)->delete();
+            $mlsIds = DB::connection('sqlsrv')->table('mls_file_no')
+                ->where('full_file_number', $mlsfNo)->pluck('id')->all();
         }
         if ($trackingId !== '') {
-            $deletedMlsFileNo += DB::connection('sqlsrv')->table('mls_file_no')
-                ->where('tracking_id', $trackingId)->delete();
+            $mlsIds = array_merge($mlsIds, DB::connection('sqlsrv')->table('mls_file_no')
+                ->where('tracking_id', $trackingId)->pluck('id')->all());
         }
+        $crossedMls = $crossedOutFiles->crossOutMlsRows(array_values(array_unique($mlsIds)));
+        $deletedMlsFileNo = $crossedMls['count'];
 
         $fileNumbersForStaging = array_unique(array_filter([$mlsfNo, $kangisFileNo, $newKangisFileNo, $stFileNo]));
 
@@ -4044,8 +4079,7 @@ class FileNumberController extends Controller
                 ->whereIn('file_indexing_id', $fileIndexingIds)->delete();
             DB::connection('sqlsrv')->table('print_label_batch_items')
                 ->whereIn('file_indexing_id', $fileIndexingIds)->delete();
-            $deletedIndexings = DB::connection('sqlsrv')->table('file_indexings')
-                ->whereIn('id', $fileIndexingIds)->delete();
+            $deletedIndexings = $crossedOutFiles->crossOutIndexings($fileIndexingIds);
         }
 
         // 5. old_file_numbers — the ledger this screen's own Edit modal writes through
@@ -4136,13 +4170,13 @@ class FileNumberController extends Controller
             }
         }
 
-        // 8. fileNumber
-        $deletedFileNumbers = DB::connection('sqlsrv')->table('fileNumber')
-            ->where('id', $id)->delete();
+        // 8. fileNumber: crossed out, read-only on the list
+        $fileNumberIds = [(int) $id];
         if ($mlsfNo !== '') {
-            $deletedFileNumbers += DB::connection('sqlsrv')->table('fileNumber')
-                ->where('mlsfNo', $mlsfNo)->delete();
+            $fileNumberIds = array_merge($fileNumberIds, DB::connection('sqlsrv')->table('fileNumber')
+                ->where('mlsfNo', $mlsfNo)->pluck('id')->all());
         }
+        $deletedFileNumbers = $crossedOutFiles->crossOutFileNumberRows(array_values(array_unique($fileNumberIds)), $crossedMls);
 
         return [
             'snapshot' => [
@@ -4270,10 +4304,10 @@ class FileNumberController extends Controller
     private function forgetFileNumberCaches(): void
     {
         Cache::forget('mls_fileno_page_stats_v2');
-        Cache::forget('file_numbers_total_v4_New');
-        Cache::forget('file_numbers_total_v4_New_batch');
-        Cache::forget('file_numbers_total_v4_All');
-        Cache::forget('file_numbers_total_v4_Captured');
+        Cache::forget('file_numbers_total_v5_New');
+        Cache::forget('file_numbers_total_v5_New_batch');
+        Cache::forget('file_numbers_total_v5_All');
+        Cache::forget('file_numbers_total_v5_Captured');
         // Page keys include this version, which lets us invalidate every cached
         // DataTable page without relying on cache-store-specific wildcard deletes.
         Cache::forever('file_numbers_datatable_version', (string) microtime(true));

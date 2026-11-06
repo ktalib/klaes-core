@@ -103,8 +103,7 @@ class SurveySettingsController extends Controller
 
             $uses = match ($list) {
                 'ratios' => $this->db()->table('survey_projects')->where('farmer_share_pct', $row->farmer_pct)->whereNull('deleted_at')->count(),
-                'beacon-prefixes' => $this->db()->getSchemaBuilder()->hasTable('survey_beacon_issues')
-                    ? $this->db()->table('survey_beacon_issues')->where('prefix', $row->prefix)->count() : 0,
+                'beacon-prefixes' => $this->db()->table('survey_beacon_register')->where('beacon_series', 'like', $row->prefix . '|%')->whereNull('deleted_at')->count(),
                 'companies' => $this->db()->table('survey_beacon_register')->where('company_id', $id)->whereNull('deleted_at')->count(),
                 'survey-types' => $this->db()->table('survey_its')->where('survey_type', $row->name)->count()
                     + $this->db()->table('cadastral_survey_jobs')->where('survey_type', $row->name)->count(),

@@ -1,10 +1,11 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'Beacon Requests — KLAES')
+@section('page-title', ($tab === 'registrations' ? 'Registrations' : 'Beacon Requests') . ' — KLAES')
 
 @php
-  $PageTitle = 'Beacon Requests';
-  $PageDescription = 'Surveyor registrations and beacon requests for the Surveyor General.';
+  // Two items of KSSGOF Admin on the sidebar (user, 2026-11-06), no tabs here.
+  $PageTitle = $tab === 'registrations' ? 'Registrations' : 'Beacon Requests';
+  $PageDescription = $tab === 'registrations' ? 'Surveyor registrations waiting for the Surveyor General.' : 'Beacon requests for the Surveyor General, from the portal and from Cadastral I to S.';
 @endphp
 
 @section('survey-content')
@@ -29,10 +30,7 @@
     <div class="kpi-card"><div class="kpi-label">Registrations Waiting</div><div class="kpi-value">{{ number_format($stats['pending']) }}</div></div>
 </div>
 
-<div class="tabs" style="margin-bottom:12px;">
-    <a class="tab {{ $tab === 'requests' ? 'active' : '' }}" href="{{ $tabUrl('requests') }}"><i class="fas fa-map-pin"></i> Beacon Requests</a>
-    <a class="tab {{ $tab === 'registrations' ? 'active' : '' }}" href="{{ $tabUrl('registrations') }}"><i class="fas fa-user-check"></i> Registrations</a>
-</div>
+<div class="page-header"><div></div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.beacon-requests.export'), 'title' => $tab === 'registrations' ? 'Surveyor Registrations' : 'Beacon Requests'])</div>
 
 <form method="GET" class="table-toolbar">
     @if ($tab === 'registrations')<input type="hidden" name="tab" value="registrations" />@endif
@@ -92,6 +90,9 @@
                                 <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                      :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                    @if ($q->latitude !== null)
+                                        <a href="https://www.google.com/maps?q={{ $q->latitude }},{{ $q->longitude }}" target="_blank" rel="noopener" class="{{ $item }}" @click="open = false"><i data-lucide="map-pin" class="w-4 h-4 text-gray-500"></i> Open in Maps</a>
+                                    @endif
                                     @if ($q->status === 'Submitted')
                                         <button type="button" class="{{ $item }}" @click="open = false"
                                                 data-brq-issue data-url="{{ route('survey-module.beacon-requests.issue', $q) }}"
@@ -253,7 +254,7 @@
         <table>
             <thead>
                 <tr>
-                    <th>S/N</th><th>Passport</th><th>Registration ID</th><th>Surveyor ID</th><th>Date</th><th>Type</th><th>Company</th><th>Surveyor's Name</th><th>SURCON No.</th>
+                    <th>S/N</th><th>Passport</th><th>Registration ID</th><th>Surveyor ID</th><th>Date</th><th>Type</th><th>Company</th><th>RC No.</th><th>Surveyor's Name</th><th>SURCON No.</th>
                     <th>Phone</th><th>Email</th><th>Address</th><th>Status</th><th style="width:48px;"></th>
                 </tr>
             </thead>
@@ -277,6 +278,7 @@
                         <td style="white-space:nowrap;">{{ optional($a->created_at)->format('d/m/Y') }}</td>
                         <td>{{ $a->type_label }}</td>
                         <td>{{ $a->company_name ?: '—' }}</td>
+                        <td>{{ $a->company_rc_no ?: '—' }}</td>
                         <td>{{ $a->name }}</td>
                         <td>{{ $a->surcon_number ?: '—' }}</td>
                         <td style="white-space:nowrap;">{{ $a->phone }}</td>
@@ -313,7 +315,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="14" style="text-align:center;padding:28px;color:var(--gray-500);">No registrations{{ $filtered ? ' for this selection' : ' yet' }}.</td></tr>
+                    <tr><td colspan="15" style="text-align:center;padding:28px;color:var(--gray-500);">No registrations{{ $filtered ? ' for this selection' : ' yet' }}.</td></tr>
                 @endforelse
             </tbody>
         </table>

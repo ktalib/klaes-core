@@ -677,7 +677,7 @@
                                          is an ordinary Land row in every other respect, deliberately, so
                                          that it stays on the page whose actions can work it. Amber while
                                          the letter is still missing, because approval is held until it. --}}
-                                    @if($rec->is_existing_recommendation || $briefRec)
+                                    @if(empty($isOssView) && ($rec->is_existing_recommendation || $briefRec))
                                         @php
                                             // Two routes to the same fact: this file's recommendation exists as a
                                             // document rather than as something KLAES prints. The OP-holder Match

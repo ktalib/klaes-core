@@ -20,6 +20,8 @@
     @endif
 </div>
 
+<div class="page-header"><div></div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.records.surveyors.export'), 'title' => 'Surveyors - Private'])</div>
+
 <form method="GET" class="table-toolbar">
     <input type="hidden" name="tab" value="private" />
     <div class="left">

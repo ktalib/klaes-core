@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\MlsFileNo;
+use App\Support\PlaceholderPhone;
 use App\Support\OssOpCommissionFilter;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -159,6 +160,10 @@ class MlsCommissioningOssApplicationService
             'district' => $this->nullable($row['district'] ?? null),
             'lga' => $this->nullable($row['lga'] ?? null),
             'land_use' => $this->nullable($row['land_use'] ?? null),
+            // What FC took from the applicant. sync() only fills blanks on an existing row.
+            'phone' => PlaceholderPhone::is($row['phone_no'] ?? null) ? null : $this->nullable($row['phone_no'] ?? null),
+            'address' => $this->nullable($row['address'] ?? null),
+            'residential_address' => $this->nullable($row['address'] ?? null),
             'passport_photo' => $this->findPassportPath($fileNumber),
             'status' => 'approved',
             'remarks' => $systemSource === self::CHANGE_OF_NAME_SOURCE ? self::OSS_REMARKS : self::MLS_REMARKS,

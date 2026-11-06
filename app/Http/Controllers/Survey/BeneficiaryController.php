@@ -19,6 +19,8 @@ use Illuminate\Validation\Rule;
  */
 class BeneficiaryController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public const STATUSES = ['Verified', 'Pending', 'Review'];
 
     /** The bank dropdown's single "Other (specify)" value; never stored. */
@@ -76,23 +78,7 @@ class BeneficiaryController extends Controller
     /** The list, its filters and the inline form's model. */
     private function pageData(Request $r, ?SurveyBeneficiary $editing = null): array
     {
-        $q = SurveyBeneficiary::query()->with(['case.project', 'creator:id,first_name,last_name']);
-
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(function ($w) use ($term) {
-                $w->where('full_name', 'like', "%$term%")
-                  ->orWhere('phone', 'like', "%$term%")
-                  ->orWhere('nin', 'like', "%$term%")
-                  ->orWhere('account_number', 'like', "%$term%")
-                  ->orWhere('account_name', 'like', "%$term%")
-                  ->orWhere('addr_district', 'like', "%$term%")
-                  ->orWhere('addr_district_other', 'like', "%$term%")
-                  ->orWhereHas('case', fn ($c) => $c->where('case_ref', 'like', "%$term%"));
-            });
-        }
-        if ($st = $r->query('status')) $q->where('status', $st);
-        if ($c  = $r->query('case'))   $q->where('survey_comp_case_id', $c);
-        $q->origin($r->query('origin'));
+        $q = $this->farmerQuery($r);
 
         $beneficiaries = $q->orderByDesc('id')->paginate(15)->withQueryString();
 
@@ -159,5 +145,42 @@ class BeneficiaryController extends Controller
         }
 
         return $data;
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function farmerQuery(Request $r)
+    {
+        $q = SurveyBeneficiary::query()->with(['case.project', 'creator:id,first_name,last_name']);
+
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(function ($w) use ($term) {
+                $w->where('full_name', 'like', "%$term%")
+                  ->orWhere('phone', 'like', "%$term%")
+                  ->orWhere('nin', 'like', "%$term%")
+                  ->orWhere('account_number', 'like', "%$term%")
+                  ->orWhere('account_name', 'like', "%$term%")
+                  ->orWhere('addr_district', 'like', "%$term%")
+                  ->orWhere('addr_district_other', 'like', "%$term%")
+                  ->orWhereHas('case', fn ($c) => $c->where('case_ref', 'like', "%$term%"));
+            });
+        }
+        if ($st = $r->query('status')) $q->where('status', $st);
+        if ($c  = $r->query('case'))   $q->where('survey_comp_case_id', $c);
+        $q->origin($r->query('origin'));
+
+        return $q;
+    }
+
+    public function export(Request $r)
+    {
+        return $this->exportRecords($r, fn () => $this->farmerQuery($r)->orderByDesc('id'), [
+            'name' => 'Name', 'phone' => 'Phone', 'nin' => 'NIN', 'address' => 'Address', 'bank' => 'Bank', 'account_name' => 'Account Name',
+            'account_number' => 'Account No.', 'status' => 'Status', 'assessment' => 'Farm Assessment', 'scheme' => 'Scheme Type', 'created_by' => 'Created By', 'created_at' => 'Date Created',
+        ], fn ($b) => [
+            'name' => $b->full_name, 'phone' => $b->phone, 'nin' => $b->nin, 'address' => $b->person_address, 'bank' => $b->bank_name,
+            'account_name' => $b->account_name, 'account_number' => $b->account_number, 'status' => $b->status, 'assessment' => $b->case?->case_ref,
+            'scheme' => $b->case ? ($b->case->isMonetary() ? 'Monetary Compensation' : 'Land to Land') : null,
+            'created_by' => $this->exportUser($b->creator), 'created_at' => $this->exportDate($b->created_at),
+        ]);
     }
 }

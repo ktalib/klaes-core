@@ -25,6 +25,8 @@ use Illuminate\Validation\ValidationException;
  */
 class ComplaintController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     /** The project-type dropdown's single "Other (specify)" value; never stored. */
     public const PROJECT_TYPE_OTHER = '__other__';
 
@@ -144,17 +146,7 @@ class ComplaintController extends Controller
         }
         $label = SurveyComplaint::CATEGORIES[$tab];
 
-        $q = SurveyComplaint::query()->with(['project', 'case', 'beneficiary'])->where('category', $label);
-
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(function ($w) use ($term) {
-                foreach (['complaint_ref', 'complainant_name', 'complainant_phone', 'farm_no', 'file_reference', 'map_sheet_no', 'district', 'subject'] as $col) {
-                    $w->orWhere($col, 'like', "%$term%");
-                }
-            });
-        }
-        if ($st = $r->query('status'))  $q->where('status', $st);
-        if ($p = $r->query('project'))  $q->where('survey_project_id', $p);
+        $q = $this->complaintQuery($r, $label);
 
         $stats = array_fill_keys(SurveyComplaint::STATUSES, 0);
         $byStatus = SurveyComplaint::where('category', $label)->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status');
@@ -365,5 +357,48 @@ class ComplaintController extends Controller
         };
 
         return $data;
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function complaintQuery(Request $r, string $label)
+    {
+        $q = SurveyComplaint::query()->with(['project', 'case', 'beneficiary'])->where('category', $label);
+
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(function ($w) use ($term) {
+                foreach (['complaint_ref', 'complainant_name', 'complainant_phone', 'farm_no', 'file_reference', 'map_sheet_no', 'district', 'subject'] as $col) {
+                    $w->orWhere($col, 'like', "%$term%");
+                }
+            });
+        }
+        if ($st = $r->query('status'))  $q->where('status', $st);
+        if ($p = $r->query('project'))  $q->where('survey_project_id', $p);
+
+        return $q;
+    }
+
+    public function export(Request $r)
+    {
+        $tab = array_key_exists((string) $r->query('tab'), SurveyComplaint::CATEGORIES) ? (string) $r->query('tab') : SurveyComplaint::CAT_INADEQUATE;
+        $detail = [SurveyComplaint::CAT_INADEQUATE => 'Original → Expected', SurveyComplaint::CAT_MISIDENTIFICATION => 'Field Officer'][$tab] ?? 'Dispute Type';
+        $naira = fn ($v) => $v === null ? '—' : '₦' . number_format((float) $v, 2);
+
+        return $this->exportRecords($r, fn () => $this->complaintQuery($r, SurveyComplaint::CATEGORIES[$tab])->orderByDesc('id'), [
+            'ref' => 'Complaint No', 'received' => 'Date Received', 'complainant' => 'Complainant', 'phone' => 'Phone', 'farm_no' => 'Farm No.', 'section_no' => 'Section No.',
+            'project' => 'Project', 'case' => 'Case', 'file_ref' => 'File Ref', 'ms_no' => 'MS No', 'district' => 'District', 'lga' => 'LGA', 'detail' => $detail,
+            'status' => 'Status', 'remarks' => 'Remarks',
+        ], fn ($c) => [
+            'ref' => $c->complaint_ref, 'received' => $this->exportDate($c->received_date), 'complainant' => $c->complainant_name, 'phone' => $c->complainant_phone,
+            'farm_no' => $c->farm_no, 'section_no' => $c->section_no, 'project' => $c->project?->project_code, 'case' => $c->case?->case_ref,
+            'file_ref' => $c->file_reference, 'ms_no' => $c->map_sheet_no, 'district' => $c->district, 'lga' => $c->lga,
+            'detail' => match ($tab) {
+                SurveyComplaint::CAT_INADEQUATE => $c->isLandToLand()
+                    ? ($c->original_plots ?? '—') . ' → ' . ($c->expected_plots ?? '—') . ' plots'
+                    : $naira($c->original_amount) . ' → ' . $naira($c->expected_amount),
+                SurveyComplaint::CAT_MISIDENTIFICATION => $c->field_officer_name,
+                default => trim($c->boundary_type . ' ' . $c->affected_party),
+            },
+            'status' => $c->status, 'remarks' => $c->resolution,
+        ], 'received_date');
     }
 }

@@ -29,7 +29,7 @@
 @include('survey_module.partials._flash')
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.records.surveyors.export'), 'title' => 'Surveyors - Public', 'statuses' => ['active' => 'Active', 'inactive' => 'Inactive']])</div>
     <button type="button" class="btn btn-primary btn-sm" onclick="svOpenNew()">
         <i class="fas fa-user-plus"></i> Add Staff
     </button>

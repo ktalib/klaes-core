@@ -17,6 +17,8 @@ use Illuminate\Validation\Rule;
  */
 class SurveyorListController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function index(Request $r)
     {
         // Government (this staff list) / Private tabs (CR 30102026 item 15).
@@ -24,25 +26,7 @@ class SurveyorListController extends Controller
             return $this->privateSurveyors($r);
         }
 
-        $q = SurveyorListEntry::query();
-
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(fn ($w) => $w->where('first_name', 'like', "%$term%")
-                ->orWhere('surname', 'like', "%$term%")
-                ->orWhere('other_name', 'like', "%$term%")
-                ->orWhere('staff_id', 'like', "%$term%")
-                ->orWhere('phone', 'like', "%$term%")
-                ->orWhere('email', 'like', "%$term%")
-                ->orWhere('rank', 'like', "%$term%"));
-        }
-        if ($rank = $r->query('rank')) {
-            $q->where('rank', $rank);
-        }
-        if ($r->query('status') === 'active') {
-            $q->where('is_active', true);
-        } elseif ($r->query('status') === 'inactive') {
-            $q->where('is_active', false);
-        }
+        $q = $this->staffQuery($r);
 
         $staff = $q->orderBy('sn')->orderBy('id')->paginate(25)->withQueryString();
 
@@ -64,14 +48,7 @@ class SurveyorListController extends Controller
     /** Private tab: licensed surveyors in the Cadastral register that are not Survey staff copies. Read-only here. */
     private function privateSurveyors(Request $r)
     {
-        $q = \App\Models\Cadastral\CadastralSurveyor::query()->whereNull('surveyors_list_id');
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(fn ($w) => $w->where('full_name', 'like', "%$term%")
-                ->orWhere('surcon_number', 'like', "%$term%")
-                ->orWhere('firm_name', 'like', "%$term%")
-                ->orWhere('phone', 'like', "%$term%")
-                ->orWhere('email', 'like', "%$term%"));
-        }
+        $q = $this->privateQuery($r);
 
         return view('survey_module.records.surveyors_private', [
             'surveyors' => $q->orderBy('full_name')->paginate(25)->withQueryString(),
@@ -153,6 +130,68 @@ class SurveyorListController extends Controller
         ], [
             'staff_id.unique' => 'Another staff member already has this Staff I.D.',
             'phone.regex'     => 'Enter a valid phone number.',
+        ]);
+    }
+
+    /** The Government tab's filters, shared with Export Records. */
+    private function staffQuery(Request $r)
+    {
+        $q = SurveyorListEntry::query();
+
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(fn ($w) => $w->where('first_name', 'like', "%$term%")
+                ->orWhere('surname', 'like', "%$term%")
+                ->orWhere('other_name', 'like', "%$term%")
+                ->orWhere('staff_id', 'like', "%$term%")
+                ->orWhere('phone', 'like', "%$term%")
+                ->orWhere('email', 'like', "%$term%")
+                ->orWhere('rank', 'like', "%$term%"));
+        }
+        if ($rank = $r->query('rank')) {
+            $q->where('rank', $rank);
+        }
+        if ($r->query('status') === 'active') {
+            $q->where('is_active', true);
+        } elseif ($r->query('status') === 'inactive') {
+            $q->where('is_active', false);
+        }
+
+        return $q;
+    }
+
+    /** The Private tab's filters, shared with Export Records. */
+    private function privateQuery(Request $r)
+    {
+        $q = \App\Models\Cadastral\CadastralSurveyor::query()->whereNull('surveyors_list_id');
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(fn ($w) => $w->where('full_name', 'like', "%$term%")
+                ->orWhere('surcon_number', 'like', "%$term%")
+                ->orWhere('firm_name', 'like', "%$term%")
+                ->orWhere('phone', 'like', "%$term%")
+                ->orWhere('email', 'like', "%$term%"));
+        }
+
+        return $q;
+    }
+
+    public function export(Request $r)
+    {
+        if ($r->query('tab') === 'private') {
+            return $this->exportRecords($r, fn () => $this->privateQuery($r)->orderBy('full_name')->orderBy('id'), [
+                'name' => 'Name', 'surcon' => 'SURCON No.', 'firm' => 'Firm', 'phone' => 'Phone', 'email' => 'Email', 'licence' => 'Licence', 'expires' => 'Expires', 'status' => 'Status',
+            ], fn ($s) => [
+                'name' => $s->full_name, 'surcon' => $s->surcon_number, 'firm' => $s->firm_name, 'phone' => $s->phone, 'email' => $s->email, 'licence' => $s->licence_status,
+                'expires' => $this->exportDate($s->licence_expires_on), 'status' => $s->is_active ? 'Active' : 'Inactive',
+            ]);
+        }
+
+        return $this->exportRecords($r, fn () => $this->staffQuery($r)->orderBy('sn')->orderBy('id'), [
+            'staff_id' => 'Staff I.D.', 'first_name' => 'First Name', 'surname' => 'Surname', 'other_name' => 'Other Name', 'rank' => 'Rank', 'unit' => 'Unit', 'phone' => 'Mobile No.',
+            'email' => 'Official E-mail', 'gender' => 'Gender', 'dob' => 'D.O.B', 'grade' => 'G/L', 'status' => 'Status',
+        ], fn ($s) => [
+            'staff_id' => $s->staff_id, 'first_name' => $s->first_name, 'surname' => $s->surname, 'other_name' => $s->other_name, 'rank' => $s->rank, 'unit' => $s->unit,
+            'phone' => $s->phone, 'email' => $s->email, 'gender' => $s->gender ? ucfirst(strtolower($s->gender)) : null, 'dob' => $this->exportDate($s->date_of_birth, 'd/m/Y'),
+            'grade' => $s->grade_level, 'status' => $s->is_active ? 'Active' : 'Inactive',
         ]);
     }
 }

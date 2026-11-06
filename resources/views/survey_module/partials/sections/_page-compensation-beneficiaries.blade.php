@@ -22,7 +22,7 @@
 @include('survey_module.partials._flash')
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.compensation.beneficiaries.export'), 'title' => 'Farmers', 'statuses' => \App\Http\Controllers\Survey\BeneficiaryController::STATUSES])</div>
     <button type="button" class="btn btn-primary" onclick="document.getElementById('beneficiaryPanel').classList.toggle('open')">
         <i class="fas fa-user-plus"></i> {{ $editing ? 'Edit Beneficiary' : 'Add Farmer' }}
     </button>

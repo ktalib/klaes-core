@@ -24,6 +24,8 @@ use Illuminate\Validation\ValidationException;
  */
 class ResettlementCalculatorController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function __construct(private ResettlementCalculator $calculator)
     {
     }
@@ -34,10 +36,7 @@ class ResettlementCalculatorController extends Controller
             ->orderByDesc('id')
             ->get(['id', 'case_ref', 'survey_project_id', 'scheme_type', 'area_ha', 'portion_size_ha', 'portion_no', 'prop_plot', 'prop_district', 'prop_district_other', 'prop_lga']);
 
-        $calcs = Calc::with('land:id,case_ref')
-            ->when(trim((string) $r->query('q')), fn ($q, $t) => $q->where(fn ($w) => $w->where('calc_ref', 'like', "%$t%")
-                ->orWhereHas('land', fn ($l) => $l->where('case_ref', 'like', "%$t%"))))
-            ->orderByDesc('id')->paginate(15)->withQueryString();
+        $calcs = $this->calcQuery($r)->paginate(15)->withQueryString();
 
         return view('survey_module.compensation.resettlement_calculator', [
             'rates'    => Rate::orderBy('land_use')->orderBy('purpose')->orderBy('sort_order')->orderBy('id')->get(),
@@ -184,5 +183,26 @@ class ResettlementCalculatorController extends Controller
         }
 
         return $data;
+    }
+
+    /** The Saved Calculations list, shared with Export Records. */
+    private function calcQuery(Request $r)
+    {
+        return Calc::with('land:id,case_ref')
+            ->when(trim((string) $r->query('q')), fn ($q, $t) => $q->where(fn ($w) => $w->where('calc_ref', 'like', "%$t%")
+                ->orWhereHas('land', fn ($l) => $l->where('case_ref', 'like', "%$t%"))))
+            ->orderByDesc('id');
+    }
+
+    public function export(Request $r)
+    {
+        return $this->exportRecords($r, fn () => $this->calcQuery($r), [
+            'ref' => 'Ref', 'date' => 'Date', 'land' => 'Land', 'land_use' => 'Land Use', 'purpose' => 'Purpose', 'density' => 'Density', 'area' => 'Area (ha)', 'roads' => 'Roads %',
+            'plots' => 'Plots', 'farmer' => 'Farmer', 'government' => 'Government',
+        ], fn ($c) => [
+            'ref' => $c->calc_ref, 'date' => $this->exportDate($c->created_at, 'd M Y H:i'), 'land' => $c->land?->case_ref, 'land_use' => $c->land_use, 'purpose' => $c->purpose,
+            'density' => $c->density, 'area' => $c->area_ha, 'roads' => $c->deduction_percent, 'plots' => $c->plots,
+            'farmer' => $c->split_applied ? $c->farmer_plots : null, 'government' => $c->split_applied ? $c->government_plots : null,
+        ]);
     }
 }

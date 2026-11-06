@@ -24,6 +24,9 @@ class DeedsPipelineStatus
     public const STAGE_PRINT = 'print';
     public const STAGE_REGISTRATION = 'registration';
 
+    /** A capture can hold its file number in any of these, so match across all of them (KANGIS files sit in kangisFileNo). */
+    private const CAPTURE_FILE_COLUMNS = ['mlsFNo', 'kangisFileNo', 'NewKANGISFileno', 'temp_fileno'];
+
     public function __construct(private ConsentBillCalculator $bills)
     {
     }
@@ -205,18 +208,19 @@ class DeedsPipelineStatus
                 $q->where('is_deleted', 0)->orWhereNull('is_deleted');
             })
             ->where(function ($q) use ($keys) {
-                $q->whereIn(DB::raw('UPPER(LTRIM(RTRIM(mlsFNo)))'), $keys)
-                    ->orWhereIn(DB::raw('UPPER(LTRIM(RTRIM(temp_fileno)))'), $keys);
+                foreach (self::CAPTURE_FILE_COLUMNS as $column) {
+                    $q->orWhereIn(DB::raw("UPPER(LTRIM(RTRIM($column)))"), $keys);
+                }
             })
             ->orderByDesc('id')
-            ->get(['id', 'mlsFNo', 'temp_fileno', 'instrument_type', 'registration_number', 'reg_no', 'reg_date', 'is_deed_registered']);
+            ->get(array_merge(['id', 'instrument_type', 'registration_number', 'reg_no', 'reg_date', 'is_deed_registered'], self::CAPTURE_FILE_COLUMNS));
 
         $byFile = [];
         foreach ($captures as $row) {
-            foreach ([$row->mlsFNo, $row->temp_fileno] as $candidate) {
-                $key = strtoupper(trim((string) $candidate));
+            foreach (self::CAPTURE_FILE_COLUMNS as $column) {
+                $key = strtoupper(trim((string) $row->{$column}));
                 if ($key !== '' && in_array($key, $keys, true)) {
-                    $byFile[$key][] = $row;
+                    $byFile[$key][$row->id] = $row;
                 }
             }
         }
@@ -435,8 +439,9 @@ class DeedsPipelineStatus
                 $q->where('is_deleted', 0)->orWhereNull('is_deleted');
             })
             ->where(function ($q) use ($upper) {
-                $q->whereRaw('UPPER(LTRIM(RTRIM(mlsFNo))) = ?', [$upper])
-                    ->orWhereRaw('UPPER(LTRIM(RTRIM(temp_fileno))) = ?', [$upper]);
+                foreach (self::CAPTURE_FILE_COLUMNS as $column) {
+                    $q->orWhereRaw("UPPER(LTRIM(RTRIM($column))) = ?", [$upper]);
+                }
             });
 
         // Narrow to the instruments this consent type authorises, so a

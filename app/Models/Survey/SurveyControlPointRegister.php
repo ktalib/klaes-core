@@ -24,7 +24,7 @@ class SurveyControlPointRegister extends SurveyModel
     public const PAYMENT_MODES = ['E-Payment', 'Cash', 'Other'];
 
     /** Stored value => label. The first choice on the form. */
-    public const LAYOUT_TYPES = ['Government' => 'Government', 'Private' => 'Private'];
+    public const LAYOUT_TYPES = ['Government' => 'Public', 'Private' => 'Private'];
 
     public function getLayoutTypeLabelAttribute(): ?string
     {

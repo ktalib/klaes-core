@@ -115,7 +115,7 @@ class IndexedFileTableController extends Controller
         $perPage = max(1, min($perPage, 100));
         $page = max(1, (int) $request->input('page', 1));
         $registry = $request->input('registry');
-        $query = $this->buildListQuery($request);
+        $query = $this->buildListQuery($request, true);
 
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
@@ -208,7 +208,7 @@ class IndexedFileTableController extends Controller
      * The listing query - search box, registry, Advanced Search filters, own-files
      * scope and sort - shared by the table and its export so both see the same rows.
      */
-    private function buildListQuery(Request $request)
+    private function buildListQuery(Request $request, bool $withCrossedOut = false)
     {
         $search = $this->normalizeSearch($request->input('search'));
         $direction = strtolower($request->input('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
@@ -243,8 +243,10 @@ class IndexedFileTableController extends Controller
         $sortColumn = $sortMap[$sortInput] ?? 'file_indexings.created_at';
 
         $query = FileIndexing::on('sqlsrv')
+            ->when($withCrossedOut, fn ($q) => $q->withoutGlobalScope('not_deleted'))
             ->select([
                 'file_indexings.id',
+                'file_indexings.deleted_numbers',
                 'file_indexings.tracking_id',
                 'file_indexings.shelf_location',
                 'file_indexings.registry',
@@ -311,6 +313,7 @@ class IndexedFileTableController extends Controller
             $like = '%' . $this->escapeLikePattern($search) . '%';
             $query->where(function ($q) use ($like) {
                 $q->where('file_indexings.file_number', 'like', $like)
+                    ->orWhere('file_indexings.deleted_numbers', 'like', $like)
                     ->orWhere('file_indexings.temp_file_no', 'like', $like)
                     ->orWhere('file_indexings.file_title', 'like', $like)
                     ->orWhere('file_indexings.tracking_id', 'like', $like)
@@ -352,7 +355,8 @@ class IndexedFileTableController extends Controller
 
     private function listResponse($paginator, $registry): JsonResponse
     {
-        $items = Collection::make($paginator->items());
+        $items = Collection::make($paginator->items())
+            ->each(fn ($item) => \App\Services\FileNumber\CrossedOutFiles::restoreNumbers($item));
 
         $indexedIds = $items->pluck('id')->map(function ($value) {
             return is_numeric($value) ? (int) $value : null;
@@ -540,6 +544,7 @@ class IndexedFileTableController extends Controller
 
             $rowData = [
                 'id' => (int) $item->id,
+                'is_crossed_out' => \App\Services\FileNumber\CrossedOutFiles::isCrossedOut($item),
                 'tracking_id' => $item->tracking_id ?? '-',
                 'shelf_location' => $shelfLocation ?? '-',
                 'registry' => $item->registry ?: 1,
@@ -654,8 +659,10 @@ class IndexedFileTableController extends Controller
         $sortColumn = $sortMap[$sortInput] ?? 'file_indexings.id';
 
         $query = FileIndexing::on('sqlsrv')
+            ->withoutGlobalScope('not_deleted')
             ->select([
                 'file_indexings.id',
+                'file_indexings.deleted_numbers',
                 'file_indexings.registry',
                 'file_indexings.file_number',
                 'file_indexings.file_title',
@@ -678,6 +685,7 @@ class IndexedFileTableController extends Controller
             $like = '%' . $this->escapeLikePattern($search) . '%';
             $query->where(function ($q) use ($like) {
                 $q->where('file_indexings.file_number', 'like', $like)
+                    ->orWhere('file_indexings.deleted_numbers', 'like', $like)
                     ->orWhere('file_indexings.temp_file_no', 'like', $like)
                     ->orWhere('file_indexings.file_title', 'like', $like)
                     ->orWhere('file_indexings.registry', 'like', $like)
@@ -703,7 +711,8 @@ class IndexedFileTableController extends Controller
         }
 
         $paginator = $query->paginate($perPage, ['*'], 'page', $page);
-        $items = Collection::make($paginator->items());
+        $items = Collection::make($paginator->items())
+            ->each(fn ($item) => \App\Services\FileNumber\CrossedOutFiles::restoreNumbers($item));
 
         $indexedIds = $items->pluck('id')->map(function ($value) {
             return is_numeric($value) ? (int) $value : null;
@@ -749,6 +758,7 @@ class IndexedFileTableController extends Controller
 
             return [
                 'id' => (int) $item->id,
+                'is_crossed_out' => \App\Services\FileNumber\CrossedOutFiles::isCrossedOut($item),
                 'registry' => $item->registry ?? 1,
                 'file_number' => !empty($displayFileNo) ? $displayFileNo : '-',
                 'is_temp_fallback' => $isTempFallback,

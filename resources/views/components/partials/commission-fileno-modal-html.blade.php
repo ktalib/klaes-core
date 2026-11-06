@@ -74,6 +74,7 @@
                                 <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">File Type</span>
                             </div> --}}
                             <div class="grid grid-cols-2 xl:grid-cols-3 gap-2">
+                                {{-- Temporary, Extension and Miscellaneous are off for now (user, 2026-11-06).
                                 <label class="inline-flex items-center px-2.5 py-1.5 rounded-md border border-gray-300 bg-white cursor-pointer hover:bg-gray-50 transition-colors">
                                     <input type="radio" name="quick_file_option" value="temporary"
                                            class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
@@ -93,8 +94,18 @@
                                            class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
                                            x-model="fileOption" @change="updateFileOption()">
                                     <span class="ml-2 text-[11px] font-medium text-gray-700">Miscellaneous</span>
+                                </label> --}}
+
+                                {{-- Not bound to fileOption: it numbers as a normal file. See applyFileTypeWorkflow.
+                                     The only radio here, so a second click is what turns it off. --}}
+                                <label class="inline-flex items-center px-2.5 py-1.5 rounded-md border border-gray-300 bg-white cursor-pointer hover:bg-gray-50 transition-colors">
+                                    <input type="radio" name="quick_file_option" value="loss_of_document"
+                                           class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                           :checked="lossOfDocument" @click="if (lossOfDocument) applyFileTypeWorkflow('')" @change="applyFileTypeWorkflow('loss_of_document')">
+                                    <span class="ml-2 text-[11px] font-medium text-gray-700">Loss of Documents</span>
                                 </label>
                             </div>
+                            <input type="hidden" name="loss_of_document" :value="lossOfDocument ? 1 : 0">
                         </div>
                     </div>
 

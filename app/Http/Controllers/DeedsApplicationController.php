@@ -185,7 +185,7 @@ class DeedsApplicationController extends Controller
                 $units = collect($application->st_units ?? [])->map(function ($u) use ($stRegs) {
                     $reg = $stRegs[strtoupper(trim((string) ($u['unit_fileno'] ?? '')))] ?? null;
 
-                    return $u + ['registration_number' => $reg?->registration_number];
+                    return $u + ['registration_number' => $reg?->registration_number, 'reg_date' => \App\Services\DeedsRegistrationLookup::regDate($reg)];
                 });
                 $application->setAttribute('st_units', $units->values()->toArray());
                 $registeredUnits = $units->filter(fn ($u) => !empty($u['registration_number']));
@@ -193,8 +193,10 @@ class DeedsApplicationController extends Controller
                     $stRegistration = [
                         'count'   => $registeredUnits->count(),
                         'total'   => $units->count(),
-                        'numbers' => $registeredUnits->map(fn ($u) => ($u['unit_fileno'] ?: 'Unit ' . $u['unit_number']) . ': ' . $u['registration_number'])->values()->all(),
+                        'numbers' => $registeredUnits->map(fn ($u) => ($u['unit_fileno'] ?: 'Unit ' . $u['unit_number']) . ': ' . $u['registration_number'] . ($u['reg_date'] ? ' (' . $u['reg_date'] . ')' : ''))->values()->all(),
                         'single'  => $registeredUnits->count() === 1 ? $registeredUnits->first()['registration_number'] : null,
+                        // Units registered on one day show it on the row; otherwise each date is in the tooltip.
+                        'single_date' => $registeredUnits->pluck('reg_date')->unique()->count() === 1 ? $registeredUnits->first()['reg_date'] : null,
                     ];
                 }
             } else {

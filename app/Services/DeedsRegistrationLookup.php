@@ -52,7 +52,7 @@ class DeedsRegistrationLookup
             ->whereNotNull('ic.consent_application_id')
             ->where(fn ($q) => $q->whereNull('dr.is_deleted')->orWhere('dr.is_deleted', 0))
             ->orderBy('dr.id')
-            ->get(['ic.consent_application_id', 'dr.registration_number', 'dr.instrument_type']);
+            ->get(['ic.consent_application_id', 'dr.registration_number', 'dr.instrument_type', 'dr.deeds_date']);
 
         $map = [];
         foreach ($rows as $row) {
@@ -60,6 +60,21 @@ class DeedsRegistrationLookup
         }
 
         return $consents === null ? $map : $this->addPartyMatches($map, $consents);
+    }
+
+    /** The Reg Date shown under the Reg line, as the consent and valuation tables print dates; null when there is none. */
+    public static function regDate(?object $registration): ?string
+    {
+        $date = trim((string) ($registration->deeds_date ?? ''));
+        if ($date === '') {
+            return null;
+        }
+
+        try {
+            return \Carbon\Carbon::parse($date)->format('M d, Y');
+        } catch (\Throwable $e) {
+            return $date;
+        }
     }
 
     /**
@@ -273,7 +288,7 @@ class DeedsRegistrationLookup
             })
             ->where(fn ($q) => $q->whereNull('dr.is_deleted')->orWhere('dr.is_deleted', 0))
             ->orderBy('dr.id')
-            ->get(['ca.valuation_report_id', 'ca.file_number', 'dr.registration_number', 'dr.instrument_type']);
+            ->get(['ca.valuation_report_id', 'ca.file_number', 'dr.registration_number', 'dr.instrument_type', 'dr.deeds_date']);
 
         $direct = [];
         $byFile = [];

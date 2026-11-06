@@ -2389,6 +2389,7 @@ class MlsFileNoController extends Controller
                 'extension_app_id' => 'nullable|integer',
                 'change_of_purpose_app_id' => 'nullable|integer',
                 'file_option' => 'nullable|string|max:50',
+                'loss_of_document' => 'nullable|boolean',
                 'sit_reason' => 'nullable|string|max:1000',
                 // Re-Issuance of FileNo: the old (duplicated) number being re-issued.
                 'old_fileno' => 'nullable|string|max:100',
@@ -3413,7 +3414,8 @@ class MlsFileNoController extends Controller
                     'tracking_id' => $trackingId,
                     'customer_type' => $validated['customer_type'],
                     'gender' => $validated['gender'] ?? null,
-                    'file_option' => $validated['file_option'] ?? 'normal',
+                    // Loss of Documents numbers as a normal file, so only the stored tag differs.
+                    'file_option' => !empty($validated['loss_of_document']) ? 'loss_of_document' : ($validated['file_option'] ?? 'normal'),
                     'created_by' => $commissionedBy,
                     'purpose_id' => $validated['purpose_id'] ?? null,
                     'source' => $sourceValue,

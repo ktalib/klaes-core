@@ -606,7 +606,9 @@
                                             <option value="merger">Merger</option>
                                             <option value="separation">Separation</option>
                                             <option value="duplex">Duplex</option>
+                                            <option value="loss_of_document">Loss of Documents</option>
                                         </select>
+                                        <input type="hidden" name="loss_of_document" :value="lossOfDocument ? 1 : 0">
                                     </div>
                                 </div>
 
@@ -3607,7 +3609,7 @@
          the single-record TOT-link mode is unused here (that flow is OSS-only). --}}
     @include('lands_one_stop_shop.partials.capture-op-card')
 
-    <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+    <script src="{{ asset('js/global-fileno-modal.js') }}?v={{ @filemtime(public_path('js/global-fileno-modal.js')) }}"></script>
     <script src="{{ asset('js/instruments-capture.js') }}?v={{ time() }}"></script>
 
     @include('components.commissioning-registry-move')
@@ -4011,7 +4013,7 @@
             version reaches officers without them having to hard-refresh.
         --}}
         <script src="{{ asset('js/sms-applicant-phone.js') }}?v={{ @filemtime(public_path('js/sms-applicant-phone.js')) }}" defer></script>
-        <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+        <script src="{{ asset('js/global-fileno-modal.js') }}?v={{ @filemtime(public_path('js/global-fileno-modal.js')) }}"></script>
         <script>
             $(document).ready(function() {
                 if (typeof GlobalFileNoModal !== 'undefined') {

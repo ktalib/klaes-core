@@ -53,7 +53,7 @@
           </a>
         @endif
 
-        <a href="{{route('users.index')}}"
+        <a data-tab-card="users" href="{{route('users.index')}}"
           class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('users.index') ? 'active' : '' }}">
           <i data-lucide="user-cog" class="h-4 w-4 text-slate-500"></i>
           <span>User Account</span>

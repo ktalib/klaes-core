@@ -1409,6 +1409,11 @@
                                     @error('application_date')
                                         <p class="text-red-500 text-[10px] mt-1 font-semibold uppercase">{{ $message }}</p>
                                     @enderror
+                                    {{-- The date this batch edit opened with. updateBatch() compares it, so a
+                                         date the officer changed reaches issued files and one left alone does not. --}}
+                                    @if(!empty($batchEdit))
+                                        <input type="hidden" name="application_date_loaded" value="{{ $recommendation->application_date ? $recommendation->application_date->format('Y-m-d') : '' }}">
+                                    @endif
                                 </div>
                             </div>
                             <div data-batch-child>
@@ -4438,6 +4443,77 @@ document.addEventListener('DOMContentLoaded', function () {
         el.addEventListener('click', function () { stepGrant(1); });
     });
 
+    // ── Progress on Apply to all ──────────────────────────────────────────────
+    // A batch runs past 200 files and the copy takes long enough to look stuck, so
+    // it runs in short slices that let the page repaint and counts on the button
+    // pressed. Anything that could collide with a half-done copy waits for it.
+    var applyRunning = false;
+
+    function applyConfirm(message) {
+        return Swal.fire({
+            icon: 'question',
+            title: 'Apply to all?',
+            text: message,
+            showCancelButton: true,
+            confirmButtonText: 'Yes, apply',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#2563eb'
+        }).then(function (result) { return result.isConfirmed; });
+    }
+
+    function applyNotice(message) {
+        Swal.fire({ icon: 'warning', title: 'Apply to all', text: message, confirmButtonColor: '#2563eb' });
+    }
+
+    function applyWithProgress(btn, total, step) {
+        var held = Array.prototype.filter.call(document.querySelectorAll(
+            '.batch-col-apply, #batch-apply-all, #applicant-card-apply-all, #grant-card-apply-all, '
+            + '#page-card-apply-all, #rofo-card-apply-all, #reasons-card-apply-all, '
+            + '.per-file-step-nav button, #land-recommendation-form button[type="submit"]'
+        ), function (b) { return b !== btn && !b.disabled; });
+        var label = btn.innerHTML;
+        var results = [];
+        var i = 0;
+
+        function show(done) { btn.textContent = 'Applying ' + done + ' of ' + total; }
+
+        applyRunning = true;
+        held.forEach(function (b) { b.disabled = true; });
+        show(0);
+
+        return new Promise(function (resolve) {
+            function finish() {
+                applyRunning = false;
+                btn.innerHTML = label;
+                held.forEach(function (b) { b.disabled = false; });
+                resolve(results);
+            }
+
+            function slice() {
+                var until = Date.now() + 50;
+
+                (function next() {
+                    // Held a moment on the last count, or "200 of 200" is never seen.
+                    if (i >= total) { show(total); setTimeout(finish, 250); return; }
+
+                    Promise.resolve().then(function () { return step(i); }).then(
+                        function (result) { results[i] = result; },
+                        function () { results[i] = false; }
+                    ).then(function () {
+                        i++;
+                        // Counted once a slice: a repaint on this page costs more than
+                        // copying a row, so painting every row made a quick copy slow.
+                        if (Date.now() < until) { next(); return; }
+                        show(i);
+                        setTimeout(slice, 0);
+                    });
+                })();
+            }
+
+            setTimeout(slice, 0);
+        });
+    }
+
     // Apply-to-all for a stepped card: the file on screen is copied onto every
     // other file in the batch, for that card's fields only.
     function bindCardApplyAll(buttonId, cardLabel) {
@@ -4445,6 +4521,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!btn) return;
 
         btn.addEventListener('click', function () {
+            if (applyRunning) return;
             var fields = (btn.dataset.cardFields || '').split(',')
                 .map(function (f) { return f.trim(); })
                 .filter(function (f) { return PER_FILE_FIELDS.indexOf(f) !== -1; });
@@ -4457,36 +4534,36 @@ document.addEventListener('DOMContentLoaded', function () {
             if (batchMixesLandUse()) return;   // mixed land uses: never copy (CR 30102026 item 24)
 
             var where = newFilesOnly() ? ' newly added files' : ' files in this batch';
-            if (!confirm('Copy ' + cardLabel + ' on screen onto all '
+            applyConfirm('Copy ' + cardLabel + ' on screen onto all '
                     + scope.length + where + '? Whatever those files '
-                    + 'currently hold in these fields is replaced.')) {
-                return;
-            }
+                    + 'currently hold in these fields is replaced.').then(function (confirmed) {
+                if (!confirmed) return;
 
-            // Other cards retain the existing blank-only rule for issued files.
-            // Grant Conditions applies every displayed value after confirmation.
-            var kept = 0;
-            scope.forEach(function (i) {
-                var g = grantStore[i];
-                if (i === grantIndex || !g) return;
-                var tr = rowsBody.querySelector('.batch-row[data-index="' + g.__rowIndex + '"]');
-                // Grant Conditions explicitly replaces the selected batch's values,
-                // including issued files. syncGrantInputs posts those corrections per file.
-                var saved = (buttonId !== 'grant-card-apply-all' && tr && tr.dataset.rofoLocked === '1')
-                    ? (savedGrant[g.__file] || {}) : null;
-                fields.forEach(function (f) {
-                    if (saved && String(saved[f] == null ? '' : saved[f]).trim() !== '') { kept++; return; }
-                    g[f] = source[f];
+                // Other cards retain the existing blank-only rule for issued files.
+                // Grant Conditions applies every displayed value after confirmation.
+                var kept = 0;
+                var others = scope.filter(function (i) { return i !== grantIndex && grantStore[i]; });
+                applyWithProgress(btn, others.length, function (n) {
+                    var g = grantStore[others[n]];
+                    var tr = rowsBody.querySelector('.batch-row[data-index="' + g.__rowIndex + '"]');
+                    // Grant Conditions explicitly replaces the selected batch's values,
+                    // including issued files. syncGrantInputs posts those corrections per file.
+                    var saved = (buttonId !== 'grant-card-apply-all' && tr && tr.dataset.rofoLocked === '1')
+                        ? (savedGrant[g.__file] || {}) : null;
+                    fields.forEach(function (f) {
+                        if (saved && String(saved[f] == null ? '' : saved[f]).trim() !== '') { kept++; return; }
+                        g[f] = source[f];
+                    });
+                }).then(function () {
+                    if (BATCH_EDIT) editDirty = true;
+                    renderGrantStep();
+                    setStatus(cardLabel + ' copied onto ' + (scope.length - 1) + ' other' + (newFilesOnly() ? ' newly added' : '') + ' file(s).'
+                        + (kept ? ' ' + kept + ' value(s) already saved on issued files were kept.' : ''), 'warn');
+                    // Real work, and a lot of it at once — drafted rather than left waiting on
+                    // the next keystroke. No-op while a saved batch is being edited.
+                    scheduleSave();
                 });
             });
-
-            if (BATCH_EDIT) editDirty = true;
-            renderGrantStep();
-            setStatus(cardLabel + ' copied onto ' + (scope.length - 1) + ' other' + (newFilesOnly() ? ' newly added' : '') + ' file(s).'
-                + (kept ? ' ' + kept + ' value(s) already saved on issued files were kept.' : ''), 'warn');
-            // Real work, and a lot of it at once — drafted rather than left waiting on
-            // the next keystroke. No-op while a saved batch is being edited.
-            scheduleSave();
         });
     }
 
@@ -5032,6 +5109,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     if (applyAllBtn) applyAllBtn.addEventListener('click', function () {
+        if (applyRunning) return;
         // Newly added files only, when the saved batch has some; the source row may
         // still be a saved file.
         var rows = applyTargetRows();
@@ -5055,8 +5133,10 @@ document.addEventListener('DOMContentLoaded', function () {
         // or a purpose carried across the batch is a wrong letter that reads as a
         // correct one, which is the worst kind.
 
-        rows.forEach(function (tr) {
-            if (tr === src) return;
+        var copyRows = rows.filter(function (tr) { return tr !== src; });
+
+        applyWithProgress(applyAllBtn, copyRows.length, function (n) {
+            var tr = copyRows[n];
 
             FILL_IF_BLANK.forEach(function (f) {
                 var from = src.querySelector('[data-f="' + f + '"]');
@@ -5069,15 +5149,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 var dst  = tr.querySelector('[data-f="' + f + '"]');
                 if (from && dst) dst.value = from.value;
             });
+        }).then(function () {
+            // The page numbers this just copied are mirrored on the Page Number card,
+            // which would otherwise keep showing the value it had before the copy.
+            writeMirrors();
+
+            // The copy is real work, so it is drafted rather than waiting on the next
+            // keystroke — 100 rows changed at once is exactly what should not be lost.
+            scheduleSave();
         });
-
-        // The page numbers this just copied are mirrored on the Page Number card,
-        // which would otherwise keep showing the value it had before the copy.
-        writeMirrors();
-
-        // The copy is real work, so it is drafted rather than waiting on the next
-        // keystroke — 100 rows changed at once is exactly what should not be lost.
-        scheduleSave();
     });
 
     // ── Per-column Apply-to-all (the "never copied" bank) ───────────────────
@@ -5089,6 +5169,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // and a click that would overwrite values already keyed asks first.
     document.querySelectorAll('.batch-col-apply').forEach(function (btn) {
         btn.addEventListener('click', function () {
+            if (applyRunning) return;
             var f     = btn.dataset.f;
             var label = btn.dataset.label || f;
 
@@ -5113,15 +5194,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 var sourceLandUse = (src.querySelector('[data-f="land_use_id"]') || {}).value;
                 var sourceOtherPurpose = (src.querySelector('[data-f="purpose_id_other"]') || {}).value.trim();
                 if (!value) {
-                    alert('Choose a Purpose on the source row before applying it to the batch.');
+                    applyNotice('Choose a Purpose on the source row before applying it to the batch.');
                     return;
                 }
                 if (value === 'other' && !sourceOtherPurpose) {
-                    alert('Specify the Other Purpose on the source row before applying it to the batch.');
+                    applyNotice('Specify the Other Purpose on the source row before applying it to the batch.');
                     return;
                 }
                 if (!sourceLandUse) {
-                    alert('Choose a Land Use on the source row before applying its Purpose to the batch.');
+                    applyNotice('Choose a Land Use on the source row before applying its Purpose to the batch.');
                     return;
                 }
 
@@ -5155,26 +5236,29 @@ document.addEventListener('DOMContentLoaded', function () {
                     purposeMessage += String.fromCharCode(10, 10) + purposeClashes + ' existing purpose value'
                         + (purposeClashes === 1 ? ' will' : 's will') + ' be replaced.';
                 }
-                if ((purposeClashes || landUseChanges) && !confirm(purposeMessage)) return;
+                ((purposeClashes || landUseChanges) ? applyConfirm(purposeMessage) : Promise.resolve(true)).then(function (confirmed) {
+                    if (!confirmed) return;
 
-                Promise.all(purposeTargets.map(function (target) {
-                    target.landUse.value = sourceLandUse;
+                    applyWithProgress(btn, purposeTargets.length, function (n) {
+                        var target = purposeTargets[n];
+                        target.landUse.value = sourceLandUse;
 
-                    return loadPurposes(target.purpose, sourceLandUse, value).then(function () {
-                        var applied = String(target.purpose.value) === String(value);
-                        if (applied) {
-                            target.other.value = value === 'other' ? sourceOtherPurpose : '';
-                            target.purpose.dispatchEvent(new Event('change', { bubbles: true }));
+                        return loadPurposes(target.purpose, sourceLandUse, value).then(function () {
+                            var applied = String(target.purpose.value) === String(value);
+                            if (applied) {
+                                target.other.value = value === 'other' ? sourceOtherPurpose : '';
+                                target.purpose.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                            return applied;
+                        });
+                    }).then(function (results) {
+                        var failed = results.filter(function (applied) { return !applied; }).length;
+                        if (failed) {
+                            applyNotice(failed + ' row' + (failed === 1 ? ' could not' : 's could not')
+                                + ' receive the selected Purpose because it is not available in the current purpose list.');
                         }
-                        return applied;
+                        scheduleSave();
                     });
-                })).then(function (results) {
-                    var failed = results.filter(function (applied) { return !applied; }).length;
-                    if (failed) {
-                        alert(failed + ' row' + (failed === 1 ? ' could not' : 's could not')
-                            + ' receive the selected Purpose because it is not available in the current purpose list.');
-                    }
-                    scheduleSave();
                 });
 
                 return;
@@ -5189,7 +5273,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             if (!targets.length) {
-                alert('Nothing to apply.');
+                applyNotice('Nothing to apply.');
                 return;
             }
 
@@ -5197,52 +5281,48 @@ document.addEventListener('DOMContentLoaded', function () {
                 return String(dst.value).trim() !== '' && String(dst.value) !== String(value);
             }).length;
 
-            if (clashes && !confirm(
+            (clashes ? applyConfirm(
                 'Copy ' + label + ' from the source row into ' + targets.length + ' row' + (targets.length === 1 ? '' : 's') + '?' + String.fromCharCode(10, 10)
                 + clashes + ' row' + (clashes === 1 ? ' already holds a different value and it' : 's already hold a different value and they')
-                + ' will be overwritten.')) {
-                return;
-            }
+                + ' will be overwritten.'
+            ) : Promise.resolve(true)).then(function (confirmed) {
+                if (!confirmed) return;
 
-            targets.forEach(function (dst) {
-                dst.value = value;
-                // A value written straight onto a field does not fire change, and
-                // the land use one has a listener behind it — the Purpose options
-                // are fetched from it. Fire it so nothing is left stale.
-                dst.dispatchEvent(new Event('change', { bubbles: true }));
-            });
+                applyWithProgress(btn, targets.length, function (n) {
+                    var dst = targets[n];
+                    // Read before the change below reloads this row's purpose list.
+                    var sel = f === 'land_use_id' ? dst.closest('tr').querySelector('.batch-purpose') : null;
+                    var was = sel ? sel.value : '';
 
-            // Purpose hangs off land use: its options are fetched for whatever land
-            // use the row is on. Changing the land use therefore has to refetch
-            // them, and a purpose that does not exist under the new land use is
-            // gone — said out loud, because a purpose silently reset to "Select"
-            // on twenty rows is exactly the kind of blank that reaches a letter.
-            if (f === 'land_use_id') {
-                var kept = targets.map(function (dst) {
-                    var tr  = dst.closest('tr');
-                    var sel = tr.querySelector('.batch-purpose');
-                    if (!sel) return Promise.resolve(true);
-                    var was = sel.value;
+                    dst.value = value;
+                    // A value written straight onto a field does not fire change, and
+                    // the land use one has a listener behind it — the Purpose options
+                    // are fetched from it. Fire it so nothing is left stale.
+                    dst.dispatchEvent(new Event('change', { bubbles: true }));
+
+                    // Purpose hangs off land use: its options are fetched for whatever land
+                    // use the row is on. Changing the land use therefore has to refetch
+                    // them, and a purpose that does not exist under the new land use is
+                    // gone — said out loud, because a purpose silently reset to "Select"
+                    // on twenty rows is exactly the kind of blank that reaches a letter.
+                    if (!sel) return true;
                     return loadPurposes(sel, value, was).then(function () {
                         return !was || sel.value === was;
                     });
-                });
-
-                Promise.all(kept).then(function (results) {
-                    var lost = results.filter(function (ok) { return !ok; }).length;
-                    if (lost) {
-                        alert(lost + ' row' + (lost === 1 ? '' : 's') + ' lost '
-                            + (lost === 1 ? 'its' : 'their') + ' purpose: it does not exist under '
-                            + 'the land use just applied. Re-pick the purpose on '
-                            + (lost === 1 ? 'that row' : 'those rows') + ', or use the Purpose '
-                            + 'Apply to all above.');
+                }).then(function (results) {
+                    if (f === 'land_use_id') {
+                        var lost = results.filter(function (ok) { return !ok; }).length;
+                        if (lost) {
+                            applyNotice(lost + ' row' + (lost === 1 ? '' : 's') + ' lost '
+                                + (lost === 1 ? 'its' : 'their') + ' purpose: it does not exist under '
+                                + 'the land use just applied. Re-pick the purpose on '
+                                + (lost === 1 ? 'that row' : 'those rows') + ', or use the Purpose '
+                                + 'Apply to all above.');
+                        }
                     }
                     scheduleSave();
                 });
-                return;
-            }
-
-            scheduleSave();
+            });
         });
     });
 
@@ -5332,7 +5412,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // batch_kind rides with the payload as `kind`, restored before anything else,
     // so it is not replayed through the generic common-field restore either.
     var NOT_CAPTURE = ['_token', '_method', 'draft_key', 'children_expected',
-                       'batch_mother_file_no', 'batch_source_row', 'batch_kind', 'batch_kind_ui'];
+                       'batch_mother_file_no', 'batch_source_row', 'batch_kind', 'batch_kind_ui',
+                       'application_date_loaded'];
 
     function serializeCommon() {
         var out = {};

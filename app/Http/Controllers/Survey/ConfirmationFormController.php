@@ -59,16 +59,7 @@ class ConfirmationFormController extends Controller
         $q = trim((string) $r->query('cfq', ''));
         $layout = trim((string) $r->query('cflayout', ''));
 
-        $forms = Form::where('status', Form::CAPTURED)
-            ->when($layout !== '', fn ($w) => $w->where('layout_name', $layout))
-            ->when($q !== '', function ($w) use ($q) {
-                $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $q) . '%';
-                $w->where(fn ($x) => $x->where('land_owner_name', 'like', $like)->orWhere('id_number', 'like', $like)
-                    ->orWhere('nin', 'like', $like)->orWhere('gsm', 'like', $like)->orWhere('location', 'like', $like)
-                    ->orWhere('section', 'like', $like)->orWhere('vendor_name', 'like', $like)->orWhere('guarantor_name', 'like', $like)
-                    ->orWhere('serial_no', ctype_digit($q) ? (int) $q : -1));
-            })
-            ->orderByDesc('captured_at')->paginate(20, ['*'], 'cfpage')->withQueryString();
+        $forms = $this->capturedForms($q, $layout)->paginate(20, ['*'], 'cfpage')->withQueryString();
 
         $status = in_array($r->query('cfstatus'), Form::STATUSES, true) ? $r->query('cfstatus') : null;
         $serials = Form::when($status, fn ($w) => $w->where('status', $status))
@@ -395,5 +386,20 @@ class ConfirmationFormController extends Controller
         if (($data['guarantor_id_type'] ?? null) !== Form::OTHER) $data['guarantor_id_type_other'] = null;
 
         return $data;
+    }
+
+    /** The captured forms, shared with Export Records. */
+    public function capturedForms(string $q, string $layout)
+    {
+        return Form::where('status', Form::CAPTURED)
+            ->when($layout !== '', fn ($w) => $w->where('layout_name', $layout))
+            ->when($q !== '', function ($w) use ($q) {
+                $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $q) . '%';
+                $w->where(fn ($x) => $x->where('land_owner_name', 'like', $like)->orWhere('id_number', 'like', $like)
+                    ->orWhere('nin', 'like', $like)->orWhere('gsm', 'like', $like)->orWhere('location', 'like', $like)
+                    ->orWhere('section', 'like', $like)->orWhere('vendor_name', 'like', $like)->orWhere('guarantor_name', 'like', $like)
+                    ->orWhere('serial_no', ctype_digit($q) ? (int) $q : -1));
+            })
+            ->orderByDesc('captured_at');
     }
 }

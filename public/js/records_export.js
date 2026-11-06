@@ -14,11 +14,13 @@
 
     window.recordsExportData = [];
     window.recordsExportColumns = [];
+    window.recordsExportSummary = [];
     var requestVersion = 0;
     var loadedFilters = null;
 
     function clearLoadedReport() {
         window.recordsExportData = [];
+        window.recordsExportSummary = [];
         window.recordsExportColumns = [];
         loadedFilters = null;
         var count = document.getElementById('recordsExportCount');
@@ -110,7 +112,7 @@
         var filters = currentFilters();
         var parts = [];
         if (filters.status) parts.push((config().statusLabel || 'Status') + ': ' + filters.status.toUpperCase());
-        if (config().dateLabel) parts.push('Date basis: ' + config().dateLabel);
+        if (config().dateLabel && document.getElementById('recordsExportStartDate')) parts.push('Date basis: ' + config().dateLabel);
         if (filters.search) parts.push('Search: "' + filters.search + '"');
         if (filters.start_date && filters.end_date) {
             parts.push('Period: ' + filters.start_date + ' to ' + filters.end_date);
@@ -209,13 +211,14 @@
             var rows = (result.data || []).map(function (row) {
                 var formatted = {};
                 Object.keys(row).forEach(function (key) {
-                    formatted[key] = typeof row[key] === 'string' ? row[key].toUpperCase() : row[key];
+                    formatted[key] = typeof row[key] === 'string' && !config().preserveCase ? row[key].toUpperCase() : row[key];
                 });
                 return formatted;
             });
 
             window.recordsExportColumns = columns;
             window.recordsExportData = rows;
+            window.recordsExportSummary = result.summary || [];
             loadedFilters = JSON.stringify(filters);
 
             renderHeaders(columns);
@@ -228,7 +231,11 @@
                 return;
             }
 
-            body.innerHTML = rows.map(function (row) {
+            // A long register is previewed in part; the downloads still carry every row.
+            var limit = config().previewLimit || 0;
+            var shown = limit && rows.length > limit ? rows.slice(0, limit) : rows;
+
+            body.innerHTML = shown.map(function (row) {
                 return '<tr class="hover:bg-gray-50 transition-colors">' +
                     columns.map(function (column) {
                         var value = row[column.key];
@@ -239,7 +246,10 @@
                         return '<td class="' + classes + '" title="' + escapeHtml(value) + '">' + escapeHtml(value) + '</td>';
                     }).join('') +
                 '</tr>';
-            }).join('');
+            }).join('') + (shown.length < rows.length
+                ? '<tr><td colspan="' + columns.length + '" class="px-4 py-3 text-xs font-bold text-gray-500">Preview shows the first ' +
+                    shown.length.toLocaleString() + ' of ' + rows.length.toLocaleString() + ' records. The download holds them all.</td></tr>'
+                : '');
         } catch (e) {
             if (version !== requestVersion) return;
             clearLoadedReport();
@@ -271,6 +281,9 @@
             .concat(window.recordsExportData.map(function (row) {
                 return columns.map(function (c) { return csvValue(row[c.key]); }).join(',');
             }))
+            // Totals the server sends with the rows go under them, after a blank line.
+            .concat(window.recordsExportSummary.length ? [''] : [])
+            .concat(window.recordsExportSummary.map(function (line) { return line.map(csvValue).join(','); }))
             .join('\n');
 
         // UTF-8 BOM so Excel renders the naira sign correctly.
@@ -348,6 +361,13 @@
 
     window.downloadRecordsExportPdf = function () {
         if (guardEmpty()) return;
+
+        var pdfLimit = config().pdfLimit || 0;
+        if (pdfLimit && window.recordsExportData.length > pdfLimit) {
+            Swal.fire('Too many records for a PDF', 'A PDF can hold up to ' + pdfLimit.toLocaleString() + ' records and this report has ' +
+                window.recordsExportData.length.toLocaleString() + '. Narrow the filters, or use Download CSV.', 'warning');
+            return;
+        }
 
         if (!window.jspdf || !window.jspdf.jsPDF) {
             Swal.fire('Unavailable', 'The PDF library did not load on this page.', 'error');
@@ -435,15 +455,20 @@
                 var reportTitle = config().reportTitle || 'Records Register';
                 var subtitleParts = filterLabelSuffix();
                 subtitleParts.unshift('Total Records: ' + window.recordsExportData.length.toLocaleString());
+                window.recordsExportSummary.forEach(function (line) { subtitleParts.push(line[0] + ': ' + line[1]); });
                 subtitleParts.push('Generated on: ' + new Date().toLocaleDateString());
                 var subtitle = subtitleParts.join(' | ');
 
+                // The PDF's Helvetica has no naira sign and prints it as garbage.
+                function pdfText(value) {
+                    return value === null || value === undefined ? '' : String(value).replace(/₦/g, 'N');
+                }
+
                 doc.autoTable({
-                    head: [columns.map(function (c) { return c.label; })],
+                    head: [columns.map(function (c) { return pdfText(c.label); })],
                     body: window.recordsExportData.map(function (row) {
                         return columns.map(function (c) {
-                            var value = row[c.key];
-                            return value === null || value === undefined ? '' : String(value);
+                            return pdfText(row[c.key]);
                         });
                     }),
                     startY: 50,

@@ -24,7 +24,7 @@
 @if ($errors->any())<div class="alert alert-danger" style="margin-bottom:12px;">{{ $errors->first() }}</div>@endif
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.records.private-layouts.export'), 'title' => 'Private Layouts', 'statuses' => \App\Models\Survey\SurveyPrivateLayout::STATUSES])</div>
     <button type="button" class="btn btn-primary" onclick="document.getElementById('plForm').classList.add('open')"><i class="fas fa-plus"></i> Add Private Layout</button>
 </div>
 

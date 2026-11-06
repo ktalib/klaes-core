@@ -65,6 +65,9 @@ class ChartingController extends Controller
         if (!$due) {
             return redirect()->route('cadastral-dept.cases.show', $case->id)->with('error', "{$case->case_ref} is not at a charting step.");
         }
+        if ($why = $this->cards->blocker($case, $due['task'])) {
+            return redirect()->route('cadastral-dept.cases.show', $case->id)->with('error', $why);
+        }
 
         return view('cadastral_dept.charting.form', [
             'def' => $def,

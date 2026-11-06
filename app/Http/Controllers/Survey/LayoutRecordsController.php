@@ -14,6 +14,8 @@ use Illuminate\Pagination\LengthAwarePaginator;
  */
 class LayoutRecordsController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function index(Request $r, LayoutRecords $records)
     {
         if ($r->boolean('refresh')) LayoutRecords::forget();
@@ -23,13 +25,7 @@ class LayoutRecordsController extends Controller
         }
 
         $all = $records->layouts();
-        $layouts = $all;
-        if (($term = trim((string) $r->query('q', ''))) !== '') {
-            $t = mb_strtolower($term);
-            $layouts = $layouts->filter(fn ($l) => str_contains(mb_strtolower($l['key'] . ' ' . implode(' ', array_keys($l['plans'])) . ' ' . $l['name']), $t));
-        }
-        if ($r->query('has') === 'lists') $layouts = $layouts->where('lines', '>', 0);
-        if ($r->query('has') === 'shown') $layouts = $layouts->where('showings', '>', 0);
+        $layouts = $this->filterLayouts($r, $all);
 
         return view('survey_module.records.layout_records', [
             'layouts' => $this->page($r, $layouts->values(), 25),
@@ -68,5 +64,27 @@ class LayoutRecordsController extends Controller
         $page = max(1, (int) $r->query('page', 1));
 
         return new LengthAwarePaginator($items->forPage($page, $per)->values(), $items->count(), $per, $page, ['path' => $r->url(), 'query' => $r->query()]);
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function filterLayouts(Request $r, $layouts)
+    {
+        if (($term = trim((string) $r->query('q', ''))) !== '') {
+            $t = mb_strtolower($term);
+            $layouts = $layouts->filter(fn ($l) => str_contains(mb_strtolower($l['key'] . ' ' . implode(' ', array_keys($l['plans'])) . ' ' . $l['name']), $t));
+        }
+        if ($r->query('has') === 'lists') $layouts = $layouts->where('lines', '>', 0);
+        if ($r->query('has') === 'shown') $layouts = $layouts->where('showings', '>', 0);
+
+        return $layouts;
+    }
+
+    public function export(Request $r, LayoutRecords $records)
+    {
+        return $this->exportRecords($r, fn () => $this->filterLayouts($r, $records->layouts()), [
+            'key' => 'Layout No.', 'name' => 'Name', 'plans' => 'Plan numbers as written', 'lines' => 'Allocation lines', 'ops' => 'OPs', 'showings' => 'Showings',
+        ], fn ($l) => [
+            'key' => $l['key'], 'name' => $l['name'], 'plans' => implode(', ', array_keys($l['plans'])), 'lines' => $l['lines'], 'ops' => $l['ops'], 'showings' => $l['showings'],
+        ], null);
     }
 }

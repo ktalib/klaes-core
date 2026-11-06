@@ -4,7 +4,7 @@
 @section('width', '520px')
 
 @section('card')
-    <h1 class="text-lg font-bold mb-1">Register as a surveyor</h1>
+    <h1 class="text-lg font-bold mb-1" id="ksHeading">Register as a surveyor</h1>
     <p class="ks-help mb-4">The Office of the Surveyor General confirms each registration. We will text you when you can sign in.</p>
     @php $type = old('surveyor_type'); $co = old('company_choice'); @endphp
     <form method="POST" action="{{ route('surveyor-portal.register.submit') }}" class="space-y-4" enctype="multipart/form-data" id="ksRegisterForm">
@@ -22,7 +22,7 @@
             <label class="ks-label" for="company_choice">Company <span class="ks-req">*</span></label>
             <select class="ks-input" id="company_choice" name="company_choice" onchange="ksCompany()">
                 <option value="">Select company…</option>
-                @foreach ($companies as $c)<option value="{{ $c->id }}" @selected((string) $co === (string) $c->id)>{{ $c->name }}</option>@endforeach
+                @foreach ($companies as $c)<option value="{{ $c->id }}" data-surveyor="{{ $c->surveyor_name }}" @selected((string) $co === (string) $c->id)>{{ $c->name }}</option>@endforeach
                 <option value="other" @selected($co === 'other')>Other (specify)</option>
             </select>
             @error('company_choice')<p class="ks-error">{{ $message }}</p>@enderror
@@ -30,15 +30,20 @@
                 <input class="ks-input" name="company_other" value="{{ old('company_other') }}" maxlength="255" placeholder="Specify your company *" aria-label="Specify your company">
                 @error('company_other')<p class="ks-error">{{ $message }}</p>@enderror
             </div>
+            <div class="mt-4">
+                <label class="ks-label" for="company_rc_no">RC No. <span class="ks-req">*</span></label>
+                <input class="ks-input" id="company_rc_no" name="company_rc_no" value="{{ old('company_rc_no') }}" maxlength="50" autocomplete="off" placeholder="RC 123456">
+                @error('company_rc_no')<p class="ks-error">{{ $message }}</p>@enderror
+            </div>
         </div>
         <div>
-            <label class="ks-label" for="name">Surveyor's Name <span class="ks-req">*</span></label>
+            <label class="ks-label" for="name"><span id="ksNameLabel">Surveyor's Name</span> <span class="ks-req">*</span></label>
             <input class="ks-input" id="name" name="name" value="{{ old('name') }}" maxlength="255" required autocomplete="name">
             @error('name')<p class="ks-error">{{ $message }}</p>@enderror
         </div>
         {{-- Passport photograph (user, 2026-11-05). Checked for one clear face in the browser, as at MLPP commissioning. --}}
         <div>
-            <span class="ks-label">Passport Photograph <span class="ks-req">*</span></span>
+            <span class="ks-label"><span id="ksPassportLabel">Passport Photograph</span> <span class="ks-req">*</span></span>
             <div class="flex items-start gap-4">
                 <div id="ksPassportPreview" aria-hidden="true"
                      style="width:84px;height:108px;flex-shrink:0;border-radius:8px;border:1px dashed #B8BEC5;background:#F5F6F7 center/cover no-repeat;display:grid;place-items:center;color:#9AA1A9;">
@@ -47,7 +52,7 @@
                 <div class="min-w-0">
                     <label for="passport" class="ks-btn ks-btn-light" style="padding:8px 14px;cursor:pointer;"><i data-lucide="upload" class="w-4 h-4"></i> Choose photo</label>
                     <input class="sr-only" id="passport" type="file" name="passport" accept="image/jpeg,image/png" required>
-                    <p class="ks-help" style="margin-top:6px;">A clear, recent photograph of your face alone, like a passport photo. JPG or PNG, up to 2 MB.</p>
+                    <p class="ks-help" style="margin-top:6px;">A clear, recent photograph of <span id="ksPassportWhose">your face</span> alone, like a passport photo. JPG or PNG, up to 2 MB.</p>
                     <p id="ksPassportStatus" class="ks-help" style="margin-top:4px;" aria-live="polite">
                         @if ($errors->any() && ! $errors->has('passport'))Please choose your photo again.@endif
                     </p>
@@ -57,18 +62,18 @@
         </div>
         <div class="grid sm:grid-cols-2 gap-4">
             <div>
-                <label class="ks-label" for="phone">Phone <span class="ks-req">*</span></label>
+                <label class="ks-label" for="phone"><span id="ksPhoneLabel">Phone</span> <span class="ks-req">*</span></label>
                 <input class="ks-input" id="phone" name="phone" value="{{ old('phone') }}" maxlength="30" required autocomplete="tel" placeholder="08031234567">
                 @error('phone')<p class="ks-error">{{ $message }}</p>@enderror
             </div>
             <div>
-                <label class="ks-label" for="email">Email <span class="ks-req">*</span></label>
+                <label class="ks-label" for="email"><span id="ksEmailLabel">Email</span> <span class="ks-req">*</span></label>
                 <input class="ks-input" id="email" type="email" name="email" value="{{ old('email') }}" maxlength="150" required autocomplete="email">
                 @error('email')<p class="ks-error">{{ $message }}</p>@enderror
             </div>
         </div>
         <div>
-            <label class="ks-label" for="surcon_number">SURCON No.</label>
+            <label class="ks-label" for="surcon_number"><span id="ksSurconLabel">SURCON No.</span></label>
             <input class="ks-input" id="surcon_number" name="surcon_number" value="{{ old('surcon_number') }}" maxlength="50">
             @error('surcon_number')<p class="ks-error">{{ $message }}</p>@enderror
         </div>
@@ -153,7 +158,7 @@
             show(file); say('Checking the photo…');
             window.PassportFaceCheck.check(file).then(function (res) {
                 input.dataset.faceCheck = '';
-                if (!res.ok) { input.value = ''; show(null); say(res.message.replace(/the applicant's/g, 'your').replace(/of the applicant/g, 'of yourself'), true); return; }
+                if (!res.ok) { input.value = ''; show(null); say(res.message.replace(/the applicant's/g, ksPrivate() ? "the principal surveyor's" : 'your').replace(/of the applicant/g, ksPrivate() ? 'of the principal surveyor' : 'of yourself'), true); return; }
                 if (res.cropped && res.file) { keep(res.file); show(res.file); }
                 var kept = (input.files && input.files[0]) || file;
                 if (kept.size > 2097152) { input.value = ''; show(null); say('This picture is larger than 2 MB. Choose a smaller one.', true); return; }
@@ -176,14 +181,45 @@
         });
     })();
 
+    function ksPrivate() {
+        var t = document.querySelector('input[name="surveyor_type"]:checked');
+        return !!(t && t.value === 'Private');
+    }
+
+    // Private registers the company (user, 2026-11-06): its phone, email and address, with its surveyor under it.
+    var ksLabels = {
+        ksHeading: ['Register as a surveyor', 'Register your company'],
+        ksNameLabel: ["Surveyor's Name", 'Principal Surveyor'],
+        ksPassportLabel: ['Passport Photograph', "Principal Surveyor's Passport Photograph"],
+        ksPassportWhose: ['your face', "the principal surveyor's face"],
+        ksPhoneLabel: ['Phone', 'Company Phone'],
+        ksEmailLabel: ['Email', 'Company Email'],
+        ksSurconLabel: ['SURCON No.', "Principal Surveyor's SURCON No."]
+    };
+    var ksStarted = false;
+
     function ksCompany() {
-        var t = document.querySelector('input[name="surveyor_type"]:checked'), priv = !!(t && t.value === 'Private');
+        var priv = ksPrivate();
         var sel = document.getElementById('company_choice');
         document.getElementById('ksCompanyBox').style.display = priv ? '' : 'none';
         sel.required = priv;
+        document.getElementById('company_rc_no').required = priv;
         var other = priv && sel.value === 'other', box = document.getElementById('ksCompanyOther');
         box.style.display = other ? '' : 'none';
         box.querySelector('input').required = other;
+
+        Object.keys(ksLabels).forEach(function (id) { document.getElementById(id).textContent = ksLabels[id][priv ? 1 : 0]; });
+        document.querySelector('#ksRegisterForm .ab-legend').textContent = priv ? 'Company Address' : 'Address';
+
+        // The listed company's surveyor fills the name, and goes when the choice changes. A name typed over it stays.
+        var name = document.getElementById('name');
+        var picked = sel.options[sel.selectedIndex];
+        var want = priv && picked ? (picked.getAttribute('data-surveyor') || '') : '';
+        if (ksStarted && (name.value.trim() === '' || name.value === name.dataset.filled)) {
+            name.value = want;
+            name.dataset.filled = want;
+        }
+        ksStarted = true;
     }
     ksCompany();
 </script>

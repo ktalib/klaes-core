@@ -19,7 +19,7 @@ class SurveyBeaconRequest extends SurveyModel
     public const SOURCE_PORTAL = 'portal';
     public const SOURCE_CADASTRAL = 'cadastral_its';
 
-    protected $casts = ['reviewed_at' => 'datetime', 'accepted_at' => 'datetime'];
+    protected $casts = ['reviewed_at' => 'datetime', 'accepted_at' => 'datetime', 'latitude' => 'float', 'longitude' => 'float'];
 
     public function lines()
     {

@@ -29,22 +29,14 @@ use Illuminate\Validation\ValidationException;
  */
 class RegisterFileController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function index(Request $r, SurveyRegisterSync $sync)
     {
         $added = $sync->pull();
 
         $base = fn () => SurveyRegisterFile::query();
-        $q = $base()->with('cadastralCase');
-
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(fn ($w) => $w->where('file_number', 'like', "%$term%")
-                ->orWhere('register_ref', 'like', "%$term%")
-                ->orWhere('cadastral_case_ref', 'like', "%$term%")
-                ->orWhere('file_title', 'like', "%$term%"));
-        }
-        if (array_key_exists($p = $r->query('purpose'), SurveyRegisterFile::PURPOSES)) $q->where('purpose', $p);
-        if (in_array($s = $r->query('source'), [SurveyRegisterFile::SOURCE_CADASTRAL, SurveyRegisterFile::SOURCE_SURVEY], true)) $q->where('source', $s);
-        if (array_key_exists($st = $r->query('status'), SurveyRegisterFile::STATUSES)) $q->where('status', $st);
+        $q = $this->fileQuery($r);
 
         $stats = ['total' => $base()->count()];
         foreach (array_keys(SurveyRegisterFile::STATUSES) as $s) $stats[$s] = $base()->where('status', $s)->count();
@@ -218,5 +210,36 @@ class RegisterFileController extends Controller
         $case->file_indexing_id = $data['file_indexing_id'] ?? null;
 
         return view('survey_module.register_files._file_status', ['rows' => $status->results($case)]);
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function fileQuery(Request $r)
+    {
+        $q = SurveyRegisterFile::query()->with('cadastralCase');
+
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(fn ($w) => $w->where('file_number', 'like', "%$term%")
+                ->orWhere('register_ref', 'like', "%$term%")
+                ->orWhere('cadastral_case_ref', 'like', "%$term%")
+                ->orWhere('file_title', 'like', "%$term%"));
+        }
+        if (array_key_exists($p = $r->query('purpose'), SurveyRegisterFile::PURPOSES)) $q->where('purpose', $p);
+        if (in_array($s = $r->query('source'), [SurveyRegisterFile::SOURCE_CADASTRAL, SurveyRegisterFile::SOURCE_SURVEY], true)) $q->where('source', $s);
+        if (array_key_exists($st = $r->query('status'), SurveyRegisterFile::STATUSES)) $q->where('status', $st);
+
+        return $q;
+    }
+
+    /** Reads the list as it stands: no pull from Cadastral here, the page does that. */
+    public function export(Request $r)
+    {
+        return $this->exportRecords($r, fn () => $this->fileQuery($r)->orderByDesc('received_at')->orderByDesc('id'), [
+            'ref' => 'Ref', 'file_number' => 'File No.', 'title' => 'Title', 'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'purpose' => 'Purpose', 'source' => 'Source',
+            'case_ref' => 'Cadastral Case', 'received' => 'Received', 'status' => 'Status',
+        ], fn ($f) => [
+            'ref' => $f->register_ref, 'file_number' => $f->file_number, 'title' => $f->file_title, 'plot_no' => $f->plot_no, 'district' => $f->district, 'lga' => $f->lga,
+            'purpose' => SurveyRegisterFile::PURPOSES[$f->purpose] ?? $f->purpose, 'source' => $f->source === SurveyRegisterFile::SOURCE_CADASTRAL ? 'Cadastral' : 'Survey',
+            'case_ref' => $f->cadastral_case_ref, 'received' => $this->exportDate($f->received_at, 'd M Y H:i'), 'status' => $f->statusLabel(),
+        ], 'received_at');
     }
 }

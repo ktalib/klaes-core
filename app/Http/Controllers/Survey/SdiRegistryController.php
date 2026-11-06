@@ -18,15 +18,13 @@ use Illuminate\Validation\ValidationException;
  */
 class SdiRegistryController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function index(Request $r)
     {
         $tab = $r->query('tab') === 'types' ? 'types' : 'mdas';
 
-        $mdas = SdiMda::with('category:id,name')->withCount('mapRequests')
-            ->when(trim((string) $r->query('q')), fn ($q, $t) => $q->where(fn ($w) => $w->where('name', 'like', "%$t%")->orWhere('abbreviation', 'like', "%$t%")))
-            ->when($r->query('category'), fn ($q, $c) => $q->where('category_id', $c))
-            ->orderBy('category_id')->orderBy('sort_order')->orderBy('name')
-            ->paginate(25)->withQueryString();
+        $mdas = $this->mdaQuery($r)->paginate(25)->withQueryString();
 
         return view('survey_module.sdi.registry', [
             'tab'        => $tab,
@@ -146,5 +144,31 @@ class SdiRegistryController extends Controller
         for ($i = 2; SdiMda::withTrashed()->where('code', $try)->exists(); $i++) $try = "{$code}_{$i}";
 
         return $try;
+    }
+
+    /** The MDA list's filters and order, shared with Export Records. */
+    private function mdaQuery(Request $r)
+    {
+        return SdiMda::with('category:id,name')->withCount('mapRequests')
+            ->when(trim((string) $r->query('q')), fn ($q, $t) => $q->where(fn ($w) => $w->where('name', 'like', "%$t%")->orWhere('abbreviation', 'like', "%$t%")))
+            ->when($r->query('category'), fn ($q, $c) => $q->where('category_id', $c))
+            ->orderBy('category_id')->orderBy('sort_order')->orderBy('name');
+    }
+
+    public function export(Request $r)
+    {
+        if ($r->query('tab') === 'types') {
+            return $this->exportRecords($r, fn () => SdiMapType::withCount('requests')->orderBy('sort_order')->orderBy('id'),
+                ['name' => 'Map Type', 'requests' => 'Requests', 'status' => 'Status'],
+                fn ($t) => ['name' => $t->name, 'requests' => $t->requests_count, 'status' => $t->is_active ? 'Active' : 'Retired']);
+        }
+
+        return $this->exportRecords($r, fn () => $this->mdaQuery($r)->orderBy('id'), [
+            'name' => 'MDA', 'abbreviation' => 'Abbreviation', 'category' => 'Category', 'contact' => 'Contact', 'requests' => 'Requests', 'status' => 'Status',
+        ], fn ($m) => [
+            'name' => $m->name, 'abbreviation' => $m->abbreviation, 'category' => $m->category?->name,
+            'contact' => collect([$m->contact_name, $m->contact_phone, $m->contact_email])->filter()->implode(' · '), 'requests' => $m->map_requests_count,
+            'status' => $m->is_active ? 'Active' : 'Retired',
+        ]);
     }
 }

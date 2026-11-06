@@ -19,6 +19,8 @@ use Illuminate\Validation\ValidationException;
  */
 class BoundaryDisputeController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public const NATURE_OTHER = '__other__';
 
     public function index(Request $r)
@@ -97,17 +99,7 @@ class BoundaryDisputeController extends Controller
 
     private function pageData(Request $r, ?BD $editing = null): array
     {
-        $q = BD::query()->with('registerFile');
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(fn ($w) => $w->where('dispute_ref', 'like', "%$term%")->orWhere('file_number', 'like', "%$term%")
-                ->orWhere('other_file_number', 'like', "%$term%")->orWhere('complainant_name', 'like', "%$term%")
-                ->orWhere('respondent_name', 'like', "%$term%")->orWhere('district', 'like', "%$term%"));
-        }
-        if (in_array($s = $r->query('status'), BD::STATUSES, true)) $q->where('status', $s);
-        if ($n = $r->query('nature')) $q->where('nature', $n);
-        if (in_array($t = $r->query('type'), BD::TYPES, true)) $q->where('boundary_type', $t);
-        // "Public Boundary" as a whole: both LGA and Interstate.
-        if ($r->query('type') === 'public') $q->whereIn('boundary_type', BD::PUBLIC_TYPES);
+        $q = $this->disputeQuery($r);
 
         $stats = [];
         foreach (BD::STATUSES as $s) $stats[$s] = BD::where('status', $s)->count();
@@ -177,5 +169,35 @@ class BoundaryDisputeController extends Controller
         $data['location'] = implode(', ', array_filter([$data['district'] ?? null, $data['lga'] ?? null])) ?: null;
 
         return $data;
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function disputeQuery(Request $r)
+    {
+        $q = BD::query()->with('registerFile');
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(fn ($w) => $w->where('dispute_ref', 'like', "%$term%")->orWhere('file_number', 'like', "%$term%")
+                ->orWhere('other_file_number', 'like', "%$term%")->orWhere('complainant_name', 'like', "%$term%")
+                ->orWhere('respondent_name', 'like', "%$term%")->orWhere('district', 'like', "%$term%"));
+        }
+        if (in_array($s = $r->query('status'), BD::STATUSES, true)) $q->where('status', $s);
+        if ($n = $r->query('nature')) $q->where('nature', $n);
+        if (in_array($t = $r->query('type'), BD::TYPES, true)) $q->where('boundary_type', $t);
+        // "Public Boundary" as a whole: both LGA and Interstate.
+        if ($r->query('type') === 'public') $q->whereIn('boundary_type', BD::PUBLIC_TYPES);
+
+        return $q;
+    }
+
+    public function export(Request $r)
+    {
+        return $this->exportRecords($r, fn () => $this->disputeQuery($r)->orderByDesc('id'), [
+            'ref' => 'Dispute No', 'register_ref' => 'Register File', 'received' => 'Received', 'file_number' => 'File No.', 'other_file' => 'Other File No.', 'complainant' => 'Complainant',
+            'respondent' => 'Respondent', 'type' => 'Boundary Type', 'nature' => 'Nature', 'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'status' => 'Status',
+        ], fn ($d) => [
+            'ref' => $d->dispute_ref, 'register_ref' => $d->registerFile?->register_ref, 'received' => $this->exportDate($d->received_date), 'file_number' => $d->file_number,
+            'other_file' => $d->other_file_number, 'complainant' => $d->complainant_name, 'respondent' => $d->respondent_name, 'type' => $d->boundary_type ? $d->boundary_label : null,
+            'nature' => $d->nature, 'plot_no' => $d->plot_no, 'district' => $d->district, 'lga' => $d->lga, 'status' => $d->status,
+        ], 'received_date');
     }
 }

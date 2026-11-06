@@ -47,6 +47,7 @@
 <div class="page-header" style="margin-bottom:10px;">
   <div style="font-size:13px;color:var(--gray-500);">Next serial: <strong style="font-family:monospace;">{{ F::formatSerial($cfNextSerial) }}</strong> · numbers are never reused.</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" class="btn btn-secondary" onclick="pcExport('confirmation', 'Confirmation Forms')"><i class="fas fa-file-export"></i> Export Records</button>
     <button type="button" class="btn btn-secondary" onclick="document.getElementById('cfIssue').classList.add('open')"><i class="fas fa-hashtag"></i> Issue Serials</button>
     <button type="button" class="btn btn-primary" onclick="document.getElementById('cfCapture').classList.add('open')"><i class="fas fa-keyboard"></i> Capture Form</button>
     <button type="button" class="btn btn-primary" onclick="document.getElementById('cfGuarantor').classList.add('open')"><i class="fas fa-user-shield"></i> Capture Guarantor Form</button>

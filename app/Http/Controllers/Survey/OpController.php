@@ -22,6 +22,8 @@ use Illuminate\Support\Collection;
  */
 class OpController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public const STATUS_DRAFT  = 'Draft';
     public const STATUS_READY  = 'Ready';
     public const STATUS_ISSUED = 'Issued';
@@ -48,18 +50,7 @@ class OpController extends Controller
             return $this->existingIndex($r);
         }
 
-        $q = SurveyOpRecord::query()->new()->with(['case', 'beneficiary', 'steps']);
-
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(function ($w) use ($term) {
-                $w->where('op_number', 'like', "%$term%")
-                  ->orWhere('plot_or_cash_ref', 'like', "%$term%")
-                  ->orWhereHas('case', fn ($c) => $c->where('case_ref', 'like', "%$term%"))
-                  ->orWhereHas('beneficiary', fn ($b) => $b->where('full_name', 'like', "%$term%"));
-            });
-        }
-        if ($s = $r->query('scheme')) $q->where('scheme_type', $s);
-        if ($st = $r->query('status')) $q->where('status', $st);
+        $q = $this->newOpQuery($r);
 
         $ops = $q->orderByDesc('id')->paginate(15)->withQueryString();
 
@@ -92,16 +83,7 @@ class OpController extends Controller
         $tpGroup = (string) $r->query('tp', '');
         $byTp = $r->query('view') === 'tp';
 
-        $ops = $this->existingQuery()
-            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('serial', 'like', $like)->orWhere('allottee', 'like', $like)
-                ->orWhere('plot_no', 'like', $like)->orWhere('file_no', 'like', $like)->orWhere('district', 'like', $like)->orWhere('lga', 'like', $like)))
-            ->when($kind, fn ($q) => $q->where('op_kind', $kind))
-            ->when($r->query('project'), fn ($q, $p) => $q->where('project_id', (int) $p))
-            // OPs of one layout, through the spellings of its TP number (CR 03112026 item 2).
-            ->when($tpGroup === 'none', fn ($q) => $q->whereNull('tp_no'))
-            ->when(ctype_digit($tpGroup), fn ($q) => $q->whereRaw('UPPER(tp_no) IN (SELECT raw_tp FROM op_tp_aliases WHERE op_tp_group_id = ?)', [(int) $tpGroup]))
-            ->orderByRaw('CASE WHEN issued IS NULL THEN 1 ELSE 0 END, issued DESC, rid DESC')
-            ->paginate(20)->withQueryString();
+        $ops = $this->filteredExisting($r)->paginate(20)->withQueryString();
 
         $totals = $this->existingQuery()->selectRaw("COUNT(*) total, SUM(CASE WHEN op_kind = 'Resettlement' THEN 1 ELSE 0 END) resettlement, "
             . "SUM(CASE WHEN op_kind = 'Direct Allocation' THEN 1 ELSE 0 END) direct, SUM(CASE WHEN src = 'klaes' THEN 1 ELSE 0 END) captured")->first();
@@ -115,10 +97,7 @@ class OpController extends Controller
             'editing'  => $r->query('edit') ? SurveyOpRecord::existing()->find((int) $r->query('edit')) : null,
             'tpGroups' => app(\App\Services\Survey\OpTpGroups::class)->options(),
             // By TP No. (CR 03112026 item 2): one row per layout, biggest serials in order.
-            'byTp'     => $byTp ? \Illuminate\Support\Facades\DB::connection('sqlsrv')->table('op_tp_groups')
-                ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('label', 'like', $like)->orWhere('group_key', 'like', $like)))
-                ->orderByRaw('CASE WHEN serial_sort IS NULL THEN 1 ELSE 0 END')->orderBy('serial_sort')->orderBy('group_key')
-                ->paginate(25, ['*'], 'page')->withQueryString() : null,
+            'byTp'     => $byTp ? $this->tpGroupList($term, $like)->paginate(25, ['*'], 'page')->withQueryString() : null,
             // Dashboard cards (user, 2026-11-03).
             'stats'    => [
                 'total'        => (int) $totals->total,
@@ -572,5 +551,88 @@ class OpController extends Controller
         }
 
         return $rows;
+    }
+
+    /** The New tab's filters, shared with Export Records. */
+    private function newOpQuery(Request $r)
+    {
+        $q = SurveyOpRecord::query()->new()->with(['case', 'beneficiary', 'steps']);
+
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(function ($w) use ($term) {
+                $w->where('op_number', 'like', "%$term%")
+                  ->orWhere('plot_or_cash_ref', 'like', "%$term%")
+                  ->orWhereHas('case', fn ($c) => $c->where('case_ref', 'like', "%$term%"))
+                  ->orWhereHas('beneficiary', fn ($b) => $b->where('full_name', 'like', "%$term%"));
+            });
+        }
+        if ($s = $r->query('scheme')) $q->where('scheme_type', $s);
+        if ($st = $r->query('status')) $q->where('status', $st);
+
+        return $q;
+    }
+
+    /** The Existing tab's filters and order, shared with Export Records. */
+    private function filteredExisting(Request $r)
+    {
+        $term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')));
+        $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
+        $kind = in_array($r->query('kind'), self::OP_KINDS, true) ? $r->query('kind') : null;
+        $tpGroup = (string) $r->query('tp', '');
+
+        return $this->existingQuery()
+            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('serial', 'like', $like)->orWhere('allottee', 'like', $like)
+                ->orWhere('plot_no', 'like', $like)->orWhere('file_no', 'like', $like)->orWhere('district', 'like', $like)->orWhere('lga', 'like', $like)))
+            ->when($kind, fn ($q) => $q->where('op_kind', $kind))
+            ->when($r->query('project'), fn ($q, $p) => $q->where('project_id', (int) $p))
+            // OPs of one layout, through the spellings of its TP number (CR 03112026 item 2).
+            ->when($tpGroup === 'none', fn ($q) => $q->whereNull('tp_no'))
+            ->when(ctype_digit($tpGroup), fn ($q) => $q->whereRaw('UPPER(tp_no) IN (SELECT raw_tp FROM op_tp_aliases WHERE op_tp_group_id = ?)', [(int) $tpGroup]))
+            ->orderByRaw('CASE WHEN issued IS NULL THEN 1 ELSE 0 END, issued DESC, rid DESC');
+    }
+
+    /** By TP No.: one row per layout. */
+    private function tpGroupList(string $term, string $like)
+    {
+        return \Illuminate\Support\Facades\DB::connection('sqlsrv')->table('op_tp_groups')
+                ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('label', 'like', $like)->orWhere('group_key', 'like', $like)))
+                ->orderByRaw('CASE WHEN serial_sort IS NULL THEN 1 ELSE 0 END')->orderBy('serial_sort')->orderBy('group_key');
+    }
+
+    public function export(Request $r)
+    {
+        if ($r->query('tab') === 'new') {
+            return $this->exportRecords($r, fn () => $this->newOpQuery($r)->orderByDesc('id'), [
+                'op_number' => 'OP No.', 'case_ref' => 'Case Ref', 'beneficiary' => 'Beneficiary', 'scheme' => 'Scheme', 'plot_ref' => 'Plot / Cash Ref',
+                'status' => 'OP Status', 'issued' => 'Issued', 'created_at' => 'Date Created',
+            ], fn ($op) => [
+                'op_number' => $op->op_number, 'case_ref' => $op->case?->case_ref, 'beneficiary' => $op->beneficiary?->full_name, 'scheme' => $op->scheme_type,
+                'plot_ref' => $op->plot_or_cash_ref, 'status' => $op->status, 'issued' => $this->exportDate($op->issued_at), 'created_at' => $this->exportDate($op->created_at),
+            ]);
+        }
+
+        if ($r->query('view') === 'tp') {
+            return $this->exportRecords($r, function () use ($r) {
+                $term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')));
+
+                return $this->tpGroupList($term, '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%')->orderBy('id');
+            }, [
+                'label' => 'TP No.', 'agency' => 'Agency', 'serial' => 'Serial No.', 'ops' => 'OPs', 'resettlement' => 'Resettlement', 'direct' => 'Direct Allocation',
+                'in_layouts' => 'In Public Layout Plans',
+            ], fn ($g) => [
+                'label' => $g->label, 'agency' => $g->agency, 'serial' => $g->serial, 'ops' => (int) $g->op_count, 'resettlement' => (int) $g->resettlement_count,
+                'direct' => (int) $g->direct_count, 'in_layouts' => $g->register_rows ? 'Yes' : 'No',
+            ], null);
+        }
+
+        // rid repeats across the three sources, so src keeps the export's pages apart.
+        return $this->exportRecords($r, fn () => $this->filteredExisting($r)->orderBy('src'), [
+            'file_no' => 'File No.', 'serial' => 'OP Serial', 'type' => 'Type', 'allottee' => 'Allottee', 'tp_no' => 'TP No.', 'plot_no' => 'Plot No.',
+            'district' => 'District', 'lga' => 'LGA', 'location' => 'Location', 'date' => 'Date', 'source' => 'Source',
+        ], fn ($op) => [
+            'file_no' => $op->file_no, 'serial' => $op->serial, 'type' => $op->op_kind, 'allottee' => $op->allottee, 'tp_no' => $op->tp_no, 'plot_no' => $op->plot_no,
+            'district' => $op->district, 'lga' => $op->lga, 'location' => $op->location, 'date' => $this->exportDate($op->issued),
+            'source' => $op->src === 'klaes' ? 'Captured here' : 'Deeds',
+        ], 'issued');
     }
 }

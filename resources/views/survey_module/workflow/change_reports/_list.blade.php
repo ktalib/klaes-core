@@ -15,8 +15,17 @@
 
 @include('survey_module.partials._flash')
 
+<style>
+    /* One table in three sections, tinted like the Batch Recommendation banks. */
+    .survey-proto th.rs-band { text-align: center; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+    .survey-proto th.rs-beacons { background: #fffbeb; color: #92400e; }
+    .survey-proto th.rs-coords { background: #f0f9ff; color: #075985; }
+    .survey-proto th.rs-obs { background: #f5f3ff; color: #5b21b6; }
+    .survey-proto th.rs-split, .survey-proto td.rs-split { border-left: 2px solid var(--gray-300, #d1d5db); }
+</style>
+
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.workflow.change-reports.export'), 'title' => "Surveyor's Report (Private)", 'dateLabel' => 'Report Date', 'statuses' => [CR::DRAFT, CR::ISSUED]])</div>
     {{-- "Capture Observation" on the Computation Field Observations view (user, 2026-11-03). --}}
     <a href="{{ route('survey-module.workflow.change-reports.create') }}" class="btn btn-primary"><i class="fas fa-plus"></i> {{ request('records') === 'observations' ? 'Capture Observation' : 'Create Report' }}</a>
 </div>
@@ -54,8 +63,15 @@
     <div class="table-scroll">
         <table>
             <thead>
+                <tr>
+                    <th colspan="11" class="rs-band">Surveyor's Report (Private)</th>
+                    @include('survey_module.partials.sections._report_sections', ['part' => 'bands', 'a' => null])
+                    <th></th>
+                </tr>
                 <tr><th>S/N</th><th>Report No</th><th>Register File</th><th>File No.</th><th>Plan No.</th><th>Surveyor</th>
-                    <th>Plot No.</th><th>District</th><th>LGA</th><th>Date</th><th>Status</th><th></th></tr>
+                    <th>Plot No.</th><th>District</th><th>LGA</th><th>Date</th><th>Status</th>
+                    @include('survey_module.partials.sections._report_sections', ['part' => 'heads', 'a' => null])
+                    <th></th></tr>
             </thead>
             <tbody>
                 @forelse ($reports as $r)
@@ -71,6 +87,7 @@
                         <td>{{ $r->lga ?: '—' }}</td>
                         <td>{{ optional($r->report_date)->format('d M Y') ?: '—' }}</td>
                         <td>{!! $chip($r->status, $r->isIssued() ? 'green' : 'gray') !!}</td>
+                        @include('survey_module.partials.sections._report_sections', ['part' => 'cells', 'rec' => $rowRecords[$r->id]['rec'] ?? null, 'a' => $rowRecords[$r->id]['anchor'] ?? null])
                         <td>
                             <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
                                 <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
@@ -91,7 +108,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="12" style="text-align:center;padding:28px;color:var(--gray-500);">
+                    <tr><td colspan="22" style="text-align:center;padding:28px;color:var(--gray-500);">
                         {{ request()->hasAny(['q', 'status']) ? 'No reports match these filters.' : 'No reports yet.' }}
                     </td></tr>
                 @endforelse

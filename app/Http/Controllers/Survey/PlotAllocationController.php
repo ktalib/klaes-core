@@ -8,7 +8,6 @@ use App\Models\Survey\SurveyPlotAllocation;
 use App\Models\Survey\SurveyProject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Land to Land plot register: the 50:50 Farmer/Government split.
@@ -19,23 +18,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class PlotAllocationController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function index(Request $r)
     {
         $case = $this->filterCase($r);
 
-        $q = SurveyPlotAllocation::query()->with(['case:id,case_ref,scheme_type', 'creator:id,first_name,last_name']);
-        if ($case) $q->where('survey_comp_case_id', $case->id);
-
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(function ($w) use ($term) {
-                $w->where('farmer_name', 'like', "%$term%")
-                  ->orWhere('f_no', 'like', "%$term%")
-                  ->orWhere('plot_no', 'like', "%$term%")
-                  ->orWhere('op_no', 'like', "%$term%");
-            });
-        }
-
-        $q->origin($r->query('origin'));
+        $q = $this->registerQuery($r, $case);
 
         $rows = (clone $q)->orderBy('sr')->orderBy('id')->paginate(50)->withQueryString();
 
@@ -154,12 +143,10 @@ class PlotAllocationController extends Controller
         return $this->backToRegister($r, "Row SR {$sr} deleted; the register has been renumbered.");
     }
 
-    /** CSV of the register as filtered, in the table's own column order. */
-    public function export(Request $r): StreamedResponse
+    /** The register's filters, shared with Export Records. */
+    private function registerQuery(Request $r, ?SurveyCompCase $case)
     {
-        $case = $this->filterCase($r);
-
-        $q = SurveyPlotAllocation::query();
+        $q = SurveyPlotAllocation::query()->with(['case:id,case_ref,scheme_type', 'creator:id,first_name,last_name']);
         if ($case) $q->where('survey_comp_case_id', $case->id);
 
         if ($term = trim((string) $r->query('q', ''))) {
@@ -171,33 +158,28 @@ class PlotAllocationController extends Controller
             });
         }
 
-        $rows   = (clone $q)->orderBy('sr')->orderBy('id')->get();
-        $totals = $case ? $case->plotSplit() : $this->splitOf($rows->count());
+        $q->origin($r->query('origin'));
 
-        $name = 'plot-allocation-' . ($case ? strtolower($case->case_ref) . '-' : '') . date('Ymd-His') . '.csv';
+        return $q;
+    }
 
-        return response()->streamDownload(function () use ($rows, $totals, $case) {
-            $out = fopen('php://output', 'w');
+    /** Export Records: the register as filtered, in the table's own column order. */
+    public function export(Request $r)
+    {
+        $case = $this->filterCase($r);
 
-            fputcsv($out, ['SR', 'F. No.', 'Farmers Name', 'Acreage', 'Creetable',
-                'Govt. 50%', 'Farmer 50%', 'Plot No.', 'OP No.', 'Sign', 'Remarks']);
-
-            foreach ($rows as $row) {
-                fputcsv($out, [
-                    $row->sr, $row->f_no, $row->farmer_name, $row->acreage, $row->creetable,
-                    $row->govt_50, $row->farmer_50, $row->plot_no, $row->op_no, $row->sign, $row->remarks,
-                ]);
-            }
-
+        return $this->exportRecords($r, fn () => $this->registerQuery($r, $case)->orderBy('sr')->orderBy('id'), [
+            'sr' => 'SR', 'f_no' => 'F. No.', 'farmer' => 'Farmers Name', 'acreage' => 'Acreage', 'creetable' => 'Creetable', 'govt' => 'Govt. 50%', 'farmer_share' => 'Farmer 50%',
+            'plot_no' => 'Plot No.', 'op_no' => 'OP No.', 'sign' => 'Sign', 'remarks' => 'Remarks',
+        ], fn ($row) => [
+            'sr' => $row->sr, 'f_no' => $row->f_no, 'farmer' => $row->farmer_name, 'acreage' => $row->acreage, 'creetable' => $row->creetable, 'govt' => $row->govt_50,
+            'farmer_share' => $row->farmer_50, 'plot_no' => $row->plot_no, 'op_no' => $row->op_no, 'sign' => $row->sign, 'remarks' => $row->remarks,
+        ], null, function (int $count) use ($case) {
             // The split is a property of the register, so it travels with the rows.
-            fputcsv($out, []);
-            fputcsv($out, ['Case', $case?->case_ref ?? 'All cases']);
-            fputcsv($out, ['Total Plots', $totals['total']]);
-            fputcsv($out, ['Govt. 50%', $totals['govt']]);
-            fputcsv($out, ['Farmer 50%', $totals['farmer']]);
+            $totals = $case ? $case->plotSplit() : $this->splitOf($count);
 
-            fclose($out);
-        }, $name, ['Content-Type' => 'text/csv']);
+            return [['Case', $case?->case_ref ?? 'All cases'], ['Total Plots', $totals['total']], ['Govt. 50%', $totals['govt']], ['Farmer 50%', $totals['farmer']]];
+        });
     }
 
     /* ------------------------------- internals ------------------------------- */

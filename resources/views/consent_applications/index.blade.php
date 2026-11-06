@@ -105,6 +105,9 @@
                                             <div class="mt-1 text-[11px] font-bold whitespace-nowrap" style="color:#0f766e;"
                                                 title="Registered as {{ $registrations[$app->id]->instrument_type }}">
                                                 Reg: <span class="font-mono">{{ $registrations[$app->id]->registration_number }}</span>
+                                                @if($regDate = \App\Services\DeedsRegistrationLookup::regDate($registrations[$app->id]))
+                                                    <div>Reg Date: {{ $regDate }}</div>
+                                                @endif
                                             </div>
                                         @endif
                                     </td>

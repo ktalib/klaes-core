@@ -43,7 +43,7 @@ class BeaconRequests
         }
     }
 
-    /** From the portal. @param array{layout_type:string, quantity:int, job_name:?string, plot_no:?string, district:?string, lga:?string, remarks:?string} $data */
+    /** From the portal. @param array{layout_type:string, quantity:int, job_name:?string, plot_no:?string, district:?string, lga:?string, latitude:?float, longitude:?float, remarks:?string} $data */
     public function fromPortal(SurveyorPortalAccount $account, array $data): SurveyBeaconRequest
     {
         $request = $this->db()->transaction(function () use ($account, $data) {

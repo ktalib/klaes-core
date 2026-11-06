@@ -130,7 +130,7 @@
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="lands-one-stop-shop">
           <!-- i. Generate FileNos (Change of Name): FC and FEFR are tabs on the page -->
-          <a href="{{ route('lands-one-stop-shop.applications.index', ['source' => 'lands-one-stop-shop', 'type' => 'change-of-name', 'record_type' => 'fc']) }}"
+          <a data-tab-card="oss-generate-filenos" href="{{ route('lands-one-stop-shop.applications.index', ['source' => 'lands-one-stop-shop', 'type' => 'change-of-name', 'record_type' => 'fc']) }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('lands-one-stop-shop.applications.index') && request()->query('type') === 'change-of-name' ? 'active' : '' }}">
             <i data-lucide="hash" class="h-3.5 w-3.5 text-orange-400"></i>
             <span>Generate FileNos (Change of Ownership)</span>
@@ -195,14 +195,14 @@
 
           <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="ossLetterOfGrant-oss">
             <!-- 1. OSS Recommendation -->
-            <a href="{{ route('land-recommendations.index', ['type' => 'OSS']) }}"
+            <a data-tab-card="oss-recommendation" href="{{ route('land-recommendations.index', ['type' => 'OSS']) }}"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('land-recommendations.index') && strtoupper((string) request()->query('type')) === 'OSS' ? 'active' : '' }}">
               <i data-lucide="check-circle" class="h-3.5 w-3.5 text-orange-400"></i>
               <span>OSS Recommendation</span>
             </a>
 
             <!-- 2. OSS RofO -->
-            <a href="/land-rofos?=oss-rofo&view=only"
+            <a data-tab-card="oss-rofo" href="/land-rofos?=oss-rofo&view=only"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('land-rofos') && request()->query('view') === 'only' ? 'active' : '' }}">
               <i data-lucide="file-check" class="h-3.5 w-3.5 text-orange-400"></i>
               <span>OSS RofO</span>
@@ -224,19 +224,19 @@
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="rofo-lands">
           <!-- i. Land Recommendation -->
-          <a href="{{ route('land-recommendations.index', ['type' => 'ROFO']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('land-recommendations.index') && strtoupper((string) request()->query('type')) === 'ROFO' ? 'active' : '' }}">
+          <a data-tab-card="land-recommendation" href="{{ route('land-recommendations.index', ['type' => 'ROFO']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('land-recommendations.index') && strtoupper((string) request()->query('type')) === 'ROFO' ? 'active' : '' }}">
             <i data-lucide="check-circle" class="h-3.5 w-3.5 text-orange-400"></i>
             <span>Land Recommendation</span>
           </a>
 
           <!-- ii. RofO -->
-          <a href="{{ route('land-rofos.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('land-rofos.index') && request()->query('view') !== 'only' && ! in_array(request('url'), ['cadastral', 'survey'], true) ? 'active' : '' }}">
+          <a data-tab-card="land-rofo" href="{{ route('land-rofos.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('land-rofos.index') && request()->query('view') !== 'only' && ! in_array(request('url'), ['cadastral', 'survey'], true) ? 'active' : '' }}">
             <i data-lucide="file-check" class="h-3.5 w-3.5 text-orange-400"></i>
             <span>RofO</span>
           </a>
 
           <!-- iii. Re-grant Files -->
-          <a href="{{ route('regrant.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('regrant.index') && ! in_array(request('url'), ['cadastral', 'survey'], true) ? 'active' : '' }}">
+          <a data-tab-card="regrant" href="{{ route('regrant.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('regrant.index') && ! in_array(request('url'), ['cadastral', 'survey'], true) ? 'active' : '' }}">
             <i data-lucide="file-text" class="h-3.5 w-3.5 text-orange-400"></i>
             <span>Re-grant Files</span>
           </a>
@@ -445,11 +445,16 @@
             <span>Title Status Update</span>
           </a>
 
-          <!-- iv. Loss of Document -->
+          <!-- iv. Loss of Document: Land FC and OSS keep separate lists -->
           <a href="{{ route('loss-of-document.index') }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('loss-of-document.index') ? 'active' : '' }}">
             <i data-lucide="file-warning" class="h-3.5 w-3.5 text-orange-400"></i>
-            <span>Loss of Document</span>
+            <span>Loss of Document (Land FC)</span>
+          </a>
+          <a href="{{ route('oss-loss-of-document.index') }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('oss-loss-of-document.index') ? 'active' : '' }}">
+            <i data-lucide="file-warning" class="h-3.5 w-3.5 text-orange-400"></i>
+            <span>Loss of Document (OSS)</span>
           </a>
 
           <!-- v. Temporary File -->

@@ -79,6 +79,31 @@ class OpLookup
             ->take($limit)->values()->all();
     }
 
+    /**
+     * Every OP with exactly this serial, for a caller that must not offer near matches
+     * (Loss of Document). Leading zeros are ignored, so 12 finds 000012.
+     */
+    public function exactSerial(string $serial, int $limit = 50): array
+    {
+        $serial = preg_replace('/\s+/', '', $serial);
+        if ($serial === '') {
+            return [];
+        }
+        $bare = ltrim($serial, '0');
+        $spellings = array_values(array_unique(array_filter([$serial, $bare, str_pad($bare, 6, '0', STR_PAD_LEFT)], 'strlen')));
+        $marks = implode(',', array_fill(0, count($spellings), '?'));
+        $match = fn ($col) => "LTRIM(RTRIM(CAST({$col} AS NVARCHAR(50)))) IN ({$marks})";
+
+        $capture = $this->captureQuery()->whereRaw($match('ic.op_serial_number'), $spellings)
+            ->orderByDesc('ic.id')->limit($limit)->get();
+        $pra = $this->praQuery()->whereRaw($match('p.op_serial_number'), $spellings)
+            ->orderByDesc('p.id')->limit($limit)->get();
+
+        return $capture->map(fn ($r) => $this->fromCapture($r))
+            ->merge($pra->map(fn ($r) => $this->fromPra($r)))
+            ->take($limit)->values()->all();
+    }
+
     public function find(string $key): ?array
     {
         if (! preg_match('/^(capture|pra)-(\d+)$/', $key, $m)) {

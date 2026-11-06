@@ -87,7 +87,7 @@
                                 <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide cursor-pointer whitespace-nowrap" data-sort="indexed_by">Indexed By</th>
                                 <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide cursor-pointer whitespace-nowrap" data-sort="indexed_at">Indexed Date</th>
                                 <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide cursor-pointer whitespace-nowrap" data-sort="moved_by">Moved By</th>
-                                <th class="px-4 py-3 text-right font-semibold text-gray-700 text-xs uppercase tracking-wide whitespace-nowrap">Details</th>
+                                <th class="px-4 py-3 text-right font-semibold text-gray-700 text-xs uppercase tracking-wide whitespace-nowrap">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="dup-tbody" class="divide-y divide-slate-50"></tbody>
@@ -135,6 +135,11 @@
             listUrl: @json(route('indexing-duplicates.api.list')),
             statsUrl: @json(route('indexing-duplicates.api.stats')),
             showUrlTemplate: @json(route('indexing-duplicates.api.show', ['id' => '__ID__'])),
+            reversePreviewUrlTemplate: @json(route('indexing-duplicates.api.reverse-preview', ['id' => '__ID__'])),
+            reverseUrlTemplate: @json(route('indexing-duplicates.api.reverse', ['id' => '__ID__'])),
+            // Reverse Duplicate is Super Admin only, like the move; the controller re-checks.
+            canReverse: @json((bool) auth()->user()?->isSuperAdmin()),
+            csrfToken: @json(csrf_token()),
         };
     </script>
     <script src="{{ asset('js/indexing-duplicates/index.js') }}?v={{ filemtime(public_path('js/indexing-duplicates/index.js')) }}"></script>

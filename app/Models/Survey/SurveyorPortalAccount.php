@@ -41,6 +41,31 @@ class SurveyorPortalAccount extends Authenticatable
         return SurveyBeaconRegister::LAYOUT_TYPES[$this->surveyor_type] ?? (string) $this->surveyor_type;
     }
 
+    /** Who holds the account: a Private registration is the company's, with its surveyor under it (user, 2026-11-06). */
+    public function getHolderNameAttribute(): string
+    {
+        return $this->surveyor_type === 'Private' && $this->company_name ? $this->company_name : (string) $this->name;
+    }
+
+    /**
+     * The same company, on either of two accounts: the listed company, its name, or its RC number.
+     * Case, spaces and punctuation don't count, and "RC 123456" is "123456".
+     *
+     * @param array{company_id:?int, company_name:?string, company_rc_no:?string} $a
+     * @param array{company_id:?int, company_name:?string, company_rc_no:?string} $b
+     */
+    public static function sameCompanyAs(array $a, array $b): ?string
+    {
+        $key = fn (?string $v) => preg_replace('/[^A-Z0-9]/', '', mb_strtoupper((string) $v));
+        $rc = fn (?string $v) => preg_replace('/^RC/', '', $key($v));
+
+        if (! empty($a['company_id']) && (int) $a['company_id'] === (int) ($b['company_id'] ?? 0)) return 'company';
+        if ($key($a['company_name'] ?? '') !== '' && $key($a['company_name'] ?? '') === $key($b['company_name'] ?? '')) return 'company';
+        if ($rc($a['company_rc_no'] ?? '') !== '' && $rc($a['company_rc_no'] ?? '') === $rc($b['company_rc_no'] ?? '')) return 'rc';
+
+        return null;
+    }
+
     public function notes()
     {
         return $this->hasMany(SurveyorPortalNotification::class, 'surveyor_portal_account_id');

@@ -293,6 +293,12 @@ class FileIndexing extends Model
 
     protected static function booted()
     {
+        // A crossed-out file is gone to everything but the Indexed Files table, which
+        // lifts this scope to show it read-only (user, 2026-11-06).
+        static::addGlobalScope('not_deleted', function ($query) {
+            $query->where(fn ($q) => $q->whereNull('file_indexings.is_deleted')->orWhere('file_indexings.is_deleted', 0));
+        });
+
         static::saving(function (FileIndexing $model) {
             $model->digit_rank = SltrDigitRank::fromFileNumber($model->file_number);
         });

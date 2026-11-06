@@ -351,6 +351,19 @@ document.addEventListener('DOMContentLoaded', function () {
             submitBtn.innerHTML = submitBtnHtml;
         }
 
+        // First in line and for both forms: on a batch a server refusal costs the rows
+        // keyed so far. The server holds the same rule (APPLICATION_DATE_RULE).
+        form.addEventListener('submit', function (e) {
+            const dateInput = document.getElementById('application_date');
+            const value = dateInput ? dateInput.value.trim() : '';
+            const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+            if (value === '' || (/^\d{4}-\d{2}-\d{2}$/.test(value) && value >= '1900-01-01' && value <= today)) return;
+
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            Swal.fire({ icon: 'warning', title: 'Check the Application Date', text: 'That is not a real date. The year must be four digits and not in the future.' });
+        }, true);
+
         form.addEventListener('submit', function (e) {
             // A Plot Subdivision batch has no single file number, land use or
             // applicant — each child row carries its own, and the batch endpoint

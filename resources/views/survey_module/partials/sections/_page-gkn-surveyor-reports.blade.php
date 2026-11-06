@@ -9,8 +9,17 @@
 
 @include('survey_module.partials._flash')
 
+<style>
+    /* One table in three sections, tinted like the Batch Recommendation banks. */
+    .survey-proto th.rs-band { text-align: center; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+    .survey-proto th.rs-beacons { background: #fffbeb; color: #92400e; }
+    .survey-proto th.rs-coords { background: #f0f9ff; color: #075985; }
+    .survey-proto th.rs-obs { background: #f5f3ff; color: #5b21b6; }
+    .survey-proto th.rs-split, .survey-proto td.rs-split { border-left: 2px solid var(--gray-300, #d1d5db); }
+</style>
+
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.gkn.reports.export'), 'title' => 'Surveyors Report', 'dateLabel' => null])</div>
     <a href="{{ route('survey-module.gkn.reports.create') }}" class="btn btn-primary"><i class="fas fa-plus"></i> Create SR</a>
 </div>
 
@@ -29,6 +38,7 @@
             @foreach ([SR::DRAFT, SR::SUBMITTED] as $s)
                 <option value="{{ $s }}" @selected(request('status') === $s)>{{ $s }}</option>
             @endforeach
+            <option value="awaiting" @selected(request('status') === 'awaiting')>Awaiting report</option>
         </select>
         <select name="source" style="{{ $inputStyle }}">
             <option value="">All I to S</option>
@@ -47,6 +57,11 @@
         <table>
             <thead>
                 <tr>
+                    <th colspan="12" class="rs-band">Surveyors Report</th>
+                    @include('survey_module.partials.sections._report_sections', ['part' => 'bands', 'a' => null])
+                    <th></th>
+                </tr>
+                <tr>
                     <th>S/N</th>
                     <th>SR No.</th>
                     <th>I to S</th>
@@ -55,26 +70,31 @@
                     <th>Plot No.</th>
                     <th>District</th>
                     <th>LGA</th>
+                    <th>Location</th>
                     <th>Surveyor</th>
                     <th>Survey Dates</th>
                     <th>Status</th>
+                    @include('survey_module.partials.sections._report_sections', ['part' => 'heads', 'a' => null])
                     <th></th>
                 </tr>
             </thead>
             <tbody>
-                @forelse ($reports as $r)
+                @forelse ($rows as $x)
+                    @php $r = $x['report']; $a = $x['anchor']; @endphp
                     <tr>
-                        <td>{{ $reports->firstItem() + $loop->index }}</td>
-                        <td><strong style="font-family:monospace;">{{ $r->report_ref }}</strong></td>
-                        <td style="font-family:monospace;">{{ $r->its_number }}<div style="font-size:11px;color:var(--gray-500);font-family:inherit;">{{ $r->its_source === 'cadastral' ? 'Cadastral' : 'Survey' }}</div></td>
-                        <td style="font-family:monospace;">{{ $r->file_number }}</td>
-                        <td>{{ $r->grantee_name ?: '—' }}</td>
-                        <td>{{ $r->plot_no ?: '—' }}</td>
-                        <td>{{ $r->district ?: '—' }}</td>
-                        <td>{{ $r->lga ?: '—' }}</td>
-                        <td>{{ $r->surveyor_name ?: '—' }}</td>
-                        <td style="white-space:nowrap;">{{ optional($r->commenced_on)->format('d M Y') ?: '—' }} – {{ optional($r->completed_on)->format('d M Y') ?: '—' }}</td>
-                        <td>{!! $chip($r->status, $r->isSubmitted() ? 'green' : 'gray') !!}</td>
+                        <td>{{ $rows->firstItem() + $loop->index }}</td>
+                        <td><strong style="font-family:monospace;">{{ $r?->report_ref ?: '—' }}</strong></td>
+                        <td style="font-family:monospace;">{{ $x['its_number'] ?: '—' }}<div style="font-size:11px;color:var(--gray-500);font-family:inherit;">{{ $x['source'] === 'cadastral' ? 'Cadastral' : 'Survey' }}</div></td>
+                        <td style="font-family:monospace;">{{ $x['file_number'] ?: '—' }}</td>
+                        <td>{{ $x['grantee'] ?: '—' }}</td>
+                        <td>{{ $x['plot_no'] ?: '—' }}</td>
+                        <td>{{ $x['district'] ?: '—' }}</td>
+                        <td>{{ $x['lga'] ?: '—' }}</td>
+                        <td>{{ $x['location'] ?: '—' }}</td>
+                        <td>{{ $x['surveyor'] ?: '—' }}</td>
+                        <td style="white-space:nowrap;">@if ($r){{ optional($r->commenced_on)->format('d M Y') ?: '—' }} – {{ optional($r->completed_on)->format('d M Y') ?: '—' }}@else — @endif</td>
+                        <td>{!! $r ? $chip($r->status, $r->isSubmitted() ? 'green' : 'gray') : $chip('Awaiting report', 'yellow') !!}</td>
+                        @include('survey_module.partials.sections._report_sections', ['part' => 'cells', 'rec' => $x['rec'], 'a' => $a])
                         <td>
                             <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
                                 <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
@@ -85,24 +105,35 @@
                                 <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                      :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                                    <a href="{{ route('survey-module.gkn.reports.edit', $r) }}" class="{{ $svItem }}">
-                                        <i data-lucide="{{ $r->isSubmitted() ? 'eye' : 'pencil' }}" class="w-4 h-4 text-gray-500"></i> {{ $r->isSubmitted() ? 'View' : 'Edit / Submit' }}
-                                    </a>
-                                    <a href="{{ route('survey-module.gkn.reports.print', $r) }}" target="_blank" class="{{ $svItem }}">
-                                        <i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Print
-                                    </a>
+                                    @if ($r)
+                                        <a href="{{ route('survey-module.gkn.reports.edit', $r) }}" class="{{ $svItem }}">
+                                            <i data-lucide="{{ $r->isSubmitted() ? 'eye' : 'pencil' }}" class="w-4 h-4 text-gray-500"></i> {{ $r->isSubmitted() ? 'View' : 'Edit / Submit' }}
+                                        </a>
+                                        <a href="{{ route('survey-module.gkn.reports.print', $r) }}" target="_blank" class="{{ $svItem }}">
+                                            <i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Print
+                                        </a>
+                                    @elseif ($a)
+                                        <a href="{{ route('survey-module.gkn.reports.create', ['its' => $a['key']]) }}" class="{{ $svItem }}">
+                                            <i data-lucide="plus" class="w-4 h-4 text-gray-500"></i> Create SR
+                                        </a>
+                                    @endif
+                                    @if ($a)
+                                        <a href="{{ route('survey-module.gkn.beacons.show', $a['key']) }}" class="{{ $svItem }}"><i data-lucide="locate-fixed" class="w-4 h-4 text-gray-500"></i> Beacon Nos</a>
+                                        <a href="{{ route('survey-module.gkn.coordinates.show', $a['key']) }}" class="{{ $svItem }}"><i data-lucide="map-pin" class="w-4 h-4 text-gray-500"></i> List of Coordinates</a>
+                                        <a href="{{ route('survey-module.gkn.observations.show', $a['key']) }}" class="{{ $svItem }}"><i data-lucide="calculator" class="w-4 h-4 text-gray-500"></i> Field Observations</a>
+                                    @endif
                                 </div>
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="12" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="23" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-file-alt" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             @if (request()->hasAny($filters))
                                 No reports match these filters.
                             @else
-                                No Surveyors Reports yet. <a href="{{ route('survey-module.gkn.reports.create') }}">Create one</a> against an issued I to S.
+                                No Instruction to Survey has been issued yet. Each one appears here when it is issued.
                             @endif
                         </td>
                     </tr>
@@ -111,7 +142,7 @@
         </table>
     </div>
     <div class="table-footer">
-        <span>Showing {{ $reports->firstItem() ?? 0 }}–{{ $reports->lastItem() ?? 0 }} of {{ number_format($reports->total()) }} reports</span>
-        <div class="pagination">{{ $reports->links() }}</div>
+        <span>Showing {{ $rows->firstItem() ?? 0 }}–{{ $rows->lastItem() ?? 0 }} of {{ number_format($rows->total()) }}</span>
+        <div class="pagination">{{ $rows->links() }}</div>
     </div>
 </div>

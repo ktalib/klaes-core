@@ -15,7 +15,7 @@
     @if (! empty($anchor['back']))
         <a class="btn btn-secondary btn-sm" href="{{ $anchor['back']['url'] }}"><i class="fas fa-arrow-left"></i> {{ $anchor['back']['label'] }}</a>
     @else
-        <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.gkn.coordinates.index') }}"><i class="fas fa-arrow-left"></i> All instructions</a>
+        <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.gkn.coordinates.index') }}"><i class="fas fa-arrow-left"></i> Surveyors Report</a>
     @endif
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <a class="btn btn-outline btn-sm" href="{{ route($rp . '.beacons.show', $key) }}"><i class="fas fa-map-marker-alt"></i> Beacon Nos</a>

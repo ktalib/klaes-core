@@ -9,7 +9,8 @@
             'Status' => null, 'Date' => optional($request->created_at)->format('d/m/Y'), 'Type' => $request->type_label,
             'Company' => $request->company_name, "Surveyor's Name" => $request->surveyor_name, 'Name of Survey' => $request->job_name,
             'Number of Beacons' => $request->quantity, 'Plot No.' => $request->plot_no, 'District' => $request->district,
-            'LGA' => $request->lga ? mb_strtoupper($request->lga) : null, 'Location' => $request->location, 'Remarks' => $request->remarks,
+            'LGA' => $request->lga ? mb_strtoupper($request->lga) : null, 'Location' => $request->location,
+            'Map Pin' => $request->latitude !== null ? round($request->latitude, 6) . ', ' . round($request->longitude, 6) : null, 'Remarks' => $request->remarks,
         ];
     @endphp
     <div class="ks-card p-6 mb-4">

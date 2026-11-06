@@ -47,7 +47,10 @@
       "Bash(/c/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/efd52261-73bb-4939-81f9-634f7224711b/scratchpad/cad_extra2.php\")",
       "Bash(/c/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/efd52261-73bb-4939-81f9-634f7224711b/scratchpad/cad_bills.php\")",
       "Bash(/c/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/c--xampp-htdocs-klas/efd52261-73bb-4939-81f9-634f7224711b/scratchpad/cad_clear.php\")",
-      "Bash(cat >> *)"
+      "Bash(cat >> *)",
+      "Bash(C:/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/1903c6bedd9a9eb1/6ba1af44-dc50-4d50-ae3f-2ea2a47e15f2/scratchpad/restore758_readonly.php\")",
+      "Bash(C:/xampp/php/php.exe \"C:/Users/ADMINI~1.KLA/AppData/Local/Temp/claude/1903c6bedd9a9eb1/6ba1af44-dc50-4d50-ae3f-2ea2a47e15f2/scratchpad/restore758.php\" apply)",
+      "PowerShell(& 'C:\\\\xampp\\\\php\\\\php.exe' 'C:\\\\Users\\\\ADMINI~1.KLA\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\1903c6bedd9a9eb1\\\\e840aff6-95fe-43bf-91fc-1956f93ca053\\\\scratchpad\\\\cad_q.php')"
     ],
     "additionalDirectories": [
       "C:\\win-acme\\Scripts",

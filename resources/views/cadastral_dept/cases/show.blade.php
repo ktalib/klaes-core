@@ -283,10 +283,18 @@
                         @if (isset($done[$key]))
                           <span class="text-xs text-gray-500">{{ optional($done[$key]->doer)->name }} · {{ $done[$key]->done_at->format('d M H:i') }}</span>
                         @endif
+                        @php $cdChartWhy = app(\App\Services\CadastralDept\ChartingCards::class)->blocker($case, $key); @endphp
+                        @if ($cdChartWhy)
+                          <span class="inline-flex items-center gap-1 px-3 py-1 rounded-md bg-gray-200 text-gray-500 text-xs font-semibold cursor-not-allowed" title="{{ $cdChartWhy }}">
+                            <i data-lucide="lock" class="w-3 h-3"></i> Fill in charting card
+                          </span>
+                          <span class="text-xs text-gray-500">{{ $cdChartWhy }}</span>
+                        @else
                         <a href="{{ route('cadastral-dept.cases.charting.create', $case->id) }}"
                            class="px-3 py-1 rounded-md {{ isset($done[$key]) ? 'border border-gray-300 text-gray-700' : 'bg-green-700 text-white' }} text-xs font-semibold">
                           {{ isset($done[$key]) ? 'Correct card' : 'Fill in charting card' }}
                         </a>
+                        @endif
                       </span>
                     @elseif (in_array($key, ['correspondence_detached', 'correspondence_attached'], true) && ! isset($done[$key]) && ! trim((string) $case->correspondence_fileno))
                       <span class="text-xs text-gray-500">Not needed: no correspondence file</span>

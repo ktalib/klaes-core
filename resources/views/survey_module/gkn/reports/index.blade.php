@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Surveyors Report';
-  $PageDescription = "The Survey Department's Surveyor's Report, raised against an issued Instruction to Survey.";
+  $PageDescription = "The Survey Department's Surveyor's Report for each issued Instruction to Survey, with its beacon numbers, coordinates and field observations.";
 @endphp
 
 @section('survey-content')

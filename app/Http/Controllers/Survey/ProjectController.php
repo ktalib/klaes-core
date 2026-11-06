@@ -25,26 +25,11 @@ use Illuminate\Validation\ValidationException;
  */
 class ProjectController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function index(Request $r)
     {
-        $q = SurveyProject::query()->with(['coFile', 'surveyors', 'creator:id,first_name,last_name', 'trees:id,survey_project_id,amount',
-                // Each project's lands, listed under its row (user, 2026-11-02).
-                'cases' => fn ($c) => $c->select(['id', 'case_ref', 'survey_project_id', 'survey_officer', 'portion_no', 'area_ha', 'num_plots',
-                    'prop_plot', 'prop_district', 'prop_district_other', 'prop_lga', 'prop_state', 'status'])
-                    ->withCount('beneficiaries')->orderBy('portion_no')->orderBy('id')])
-            ->withCount('cases');
-
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(function ($w) use ($term) {
-                $w->where('name', 'like', "%$term%")
-                  ->orWhere('project_code', 'like', "%$term%")
-                  ->orWhere('plan_no', 'like', "%$term%");
-            });
-        }
-        if ($s = $r->query('scheme')) $q->where('scheme_type', $s);
-        if ($st = $r->query('status')) $q->where('status', $st);
-        if ($co = $r->query('co_file')) $q->where('survey_co_file_id', $co);
-        $q->origin($r->query('origin'));
+        $q = $this->projectQuery($r);
 
         $projects = $q->orderByDesc('id')->paginate(15)->withQueryString();
 
@@ -530,5 +515,47 @@ class ProjectController extends Controller
         }
 
         return $out;
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function projectQuery(Request $r)
+    {
+        $q = SurveyProject::query()->with(['coFile', 'surveyors', 'creator:id,first_name,last_name', 'trees:id,survey_project_id,amount',
+                // Each project's lands, listed under its row (user, 2026-11-02).
+                'cases' => fn ($c) => $c->select(['id', 'case_ref', 'survey_project_id', 'survey_officer', 'portion_no', 'area_ha', 'num_plots',
+                    'prop_plot', 'prop_district', 'prop_district_other', 'prop_lga', 'prop_state', 'status'])
+                    ->withCount('beneficiaries')->orderBy('portion_no')->orderBy('id')])
+            ->withCount('cases');
+
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(function ($w) use ($term) {
+                $w->where('name', 'like', "%$term%")
+                  ->orWhere('project_code', 'like', "%$term%")
+                  ->orWhere('plan_no', 'like', "%$term%");
+            });
+        }
+        if ($s = $r->query('scheme')) $q->where('scheme_type', $s);
+        if ($st = $r->query('status')) $q->where('status', $st);
+        if ($co = $r->query('co_file')) $q->where('survey_co_file_id', $co);
+        $q->origin($r->query('origin'));
+
+        return $q;
+    }
+
+    public function export(Request $r)
+    {
+        return $this->exportRecords($r, fn () => $this->projectQuery($r)->orderByDesc('id'), [
+            'project_code' => 'Project ID', 'co_file' => 'CO File', 'name' => 'Project Name', 'plan_no' => 'TP No.', 'location' => 'Location',
+            'acquisition' => 'Acquisition (Ha)', 'surveyors' => 'Surveyors', 'portions' => 'Portions', 'lands' => 'Lands', 'scheme' => 'Scheme Type',
+            'tree_cash' => 'Tree Cash (₦)', 'purpose' => 'Purpose', 'status' => 'Status', 'created_by' => 'Created By', 'created_at' => 'Date Created',
+        ], fn ($p) => [
+            'project_code' => $p->project_code, 'co_file' => $p->coFile?->co_file_no, 'name' => $p->display_name, 'plan_no' => $p->plan_no,
+            'location' => $p->property_location, 'acquisition' => $p->acquisition_size_ha,
+            'surveyors' => $p->surveyors->map(fn ($a) => $a->surveyor_name . ' (' . $a->portions . ')')->implode(', '),
+            'portions' => $p->surveyors->sum('portions') ?: null, 'lands' => $p->cases_count,
+            'scheme' => $p->isMonetary() ? 'Monetary Compensation' : 'Land to Land',
+            'tree_cash' => $p->isMonetary() && $p->trees->isNotEmpty() ? $p->trees->sum('amount') : null, 'purpose' => $p->purpose, 'status' => $p->status,
+            'created_by' => $this->exportUser($p->creator), 'created_at' => $this->exportDate($p->created_at),
+        ]);
     }
 }

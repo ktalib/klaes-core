@@ -6,10 +6,12 @@ use App\Services\IndexingDuplicateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
- * Read-only view over indexing_duplicates — indexed files that were found to be
- * duplicates and removed from the live tables by "Move to Indexing Duplicates".
+ * View over indexing_duplicates — indexed files that were found to be duplicates and
+ * removed from the live tables by "Move to Indexing Duplicates" — and Reverse Duplicate,
+ * which puts one back.
  *
  * The records here no longer exist anywhere else, so this page is the only way to
  * see them. Each row's `snapshot` holds the full JSON of every deleted row, which
@@ -286,6 +288,8 @@ class IndexingDuplicateController extends Controller
                 'moved_by' => $row->moved_by,
                 'moved_at' => $this->formatDate($row->moved_at),
                 'mls_file_no_retained' => (bool) $row->mls_file_no_retained,
+                'restored_at' => $this->formatDate($row->restored_at),
+                'restored_by' => $row->restored_by,
                 'matched_numbers' => $snapshot['matched_numbers'] ?? [],
                 'deleted_counts' => $deletedCounts,
             ],
@@ -298,6 +302,83 @@ class IndexingDuplicateController extends Controller
             'retained_references' => $snapshot['retained_references'] ?? [],
             'transaction_references' => $snapshot['transaction_references'] ?? [],
         ]);
+    }
+
+    /** What Reverse Duplicate would put back, or why it can't. Super Admin, like the move. */
+    public function reversePreview($id, IndexingDuplicateService $service): JsonResponse
+    {
+        if ($refused = $this->refuseUnlessSuperAdmin()) {
+            return $refused;
+        }
+
+        $preview = $service->previewReverse((int) $id);
+
+        return $this->reverseRefusal($preview) ?? response()->json(['success' => true] + $preview);
+    }
+
+    /** Reverse Duplicate: the record and everything moved with it go back to the live tables. */
+    public function reverse(Request $request, $id, IndexingDuplicateService $service): JsonResponse
+    {
+        if ($refused = $this->refuseUnlessSuperAdmin()) {
+            return $refused;
+        }
+
+        $data = $request->validate(['reason' => 'required|string|min:5|max:500'], [
+            'reason.required' => 'Enter the reason for reversing this duplicate.',
+            'reason.min' => 'Enter the reason for reversing this duplicate (at least 5 characters).',
+        ]);
+
+        try {
+            $result = $service->reverse((int) $id, trim($data['reason']));
+        } catch (\Throwable $e) {
+            Log::error('Failed to reverse indexing duplicate', ['id' => (int) $id, 'error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'The reversal failed and was rolled back: ' . $e->getMessage(),
+            ], 500);
+        }
+
+        return $this->reverseRefusal($result) ?? response()->json([
+            'success' => true,
+            'message' => $result['file_number'] . ' is back in the live tables.',
+        ] + $result);
+    }
+
+    private function refuseUnlessSuperAdmin(): ?JsonResponse
+    {
+        return auth()->user()?->isSuperAdmin()
+            ? null
+            : response()->json(['success' => false, 'message' => 'Only a Super Admin can reverse a duplicate.'], 403);
+    }
+
+    /** The JSON answer for a status that stops the reversal, or null when it can go on. */
+    private function reverseRefusal(array $result): ?JsonResponse
+    {
+        switch ($result['status']) {
+            case 'not_found':
+                return response()->json(['success' => false, 'message' => 'Record not found.'], 404);
+            case 'already_reversed':
+                return response()->json([
+                    'success' => false,
+                    'message' => sprintf('%s was already reversed by %s.', $result['file_number'], $result['restored_by'] ?: 'another user'),
+                ], 409);
+            case 'unreadable':
+                return response()->json([
+                    'success' => false,
+                    'message' => $result['file_number'] . ' cannot be reversed: its stored snapshot cannot be read.',
+                ], 422);
+            case 'blocked':
+                return response()->json([
+                    'success' => false,
+                    'blocked' => true,
+                    'file_number' => $result['file_number'],
+                    'held_by' => $result['held_by'],
+                    'message' => $result['file_number'] . ' cannot be reversed: a live indexed file holds this number.',
+                ], 409);
+        }
+
+        return null;
     }
 
     /**

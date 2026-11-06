@@ -544,13 +544,13 @@ class IndexingDuplicateService
         $conn = DB::connection('sqlsrv');
 
         $row = $conn->table('file_indexings')->where('id', $fileIndexingId)->first();
-        if (!$row) {
+        if (!$row || !empty($row->is_deleted)) {
             // Already moved by someone else in a parallel session? Report that
             // instead of a bare "not found" so the operator understands. Only the
             // move flow can say this — a purge leaves no archive row to find, so for
             // it a missing record is simply gone.
             $archived = $archive
-                ? $conn->table('indexing_duplicates')->where('file_indexing_id', $fileIndexingId)->first()
+                ? $conn->table('indexing_duplicates')->where('file_indexing_id', $fileIndexingId)->whereNull('restored_at')->first()
                 : null;
 
             if ($archived) {
@@ -744,10 +744,15 @@ class IndexingDuplicateService
 
             $fileNumberIds = array_values(array_filter(array_map(fn ($r) => $r->id ?? null, $fileNumberRows)));
             if (!empty($fileNumberIds)) {
-                $counts['fileNumber'] = $conn->table('fileNumber')->whereIn('id', $fileNumberIds)->delete();
+                $counts['fileNumber'] = $archive
+                    ? $conn->table('fileNumber')->whereIn('id', $fileNumberIds)->delete()
+                    : app(\App\Services\FileNumber\CrossedOutFiles::class)->crossOutFileNumberRows($fileNumberIds);
             }
 
-            $counts['file_indexings'] = $conn->table('file_indexings')->where('id', $fileIndexingId)->delete();
+            // A move archives the row; a Master Delete leaves it crossed out on its table.
+            $counts['file_indexings'] = $archive
+                ? $conn->table('file_indexings')->where('id', $fileIndexingId)->delete()
+                : app(\App\Services\FileNumber\CrossedOutFiles::class)->crossOutIndexings([$fileIndexingId]);
 
             if ($archive) {
                 $conn->table('indexing_duplicates')
@@ -1020,6 +1025,366 @@ class IndexingDuplicateService
         } catch (\Throwable $e) {
             // Audit must never block the move.
             Log::warning('IndexingDuplicateService: audit write failed', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Reverse Duplicate: what putting a moved file back would restore, without changing
+     * anything. Refused ('blocked') while a live record holds the number, as most moved
+     * files were indexed again afterwards and restoring would make a real duplicate.
+     *
+     * @return array{status:string, ...} status is 'ok', 'blocked', 'not_found', 'already_reversed' or 'unreadable'
+     */
+    public function previewReverse(int $archiveId): array
+    {
+        $archive = DB::connection('sqlsrv')->table('indexing_duplicates')->where('id', $archiveId)->first();
+        if (!$archive) {
+            return ['status' => 'not_found'];
+        }
+        if (!empty($archive->restored_at)) {
+            return [
+                'status' => 'already_reversed',
+                'file_number' => $archive->file_number,
+                'restored_by' => $archive->restored_by,
+                'restored_at' => $archive->restored_at,
+            ];
+        }
+
+        $snapshot = $this->decodeSnapshot($archive);
+        if ($snapshot === null) {
+            return ['status' => 'unreadable', 'file_number' => $archive->file_number];
+        }
+
+        $holders = $this->liveHolders($snapshot);
+
+        return [
+            'status' => empty($holders) ? 'ok' : 'blocked',
+            'file_number' => $archive->file_number,
+            'file_title' => $archive->file_title,
+            'temp_file_no' => $archive->temp_file_no,
+            'held_by' => $holders,
+            'summary' => $this->summariseCounts($this->snapshotCounts($snapshot)),
+            'relink' => array_map('count', (array) ($snapshot['detached_rows'] ?? [])),
+        ];
+    }
+
+    /**
+     * Reverse Duplicate: puts everything a move took back into the live tables with its
+     * original ids, in one transaction, and relinks blind scans / SPAS applications and
+     * the KANGIS land files. The archive row stays, flagged restored_at / restored_by,
+     * so the move and its reversal both stay on record. mls_file_no was never touched and
+     * files on disk were never moved, so neither needs anything here.
+     *
+     * @return array{status:string, ...} status is 'reversed', or a previewReverse() status
+     */
+    public function reverse(int $archiveId, string $reason): array
+    {
+        $preview = $this->previewReverse($archiveId);
+        if ($preview['status'] !== 'ok') {
+            return $preview;
+        }
+
+        $conn = DB::connection('sqlsrv');
+        $archive = $conn->table('indexing_duplicates')->where('id', $archiveId)->first();
+        $snapshot = $this->decodeSnapshot($archive);
+        $actor = $this->resolveActorName();
+        $restored = [];
+        $skipped = [];
+        $relinked = [];
+
+        $done = $conn->transaction(function () use ($conn, $archiveId, $snapshot, $actor, &$restored, &$skipped, &$relinked) {
+            // Two people reversing at once, or the number taken since the preview.
+            $lock = $conn->table('indexing_duplicates')->where('id', $archiveId)->lockForUpdate()->first(['id', 'restored_at']);
+            if (!$lock || !empty($lock->restored_at) || !empty($this->liveHolders($snapshot))) {
+                return false;
+            }
+
+            $this->restoreRows($conn, 'file_indexings', [$snapshot['file_indexing']], $restored, $skipped);
+            $this->restoreFileNumberRows($conn, (array) ($snapshot['fileNumber'] ?? []), $restored, $skipped);
+            $this->restoreRows($conn, 'customers_staging', (array) ($snapshot['customers_staging'] ?? []), $restored, $skipped);
+            $this->restoreRows($conn, 'entities_staging', (array) ($snapshot['entities_staging'] ?? []), $restored, $skipped);
+
+            foreach ((array) ($snapshot['file_number_rows'] ?? []) as $table => $rows) {
+                $this->restoreRows($conn, (string) $table, (array) $rows, $restored, $skipped);
+            }
+
+            // Parents before children, the reverse of the order the move deleted them in.
+            $childRows = (array) ($snapshot['child_rows'] ?? []);
+            $this->restoreScans($conn, (array) ($childRows['scannings'] ?? []), $restored, $skipped);
+            $reassignLogs = (array) ($childRows['scan_reassignment_logs'] ?? []);
+            unset($childRows['scannings'], $childRows['scan_reassignment_logs']);
+            foreach ($childRows as $table => $rows) {
+                $this->restoreRows($conn, (string) $table, (array) $rows, $restored, $skipped);
+            }
+            $this->restoreReassignLogs($conn, $reassignLogs, $restored, $skipped);
+
+            // Only where the row is still unlinked: it may have been linked elsewhere since.
+            $fileIndexingId = (string) $snapshot['file_indexing']['id'];
+            foreach ((array) ($snapshot['detached_rows'] ?? []) as $table => $rows) {
+                if (!Schema::connection('sqlsrv')->hasTable((string) $table)) {
+                    continue;
+                }
+                $ids = array_values(array_filter(array_column((array) $rows, 'id')));
+                foreach (array_chunk($ids, 1000) as $chunk) {
+                    $relinked[$table] = ($relinked[$table] ?? 0) + $conn->table((string) $table)
+                        ->whereIn('id', $chunk)->whereNull('file_indexing_id')
+                        ->update(['file_indexing_id' => $fileIndexingId]);
+                }
+            }
+
+            $conn->table('indexing_duplicates')->where('id', $archiveId)->update([
+                'restored_at' => now(),
+                'restored_by' => $this->clip($actor, 150),
+            ]);
+
+            return true;
+        });
+
+        if (!$done) {
+            return $this->previewReverse($archiveId);
+        }
+
+        $this->reattachKangis($snapshot['file_indexing']);
+
+        Log::warning('Indexed file reversed out of indexing_duplicates', [
+            'indexing_duplicate_id' => $archiveId,
+            'file_number' => $archive->file_number,
+            'restored' => $restored,
+            'skipped' => $skipped,
+            'relinked' => $relinked,
+            'reversed_by' => $actor,
+        ]);
+
+        try {
+            app(AuditService::class)->logAction(
+                'RESTORED',
+                'indexing_duplicate',
+                $archiveId,
+                ['temp_file_no' => $archive->temp_file_no, 'moved_at' => $archive->moved_at, 'moved_by' => $archive->moved_by],
+                ['file_number' => $archive->file_number, 'restored' => $restored, 'skipped' => $skipped, 'relinked' => $relinked, 'reason' => $reason],
+                sprintf('Reversed indexing duplicate %s back to the live tables', $archive->file_number)
+            );
+        } catch (\Throwable $e) {
+            // Audit must never undo a reversal that has committed.
+            Log::warning('IndexingDuplicateService: reverse audit write failed', ['error' => $e->getMessage()]);
+        }
+
+        return [
+            'status' => 'reversed',
+            'file_number' => $archive->file_number,
+            'file_indexing_id' => (int) $snapshot['file_indexing']['id'],
+            'restored' => $restored,
+            'skipped' => $skipped,
+            'relinked' => $relinked,
+        ];
+    }
+
+    private function decodeSnapshot(object $archive): ?array
+    {
+        $snapshot = json_decode((string) $archive->snapshot, true);
+
+        return is_array($snapshot) && !empty($snapshot['file_indexing']['id']) ? $snapshot : null;
+    }
+
+    /**
+     * Live indexed files now holding this record's id or any of its numbers. The move
+     * freed the number, so the same file indexed again shows up here.
+     *
+     * @return array<int,array{id:int,file_number:?string,file_title:?string}>
+     */
+    private function liveHolders(array $snapshot): array
+    {
+        $row = (object) $snapshot['file_indexing'];
+        $numbers = array_values(array_unique(array_merge(
+            array_values($this->collectFileNumbers($row)),
+            array_values(array_filter(array_map(fn ($n) => trim((string) $n), (array) ($snapshot['matched_numbers'] ?? []))))
+        )));
+        $temp = trim((string) ($row->temp_file_no ?? ''));
+
+        return DB::connection('sqlsrv')->table('file_indexings')
+            ->where(function ($q) use ($row, $numbers, $temp) {
+                $q->where('id', (int) $row->id);
+                if (!empty($numbers)) {
+                    foreach (['file_number', 'kangis_file_no', 'new_kangis_file_no', 'mls_file_no'] as $column) {
+                        $q->orWhereIn($column, $numbers);
+                    }
+                }
+                if ($temp !== '' && $temp !== '-') {
+                    $q->orWhere('temp_file_no', $temp);
+                }
+            })
+            ->orderBy('id')->limit(10)
+            ->get(['id', 'file_number', 'file_title'])
+            ->map(fn ($r) => ['id' => (int) $r->id, 'file_number' => $r->file_number, 'file_title' => $r->file_title])
+            ->all();
+    }
+
+    /** The snapshot's rows, counted in the deleted_counts shape summariseCounts() reads. */
+    private function snapshotCounts(array $snapshot): array
+    {
+        $bucket = fn (string $key) => array_map(fn ($rows) => count((array) $rows), (array) ($snapshot[$key] ?? []));
+
+        return [
+            'file_indexings' => 1,
+            'fileNumber' => count((array) ($snapshot['fileNumber'] ?? [])),
+            'customers_staging' => count((array) ($snapshot['customers_staging'] ?? [])),
+            'entities_staging' => count((array) ($snapshot['entities_staging'] ?? [])),
+            'child_rows' => $bucket('child_rows'),
+            'file_number_rows' => $bucket('file_number_rows'),
+        ];
+    }
+
+    /** Scans, then their parent links: a parent can be a later row, or another file's scan that has gone. */
+    private function restoreScans($conn, array $rows, array &$restored, array &$skipped): void
+    {
+        $parents = [];
+        foreach ($rows as $i => $row) {
+            if (!empty($row['parent_scan_id'])) {
+                $parents[(int) $row['id']] = (int) $row['parent_scan_id'];
+                $rows[$i]['parent_scan_id'] = null;
+            }
+        }
+
+        $this->restoreRows($conn, 'scannings', $rows, $restored, $skipped);
+
+        foreach ($parents as $id => $parentId) {
+            if ($conn->table('scannings')->where('id', $parentId)->exists()) {
+                $conn->table('scannings')->where('id', $id)->update(['parent_scan_id' => $parentId]);
+            }
+        }
+    }
+
+    /** Registry rows; one whose number is on a live row again stays out, so it is not doubled. */
+    private function restoreFileNumberRows($conn, array $rows, array &$restored, array &$skipped): void
+    {
+        $keep = [];
+        foreach ($rows as $row) {
+            $numbers = array_values(array_filter(array_map(
+                fn ($column) => trim((string) ($row[$column] ?? '')),
+                self::FILE_NUMBER_COLUMNS
+            )));
+            if (!empty($numbers) && !empty($this->findFileNumberRows($numbers, null))) {
+                $skipped['fileNumber'] = ($skipped['fileNumber'] ?? 0) + 1;
+                continue;
+            }
+            $keep[] = $row;
+        }
+
+        $this->restoreRows($conn, 'fileNumber', $keep, $restored, $skipped);
+    }
+
+    /** Log rows have foreign keys to files and scans that may be gone; those are left out. */
+    private function restoreReassignLogs($conn, array $rows, array &$restored, array &$skipped): void
+    {
+        $keep = [];
+        foreach ($rows as $row) {
+            $linked = true;
+            foreach (['from_file_indexing_id' => 'file_indexings', 'to_file_indexing_id' => 'file_indexings', 'scanning_id' => 'scannings'] as $column => $table) {
+                if (!empty($row[$column]) && !$conn->table($table)->where('id', (int) $row[$column])->exists()) {
+                    $linked = false;
+                }
+            }
+            if ($linked) {
+                $keep[] = $row;
+            } else {
+                $skipped['scan_reassignment_logs'] = ($skipped['scan_reassignment_logs'] ?? 0) + 1;
+            }
+        }
+
+        $this->restoreRows($conn, 'scan_reassignment_logs', $keep, $restored, $skipped);
+    }
+
+    /**
+     * Rows back under their original ids. Columns the table no longer has, computed
+     * columns and the moved_temp_file_no stamp are dropped; a row whose id is already
+     * taken is skipped and counted. A table that is gone is counted as skipped too.
+     */
+    private function restoreRows($conn, string $table, array $rows, array &$restored, array &$skipped): void
+    {
+        if (empty($rows)) {
+            return;
+        }
+
+        $columns = $this->insertableColumns($conn, $table);
+        if (empty($columns)) {
+            $skipped[$table] = ($skipped[$table] ?? 0) + count($rows);
+            return;
+        }
+
+        $taken = [];
+        foreach (array_chunk(array_values(array_filter(array_column($rows, 'id'))), 1000) as $chunk) {
+            foreach ($conn->table($table)->whereIn('id', $chunk)->pluck('id') as $id) {
+                $taken[(int) $id] = true;
+            }
+        }
+
+        $hasIdentity = in_array(true, $columns, true);
+        $quoted = '[' . str_replace(']', ']]', $table) . ']';
+        if ($hasIdentity) {
+            $conn->unprepared("SET IDENTITY_INSERT {$quoted} ON");
+        }
+
+        try {
+            foreach ($rows as $row) {
+                if (isset($taken[(int) ($row['id'] ?? 0)])) {
+                    $skipped[$table] = ($skipped[$table] ?? 0) + 1;
+                    continue;
+                }
+                $conn->table($table)->insert(array_intersect_key((array) $row, $columns));
+                $restored[$table] = ($restored[$table] ?? 0) + 1;
+            }
+        } finally {
+            if ($hasIdentity) {
+                try {
+                    $conn->unprepared("SET IDENTITY_INSERT {$quoted} OFF");
+                } catch (\Throwable $e) {
+                    // The insert's own failure is the one worth reporting.
+                    Log::warning('IndexingDuplicateService: IDENTITY_INSERT OFF failed', ['table' => $table, 'error' => $e->getMessage()]);
+                }
+            }
+        }
+    }
+
+    /** @return array<string,bool> column => is identity, computed and rowversion columns left out */
+    private function insertableColumns($conn, string $table): array
+    {
+        $out = [];
+        $rows = $conn->select(
+            "select c.name, c.is_identity from sys.columns c join sys.types t on t.user_type_id = c.user_type_id
+             where c.object_id = object_id(?) and c.is_computed = 0 and t.name not in ('timestamp', 'rowversion')",
+            [$table]
+        );
+        foreach ($rows as $row) {
+            $out[$row->name] = (bool) $row->is_identity;
+        }
+
+        return $out;
+    }
+
+    /** Undoes removeKangisFromLandFiles() for a KANGIS record back in the live table; a failure only logs. */
+    private function reattachKangis(array $row): void
+    {
+        $indexing = \App\Services\FileIndexing\KangisBlockIndexing::class;
+        if (!$indexing::isKangisRegistry($row['general_registry'] ?? null)) {
+            return;
+        }
+
+        try {
+            $service = app($indexing);
+            $id = (int) $row['id'];
+            $landFiles = $indexing::landFilesFrom($row['related_fileno'] ?? null);
+            foreach ($landFiles as $landFile) {
+                $service->addKangisToLandRelated($landFile, $id);
+                $service->rebuildLandFile($landFile);
+            }
+            if (!empty($landFiles)) {
+                app(RelatedFileNumberRegistrar::class)->attachKangis((string) ($row['file_number'] ?? ''), $id, $landFiles);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('IndexingDuplicateService: KANGIS land file re-link failed', [
+                'file_indexing_id' => $row['id'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

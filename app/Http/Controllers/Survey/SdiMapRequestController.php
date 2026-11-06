@@ -25,23 +25,13 @@ use Illuminate\Validation\ValidationException;
  */
 class SdiMapRequestController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public const REQUESTER_OTHER = '__other__';
 
     public function index(Request $r)
     {
-        $q = SdiMapRequest::with(['mda', 'mapType']);
-
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(function ($w) use ($term) {
-                foreach (['request_ref', 'map_name', 'map_reference', 'contact_name', 'contact_phone', 'requester_other'] as $col) {
-                    $w->orWhere($col, 'like', "%$term%");
-                }
-                $w->orWhereHas('mda', fn ($m) => $m->where('name', 'like', "%$term%")->orWhere('abbreviation', 'like', "%$term%"));
-            });
-        }
-        if ($st = $r->query('status')) $q->where('status', $st);
-        if ($m = $r->query('mda'))     $q->where('mda_id', $m);
-        if ($t = $r->query('type'))    $q->where('map_type_id', $t);
+        $q = $this->requestQuery($r);
 
         $counts = SdiMapRequest::selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status');
 
@@ -260,5 +250,37 @@ class SdiMapRequestController extends Controller
         $data['output_formats'] = array_values(array_unique($data['output_formats']));
 
         return $data + $bounds;
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function requestQuery(Request $r)
+    {
+        $q = SdiMapRequest::with(['mda', 'mapType']);
+
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(function ($w) use ($term) {
+                foreach (['request_ref', 'map_name', 'map_reference', 'contact_name', 'contact_phone', 'requester_other'] as $col) {
+                    $w->orWhere($col, 'like', "%$term%");
+                }
+                $w->orWhereHas('mda', fn ($m) => $m->where('name', 'like', "%$term%")->orWhere('abbreviation', 'like', "%$term%"));
+            });
+        }
+        if ($st = $r->query('status')) $q->where('status', $st);
+        if ($m = $r->query('mda'))     $q->where('mda_id', $m);
+        if ($t = $r->query('type'))    $q->where('map_type_id', $t);
+
+        return $q;
+    }
+
+    public function export(Request $r)
+    {
+        return $this->exportRecords($r, fn () => $this->requestQuery($r)->orderByDesc('id'), [
+            'ref' => 'Request No', 'received' => 'Date Received', 'mda' => 'Requesting MDA', 'contact' => 'Contact', 'phone' => 'Contact Phone', 'map' => 'Map', 'map_type' => 'Map Type',
+            'reference' => 'Map Reference', 'formats' => 'Formats', 'priority' => 'Priority', 'due' => 'Due', 'status' => 'Status', 'officer' => 'Officer',
+        ], fn ($m) => [
+            'ref' => $m->request_ref, 'received' => $this->exportDate($m->received_date), 'mda' => $m->requesterName(), 'contact' => $m->contact_name, 'phone' => $m->contact_phone,
+            'map' => $m->map_name, 'map_type' => $m->mapType?->name, 'reference' => $m->map_reference, 'formats' => $m->formatsLabel(), 'priority' => $m->priorityLabel(),
+            'due' => $this->exportDate($m->due_date), 'status' => $m->statusLabel(), 'officer' => $m->production_officer,
+        ], 'received_date');
     }
 }

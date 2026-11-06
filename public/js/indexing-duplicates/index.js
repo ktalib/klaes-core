@@ -1,5 +1,6 @@
 /**
- * Indexing Duplicates — read-only list over the indexing_duplicates table.
+ * Indexing Duplicates — list over the indexing_duplicates table, with Snapshot and
+ * Reverse Duplicate in each row's action menu.
  *
  * The records shown here have been deleted from file_indexings, fileNumber,
  * customers_staging and entities_staging, so the details modal renders the stored
@@ -93,6 +94,8 @@ function renderRows(rows) {
         </td>
         <td class="px-4 py-3 whitespace-nowrap">
           <span class="font-semibold text-slate-800">${escapeHtml(row.file_number)}</span>
+          ${row.restored_at ? `<span style="margin-left:6px;display:inline-block;padding:1px 6px;border-radius:9999px;background:#dcfce7;color:#166534;font-size:10px;font-weight:700;"
+                title="Reversed by ${escapeHtml(row.restored_by || 'Unknown')} on ${escapeHtml(row.restored_at)}">Reversed</span>` : ''}
         </td>
         <td class="px-4 py-3 whitespace-nowrap font-mono text-xs text-slate-700">${dash(row.temp_file_no)}</td>
         <td class="px-4 py-3 text-slate-700 max-w-[18rem] truncate" title="${escapeHtml(row.file_title || '')}">${dash(row.file_title)}</td>
@@ -102,10 +105,10 @@ function renderRows(rows) {
         <td class="${cell} text-xs">${dash(row.indexed_at)}</td>
         <td class="${cell} text-xs">${dash(row.moved_by)}</td>
         <td class="px-4 py-3 text-right">
-          <button type="button" class="dup-details-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:text-blue-600 hover:border-blue-200 transition-all"
-                  data-id="${escapeHtml(row.id)}">
-            <i data-lucide="file-search" class="h-3.5 w-3.5"></i>
-            Snapshot
+          <button type="button" class="dup-actions-btn inline-flex items-center justify-center p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-all"
+                  aria-label="Actions" aria-haspopup="menu" aria-expanded="false"
+                  data-id="${escapeHtml(row.id)}" data-reversed="${row.restored_at ? '1' : '0'}">
+            <i data-lucide="more-vertical" class="h-4 w-4"></i>
           </button>
         </td>
       </tr>
@@ -148,7 +151,221 @@ function updatePagination(meta) {
   dom.next.disabled = meta.page >= state.lastPage;
 }
 
+/*
+ * Row action menu. One panel on <body>, positioned with `fixed`: the table scrolls inside
+ * overflow-x-auto, which would clip a panel kept in the row. Redraws close it.
+ */
+const rowMenu = (() => {
+  const panel = document.createElement('div');
+  panel.setAttribute('role', 'menu');
+  panel.style.cssText = 'display:none;position:fixed;z-index:60;width:13rem;padding:4px 0;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 10px 25px rgba(15,23,42,.15);';
+  document.body.appendChild(panel);
+
+  let openFor = null;
+
+  const close = () => {
+    if (openFor) {
+      openFor.setAttribute('aria-expanded', 'false');
+    }
+    openFor = null;
+    panel.style.display = 'none';
+  };
+
+  const item = (action, icon, label, colour) => `
+    <button type="button" role="menuitem" data-action="${action}"
+            class="flex items-center gap-2 w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors" style="color:${colour};">
+      <i data-lucide="${icon}" class="h-4 w-4"></i>
+      ${label}
+    </button>`;
+
+  const open = (button) => {
+    if (openFor === button) {
+      close();
+      return;
+    }
+    close();
+
+    const id = button.getAttribute('data-id');
+    const reversed = button.getAttribute('data-reversed') === '1';
+    panel.dataset.id = id;
+    panel.innerHTML = item('snapshot', 'file-search', 'Snapshot', '#334155')
+      + (config.canReverse && !reversed ? item('reverse', 'rotate-ccw', 'Reverse Duplicate', '#be123c') : '');
+    refreshIcons();
+
+    panel.style.display = 'block';
+    openFor = button;
+    button.setAttribute('aria-expanded', 'true');
+    place();
+  };
+
+  // A fixed panel does not follow its button, so it is moved while the page or the table
+  // scrolls under it, and closed once the button has gone out of view.
+  const place = () => {
+    if (!openFor) {
+      return;
+    }
+    const anchor = openFor.getBoundingClientRect();
+    if (anchor.bottom < 0 || anchor.top > window.innerHeight) {
+      close();
+      return;
+    }
+
+    const { width, height } = panel.getBoundingClientRect();
+    const margin = 8;
+    let top = anchor.bottom + 4;
+    if (top + height > window.innerHeight - margin) {
+      top = Math.max(margin, anchor.top - height - 4);
+    }
+    panel.style.left = `${Math.max(margin, Math.min(anchor.right - width, window.innerWidth - width - margin))}px`;
+    panel.style.top = `${top}px`;
+  };
+
+  panel.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-action]');
+    if (!button) {
+      return;
+    }
+    const id = panel.dataset.id;
+    close();
+    if (button.dataset.action === 'snapshot') {
+      openDetails(id);
+    } else {
+      reverseDuplicate(id);
+    }
+  });
+
+  // composedPath, not target.closest(): opening the menu redraws the Lucide icons, which
+  // swaps out the very icon that was clicked, so the target is no longer inside its button.
+  document.addEventListener('click', (event) => {
+    const onMenu = event.composedPath().some((el) => el === panel || (el.classList && el.classList.contains('dup-actions-btn')));
+    if (!onMenu) {
+      close();
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      close();
+    }
+  });
+  window.addEventListener('resize', close);
+  window.addEventListener('scroll', place, true);
+
+  return { open, close };
+})();
+
+async function readJson(response) {
+  try {
+    return await response.json();
+  } catch (error) {
+    return {};
+  }
+}
+
+function showReverseRefusal(payload) {
+  if (!payload.blocked) {
+    window.Swal.fire({ icon: 'error', title: 'Cannot reverse', text: payload.message || 'The reversal could not be done.' });
+    return;
+  }
+
+  const holders = (payload.held_by || []).map((h) => `
+      <li><strong>${escapeHtml(h.file_number || '(no file number)')}</strong> — ${escapeHtml(h.file_title || 'no title')} (Indexing ID ${escapeHtml(h.id)})</li>`).join('');
+
+  window.Swal.fire({
+    icon: 'warning',
+    title: 'Number is in use',
+    width: 560,
+    html: `<div class="text-left text-sm text-slate-600">
+        <p>${escapeHtml(payload.file_number)} was indexed again after the move, so reversing it now would create a real duplicate.</p>
+        <ul class="list-disc pl-5 my-3">${holders}</ul>
+        <p>If this archived record is the correct one, move the live record above to Indexing Duplicates first, then reverse this one.</p>
+      </div>`,
+  });
+}
+
+async function reverseDuplicate(id) {
+  if (!window.Swal) {
+    return;
+  }
+
+  const headers = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
+  let preview;
+  try {
+    const response = await fetch(config.reversePreviewUrlTemplate.replace('__ID__', encodeURIComponent(id)), { headers });
+    preview = await readJson(response);
+    if (!response.ok || !preview.success) {
+      showReverseRefusal(preview);
+      return;
+    }
+  } catch (error) {
+    window.Swal.fire({ icon: 'error', title: 'Cannot reverse', text: error.message });
+    return;
+  }
+
+  const groups = (preview.summary || []).map((g) => `
+      <li>${escapeHtml(g.group)}: <strong>${Number(g.total).toLocaleString()}</strong></li>`).join('');
+  const relink = Object.values(preview.relink || {}).reduce((sum, n) => sum + Number(n || 0), 0);
+
+  const { value: reason } = await window.Swal.fire({
+    icon: 'warning',
+    title: 'Reverse this duplicate?',
+    width: 560,
+    html: `<div class="text-left text-sm text-slate-600">
+        <p><strong>${escapeHtml(preview.file_number)}</strong>${preview.file_title ? ` (${escapeHtml(preview.file_title)})` : ''} goes back to the live tables with its original IDs.</p>
+        <ul class="list-disc pl-5 my-3">${groups}</ul>
+        ${relink ? `<p class="mb-3">${relink} unlinked blind scan / SPAS record(s) are linked back, unless they have been linked elsewhere since.</p>` : ''}
+        <label class="block font-semibold text-slate-700 mb-1" for="dup-reverse-reason">Reason <span style="color:#dc2626;">*</span></label>
+        <textarea id="dup-reverse-reason" class="swal2-textarea" style="margin:0;width:100%;" rows="3" maxlength="500" placeholder="Why is this duplicate being reversed?"></textarea>
+      </div>`,
+    showCancelButton: true,
+    confirmButtonText: 'Reverse Duplicate',
+    confirmButtonColor: '#e11d48',
+    focusCancel: true,
+    allowOutsideClick: false,
+    preConfirm: () => {
+      const value = document.getElementById('dup-reverse-reason').value.trim();
+      if (value.length < 5) {
+        window.Swal.showValidationMessage('Enter a reason (at least 5 characters).');
+        return false;
+      }
+      return value;
+    },
+  });
+
+  if (!reason) {
+    return;
+  }
+
+  window.Swal.fire({ title: 'Reversing…', allowOutsideClick: false, didOpen: () => window.Swal.showLoading() });
+
+  try {
+    const response = await fetch(config.reverseUrlTemplate.replace('__ID__', encodeURIComponent(id)), {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json', 'X-CSRF-TOKEN': config.csrfToken },
+      body: JSON.stringify({ reason }),
+    });
+    const result = await readJson(response);
+    if (!response.ok || !result.success) {
+      showReverseRefusal(result);
+      return;
+    }
+
+    const skipped = Object.entries(result.skipped || {});
+    await window.Swal.fire({
+      icon: 'success',
+      title: 'Reversed',
+      html: `<p class="text-sm text-slate-600">${escapeHtml(result.message)}</p>
+        ${skipped.length ? `<p class="text-xs text-slate-500 mt-2">Left out because the row already exists or its link has gone: ${escapeHtml(skipped.map(([t, n]) => `${t} (${n})`).join(', '))}</p>` : ''}`,
+    });
+    loadTable();
+    loadStats();
+  } catch (error) {
+    window.Swal.fire({ icon: 'error', title: 'Reversal failed', text: error.message });
+  }
+}
+
 async function loadTable() {
+  rowMenu.close();
+
   if (!config.listUrl) {
     dom.tbody.innerHTML = `<tr><td colspan="${COLUMN_COUNT}" class="p-6 text-center text-sm text-red-500">List endpoint is not configured.</td></tr>`;
     return;
@@ -293,6 +510,15 @@ async function openDetails(id) {
         </div>
       </div>`;
 
+    const reversedNote = r.restored_at
+      ? `<div style="background:#dcfce7;border:1px solid #86efac;border-radius:12px;padding:12px;">
+          <p class="text-xs" style="color:#166534;">
+            <strong>Reversed.</strong> ${escapeHtml(r.restored_by || 'Unknown')} put this file back in the live tables on
+            ${escapeHtml(r.restored_at)}. This snapshot is what the file held when it was moved.
+          </p>
+        </div>`
+      : '';
+
     const mlsNote = r.mls_file_no_retained
       ? `<div class="rounded-xl border border-amber-200 bg-amber-50 p-3">
           <p class="text-xs text-amber-800">
@@ -350,7 +576,7 @@ async function openDetails(id) {
       .map(([label, rows]) => renderSnapshotTable(label, rows))
       .join('');
 
-    dom.modalBody.innerHTML = summaryCard + meta + mlsNote + retainedNote + childNote + tables;
+    dom.modalBody.innerHTML = reversedNote + summaryCard + meta + mlsNote + retainedNote + childNote + tables;
     refreshIcons();
   } catch (error) {
     console.error('Failed to load snapshot:', error);
@@ -409,9 +635,9 @@ function attachEventListeners() {
   });
 
   dom.tbody.addEventListener('click', (event) => {
-    const button = event.target.closest('.dup-details-btn');
+    const button = event.target.closest('.dup-actions-btn');
     if (button) {
-      openDetails(button.getAttribute('data-id'));
+      rowMenu.open(button);
     }
   });
 

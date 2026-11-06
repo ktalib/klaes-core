@@ -13,6 +13,8 @@
 @section('survey-content')
 @include('survey_module.partials._flash')
 
+<div class="page-header"><div></div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.records.layout-records.export'), 'title' => 'Layout Records', 'dates' => false])</div>
+
 <div class="kpi-grid">
     <div class="kpi-card"><div class="kpi-label">Layouts</div><div class="kpi-value">{{ number_format($totals['layouts']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Allocation list lines</div><div class="kpi-value">{{ number_format($totals['lines']) }}</div></div>

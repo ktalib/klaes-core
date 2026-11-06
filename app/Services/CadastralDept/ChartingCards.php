@@ -79,6 +79,16 @@ class ChartingCards
         return null;
     }
 
+    /** Why this charting task cannot be done yet, or null: 1st charting waits for the FMC (user, 2026-11-05). */
+    public function blocker(CadastralCase $case, string $task): ?string
+    {
+        if ($task === 'chart_first' && !in_array('fmc_commissioned', $case->doneTaskKeys(), true)) {
+            return 'Commission the File Movement Card (FMC) first.';
+        }
+
+        return null;
+    }
+
     /** The current card for a stage (and, when given, the step it was made at). */
     public function current(CadastralCase $case, string $stage, ?string $step = null): ?CadastralCharting
     {
@@ -134,6 +144,9 @@ class ChartingCards
         $due = $this->due($case);
         if (!$due) {
             throw WorkflowGuardException::because("{$case->case_ref} is not at a charting step.");
+        }
+        if ($why = $this->blocker($case, $due['task'])) {
+            throw WorkflowGuardException::because($why);
         }
         $values = $this->validated($due['stage'], $in);
         $beacons = $this->beacons($in['beacons'] ?? []);

@@ -15,6 +15,8 @@
     <div class="kpi-card"><div class="kpi-label">Field readings</div><div class="kpi-value">{{ number_format($totals['obs']) }}</div></div>
 </div>
 
+<div class="page-header"><div></div>@include('survey_module.partials._records_export', ['endpoint' => route($page === 'coordinates' ? 'survey-module.gkn.coordinates.export' : 'survey-module.gkn.observations.export'), 'title' => $page === 'coordinates' ? 'List of Coordinates' : 'Computation Field Observations', 'dates' => false])</div>
+
 <form method="GET" class="table-toolbar">
     <div class="left" style="flex-wrap:wrap;">
         <input type="text" name="q" value="{{ request('q') }}" placeholder="Search I to S, file, surveyor, grantee…" style="{{ $inputStyle }}width:280px;" />

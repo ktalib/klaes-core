@@ -27,6 +27,8 @@ use Illuminate\Validation\ValidationException;
  */
 class TreeController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public const CATEGORIES = SurveyTreeType::TYPES;
     public const STATUSES   = ['Active', 'Inactive'];
     // Farm Assessment tabs (CR 30102026 item 6): Cash Crops = Type Cash Crop, Economic Trees = every other Type.
@@ -38,22 +40,7 @@ class TreeController extends Controller
     public function index(Request $r)
     {
         $tab = array_key_exists($r->query('tab'), self::TABS) ? $r->query('tab') : 'economic';
-        $inTab = fn ($q) => $tab === 'cash'
-            ? $q->where('category', self::CASH_CROP)
-            : $q->where(fn ($w) => $w->whereNull('category')->orWhere('category', '!=', self::CASH_CROP));
-
-        $filter = function ($q) use ($r, $inTab) {
-            $inTab($q);
-            if ($term = trim((string) $r->query('q', ''))) {
-                $q->where(fn ($w) => $w->where('name', 'like', "%$term%")
-                    ->orWhere('local_name', 'like', "%$term%")
-                    ->orWhere('botanical_name', 'like', "%$term%"));
-            }
-            if ($cat = $r->query('category')) $q->where('category', $cat);
-            if (in_array($r->query('maturity'), SurveyTreeType::MATURITIES, true)) $q->where('maturity', $r->query('maturity'));
-            if ($st = $r->query('status'))    $q->where('status', $st);
-            if ($r->query('rate') === 'unset') $q->whereNull('default_unit_price');
-        };
+        [$inTab, $filter] = $this->treeFilters($r, $tab);
 
         // One table row per tree, folding its Category rows (user, 2026-10-30): pages count trees.
         $treeNames = SurveyTreeType::query()->tap($filter)->select('name')->groupBy('name')->orderBy('name')
@@ -283,5 +270,55 @@ class TreeController extends Controller
         }
 
         return $data;
+    }
+
+    /** The open tab and the list's filters, shared with Export Records. */
+    private function treeFilters(Request $r, string $tab): array
+    {
+        $inTab = fn ($q) => $tab === 'cash'
+            ? $q->where('category', self::CASH_CROP)
+            : $q->where(fn ($w) => $w->whereNull('category')->orWhere('category', '!=', self::CASH_CROP));
+
+        $filter = function ($q) use ($r, $inTab) {
+            $inTab($q);
+            if ($term = trim((string) $r->query('q', ''))) {
+                $q->where(fn ($w) => $w->where('name', 'like', "%$term%")
+                    ->orWhere('local_name', 'like', "%$term%")
+                    ->orWhere('botanical_name', 'like', "%$term%"));
+            }
+            if ($cat = $r->query('category')) $q->where('category', $cat);
+            if (in_array($r->query('maturity'), SurveyTreeType::MATURITIES, true)) $q->where('maturity', $r->query('maturity'));
+            if ($st = $r->query('status'))    $q->where('status', $st);
+            if ($r->query('rate') === 'unset') $q->whereNull('default_unit_price');
+        };
+
+
+        return [$inTab, $filter];
+    }
+
+    /** One row per tree and maturity: the rows the page folds under each tree. */
+    public function export(Request $r)
+    {
+        $tab = array_key_exists($r->query('tab'), self::TABS) ? $r->query('tab') : 'economic';
+        $unit = $tab === 'cash' ? 'm²' : 'stand';
+
+        return $this->exportRecords($r, fn () => SurveyTreeType::query()
+            ->select('survey_tree_types.*')
+            ->withCount('caseTrees as lines_count')
+            ->withSum('caseTrees as total_valued', 'line_total')
+            ->addSelect(['cases_using' => SurveyCaseTree::query()
+                ->selectRaw('COUNT(DISTINCT survey_comp_case_id)')
+                ->whereColumn('survey_case_trees.survey_tree_type_id', 'survey_tree_types.id'),
+            ])
+            ->tap($this->treeFilters($r, $tab)[1])
+            ->orderBy('name')->orderByRaw(self::MATURITY_ORDER)->orderBy('id'), [
+                'name' => $tab === 'cash' ? 'Cash Crop' : 'Economic Tree', 'local_name' => 'Hausa Name', 'botanical_name' => 'Botanical Name', 'type' => 'Type',
+                'maturity' => 'Category', 'rate' => "Rate per {$unit} (₦)", 'per_ha' => 'Rate per ha (₦)', 'cost_per_ha' => 'Cost of Production / ha (₦)',
+                'cases' => 'Cases Using', 'lines' => 'Lines', 'valued' => 'Total Valued (₦)', 'status' => 'Status',
+            ], fn ($t) => [
+                'name' => $t->name, 'local_name' => $t->local_name, 'botanical_name' => $t->botanical_name, 'type' => $t->category, 'maturity' => $t->maturity,
+                'rate' => $t->default_unit_price, 'per_ha' => $t->price_per_ha, 'cost_per_ha' => $t->cost_per_ha, 'cases' => (int) $t->cases_using,
+                'lines' => (int) $t->lines_count, 'valued' => (float) $t->total_valued, 'status' => $t->status,
+            ]);
     }
 }

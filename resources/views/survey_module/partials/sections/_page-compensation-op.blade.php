@@ -1,7 +1,7 @@
 @include('survey_module.partials._flash')
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.compensation.op.export'), 'title' => 'New OPs', 'statuses' => \App\Http\Controllers\Survey\OpController::STATUSES])</div>
     {{-- The button lives in the header, the checkboxes in the table below;
          the HTML5 form attribute keeps them in the same submission. --}}
     <button class="btn btn-success" type="submit" form="opGenerateForm"

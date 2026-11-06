@@ -12,8 +12,8 @@
     .sv-dt .strong { font-weight: 500; color: var(--gray-900); }
     .sv-dt .wide { min-width: 190px; }
     .sv-dt .mid { min-width: 150px; }
-    .sv-dt .tp { display: inline-block; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px;
-                 background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 4px; padding: 2px 6px; white-space: nowrap; color: var(--gray-700); }
+    .sv-dt .tp { display: inline-block; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 14px; font-weight: 700;
+                 background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 4px; padding: 2px 6px; white-space: nowrap; color: var(--gray-900); }
     .sv-dt .chips { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
     .sv-dt .chip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 12px; color: var(--gray-700);
                    background: var(--gray-100); border-radius: 999px; padding: 2px 3px 2px 9px; }

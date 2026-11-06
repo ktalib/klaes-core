@@ -31,17 +31,23 @@ use Illuminate\Validation\ValidationException;
  */
 class ChangeReportController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function index(Request $r)
     {
-        $q = CR::query()->with('registerFile');
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(fn ($w) => $w->where('report_ref', 'like', "%$term%")->orWhere('file_number', 'like', "%$term%")
-                ->orWhere('plan_no', 'like', "%$term%")->orWhere('surveyor_name', 'like', "%$term%"));
-        }
-        if (in_array($s = $r->query('status'), [CR::DRAFT, CR::ISSUED], true)) $q->where('status', $s);
+        $reports = $this->reportQuery($r)->orderByDesc('id')->paginate(20)->withQueryString();
+        // The three sections of the table (recording, 2026-11-06), as on the GKN report.
+        $anchors = app(SurveyItsAnchors::class);
+        $sections = app(\App\Services\Survey\ReportRecords::class);
+        $rowRecords = $reports->getCollection()->mapWithKeys(function ($x) use ($anchors, $sections) {
+            $a = $anchors->resolve('private-' . $x->id);
+
+            return [$x->id => ['anchor' => $a, 'rec' => $a ? $sections->summary($a) : null]];
+        });
 
         return view('survey_module.workflow.change_reports.index', [
-            'reports' => $q->orderByDesc('id')->paginate(20)->withQueryString(),
+            'reports' => $reports,
+            'rowRecords' => $rowRecords,
             'stats'   => ['total' => CR::count(), 'draft' => CR::where('status', CR::DRAFT)->count(), 'issued' => CR::where('status', CR::ISSUED)->count()],
             // Examination lines cleared with "Changes required" and no report yet.
             'waiting' => SurveyRegisterFile::where('finding', 'changes_required')
@@ -205,5 +211,29 @@ class ChangeReportController extends Controller
         }
 
         return $data;
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function reportQuery(Request $r)
+    {
+        $q = CR::query()->with('registerFile');
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(fn ($w) => $w->where('report_ref', 'like', "%$term%")->orWhere('file_number', 'like', "%$term%")
+                ->orWhere('plan_no', 'like', "%$term%")->orWhere('surveyor_name', 'like', "%$term%"));
+        }
+        if (in_array($s = $r->query('status'), [CR::DRAFT, CR::ISSUED], true)) $q->where('status', $s);
+
+        return $q;
+    }
+
+    public function export(Request $r)
+    {
+        return $this->exportRecords($r, fn () => $this->reportQuery($r)->orderByDesc('id'), [
+            'ref' => 'Report No', 'register_ref' => 'Register File', 'file_number' => 'File No.', 'plan_no' => 'Plan No.', 'surveyor' => 'Surveyor', 'plot_no' => 'Plot No.',
+            'district' => 'District', 'lga' => 'LGA', 'date' => 'Date', 'status' => 'Status',
+        ], fn ($x) => [
+            'ref' => $x->report_ref, 'register_ref' => $x->registerFile?->register_ref, 'file_number' => $x->file_number, 'plan_no' => $x->plan_no, 'surveyor' => $x->surveyor_name,
+            'plot_no' => $x->plot_no, 'district' => $x->district, 'lga' => $x->lga, 'date' => $this->exportDate($x->report_date), 'status' => $x->status,
+        ], 'report_date');
     }
 }

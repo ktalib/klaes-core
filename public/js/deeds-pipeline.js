@@ -74,11 +74,32 @@
         return 'pending';
     }
 
+    /**
+     * A row about one dealing carries its own registration in
+     * data-pipeline-registration (empty when it has none), because a file can be
+     * registered several times: a CofO or an earlier deed on the file must not
+     * show this dealing as registered. Without the attribute R stays per file.
+     */
+    function forRow(el, stages) {
+        var own = el.dataset.pipelineRegistration;
+        if (own === undefined) {
+            return stages;
+        }
+
+        var row = {};
+        Object.keys(stages).forEach(function (key) { row[key] = stages[key]; });
+        row.registration = own.trim() !== ''
+            ? { done: true, message: 'Registered: ' + own.trim() }
+            : { done: false, message: 'This dealing has not been registered' };
+        return row;
+    }
+
     function paint(el, stages) {
         if (!stages) {
             el.textContent = '';
             return;
         }
+        stages = forRow(el, stages);
 
         var wrap = document.createElement('span');
         wrap.style.cssText = 'display:inline-flex;align-items:center;gap:3px';

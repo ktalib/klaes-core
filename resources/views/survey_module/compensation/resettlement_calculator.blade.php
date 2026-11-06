@@ -164,6 +164,7 @@
 <div class="rc-card" style="margin-top:18px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
         <h3 style="margin:0;">Saved Calculations</h3>
+        @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.compensation.resettlement-calculator.export'), 'title' => 'Saved Resettlement Calculations', 'class' => 'btn btn-secondary btn-sm'])
         <form method="GET" style="display:flex;gap:6px;">
             <input type="text" name="q" value="{{ request('q') }}" placeholder="Ref or land…" style="{{ $field }}width:200px;" />
             <button class="btn btn-secondary btn-sm" type="submit"><i class="fas fa-search"></i></button>

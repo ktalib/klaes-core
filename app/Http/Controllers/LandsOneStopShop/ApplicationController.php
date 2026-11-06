@@ -11,6 +11,7 @@ use App\Models\Billing;
 use App\Models\LandRecommendation;
 use App\Models\LandsOneStopShopApplication;
 use App\Models\StreetName;
+use App\Services\ApplicantContactResolver;
 use App\Services\Pra\PraRecordService;
 use App\Services\Pra\RofoPraSyncer;
 use App\Support\OssRecommendationLocation;
@@ -742,6 +743,22 @@ class ApplicationController extends Controller
                 'land_use' => $rawLandUse,
             ]);
         });
+
+        // Applicant phone and address: what FC / FEFR saved, where the application has
+        // none. Looked up once for the whole page rather than per row.
+        $contacts = app(ApplicantContactResolver::class)->forFiles($records->getCollection()->pluck('file_no'));
+        foreach ($records->getCollection() as $record) {
+            $contact = $contacts[ApplicantContactResolver::key($record->file_no)] ?? null;
+            if (!$contact) {
+                continue;
+            }
+            $record->phone = trim((string) $record->phone) !== '' ? $record->phone : $contact['phone'];
+            foreach (['address', 'residential_address', 'correspondence_address'] as $field) {
+                if (trim((string) $record->{$field}) === '') {
+                    $record->{$field} = $contact['address'];
+                }
+            }
+        }
 
         if ($request->query('format') === 'json') {
             $columns = [
@@ -1708,6 +1725,13 @@ class ApplicationController extends Controller
             ->orderByDesc('id')
             ->first();
 
+        // The modal carries no phone field, so the phone reaches the RofO from here. It
+        // fills blanks only: a phone already on the recommendation stays.
+        $contact = app(ApplicantContactResolver::class)->forApplication($fileRef);
+        $applicantPhone = trim((string) ($existing->applicant_phone ?? '')) !== ''
+            ? $existing->applicant_phone
+            : NigerianPhone::normalize($contact['phone']);
+
         // No serial is minted here, or anywhere else in OSS.
         //
         // land_rofo_serial_no holds the SECURITY PAPER CODE: a real sheet drawn
@@ -1741,7 +1765,9 @@ class ApplicationController extends Controller
             'recommendation' => (string) ($validated['director_reasons'] ?? ''),
             'land_use' => (string) ($validated['purpose'] ?? ''),
             'application_date' => $validated['application_date'] ?? null,
-            'applicant_address' => $validated['applicant_address'] ?? null,
+            'applicant_address' => collect([$validated['applicant_address'] ?? null, $existing->applicant_address ?? null, $contact['address']])
+                ->first(fn ($value) => trim((string) $value) !== ''),
+            'applicant_phone' => $applicantPhone,
             'updated_by' => Auth::id(),
         ];
 
@@ -4149,6 +4175,12 @@ class ApplicationController extends Controller
             'party_1_phone',
             'party_2_phone',
         ]) ?? trim((string) ($indexingRow->idx_phone ?? '')));
+        // The application form fills blanks from what FC / FEFR saved.
+        $contact = app(ApplicantContactResolver::class)->forFiles([$fileNumber])[ApplicantContactResolver::key($fileNumber)]
+            ?? ['phone' => null, 'address' => null];
+        if (trim($phone) === '') {
+            $phone = (string) ($contact['phone'] ?? '');
+        }
         $purpose = strtoupper((string) ($this->firstFilledValue($row, ['purpose', 'transaction_type', 'instrument_type']) ?? ''));
         $tpNo = strtoupper((string) ($this->firstFilledValue($row, ['tp_no', 'tpNo']) ?? ($idx($indexingRow, 'idx_tp_no') ?: $fnr($fileNumberRow, 'tp_no'))));
 
@@ -4171,6 +4203,7 @@ class ApplicationController extends Controller
                 'registration_number' => $registrationNo,
                 'op_serial_number' => $opSerialNo,
                 'phone' => $phone,
+                'address' => (string) ($contact['address'] ?? ''),
                 'purpose' => $purpose,
                 'customer_type' => strtoupper(trim((string) (($indexingRow->applicant_customer_type ?? '') ?: ($mlsRow->mls_customer_type ?? '')))),
                 'has_transfer_of_title' => $hasTransferOfTitle,

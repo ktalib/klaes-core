@@ -17,6 +17,8 @@
     <div class="kpi-card"><div class="kpi-label">Beacons recorded</div><div class="kpi-value">{{ number_format($totals['beacons']) }}</div></div>
 </div>
 
+<div class="page-header"><div></div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.gkn.beacons.export'), 'title' => 'Beacon Nos', 'dates' => false])</div>
+
 <form method="GET" class="table-toolbar">
     <div class="left" style="flex-wrap:wrap;">
         <input type="text" name="q" value="{{ request('q') }}" placeholder="Search I to S, file, surveyor…" style="{{ $inputStyle }}width:280px;" />

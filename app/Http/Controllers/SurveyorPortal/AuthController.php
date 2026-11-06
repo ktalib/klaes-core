@@ -78,6 +78,7 @@ class AuthController extends Controller
             'surveyor_type'  => ['required', Rule::in(['Government', 'Private'])],
             'company_choice' => 'nullable|string|max:30',
             'company_other'  => 'nullable|string|max:255',
+            'company_rc_no'  => 'nullable|string|max:50',
             'name'           => 'required|string|max:255',
             'phone'          => 'required|string|max:30',
             'email'          => 'required|email|max:150',
@@ -109,6 +110,7 @@ class AuthController extends Controller
         }
 
         [$companyId, $companyName] = $this->company($data);
+        $companyRc = $this->companyRc($data);
 
         // Kept on the private disk, never under public/: only the SG's page streams it.
         $file = $r->file('passport');
@@ -122,6 +124,7 @@ class AuthController extends Controller
                 'surveyor_type' => $data['surveyor_type'],
                 'company_id'    => $companyId,
                 'company_name'  => $companyName,
+                'company_rc_no' => $companyRc,
                 'name'          => preg_replace('/\s+/', ' ', trim($data['name'])),
                 'phone'         => $phone,
                 'email'         => $email,
@@ -144,6 +147,19 @@ class AuthController extends Controller
     }
 
     /** A Private surveyor names a company: a listed one, or a typed one the SG adds when issuing. */
+    /** Required of a company (user, 2026-11-06), in capitals, otherwise as written. */
+    private function companyRc(array $data): ?string
+    {
+        if ($data['surveyor_type'] !== 'Private') return null;
+
+        $rc = mb_strtoupper(preg_replace('/\s+/', ' ', trim((string) ($data['company_rc_no'] ?? ''))));
+        if (! preg_match('/\d/', $rc)) {
+            throw ValidationException::withMessages(['company_rc_no' => "Enter the company's RC number, e.g. RC 123456."]);
+        }
+
+        return $rc;
+    }
+
     private function company(array $data): array
     {
         if ($data['surveyor_type'] !== 'Private') return [null, null];

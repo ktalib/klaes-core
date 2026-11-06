@@ -108,7 +108,7 @@
             --}}
             {{-- Plot Showing Register opens the Plot Confirmation register: OP showings (1st, 2nd... with reasons) and
                  ground checks, with Record Plot Showing (user, 2026-11-02; was the lands list ?view=showing earlier that day). --}}
-            <a href="{{ route('survey-module.compensation.plot-confirmations') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.plot-confirmations') ? 'active' : '' }}">
+            <a data-tab-card="survey-plot-showing-resettlement" href="{{ route('survey-module.compensation.plot-confirmations') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.plot-confirmations') ? 'active' : '' }}">
               <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Plot Showing Register - Resettlement</span>
             </a>
@@ -134,7 +134,7 @@
               <i data-lucide="users" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Farmers</span>
             </a>
-            <a href="{{ route('survey-module.compensation.trees') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.trees') ? 'active' : '' }}">
+            <a data-tab-card="survey-trees" href="{{ route('survey-module.compensation.trees') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.trees') ? 'active' : '' }}">
               <i data-lucide="tree-pine" class="h-3.5 w-3.5 text-pink-400"></i>
               {{-- The tree / cash crop rates page: Farm Assessment renamed Farm Features (user, 2026-11-03). --}}
               <span>Farm Features</span>
@@ -167,7 +167,7 @@
             {{-- The Land to Land lands page (survey-module.compensation.land) is hidden from the menu (user, 2026-10-30).
                  The page still works by its link. OP and Letter of Grant sit directly here; the inner Plot Showing
                  Register group was removed (user, 2026-11-03). --}}
-            <a href="{{ route('survey-module.compensation.op') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.op', 'survey-module.compensation.op.*') ? 'active' : '' }}">
+            <a data-tab-card="survey-op" href="{{ route('survey-module.compensation.op') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.op', 'survey-module.compensation.op.*') ? 'active' : '' }}">
               <i data-lucide="file-signature" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>OP</span>
             </a>
@@ -180,17 +180,17 @@
               <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-comp-lg"></i>
             </div>
             <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-comp-lg">
-              <a href="{{ route('survey-module.lg.land-recommendations.index', ['type' => 'ROFO']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.lg.land-recommendations.*') ? 'active' : '' }}">
+              <a data-tab-card="survey-recommendation" href="{{ route('survey-module.lg.land-recommendations.index', ['type' => 'ROFO']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.lg.land-recommendations.*') ? 'active' : '' }}">
                 <i data-lucide="file-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Recommendation</span>
               </a>
-              <a href="{{ route('survey-module.lg.land-rofos.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.lg.land-rofos.*') ? 'active' : '' }}">
+              <a data-tab-card="survey-rofo" href="{{ route('survey-module.lg.land-rofos.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.lg.land-rofos.*') ? 'active' : '' }}">
                 <i data-lucide="file-badge" class="h-3.5 w-3.5 text-pink-400"></i><span>RofO</span>
               </a>
             </div>
           </div>
 
           {{-- b.v Complaints --}}
-          <a href="{{ route('survey-module.compensation.complaints') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.complaints*') ? 'active' : '' }}">
+          <a data-tab-card="survey-complaints" href="{{ route('survey-module.compensation.complaints') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.complaints*') ? 'active' : '' }}">
             <i data-lucide="message-square-warning" class="h-4 w-4 text-pink-400"></i>
             <span>Complaints</span>
           </a>
@@ -253,44 +253,24 @@
             <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-gkn-mgmt"></i>
           </div>
           <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-gkn-mgmt">
-          <a href="{{ route('survey-module.records.surveyors.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.surveyors.*') ? 'active' : '' }}">
+          <a data-tab-card="survey-surveyors" href="{{ route('survey-module.records.surveyors.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.surveyors.*') ? 'active' : '' }}">
             <i data-lucide="users" class="h-3.5 w-3.5 text-pink-400"></i><span>Surveyors</span>
           </a>
           {{-- Government = Survey's own (LPKN), Private = Cadastral's (LPPL) (CR 30102026 items 12-14). --}}
-          <a href="{{ route('survey-module.gkn.computation-files') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.computation-files') ? 'active' : '' }}">
+          <a data-tab-card="survey-computation-files" href="{{ route('survey-module.gkn.computation-files') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.computation-files') ? 'active' : '' }}">
             <i data-lucide="folder-archive" class="h-3.5 w-3.5 text-pink-400"></i><span>Computation Files (Field Jackets)</span>
           </a>
-          <a href="{{ route('survey-module.gkn.its.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.its.*') ? 'active' : '' }}">
+          <a data-tab-card="survey-its" href="{{ route('survey-module.gkn.its.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.its.*') ? 'active' : '' }}">
             <i data-lucide="clipboard-list" class="h-3.5 w-3.5 text-pink-400"></i><span>Instruction to Survey</span>
           </a>
-          {{-- v. Surveyors Report > 1 List of Coordinates, 2 Beacon Nos, 3 Computation Field Observations (spec outline,
-               user 2026-10-30). The name still opens the reports; the chevron folds the three records under it. --}}
-          @php $rptOn = request()->routeIs('survey-module.gkn.reports.*'); @endphp
-          {{-- The name no longer opens the reports list (user, 2026-10-30: "comment out the url for now, let it only
-               expand when clicked"). The link was:
-               <a href="{{ route('survey-module.gkn.reports.index') }}" class="sidebar-item ...">Surveyors Report</a>
-               On a reports page the heading is marked current so the menus around it open. --}}
-          <{{ $rptOn ? 'a role=button' : 'div' }} class="sidebar-submodule-header flex items-center justify-between py-2 px-3 cursor-pointer rounded-md {{ $rptOn ? 'active font-semibold' : '' }}" data-section="survey-gkn-reports">
-            <div class="flex items-center gap-2">
-              <i data-lucide="file-text" class="h-3.5 w-3.5 text-pink-400"></i><span>Surveyors Report</span>
-            </div>
-            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200 {{ $rptOn ? 'rotate-90' : '' }}" data-chevron="survey-gkn-reports"></i>
-          </{{ $rptOn ? 'a' : 'div' }}>
-          <div class="pl-6 mt-1 mb-1 space-y-0.5 {{ $rptOn ? '' : 'hidden' }}" data-content="survey-gkn-reports">
-            {{-- Beacon Nos before List of Coordinates (user, 2026-11-03). --}}
-            <a href="{{ route('survey-module.gkn.beacons.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 text-sm {{ request()->routeIs('survey-module.gkn.beacons.*') ? 'active' : '' }}">
-              <i data-lucide="locate-fixed" class="h-3.5 w-3.5 text-pink-400"></i><span>Beacon Nos</span>
-            </a>
-            <a href="{{ route('survey-module.gkn.coordinates.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 text-sm {{ request()->routeIs('survey-module.gkn.coordinates.*') ? 'active' : '' }}">
-              <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i><span>List of Coordinates</span>
-            </a>
-            <a href="{{ route('survey-module.gkn.observations.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 text-sm {{ request()->routeIs('survey-module.gkn.observations.*') ? 'active' : '' }}">
-              <i data-lucide="calculator" class="h-3.5 w-3.5 text-pink-400"></i><span>Computation Field Observations</span>
-            </a>
-          </div>
+          {{-- One page (recording, 2026-11-06): Beacon Nos, List of Coordinates and Computation Field Observations are
+               the three sections of its table, no longer items here. Their record pages keep this item current. --}}
+          <a href="{{ route('survey-module.gkn.reports.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.reports.*', 'survey-module.gkn.beacons.*', 'survey-module.gkn.coordinates.*', 'survey-module.gkn.observations.*') ? 'active' : '' }}">
+            <i data-lucide="file-text" class="h-3.5 w-3.5 text-pink-400"></i><span>Surveyors Report</span>
+          </a>
           </div>
           {{-- Resettlement + Direct Allocation, with the actions (CR 03112026 item 1). --}}
-          <a href="{{ route('survey-module.gkn.plot-showing') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.plot-showing') ? 'active' : '' }}">
+          <a data-tab-card="survey-plot-showing" href="{{ route('survey-module.gkn.plot-showing') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.plot-showing') ? 'active' : '' }}">
             <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Plot Showing Register</span>
           </a>
           {{-- CR 30102026 item 21 (2026-10-31): a first version of the form; Survey will give its fields. --}}
@@ -328,7 +308,7 @@
           {{-- SDI (ported from ALAES, 2026-10-29): Map Request feeds the Production Unit. Only Production Unit is on
                the sidebar now; Map Request is a button on its page and keeps it lit (user, 2026-11-03). --}}
           <div class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">SDI</div>
-          <a href="{{ route('survey-module.sdi.production') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.sdi.production*', 'survey-module.sdi.map-requests*', 'survey-module.sdi.registry*') ? 'active' : '' }}">
+          <a data-tab-card="survey-production-unit" href="{{ route('survey-module.sdi.production') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.sdi.production*', 'survey-module.sdi.map-requests*', 'survey-module.sdi.registry*') ? 'active' : '' }}">
             <i data-lucide="factory" class="h-3.5 w-3.5 text-pink-400"></i>
             <span>Production Unit</span>
           </a>
@@ -353,8 +333,8 @@
           <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-examination">
             {{-- Order and nesting as the spec outline (user, 2026-10-30): i Register File, ii Compensation Status
                  > Verification (Records), iii Boundary Dispute > Property / Public > LGA / Interstate, iv Old Surveys,
-                 v Control Points, vi Beacon Register, vii Coordinate Register, viii Surveyor's Report (Private) > its
-                 four records. Groups collapse and open by themselves on their current page. --}}
+                 v Control Points, vi Beacon Register, vii Coordinate Register, viii Surveyor's Report (Private).
+                 Groups collapse and open by themselves on their current page. --}}
             @php
               // A group whose own page is open with no sub-item for it (e.g. all disputes) is marked current:
               // the sidebar script opens the menus around it, and the group renders open.
@@ -368,11 +348,7 @@
               $bdOn = request()->routeIs('survey-module.workflow.boundary-disputes.*');
               $bdType = (string) request()->query('type');
               $bdSub = fn (string $label, string $type) => $exLink($label, route('survey-module.workflow.boundary-disputes.index', ['type' => $type]), $bdOn && $bdType === $type);
-              // Surveyor's Report (Private) records: the report list in that mode, or that record page of a report.
               $bdAll = $bdOn && ! in_array($bdType, \App\Models\Survey\SurveyBoundaryDispute::TYPES, true);
-              $prAll = request()->routeIs('survey-module.workflow.change-reports.*') && ! in_array(request('records'), ['coordinates', 'beacons', 'observations'], true);
-              $prOn = fn (string $mode, string $route) => (request()->routeIs('survey-module.workflow.change-reports.index') && request('records') === $mode)
-                  || request()->routeIs('survey-module.workflow.private.' . $route);
             @endphp
             @if($svRecords)
             <a href="{{ route('survey-module.workflow.register-file.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.register-file.*') ? 'active' : '' }}">
@@ -416,14 +392,8 @@
               <i data-lucide="grid-3x3" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Coordinate Register</span>
             </a>
-            {!! $exGroup('survey-exam-private', "Surveyor's Report (Private)", 'file-check', $prAll) !!}
-            <div class="pl-6 mt-1 mb-1 space-y-0.5 {{ $prAll ? '' : 'hidden' }}" data-content="survey-exam-private">
-              {{-- Beacon Nos before List of Coordinates (user, 2026-11-03). --}}
-              {!! $exLink('Beacon Nos', route('survey-module.workflow.change-reports.index', ['records' => 'beacons']), $prOn('beacons', 'beacons.*'), 'locate-fixed') !!}
-              {!! $exLink('List of Coordinates', route('survey-module.workflow.change-reports.index', ['records' => 'coordinates']), $prOn('coordinates', 'coordinates.*'), 'map-pin') !!}
-              {!! $exLink('Computation Field Observations', route('survey-module.workflow.change-reports.index', ['records' => 'observations']), $prOn('observations', 'observations.*'), 'calculator') !!}
-              {{-- 4. Sketch Plan: off the sidebar for now (user, 2026-10-30). --}}
-            </div>
+            {{-- One page, as under GKN (recording, 2026-11-06). --}}
+            {!! $exLink("Surveyor's Report (Private)", route('survey-module.workflow.change-reports.index'), request()->routeIs('survey-module.workflow.change-reports.*', 'survey-module.workflow.private.*'), 'file-check') !!}
             @endif
           </div>
         @endif
@@ -437,7 +407,7 @@
             // Opens the File Status search page (CR 30102026 item 29); the lists are its tabs.
             $svFsOn = request()->routeIs('survey-module.file-status') || request('url') === 'survey' && request()->routeIs('land-rofos.index', 'propertycard.cofo', 'file-decommissioning.decommissioned', 'file-search-db.index', 'regrant.index', 'title-status.index', 'dciv-generation.index', 'caveat.index', 'mortgages.index', 'surrender-release.index');
           @endphp
-          <a href="{{ route('survey-module.file-status') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $svFsOn ? 'active' : '' }}">
+          <a data-tab-card="survey-file-status" href="{{ route('survey-module.file-status') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $svFsOn ? 'active' : '' }}">
             <i data-lucide="file-search" class="h-4 w-4 text-pink-500"></i>
             <span>File Status</span>
           </a>
@@ -482,11 +452,6 @@
                 {!! $svOdGroup('survey-other-sg', 'SG', 'award', true) !!}
                 <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-other-sg">
                   {!! $svOdLink('Approval', 'surveyor_general', 'check-circle') !!}
-                  {{-- Surveyor registrations and beacon requests from the KSSGOF portal and Cadastral I to S (CR 03112026 items 18-21). --}}
-                  <a href="{{ route('survey-module.beacon-requests.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.beacon-requests.*') ? 'active' : '' }}">
-                    <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i>
-                    <span>Beacon Requests</span>
-                  </a>
                 </div>
               @endif
             </div>
@@ -540,6 +505,30 @@
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('pagetyping') && request('url') === 'ptmore' && request()->boolean('survey') ? 'active' : '' }}">
             <i data-lucide="files" class="h-3.5 w-3.5 text-pink-400"></i>
             <span>DMS Update · More Pages</span>
+          </a>
+        </div>
+        @endif
+
+        {{-- KSSGOF Admin (user, 2026-11-06): the portal's staff page, beacon requests and surveyor registrations. For the SG role, as the page itself is. --}}
+        {{-- Its two lists are items here, no tabs on the page (user, 2026-11-06). The only link to them since the one under Other Departments > SG was removed. --}}
+        @if($svSg)
+        @php
+          $ksOn = request()->routeIs('survey-module.beacon-requests.*');
+          $ksReg = $ksOn && request('tab') === 'registrations';
+        @endphp
+        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-kssgof">
+          <div class="flex items-center gap-2">
+            <i data-lucide="shield-check" class="h-4 w-4 text-pink-500"></i>
+            <span>KSSGOF Admin</span>
+          </div>
+          <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200 {{ $ksOn ? 'rotate-90' : '' }}" data-chevron="survey-kssgof"></i>
+        </div>
+        <div class="pl-4 mt-1 mb-1 space-y-0.5 {{ $ksOn ? '' : 'hidden' }}" data-content="survey-kssgof">
+          <a href="{{ route('survey-module.beacon-requests.index', ['tab' => 'registrations']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksReg ? 'active' : '' }}">
+            <i data-lucide="user-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Registrations</span>
+          </a>
+          <a href="{{ route('survey-module.beacon-requests.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksOn && ! $ksReg ? 'active' : '' }}">
+            <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i><span>Beacon Requests</span>
           </a>
         </div>
         @endif

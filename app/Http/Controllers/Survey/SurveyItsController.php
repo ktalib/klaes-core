@@ -29,7 +29,9 @@ use Illuminate\Validation\Rule;
  */
 class SurveyItsController extends Controller
 {
-    /** Beacon numbers typed on the form, held between validated() and the save. */
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
+    /** Beacon numbers picked or typed on the form, held between validated() and the save. */
     private ?string $beaconText = null;
 
     public function __construct(private ItsBeacons $beacons)
@@ -38,48 +40,8 @@ class SurveyItsController extends Controller
 
     public function index(Request $r)
     {
-        $term   = trim((string) $r->query('q', ''));
-        // Government / Private tabs (CR 30102026 item 15): Government = Survey's own jobs, Private = Cadastral's
-        // (private survey, items 13-14). Each tab lists one source.
-        $tab    = $r->query('tab') === 'private' ? 'private' : 'government';
-        $source = $tab === 'private' ? 'cadastral' : 'survey';
-        $status = $r->query('status');
-
-        $rows = collect();
-
-        if ($source !== 'cadastral') {
-            $q = SurveyIts::query();
-            if ($term !== '') {
-                $q->where(fn ($w) => $w->where('file_number', 'like', "%$term%")->orWhere('job_ref', 'like', "%$term%")
-                    ->orWhere('its_number', 'like', "%$term%")->orWhere('file_title', 'like', "%$term%")
-                    ->orWhere('surveyor_name', 'like', "%$term%"));
-            }
-            if ($status) $q->where('status', $status);
-            foreach ($q->get() as $i) {
-                $rows->push(['source' => 'survey', 'model' => $i, 'id' => $i->id, 'its_number' => $i->its_number, 'job' => $i->job_ref,
-                    'file_number' => $i->file_number, 'file_title' => $i->file_title, 'plot' => $i->plot_no, 'district' => $i->district,
-                    'lga' => $i->lga, 'surveyor' => $i->surveyor_name, 'issued' => $i->its_issued_at, 'status' => $i->status,
-                    'sort' => $i->issued_at ?? $i->created_at]);
-            }
-        }
-
-        if ($source !== 'survey') {
-            $q = CadastralSurveyJob::query()->whereNotNull('its_number');
-            if ($term !== '') {
-                $q->where(fn ($w) => $w->where('file_number', 'like', "%$term%")->orWhere('job_number', 'like', "%$term%")
-                    ->orWhere('its_number', 'like', "%$term%")->orWhere('file_title', 'like', "%$term%")
-                    ->orWhere('surveyor_name', 'like', "%$term%"));
-            }
-            if ($status) $q->where('status', $status);
-            foreach ($q->get() as $j) {
-                $rows->push(['source' => 'cadastral', 'model' => $j, 'id' => $j->id, 'its_number' => $j->its_number, 'job' => $j->job_number,
-                    'file_number' => $j->file_number, 'file_title' => $j->file_title, 'plot' => $j->prop_plot, 'district' => $j->prop_district,
-                    'lga' => $j->prop_lga, 'surveyor' => $j->surveyor_name, 'issued' => $j->its_issued_at, 'status' => $j->status,
-                    'sort' => $j->issued_at ?? $j->created_at]);
-            }
-        }
-
-        $rows = $rows->sortByDesc(fn ($x) => optional($x['sort'])->timestamp ?? 0)->values();
+        $tab = $r->query('tab') === 'private' ? 'private' : 'government';
+        $rows = $this->itsRows($r);
         $page = max(1, (int) $r->query('page', 1));
 
         return view('survey_module.gkn.its.index', [
@@ -108,7 +70,7 @@ class SurveyItsController extends Controller
         $data = $this->validated($r);
         $its = DB::connection('sqlsrv')->transaction(function () use ($data) {
             $its = SurveyIts::create($data + ['job_ref' => SurveyIts::nextRef('job_ref', 'SJ', 4), 'status' => SurveyIts::DRAFT]);
-            $this->beacons->save($this->beaconText, $its->surveyor_name, 'survey_its_id', $its->id);
+            $this->beacons->save($this->beaconText, $its->surveyor_name, 'survey_its_id', $its->id, 'beacon_picks', false);
 
             return $its;
         });
@@ -136,7 +98,7 @@ class SurveyItsController extends Controller
         $data = $this->validated($r, $its);
         DB::connection('sqlsrv')->transaction(function () use ($its, $data) {
             $its->update($data);
-            $this->beacons->save($this->beaconText, $its->surveyor_name, 'survey_its_id', $its->id);
+            $this->beacons->save($this->beaconText, $its->surveyor_name, 'survey_its_id', $its->id, 'beacon_picks', false);
         });
 
         return back()->with('success', "{$its->job_ref} updated.");
@@ -204,6 +166,17 @@ class SurveyItsController extends Controller
         return view('survey_module.gkn.its.print', ['its' => $its->load('surveyor'), 'beaconList' => $this->beacons->forSurveyIts($its->id)]);
     }
 
+    /** Beacon numbers free for the form's search, as on the Computation File form. */
+    public function beaconSearch(Request $r)
+    {
+        $id = (string) $r->query('surveyor', '');
+        $surveyor = ctype_digit($id) ? SurveyorListEntry::find($id)?->full_name : (string) $r->query('surveyor_other', '');
+
+        return response()->json(['numbers' => $this->beacons->available(
+            (string) $r->query('q', ''), $surveyor, 'survey_its_id', $r->query('its') ? (int) $r->query('its') : null,
+        )]);
+    }
+
     /** Backfill for a number picked in the global file number selector. */
     public function lookup(Request $r)
     {
@@ -244,8 +217,16 @@ class SurveyItsController extends Controller
             return collect();
         }
 
-        return \App\Models\Survey\SurveyComputationFile::query()->orderByDesc('id')->limit(1000)
-            ->get(['id', 'computation_no', 'file_number', 'file_title', 'plot_no', 'district', 'lga', 'surveyors_list_id']);
+        $files = \App\Models\Survey\SurveyComputationFile::query()->orderByDesc('id')->limit(1000)
+            ->get(['id', 'computation_no', 'file_number', 'file_title', 'plot_no', 'district', 'lga', 'surveyors_list_id', 'survey_type']);
+        // Shown when the file is picked: these stay on the Computation File.
+        $beacons = DB::connection('sqlsrv')->table('survey_its_beacons')->whereIn('survey_computation_file_id', $files->pluck('id')->all() ?: [0])
+            ->orderBy('beacon_series')->orderBy('beacon_seq')->get(['survey_computation_file_id', 'beacon_no'])->groupBy('survey_computation_file_id');
+        foreach ($files as $file) {
+            $file->setAttribute('beacon_list', collect($beacons->get($file->id, []))->map(fn ($b) => \App\Models\Survey\SurveyBeaconRegister::display($b->beacon_no))->implode(', '));
+        }
+
+        return $files;
     }
 
     /**
@@ -292,7 +273,10 @@ class SurveyItsController extends Controller
             // Survey type + beacons (CR 03112026 item 11).
             'survey_type'       => 'nullable|string|max:100',
             'survey_type_other' => 'required_if:survey_type,Other|nullable|string|max:100',
-            'beacon_numbers'    => 'nullable|string|max:8000',
+            // Searchable, with Other for typed numbers and ranges (user, 2026-11-06), as on the Computation File.
+            'beacon_picks'      => 'nullable|array',
+            'beacon_picks.*'    => 'string|max:40',
+            'beacon_other'      => ['nullable', 'string', 'max:8000', \Illuminate\Validation\Rule::requiredIf(fn () => in_array('Other', (array) $r->input('beacon_picks'), true))],
             // The Computation File this instruction is for (user, 2026-11-02).
             // ... or an LPKN file already in File Indexing, posted as "idx:<file number>" (user, 2026-11-03).
             'survey_computation_file_id' => ['nullable', 'string', 'max:120', function ($attr, $value, $fail) {
@@ -306,10 +290,15 @@ class SurveyItsController extends Controller
             'file_number.required' => 'Select the file with Select File Number.',
             'surveyor_other.required_if' => 'Surveyor is Other: please specify the surveyor\'s name.',
             'survey_type_other.required_if' => 'Survey Type is Other: please specify it.',
+            'beacon_other.required' => 'Beacon Numbers has Other: please type the numbers.',
         ]);
         $data['survey_type'] = SurveySettings::surveyTypeValue($data['survey_type'] ?? null, $data['survey_type_other'] ?? null);
-        $this->beaconText = $data['beacon_numbers'] ?? null;
-        unset($data['surveyor_other'], $data['survey_type_other'], $data['beacon_numbers']);
+        $picks = (array) ($data['beacon_picks'] ?? []);
+        $this->beaconText = implode(', ', array_filter(array_merge(
+            array_diff($picks, ['Other']),
+            in_array('Other', $picks, true) ? [$data['beacon_other'] ?? ''] : [],
+        )));
+        unset($data['surveyor_other'], $data['survey_type_other'], $data['beacon_picks'], $data['beacon_other']);
         // Keep the number as it was when picked, beside the link.
         $pick = (string) ($data['survey_computation_file_id'] ?? '');
         if (str_starts_with($pick, 'idx:')) {
@@ -347,5 +336,66 @@ class SurveyItsController extends Controller
         }
 
         return $data;
+    }
+
+    /** The open tab's list, shared with Export Records. */
+    private function itsRows(Request $r)
+    {
+        $term   = trim((string) $r->query('q', ''));
+        // Government / Private tabs (CR 30102026 item 15): Government = Survey's own jobs, Private = Cadastral's
+        // (private survey, items 13-14). Each tab lists one source.
+        $tab    = $r->query('tab') === 'private' ? 'private' : 'government';
+        $source = $tab === 'private' ? 'cadastral' : 'survey';
+        $status = $r->query('status');
+
+        $rows = collect();
+
+        if ($source !== 'cadastral') {
+            $q = SurveyIts::query();
+            if ($term !== '') {
+                $q->where(fn ($w) => $w->where('file_number', 'like', "%$term%")->orWhere('job_ref', 'like', "%$term%")
+                    ->orWhere('its_number', 'like', "%$term%")->orWhere('file_title', 'like', "%$term%")
+                    ->orWhere('surveyor_name', 'like', "%$term%"));
+            }
+            if ($status) $q->where('status', $status);
+            foreach ($q->get() as $i) {
+                $rows->push(['source' => 'survey', 'model' => $i, 'id' => $i->id, 'its_number' => $i->its_number, 'job' => $i->job_ref,
+                    'file_number' => $i->file_number, 'file_title' => $i->file_title, 'plot' => $i->plot_no, 'district' => $i->district,
+                    'lga' => $i->lga, 'surveyor' => $i->surveyor_name, 'issued' => $i->its_issued_at, 'status' => $i->status,
+                    'sort' => $i->issued_at ?? $i->created_at]);
+            }
+        }
+
+        if ($source !== 'survey') {
+            $q = CadastralSurveyJob::query()->whereNotNull('its_number');
+            if ($term !== '') {
+                $q->where(fn ($w) => $w->where('file_number', 'like', "%$term%")->orWhere('job_number', 'like', "%$term%")
+                    ->orWhere('its_number', 'like', "%$term%")->orWhere('file_title', 'like', "%$term%")
+                    ->orWhere('surveyor_name', 'like', "%$term%"));
+            }
+            if ($status) $q->where('status', $status);
+            foreach ($q->get() as $j) {
+                $rows->push(['source' => 'cadastral', 'model' => $j, 'id' => $j->id, 'its_number' => $j->its_number, 'job' => $j->job_number,
+                    'file_number' => $j->file_number, 'file_title' => $j->file_title, 'plot' => $j->prop_plot, 'district' => $j->prop_district,
+                    'lga' => $j->prop_lga, 'surveyor' => $j->surveyor_name, 'issued' => $j->its_issued_at, 'status' => $j->status,
+                    'sort' => $j->issued_at ?? $j->created_at]);
+            }
+        }
+
+        $rows = $rows->sortByDesc(fn ($x) => optional($x['sort'])->timestamp ?? 0)->values();
+
+        return $rows;
+    }
+
+    public function export(Request $r)
+    {
+        return $this->exportRecords($r, fn () => $this->itsRows($r), [
+            'source' => 'Source', 'its_number' => 'I to S No.', 'job' => 'Job No.', 'file_number' => 'File No.', 'title' => 'Title', 'plot' => 'Plot No.', 'district' => 'District',
+            'lga' => 'LGA', 'surveyor' => 'Surveyor', 'issued' => 'Issued', 'status' => 'Status',
+        ], fn ($x) => [
+            'source' => $x['source'] === 'survey' ? 'Survey' : 'Cadastral', 'its_number' => $x['its_number'], 'job' => $x['job'], 'file_number' => $x['file_number'],
+            'title' => $x['file_title'], 'plot' => $x['plot'], 'district' => $x['district'], 'lga' => $x['lga'], 'surveyor' => $x['surveyor'],
+            'issued' => $this->exportDate($x['issued']), 'status' => $x['status'],
+        ], 'sort');
     }
 }

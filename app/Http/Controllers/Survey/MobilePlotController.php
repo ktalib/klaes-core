@@ -48,7 +48,9 @@ class MobilePlotController extends Controller
     /** Home: today's and this month's work, and the latest records. */
     public function index()
     {
-        $mineS = fn () => Showing::where('created_by', Auth::id())->whereNotNull('op_source');
+        // OP showings only. Old Register entries are keyed in the office and have no OP to open, so they
+        // stay out of the counts and the list; a link to one would need an OP key they do not have.
+        $mineS = fn () => Showing::where('created_by', Auth::id())->whereNotNull('op_source')->where('op_source', '!=', Showing::SOURCE_OLD);
         $mineC = fn () => Check::where('created_by', Auth::id());
 
         return view('survey_module.mobile.plots.index', [

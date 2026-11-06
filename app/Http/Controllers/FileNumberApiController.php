@@ -817,6 +817,10 @@ class FileNumberApiController extends Controller
             // Temporary-file toggle (Create File Tracker "Is Temporary File"): restrict
             // the selector to temporary "(T)" file numbers only.
             $tempOnly = filter_var($request->get('temp_only', false), FILTER_VALIDATE_BOOLEAN);
+            // Capture OP for a commissioned file (user, 2026-11-05): only files commissioned
+            // in this year, read from mls_file_no.year rather than the number, because an
+            // extension such as CON-COM-1990-79 AND EXTENSION is a 2026 commissioning.
+            $commissionedYear = (int) $request->get('commissioned_year', 0);
             // Prefix scope (e.g. "CON-" for the Conversion JSI): only file numbers that
             // start with one of these. Letters, digits and hyphens only, so they are safe
             // inside LIKE.
@@ -861,6 +865,15 @@ class FileNumberApiController extends Controller
                 $prefixWhere($query, 'mlsfNo');
             }
 
+            if ($commissionedYear > 0) {
+                $query->whereExists(function ($q) use ($commissionedYear) {
+                    $q->select(DB::raw(1))
+                        ->from('mls_file_no as mfn_year')
+                        ->whereRaw('mfn_year.full_file_number = dbo.fileNumber.mlsfNo')
+                        ->where('mfn_year.year', $commissionedYear);
+                });
+            }
+
             // Exclude matching if requested
             if (!empty($excludeMatched)) {
                 switch (strtolower($excludeMatched)) {
@@ -901,7 +914,7 @@ class FileNumberApiController extends Controller
                 // Skipped in temp-only mode: this loose top-level OR would otherwise
                 // escape the "(T)" AND-constraint and pull in non-temp rows, filling
                 // the limit before the temp-only guard/file_indexings pass runs.
-                if (!$tempOnly && !$onlyPrefixes) {
+                if (!$tempOnly && !$onlyPrefixes && !$commissionedYear) {
                     $query->orWhere(function ($q) use ($search) {
                         $q->where('temp_file_no', 'LIKE', "%{$search}%")
                           ->orWhere('temp_fileno', 'LIKE', "%{$search}%");
@@ -931,7 +944,7 @@ class FileNumberApiController extends Controller
             // all_registries is requested it always runs — including the initial
             // load — and drops the registry filters so KANGIS, New KANGIS, SLTR,
             // SIT, DCIV, GKN, etc. all appear in the MLS selector.
-            if (($includeAllRegistries || !empty($search)) && $files->count() < $limit) {
+            if (($includeAllRegistries || !empty($search)) && $files->count() < $limit && !$commissionedYear) {
                 $indexingQuery = DB::connection('sqlsrv')
                     ->table('file_indexings')
                     ->select([

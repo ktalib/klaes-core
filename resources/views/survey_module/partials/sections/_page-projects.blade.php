@@ -7,7 +7,7 @@
 @include('survey_module.partials._searchable_selects')
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.compensation.projects.export'), 'title' => 'Projects', 'statuses' => ['Active', 'Draft', 'Closed']])</div>
     <a href="{{ route('survey-module.compensation.projects.create', array_filter(['co_file' => request('co_file')])) }}" class="btn btn-primary">
         <i class="fas fa-plus"></i> Create Project
     </a>

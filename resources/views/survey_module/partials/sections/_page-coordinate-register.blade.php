@@ -12,9 +12,7 @@
 
 <div class="page-header">
     <div></div>
-    <a href="{{ route('survey-module.workflow.coordinate-register.export', request()->only(['q', 'source'])) }}" class="btn btn-secondary">
-        <i class="fas fa-file-csv"></i> Export CSV
-    </a>
+    @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.workflow.coordinate-register.export'), 'title' => 'Coordinate Register', 'dateLabel' => 'Date Recorded'])
 </div>
 
 <div class="kpi-grid">

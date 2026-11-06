@@ -22,7 +22,9 @@
 
 <div class="page-header">
     <div style="font-size:13px;color:var(--gray-500);">A first version of the form. The fields will follow Survey's own checklist once it is given.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.gkn.passing-checks.export'), 'title' => 'Passing and Checking', 'dateLabel' => 'Date Checked'])
     <button type="button" class="btn btn-primary" onclick="document.getElementById('pcForm').classList.add('open')"><i class="fas fa-plus"></i> New Check</button>
+    </div>
 </div>
 
 <form method="POST" id="pcForm"

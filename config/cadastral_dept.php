@@ -460,7 +460,8 @@ return [
     |   at:    it is out with one of these desks (this desk records the return)
     |   ready: every task of its step is done, so it can be sent on
     | An entry with no rule lists every file at the desk. `group` is the
-    | sidebar heading for the desk.
+    | sidebar heading for the desk. `requires` is not a match rule but a gate:
+    | a file stays off the list until these tasks of its step are done.
     */
     'queues' => [
         // Sidebar per the user's KLAES sidebar doc (KLAES_Land_Admin_Enterprise_System-16, 2026-10-15):
@@ -484,7 +485,8 @@ return [
         'ad_information' => ['group' => 'Cadastral Information', 'entries' => [
             // 'all' => ['label' => 'All files at AD Cad Info'],   // hidden from the sidebar for now (user, 2026-10-12)
             'fmc' => ['label' => 'File Movement Card (FMC)', 'tasks' => ['fmc_commissioned']],
-            'first_charting' => ['label' => '1st Charting (Direct Allocation Files)', 'tasks' => ['chart_first']],
+            // After the FMC: both are tasks of one step, so without `requires` every new file shows on both lists (user, 2026-11-05).
+            'first_charting' => ['label' => '1st Charting (Direct Allocation Files)', 'tasks' => ['chart_first'], 'requires' => ['fmc_commissioned']],
             // Doc step 19: AD Cad Info issues the Job No. and assigns the surveyor.
             'job_no' => ['label' => 'Assign to Surveyor (I to S)', 'tasks' => ['job_attached', 'job_its']],
             'approval' => ['label' => 'Approval', 'awaiting_head' => true],

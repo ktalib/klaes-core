@@ -5152,6 +5152,9 @@ document.addEventListener('DOMContentLoaded', function () {
        ══════════════════════════════════════════════════════════════════════════ */
     const OPCF_LOOKUP_URL = '/lands-one-stop-shop/applications/op-resettlement/op-commissioned-file';
     const OPCF_SAVE_URL = '/lands-one-stop-shop/applications/op-resettlement/op-capture-commissioned';
+    // 2026 commissionings only (user, 2026-11-05); the server enforces it, see
+    // OpResettlementApplicationController::COMMISSIONED_OP_YEAR.
+    const OPCF_YEAR = 2026;
     let opcfFile = null;        // resolved commissioned file; null until Check succeeds
     let opcfWired = false;      // band listeners are attached once, lazily
 
@@ -5220,6 +5223,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 window.GlobalFileNoModal.open({
                     allowedTabs: ['mls'],
+                    commissionedYear: OPCF_YEAR,
                     autoPopulateGenericFields: false,
                     callback: function (fileData) {
                         const picked = (fileData && fileData.fileNumber ? fileData.fileNumber : '')

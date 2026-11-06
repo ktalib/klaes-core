@@ -6,6 +6,7 @@ use App\Support\OssOwnershipFilter;
 
 use App\Http\Controllers\Controller;
 use App\Models\StreetName;
+use App\Services\ApplicantContactResolver;
 use App\Services\FilePassportService;
 use App\Services\Pra\PraRecordService;
 use Carbon\Carbon;
@@ -21,6 +22,9 @@ use Illuminate\Support\Str;
 
 class OpResettlementApplicationController extends Controller
 {
+    /** Capture OP for a commissioned file: the commissioning year it accepts. */
+    private const COMMISSIONED_OP_YEAR = 2026;
+
     /**
      * Collapse a batch's first/last file numbers into a range label.
      *
@@ -66,6 +70,7 @@ class OpResettlementApplicationController extends Controller
             'change_of_purpose' => 'Change of Purpose', 'resettlement' => 'Resettlement',
             'regrant' => 'Re-grant', 'reissuance' => 'Re-Issuance of FileNo', 'recertification' => 'Recertification',
             'subdivision' => 'Subdivision', 'merger' => 'Merger', 'separation' => 'Separation', 'duplex' => 'Duplex',
+            'loss_of_document' => 'Loss of Documents',
         ];
         $label = $fileTypeLabels[strtolower(trim((string) $fileOption))] ?? trim((string) $source);
 
@@ -353,11 +358,14 @@ class OpResettlementApplicationController extends Controller
                        -- of Title row is written as the file is commissioned), so it
                        -- needs no separate key. The link branches below do — see there.
                        CAST(NULL AS datetime2) as commissioned_sort_at,
-                       ROW_NUMBER() OVER (PARTITION BY COALESCE(NULLIF(parent_prop_id, ''), prop_id), instrument_type ORDER BY id DESC) as rn
+                       deleted_record_type,
+                       -- A crossed-out row stands alone: the file may be commissioned again.
+                       ROW_NUMBER() OVER (PARTITION BY COALESCE(NULLIF(parent_prop_id, ''), prop_id), instrument_type,
+                           CASE WHEN deleted_record_type IS NULL THEN 0 ELSE id END ORDER BY id DESC) as rn
                 FROM pra
                 WHERE system_source = 'OSSOPCHANGEOFNAME'
                   AND prop_id IS NOT NULL AND prop_id != ''
-                  AND (is_deleted IS NULL OR is_deleted = 0)
+                  AND (is_deleted IS NULL OR is_deleted = 0 OR deleted_record_type IS NOT NULL)
                   $instrumentFilter
 
                 UNION ALL
@@ -375,6 +383,7 @@ class OpResettlementApplicationController extends Controller
                        ic.plot_number as plot_no, ic.tp_no, ic.lga as lgsaOrCity,
                        ic.land_use, 'IC_SOURCE' as system_source,
                        CAST(NULL AS datetime2) as commissioned_sort_at,
+                       CAST(NULL AS varchar(10)) as deleted_record_type,
                        ROW_NUMBER() OVER (PARTITION BY ic.prop_id, ic.instrument_type ORDER BY ic.id DESC) as rn
                 FROM instrument_capture ic
                 LEFT JOIN pra px ON px.prop_id = CAST(ic.prop_id AS nvarchar(100))
@@ -424,6 +433,7 @@ class OpResettlementApplicationController extends Controller
                        -- A source OP can be commissioned into more than one file. Keep
                        -- every commissioned file, rather than arbitrarily retaining one
                        -- row for the shared property/OP.
+                       CAST(NULL AS varchar(10)) as deleted_record_type,
                        ROW_NUMBER() OVER (PARTITION BY linked_mfn.full_file_number ORDER BY linked_ic.id DESC) as rn
                 FROM mls_file_no linked_mfn
                 INNER JOIN instrument_capture linked_ic
@@ -456,6 +466,7 @@ class OpResettlementApplicationController extends Controller
                        -- See the IC_SOURCE_LINK branch: the file's own timestamp, not the
                        -- source OP's capture date.
                        linked_mfn.created_at as commissioned_sort_at,
+                       CAST(NULL AS varchar(10)) as deleted_record_type,
                        ROW_NUMBER() OVER (PARTITION BY linked_mfn.full_file_number ORDER BY linked_pra.id DESC) as rn
                 FROM pra linked_pra
                 INNER JOIN mls_file_no linked_mfn ON linked_mfn.source_pra_id = linked_pra.id
@@ -565,6 +576,7 @@ class OpResettlementApplicationController extends Controller
             ->select([
                 DB::raw("COALESCE(fn.id, 0) as id"),
                 'p.id as pra_id',
+                'p.deleted_record_type',
                 'p.prop_id',
                 DB::raw("$praFileNoExpr as mlsfNo"),
                 // The IC/PRA source record describes the original OP, so its Grantee can
@@ -684,7 +696,14 @@ class OpResettlementApplicationController extends Controller
                     // correlated file-number expression is sufficient here.
                     ->whereNotNull('mfn_flt.full_file_number');
             };
-            $type === 'fc' ? $builder->whereExists($mlsRow) : $builder->whereNotExists($mlsRow);
+            // A crossed-out row stays on the tab it was deleted from: its register row is
+            // gone from the tests below, so the delete noted the tab on the row.
+            $builder->where(function ($q) use ($type, $mlsRow) {
+                $q->where('p.deleted_record_type', $type)->orWhere(function ($live) use ($type, $mlsRow) {
+                    $live->whereNull('p.deleted_record_type');
+                    $type === 'fc' ? $live->whereExists($mlsRow) : $live->whereNotExists($mlsRow);
+                });
+            });
         };
 
         // The listing before the FC/FEFR split, for the search that finds nothing on this
@@ -750,21 +769,7 @@ class OpResettlementApplicationController extends Controller
                 });
             }
 
-            if ($recordType === 'fc') {
-                $countQuery->whereExists(function ($q) {
-                    $q->select(DB::raw(1))
-                        ->from('mls_file_no as mfn_c')
-                        ->whereRaw("mfn_c.full_file_number = COALESCE(NULLIF(p.mlsFNo, ''), p.fileno)")
-                        ->whereNotNull('mfn_c.full_file_number');
-                });
-            } else {
-                $countQuery->whereNotExists(function ($q) {
-                    $q->select(DB::raw(1))
-                      ->from('mls_file_no as mfn_c')
-                      ->whereRaw("mfn_c.full_file_number = COALESCE(NULLIF(p.mlsFNo, ''), p.fileno)")
-                      ->whereNotNull('mfn_c.full_file_number');
-                });
-            }
+            $applyRecordType($countQuery, $recordType);
 
             $totalRecords = $countQuery->count();
         } else {
@@ -900,6 +905,7 @@ class OpResettlementApplicationController extends Controller
                     'op_batch' => $row->op_batch ? trim((string) $row->op_batch) : null,
                     'serial_number' => $row->mfn_serial_number !== null ? (int) $row->mfn_serial_number : null,
                     'scenario_type' => 'standard', // placeholder; overwritten below
+                    'is_crossed_out' => !empty($row->deleted_record_type),
                 ];
             });
 
@@ -920,6 +926,19 @@ class OpResettlementApplicationController extends Controller
                         . " — showing it under {$otherLabel}.");
             }
         }
+
+        // Applicant phone and address: what FC / FEFR saved, where the capture has none.
+        $contacts = app(ApplicantContactResolver::class)->forFiles($records->pluck('mls_file_no'));
+        $records = $records->map(function ($record) use ($contacts) {
+            $contact = $contacts[ApplicantContactResolver::key($record['mls_file_no'] ?? null)] ?? null;
+            foreach (['applicant_phone' => 'phone', 'applicant_address' => 'address'] as $field => $source) {
+                if (in_array(trim((string) ($record[$field] ?? '')), ['', '—'], true) && !empty($contact[$source])) {
+                    $record[$field] = $contact[$source];
+                }
+            }
+
+            return $record;
+        });
 
         // ── Detect OP→ToT scenario type for each record ──
         // Subdivision: same op_serial_number produced > 1 ToT rows on this page.
@@ -1681,6 +1700,23 @@ class OpResettlementApplicationController extends Controller
     }
 
     /**
+     * Capture OP for a commissioned file takes this year's commissionings only (user,
+     * 2026-11-05). mls_file_no.year is the commissioning year, not the year in the number.
+     */
+    private function refuseOtherYearCommissioning(object $mfn): ?JsonResponse
+    {
+        if ((int) ($mfn->year ?? 0) === self::COMMISSIONED_OP_YEAR) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => trim((string) $mfn->full_file_number) . ' was commissioned in ' . ($mfn->year ?: 'an earlier year')
+                . '. Only files commissioned in ' . self::COMMISSIONED_OP_YEAR . ' can have an OP captured here.',
+        ], 422);
+    }
+
+    /**
      * Resolve an already-commissioned file number for the Capture OP card.
      *
      * A file can be commissioned with no OP behind it: when the allocation source is OP but no
@@ -1705,6 +1741,10 @@ class OpResettlementApplicationController extends Controller
                 'message' => 'No commissioned file found with that number. Only a file already '
                     . 'present in MLS File Numbers can have an OP captured against it.',
             ], 404);
+        }
+
+        if ($refused = $this->refuseOtherYearCommissioning($mfn)) {
+            return $refused;
         }
 
         $fn = DB::connection('sqlsrv')->table('fileNumber')
@@ -1819,6 +1859,10 @@ class OpResettlementApplicationController extends Controller
                 'success' => false,
                 'message' => 'That file number is not commissioned, so an OP cannot be captured against it.',
             ], 404);
+        }
+
+        if ($refused = $this->refuseOtherYearCommissioning($mfn)) {
+            return $refused;
         }
 
         // Re-check at write time: the card's lookup may be stale by now.
@@ -6025,7 +6069,7 @@ class OpResettlementApplicationController extends Controller
         // 1. Retrieve the Transfer of Title (ToT) record
         $totRecord = $db->table('pra')->where('id', $totPraId)->first();
 
-        if (!$totRecord) {
+        if (!$totRecord || !empty($totRecord->is_deleted)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Transfer of Title record not found.'
@@ -6123,17 +6167,17 @@ class OpResettlementApplicationController extends Controller
                         }
                     };
 
-                    // Execute safe deletes for the indexing and staging tables
-                    $safeDelete('file_indexings');
-                    $safeDelete('fileNumber');
+                    // Staging goes; the file itself stays crossed out on its tables.
                     $safeDelete('customers_staging');
-                    $safeDelete('mls_file_no');
                     $safeDelete('entities_staging');
+                    $crossedOut = app(\App\Services\FileNumber\CrossedOutFiles::class)->crossOutNumbers($identifiers);
                 }
 
-                // 4. Mark the ToT record as deleted (soft delete)
+                // 4. Mark the ToT record as deleted (soft delete). A file in mls_file_no is
+                // on the FC tab, any other on FEFR, and that is where it stays crossed out.
                 $db->table('pra')->where('id', $totRecord->id)->update([
                     'is_deleted' => 1,
+                    'deleted_record_type' => ($crossedOut['mls_file_no'] ?? 0) > 0 ? 'fc' : 'fefr',
                     'updated_at' => now(),
                 ]);
 
@@ -6219,7 +6263,7 @@ class OpResettlementApplicationController extends Controller
 
                     // 1. Retrieve the Transfer of Title (ToT) record
                     $totRecord = $db->table('pra')->where('id', $totPraId)->first();
-                    if (!$totRecord) {
+                    if (!$totRecord || !empty($totRecord->is_deleted)) {
                         continue;
                     }
 
@@ -6268,6 +6312,8 @@ class OpResettlementApplicationController extends Controller
                         }
                     }
 
+                    $crossedOut = [];
+
                     // 3. Clear related file system records from indexing/staging tables
                     $identifiers = array_unique(array_filter([
                         $totRecord->mlsFNo ?? null,
@@ -6301,16 +6347,17 @@ class OpResettlementApplicationController extends Controller
                             }
                         };
 
-                        $safeDelete('file_indexings');
-                        $safeDelete('fileNumber');
+                        // Staging goes; the file itself stays crossed out on its tables.
                         $safeDelete('customers_staging');
-                        $safeDelete('mls_file_no');
                         $safeDelete('entities_staging');
+                        $crossedOut = app(\App\Services\FileNumber\CrossedOutFiles::class)->crossOutNumbers($identifiers);
                     }
 
-                    // 4. Mark the ToT record as deleted (soft delete)
+                    // 4. Mark the ToT record as deleted (soft delete). A file in mls_file_no
+                    // is on the FC tab, any other on FEFR, and it stays crossed out there.
                     $db->table('pra')->where('id', $totRecord->id)->update([
                         'is_deleted' => 1,
+                        'deleted_record_type' => ($crossedOut['mls_file_no'] ?? 0) > 0 ? 'fc' : 'fefr',
                         'updated_at' => now(),
                     ]);
 

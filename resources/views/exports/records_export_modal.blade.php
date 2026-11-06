@@ -26,6 +26,13 @@
         'statusLabel'   => 'Status',
         'search'        => '',
         'statusOptions' => ['' => 'All Statuses'],
+        'status'        => '',                    // status selected on opening
+        'dateNote'      => 'record creation date',
+        'columnPicker'  => true,                  // false: no Customize columns on the preview
+        'showDates'     => true,                  // false: no Start / End Date, for a list with no date
+        'preserveCase'  => false,                 // true: rows stay as stored, not upper-cased
+        'previewLimit'  => 0,                     // rows drawn in the preview; 0 = all
+        'pdfLimit'      => 0,                     // most rows allowed in a PDF; 0 = no limit
     ], $exportConfig ?? []);
 
     // Only the keys the JS driver needs — built here because Blade's @json
@@ -38,10 +45,13 @@
         'department'  => $cfg['department'],
         'dateLabel'   => $cfg['dateLabel'],
         'statusLabel' => $cfg['statusLabel'],
+        'preserveCase' => $cfg['preserveCase'],
+        'previewLimit' => $cfg['previewLimit'],
+        'pdfLimit'    => $cfg['pdfLimit'],
     ];
 @endphp
 
-<div id="recordsExportModal" class="fixed inset-0 z-[100000] hidden overflow-y-auto" aria-labelledby="records-export-title" role="dialog" aria-modal="true">
+<div id="recordsExportModal" @unless($cfg['columnPicker']) data-column-picker="off" @endunless class="fixed inset-0 z-[100000] hidden overflow-y-auto" aria-labelledby="records-export-title" role="dialog" aria-modal="true">
     <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="closeRecordsExportModal()"></div>
 
@@ -57,7 +67,7 @@
                     <div>
                         <h3 class="text-xl font-bold text-white" id="records-export-title">{{ $cfg['title'] }}</h3>
                         <p class="text-emerald-100 text-sm opacity-90">{{ $cfg['subtitle'] }}</p>
-                        <p class="text-emerald-100 text-xs mt-1">{{ $cfg['department'] }} &middot; Filter by {{ strtolower($cfg['dateLabel']) }}</p>
+                        <p class="text-emerald-100 text-xs mt-1">{{ $cfg['department'] }}@if ($cfg['showDates']) &middot; Filter by {{ strtolower($cfg['dateLabel']) }}@endif</p>
                     </div>
                 </div>
                 <button type="button" onclick="closeRecordsExportModal()" class="text-white hover:text-emerald-100 transition-colors">
@@ -83,11 +93,12 @@
                             <select id="recordsExportStatus" onchange="loadRecordsExportData()"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all outline-none">
                                 @foreach($cfg['statusOptions'] as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
+                                    <option value="{{ $value }}" @selected((string) $cfg['status'] === (string) $value)>{{ $label }}</option>
                                 @endforeach
                             </select>
                         </div>
 
+                        @if ($cfg['showDates'])
                         <!-- Start Date -->
                         <div class="space-y-1">
                             <label for="recordsExportStartDate" class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider">Start Date</label>
@@ -101,6 +112,7 @@
                             <input type="date" id="recordsExportEndDate" data-no-flatpickr="1" onchange="loadRecordsExportData()"
                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all outline-none">
                         </div>
+                        @endif
 
                         <!-- Refresh & Count -->
                         <div class="flex items-center justify-between md:justify-end gap-4 h-full md:pb-0.5">
@@ -115,9 +127,11 @@
                             </button>
                         </div>
                     </div>
+                    @if ($cfg['showDates'])
                     <p class="mt-3 text-[10px] text-gray-400 uppercase tracking-wider font-bold">
-                        Date range filters on the record creation date. Leave both blank to export everything.
+                        Date range filters on the {{ $cfg['dateNote'] }}. Leave both blank to export everything.
                     </p>
+                    @endif
                 </div>
 
                 <!-- Preview Table Wrapper -->

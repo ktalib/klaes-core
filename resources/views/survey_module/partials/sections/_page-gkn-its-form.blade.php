@@ -58,7 +58,7 @@
                         @foreach ($computationFiles ?? [] as $cf)
                             <option value="{{ $cf->id }}" @selected($cfPick === (string) $cf->id)
                                     data-title="{{ $cf->file_title }}" data-plot="{{ $cf->plot_no }}" data-district="{{ $cf->district }}"
-                                    data-lga="{{ $cf->lga }}" data-surveyor="{{ $cf->surveyors_list_id }}">
+                                    data-lga="{{ $cf->lga }}" data-surveyor="{{ $cf->surveyors_list_id }}" data-type="{{ $cf->survey_type }}" data-beacons="{{ $cf->beacon_list }}">
                                 {{ $cf->computation_no }}{{ $cf->file_number ? ' · ' . $cf->file_number : '' }}{{ $cf->file_title ? ' · ' . \Illuminate\Support\Str::limit($cf->file_title, 40) : '' }}
                             </option>
                         @endforeach
@@ -152,18 +152,20 @@
                 </div>
             </div>
 
-            {{-- Survey type + beacons (CR 03112026 item 11). --}}
+            {{-- Survey type + beacons (CR 03112026 item 11). Searchable with Other, as on the Computation File (user, 2026-11-06). --}}
             @php
                 $stNames = collect($surveyTypes ?? [])->pluck('name');
                 $stSaved = $its->survey_type;
                 $stPick = old('survey_type', $stSaved === null ? '' : ($stNames->contains($stSaved) ? $stSaved : 'Other'));
                 $stOther = old('survey_type_other', $stPick === 'Other' ? $stSaved : '');
+                $bPicks = collect(session()->hasOldInput() ? old('beacon_picks', []) : ($beaconList ?? []));
+                $bOtherOn = $bPicks->contains('Other');
             @endphp
             <div class="form-grid cols-3">
                 <div class="sv-group"><i class="fas fa-map-pin"></i><span>Survey Type &amp; Beacons</span></div>
                 <div class="form-group">
                     <label>Survey Type</label>
-                    <select name="survey_type" id="itsSurveyType" @disabled($locked)
+                    <select name="survey_type" id="itsSurveyType" class="sv-searchable" @disabled($locked)
                             onchange="var o=document.getElementById('itsSurveyTypeOther'),on=this.value==='Other';o.style.display=on?'':'none';o.disabled=!on;o.required=on;">
                         <option value="">Select survey type…</option>
                         @foreach ($surveyTypes ?? [] as $st)
@@ -178,9 +180,18 @@
                 </div>
                 <div class="form-group span-2">
                     <label>Beacon Numbers</label>
-                    <textarea name="beacon_numbers" rows="3" maxlength="8000" placeholder="KDJ 0001 to KDJ 0004, A1404B" class="@error('beacon_numbers') is-invalid @enderror" @disabled($locked)>{{ old('beacon_numbers', implode(', ', $beaconList ?? [])) }}</textarea>
-                    @error('beacon_numbers')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
-                    <p class="helper-text">The beacons this surveyor will use. Each must be in the Beacon Register, not issued to another surveyor, and not on another job.</p>
+                    <style>#itsForm .select2-selection--multiple .select2-selection__choice { padding-left: 24px !important; }</style>
+                    <select name="beacon_picks[]" id="itsBeacons" multiple data-no-search aria-label="Beacon Numbers" style="width:100%;" @disabled($locked)>
+                        @foreach ($bPicks as $b)
+                            <option value="{{ $b }}" selected>{{ $b === 'Other' ? 'Other (specify)' : $b }}</option>
+                        @endforeach
+                    </select>
+                    <textarea name="beacon_other" id="itsBeaconOther" rows="2" maxlength="8000" placeholder="Type the numbers *, e.g. KDJ 0001 to KDJ 0004, A1404B" aria-label="Other beacon numbers"
+                              style="margin-top:6px;{{ $bOtherOn ? '' : 'display:none;' }}" @if ($bOtherOn && ! $locked) required @else disabled @endif>{{ old('beacon_other') }}</textarea>
+                    @error('beacon_picks')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
+                    @error('beacon_other')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
+                    <p class="helper-text" id="itsCfBeacons" style="display:none;"></p>
+                    <p class="helper-text">Search the numbers free for this surveyor, or choose Other to type numbers and ranges. A number on another job, or issued to another surveyor, is refused.</p>
                 </div>
             </div>
 
@@ -342,6 +353,59 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
     if (window.jQuery) window.jQuery(sel).on('change', fill); else sel.addEventListener('change', fill);
+});
+</script>
+@endpush
+
+@push('scripts')
+<script>
+// Beacon Numbers: search the register, or Other for typed numbers and ranges. select2 loads after this script.
+window.addEventListener('load', function () {
+    var $b = window.jQuery && jQuery.fn.select2 ? jQuery('#itsBeacons') : null;
+    if (!$b || !$b.length) return;
+    var other = document.getElementById('itsBeaconOther'), surveyor = document.getElementById('itsSurveyor'),
+        surveyorOther = document.getElementById('itsSurveyorOther');
+    $b.select2({
+        width: '100%', placeholder: 'Search beacon numbers…', closeOnSelect: false,
+        ajax: {
+            url: @json(route('survey-module.gkn.its.beacon-search')), delay: 250,
+            data: function (p) { return { q: p.term || '', surveyor: surveyor.value, surveyor_other: surveyorOther.value, its: @json($its->id) }; },
+            processResults: function (d) {
+                return { results: (d.numbers || []).map(function (n) { return { id: n, text: n }; }).concat([{ id: 'Other', text: 'Other (specify)' }]) };
+            }
+        }
+    }).on('change', function () {
+        var on = ($b.val() || []).indexOf('Other') !== -1;
+        other.style.display = on ? '' : 'none';
+        other.disabled = !on;
+        other.required = on;
+    });
+});
+
+// Picking a Computation File fills its Survey Type and shows its beacons, which stay on that file. A new pick clears what the last one filled.
+document.addEventListener('DOMContentLoaded', function () {
+    var cf = document.getElementById('itsComputation'), type = document.getElementById('itsSurveyType'),
+        typeOther = document.getElementById('itsSurveyTypeOther'), note = document.getElementById('itsCfBeacons');
+    if (!cf || !type) return;
+    var filled = '';
+    function show() {
+        var o = cf.options[cf.selectedIndex], beacons = o ? (o.getAttribute('data-beacons') || '') : '';
+        note.textContent = beacons ? 'Already on this Computation File: ' + beacons + '.' : '';
+        note.style.display = beacons ? '' : 'none';
+    }
+    function setType(value) {
+        var listed = Array.prototype.some.call(type.options, function (x) { return x.value === value; });
+        type.value = !value ? '' : (listed ? value : 'Other');
+        typeOther.value = value && !listed ? value : '';
+        type.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    cf.addEventListener('change', function () {
+        var o = cf.options[cf.selectedIndex], want = o ? (o.getAttribute('data-type') || '') : '';
+        var current = type.value === 'Other' ? typeOther.value : type.value;
+        if (!type.disabled && (current === '' || current === filled)) { setType(want); filled = want; }
+        show();
+    });
+    show();
 });
 </script>
 @endpush

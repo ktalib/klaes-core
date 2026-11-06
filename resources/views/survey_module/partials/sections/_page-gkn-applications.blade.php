@@ -9,7 +9,7 @@
 @include('survey_module.partials._flash')
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.gkn.applications.export'), 'title' => 'Applications' . ($tab ? ' - ' . \App\Http\Controllers\Survey\GknApplicationController::TYPES[$tab]['label'] : '')])</div>
     {{-- Opens Generate Application File Numbers on this page (user, 2026-10-30); was a link to the generator page. --}}
     <button type="button" class="btn btn-primary" @click="showGenerateModal = true">
         <i class="fas fa-plus"></i> Commission Application Files

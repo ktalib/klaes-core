@@ -34,18 +34,45 @@ class SurveyorAccounts
 
         for ($try = 1; ; $try++) {
             try {
-                $account = SurveyorPortalAccount::create($data + [
-                    'registration_id' => SurveyorPortalAccount::nextId('registration_id', 'KSSGOF-REG', 5),
-                    'status' => SurveyorPortalAccount::PENDING,
-                ]);
+                $account = $this->db()->transaction(function () use ($data) {
+                    $this->refuseSecondCompanyAccount($data);
+
+                    return SurveyorPortalAccount::create($data + [
+                        'registration_id' => SurveyorPortalAccount::nextId('registration_id', 'KSSGOF-REG', 5),
+                        'status' => SurveyorPortalAccount::PENDING,
+                    ]);
+                });
                 break;
             } catch (QueryException $e) {
-                if ($try >= 3 || ! str_contains($e->getMessage(), 'ux_surveyor_portal_registration')) throw $e;
+                $again = str_contains($e->getMessage(), 'ux_surveyor_portal_registration') || str_contains(strtolower($e->getMessage()), 'deadlock');
+                if ($try >= 3 || ! $again) throw $e;
             }
         }
         $this->notify->registered($account);
 
         return $account;
+    }
+
+    /**
+     * One account per company (user, 2026-11-06). Only a rejected registration frees the company. The rows stay
+     * locked until the new account is saved, so two sign-ups at the same moment can't both pass.
+     */
+    private function refuseSecondCompanyAccount(array $data): void
+    {
+        if (($data['surveyor_type'] ?? null) !== 'Private') return;
+
+        $taken = SurveyorPortalAccount::query()->where('surveyor_type', 'Private')
+            ->where('status', '!=', SurveyorPortalAccount::REJECTED)
+            ->lockForUpdate()->get(['id', 'company_id', 'company_name', 'company_rc_no']);
+
+        foreach ($taken as $a) {
+            $same = SurveyorPortalAccount::sameCompanyAs($a->only(['company_id', 'company_name', 'company_rc_no']), $data);
+            if (! $same) continue;
+
+            $field = $same === 'rc' ? 'company_rc_no' : (empty($data['company_id']) ? 'company_other' : 'company_choice');
+            throw ValidationException::withMessages([$field => ($same === 'rc' ? 'This RC number is already registered' : "{$a->company_name} is already registered")
+                . ' on the portal. Each company has one account. Contact the Office of the Surveyor General if this is wrong.']);
+        }
     }
 
     public function approve(SurveyorPortalAccount $account): SurveyorPortalAccount
@@ -90,7 +117,7 @@ class SurveyorAccounts
                 : null;
             // A new directory row takes the address given at registration. A row that already exists keeps its own.
             $id = $id ?: $this->db()->table('cadastral_surveyors')->insertGetId($a->only(SurveyorPortalAccount::addressColumns('addr_')) + [
-                'surcon_number' => $a->surcon_number, 'full_name' => $a->name, 'firm_name' => $a->company_name,
+                'surcon_number' => $a->surcon_number, 'full_name' => $a->name, 'firm_name' => $a->company_name, 'firm_rc_no' => $a->company_rc_no,
                 'phone' => $a->phone, 'email' => $a->email, 'licence_status' => 'Active', 'is_active' => 1,
                 'created_by' => Auth::id(), 'updated_by' => Auth::id(), 'created_at' => now(), 'updated_at' => now(),
             ]);

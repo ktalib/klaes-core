@@ -20,6 +20,8 @@ use Illuminate\Validation\ValidationException;
  */
 class CoFileController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     /** CO Files: the captured (existing) files only (user, 2026-10-30). */
     /** Related file numbers a CO file may carry: SIT, GKN or Misc KN, optionally temporary. */
     public const RELATED_FILE_PATTERN = '/^(SIT-\d{4}-\d+|GKN-\d+|MISC KN \d+|RDKN-\d+)( ?\(T\))?$/i';
@@ -57,32 +59,7 @@ class CoFileController extends Controller
 
     private function listing(Request $r, string $only)
     {
-        $q = SurveyCoFile::query()->where('source', $only)
-            ->withCount('projects')
-            ->withSum('projects', 'acquisition_size_ha')
-            ->with(['projects.surveyors', 'creator:id,first_name,last_name']);
-
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(function ($w) use ($term) {
-                $w->where('co_file_no', 'like', "%$term%")
-                  ->orWhere('title', 'like', "%$term%")
-                  ->orWhere('related_file_no', 'like', "%$term%")
-                  ->orWhere('related_sit_file_no', 'like', "%$term%")
-                  ->orWhere('related_gkn_file_no', 'like', "%$term%")
-                  ->orWhere('related_misckn_file_no', 'like', "%$term%")
-                  ->orWhere('related_rdkn_file_no', 'like', "%$term%")
-                  ->orWhere('related_mlpp_file_no', 'like', "%$term%")
-                  ->orWhere('old_file_ref', 'like', "%$term%")->orWhere('financial_file_ref', 'like', "%$term%")
-                  ->orWhere('surveyor_name', 'like', "%$term%")
-                  ->orWhereHas('projects', fn ($p) => $p->where('name', 'like', "%$term%")
-                                                        ->orWhere('project_code', 'like', "%$term%")
-                                                        ->orWhere('plan_no', 'like', "%$term%"));
-            });
-        }
-        if ($st = $r->query('status')) $q->where('status', $st);
-        if ($from = $r->query('from')) $q->whereDate('commission_date', '>=', $from);
-        if ($to = $r->query('to'))     $q->whereDate('commission_date', '<=', $to);
-        $q->origin($r->query('origin'));
+        $q = $this->coFileQuery($r, $only);
 
         $coFiles = $q->orderByDesc('id')->paginate(15)->withQueryString();
 
@@ -413,5 +390,62 @@ class CoFileController extends Controller
     {
         return \App\Models\Survey\SurveyorListEntry::query()->where(fn ($q) => $q->whereNull('is_active')->orWhere('is_active', 1))
             ->orderBy('first_name')->orderBy('surname')->get(['id', 'first_name', 'surname', 'other_name', 'rank']);
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function coFileQuery(Request $r, string $only)
+    {
+        $q = SurveyCoFile::query()->where('source', $only)
+            ->withCount('projects')
+            ->withSum('projects', 'acquisition_size_ha')
+            ->with(['projects.surveyors', 'creator:id,first_name,last_name']);
+
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(function ($w) use ($term) {
+                $w->where('co_file_no', 'like', "%$term%")
+                  ->orWhere('title', 'like', "%$term%")
+                  ->orWhere('related_file_no', 'like', "%$term%")
+                  ->orWhere('related_sit_file_no', 'like', "%$term%")
+                  ->orWhere('related_gkn_file_no', 'like', "%$term%")
+                  ->orWhere('related_misckn_file_no', 'like', "%$term%")
+                  ->orWhere('related_rdkn_file_no', 'like', "%$term%")
+                  ->orWhere('related_mlpp_file_no', 'like', "%$term%")
+                  ->orWhere('old_file_ref', 'like', "%$term%")->orWhere('financial_file_ref', 'like', "%$term%")
+                  ->orWhere('surveyor_name', 'like', "%$term%")
+                  ->orWhereHas('projects', fn ($p) => $p->where('name', 'like', "%$term%")
+                                                        ->orWhere('project_code', 'like', "%$term%")
+                                                        ->orWhere('plan_no', 'like', "%$term%"));
+            });
+        }
+        if ($st = $r->query('status')) $q->where('status', $st);
+        if ($from = $r->query('from')) $q->whereDate('commission_date', '>=', $from);
+        if ($to = $r->query('to'))     $q->whereDate('commission_date', '<=', $to);
+        $q->origin($r->query('origin'));
+
+        return $q;
+    }
+
+    /** Export Records: ?list=commissioned is the Commission CO File page, otherwise CO Files. */
+    public function export(Request $r)
+    {
+        $only = $r->query('list') === 'commissioned' ? SurveyCoFile::SOURCE_COMMISSIONED : SurveyCoFile::SOURCE_CAPTURED;
+
+        return $this->exportRecords($r, fn () => $this->coFileQuery($r, $only)->orderByDesc('id'), [
+            'co_file_no' => 'CO File No', 'related' => 'Related Files', 'title' => 'Title', 'tp_nos' => 'TP No(s).', 'location' => 'Location',
+            'commission_date' => 'Commission Date', 'projects' => 'Projects', 'surveyors' => 'Surveyor(s)', 'portions' => 'Total Portions',
+            'acquisition' => 'Acquisition (Ha)', 'status' => 'Status', 'created_by' => 'Created By', 'created_at' => 'Date Created', 'updated_at' => 'Last Updated',
+        ], function ($f) {
+            $allocs = $f->projects->flatMap->surveyors;
+            $related = array_filter([$f->related_sit_file_no, $f->related_misckn_file_no, $f->related_gkn_file_no, $f->related_rdkn_file_no, $f->related_mlpp_file_no])
+                ?: array_filter([$f->related_file_no]);
+
+            return [
+                'co_file_no' => $f->co_file_no, 'related' => implode(', ', array_unique($related)), 'title' => $f->display_title,
+                'tp_nos' => implode(', ', $f->tpNumbers()), 'location' => $f->property_location, 'commission_date' => $this->exportDate($f->commission_date),
+                'projects' => $f->projects->pluck('project_code')->implode(', '), 'surveyors' => $allocs->pluck('surveyor_name')->unique()->implode(', '),
+                'portions' => $allocs->sum('portions') ?: null, 'acquisition' => $f->projects_sum_acquisition_size_ha, 'status' => $f->status,
+                'created_by' => $this->exportUser($f->creator), 'created_at' => $this->exportDate($f->created_at), 'updated_at' => $this->exportDate($f->updated_at, 'd M Y H:i'),
+            ];
+        });
     }
 }

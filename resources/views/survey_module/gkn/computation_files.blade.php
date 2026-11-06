@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Computation Files (Field Jackets)';
-  $PageDescription = 'Government: commissioned by the Survey Department, LPKN-serial. Private: commissioned by Cadastral, LPPL-year-serial.';
+  $PageDescription = 'Public: commissioned by the Survey Department, LPKN-serial. Private: commissioned by Cadastral, LPPL-year-serial.';
   $field = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;';
   $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
   $e = $editing ?? null;
@@ -18,16 +18,22 @@
 @include('survey_module.partials._gov_private_tabs', ['route' => 'survey-module.gkn.computation-files', 'tab' => $tab])
 
 <div class="kpi-grid">
-    <div class="kpi-card"><div class="kpi-label">Government (LPKN)</div><div class="kpi-value">{{ number_format($stats['government']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Public (LPKN)</div><div class="kpi-value">{{ number_format($stats['government']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Private (LPPL)</div><div class="kpi-value">{{ number_format($stats['private']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Commissioned this month</div><div class="kpi-value">{{ number_format($stats['month']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">With an I to S</div><div class="kpi-value">{{ number_format($stats['with_its']) }}</div></div>
 </div>
 
+@if ($tab === 'private')
+<div class="page-header"><div></div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.gkn.computation-files.export'), 'title' => 'Computation Files - Private', 'dateLabel' => 'Date Commissioned'])</div>
+@endif
+
 @if ($tab === 'government')
 <div class="page-header">
     <div style="font-size:13px;color:var(--gray-500);">Numbered LPKN-serial (e.g. LPKN-123), one series for all years. The serial can be set to continue from the last one used, under Configurable Entities &gt; Serial Initialization.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.gkn.computation-files.export'), 'title' => 'Computation Files - ' . ($tab === 'private' ? 'Private' : 'Public'), 'dateLabel' => 'Date Commissioned'])
     <button type="button" class="btn btn-primary" onclick="document.getElementById('cfForm').classList.add('open')"><i class="fas fa-plus"></i> Commission Computation File</button>
+    </div>
 </div>
 
 {{-- Commission / edit, as a modal (Survey entry forms are modals). The number is given on save. --}}
@@ -71,7 +77,7 @@
         <div class="sv-group"><i class="fas fa-user-tie"></i><span>Survey</span></div>
         <div class="form-group">
             <label>Surveyor <span class="required">*</span></label>
-            <select name="surveyors_list_id" required class="sv-searchable">
+            <select name="surveyors_list_id" id="cfSurveyor" required class="sv-searchable">
                 <option value="">Select surveyor…</option>
                 @foreach ($surveyors as $s)
                     <option value="{{ $s->id }}" @selected((string) $v('surveyors_list_id') === (string) $s->id)>{{ $s->full_name }}{{ $s->rank ? ' · ' . $s->rank : '' }}</option>
@@ -82,14 +88,57 @@
         @php $itsSel = (string) old('survey_its_id', $editingIts ?? ''); @endphp
         <div class="form-group span-2">
             <label>Instruction to Survey</label>
-            <select name="survey_its_id" class="sv-searchable">
+            <select name="survey_its_id" id="cfIts" class="sv-searchable">
                 <option value="">None</option>
                 @foreach ($itsOptions as $i)
-                    <option value="{{ $i->id }}" @selected($itsSel === (string) $i->id)>{{ $i->its_number ?: $i->job_ref }} · {{ $i->file_number }}{{ $i->file_title ? ' · ' . \Illuminate\Support\Str::limit($i->file_title, 60) : '' }}</option>
+                    <option value="{{ $i->id }}" data-type="{{ $i->survey_type }}" data-beacons="{{ $itsBeacons[$i->id] ?? '' }}" @selected($itsSel === (string) $i->id)>{{ $i->its_number ?: $i->job_ref }} · {{ $i->file_number }}{{ $i->file_title ? ' · ' . \Illuminate\Support\Str::limit($i->file_title, 60) : '' }}</option>
                 @endforeach
             </select>
             <p class="helper-text">Optional.</p>
         </div>
+    </div>
+    {{-- Survey Type and Beacon Numbers, as on the I to S (user, 2026-11-06). Beacons search the register; Other takes typed numbers and ranges, in the register or not. --}}
+    @php
+        $stNames = collect($surveyTypes)->pluck('name');
+        $stSaved = $e?->survey_type;
+        $stPick = old('survey_type', $stSaved === null ? '' : ($stNames->contains($stSaved) ? $stSaved : 'Other'));
+        $stOther = old('survey_type_other', $stPick === 'Other' ? $stSaved : '');
+        $bPicks = collect(session()->hasOldInput() ? old('beacon_picks', []) : $savedBeacons);
+        $bOtherOn = $bPicks->contains('Other');
+    @endphp
+    <div class="form-grid cols-3">
+        <div class="sv-group"><i class="fas fa-map-pin"></i><span>Survey Type &amp; Beacons</span></div>
+        <div class="form-group">
+            <label>Survey Type</label>
+            <select name="survey_type" id="cfSurveyType" class="sv-searchable"
+                    onchange="var o=document.getElementById('cfSurveyTypeOther'),on=this.value==='Other';o.style.display=on?'':'none';o.disabled=!on;o.required=on;">
+                <option value="">Select survey type…</option>
+                @foreach ($surveyTypes as $t)
+                    <option value="{{ $t->name }}" @selected($stPick === $t->name)>{{ $t->name }}</option>
+                @endforeach
+                <option value="Other" @selected($stPick === 'Other')>Other (specify)</option>
+            </select>
+            <input type="text" name="survey_type_other" id="cfSurveyTypeOther" maxlength="100" value="{{ $stOther }}" placeholder="Specify the survey type *" aria-label="Specify the survey type"
+                   style="margin-top:6px;{{ $stPick === 'Other' ? '' : 'display:none;' }}" @if ($stPick === 'Other') required @else disabled @endif />
+            @error('survey_type_other')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
+        </div>
+        <div class="form-group span-2">
+            <label>Beacon Numbers</label>
+            <style>#cfForm .select2-selection--multiple .select2-selection__choice { padding-left: 24px !important; }</style>
+            <select name="beacon_picks[]" id="cfBeacons" multiple data-no-search aria-label="Beacon Numbers" style="width:100%;">
+                @foreach ($bPicks as $b)
+                    <option value="{{ $b }}" selected>{{ $b === 'Other' ? 'Other (specify)' : $b }}</option>
+                @endforeach
+            </select>
+            <textarea name="beacon_other" id="cfBeaconOther" rows="2" maxlength="8000" placeholder="Type the numbers *, e.g. KDJ 0001 to KDJ 0004, A1404B" aria-label="Other beacon numbers"
+                      style="margin-top:6px;{{ $bOtherOn ? '' : 'display:none;' }}" @if ($bOtherOn) required @else disabled @endif>{{ old('beacon_other') }}</textarea>
+            @error('beacon_picks')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
+            @error('beacon_other')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
+            <p class="helper-text" id="cfItsBeacons" style="display:none;"></p>
+            <p class="helper-text">Search the numbers free for this surveyor, or choose Other to type numbers and ranges. A number on another job, or issued to another surveyor, is refused.</p>
+        </div>
+    </div>
+    <div class="form-grid cols-3">
         <div class="form-group span-3"><label>Remarks</label><textarea name="remarks" maxlength="1000">{{ $v('remarks') }}</textarea></div>
     </div>
     <div class="form-actions">
@@ -122,6 +171,7 @@
                     <th>LGA</th>
                     <th>Location</th>
                     <th>Surveyor</th>
+                    @if ($tab !== 'private')<th>Survey Type</th><th>Beacon Numbers</th>@endif
                     <th>{{ $tab === 'private' ? 'Job No.' : 'I to S' }}</th>
                     <th>Commissioned</th>
                     <th></th>
@@ -148,6 +198,8 @@
                         @else
                             <td>{{ $row->surveyor_name ?: '—' }}</td>
                             {{-- The I to S that names this Computation File (or the one picked here before 2026-11-02). --}}
+                            <td>{{ $row->survey_type ?: '—' }}</td>
+                            <td style="min-width:140px;">{{ implode(', ', $beaconMap[$row->id] ?? []) ?: '—' }}</td>
                             <td>{{ ($its[$row->id] ?? null) ?: '—' }}</td>
                         @endif
                         <td style="white-space:nowrap;">{{ optional($row->commissioned_at)->format('d M Y') ?: '—' }}</td>
@@ -181,7 +233,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="12" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="{{ $tab === 'private' ? 12 : 14 }}" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-folder-open" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             @if ($term !== '')
                                 No computation file matches the search.
@@ -242,6 +294,54 @@
         });
     });
     document.getElementById('cfClear').addEventListener('click', function () { clearFilled(); no.value = ''; note.textContent = 'Optional. Picking a file fills its details below.'; });
+
+    // Beacon Numbers: search the register, or Other for typed numbers and ranges. select2 loads after this script.
+    window.addEventListener('load', function () {
+        var $b = window.jQuery && jQuery.fn.select2 ? jQuery('#cfBeacons') : null;
+        if (!$b || !$b.length) return;
+        var other = document.getElementById('cfBeaconOther'), surveyor = document.getElementById('cfSurveyor');
+        $b.select2({
+            width: '100%', placeholder: 'Search beacon numbers…', closeOnSelect: false,
+            ajax: {
+                url: @json(route('survey-module.gkn.computation-files.beacon-search')), delay: 250,
+                data: function (p) { return { q: p.term || '', surveyor: surveyor.value, file: @json($e?->id) }; },
+                processResults: function (d) {
+                    return { results: (d.numbers || []).map(function (n) { return { id: n, text: n }; }).concat([{ id: 'Other', text: 'Other (specify)' }]) };
+                }
+            }
+        }).on('change', function () {
+            var on = ($b.val() || []).indexOf('Other') !== -1;
+            other.style.display = on ? '' : 'none';
+            other.disabled = !on;
+            other.required = on;
+        });
+    });
+
+    // Picking an I to S fills its Survey Type and shows its beacons, which stay on the I to S. A new pick clears what the last one filled.
+    (function () {
+        var its = document.getElementById('cfIts'), type = document.getElementById('cfSurveyType'),
+            typeOther = document.getElementById('cfSurveyTypeOther'), note = document.getElementById('cfItsBeacons');
+        if (!its) return;
+        var filled = '';
+        function show() {
+            var o = its.options[its.selectedIndex], beacons = o ? (o.getAttribute('data-beacons') || '') : '';
+            note.textContent = beacons ? 'Already on this I to S: ' + beacons + '.' : '';
+            note.style.display = beacons ? '' : 'none';
+        }
+        function setType(value) {
+            var listed = Array.prototype.some.call(type.options, function (x) { return x.value === value; });
+            type.value = !value ? '' : (listed ? value : 'Other');
+            typeOther.value = value && !listed ? value : '';
+            type.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        its.addEventListener('change', function () {
+            var o = its.options[its.selectedIndex], want = o ? (o.getAttribute('data-type') || '') : '';
+            var current = type.value === 'Other' ? typeOther.value : type.value;
+            if (current === '' || current === filled) { setType(want); filled = want; }
+            show();
+        });
+        show();
+    })();
 })();
 </script>
 @endpush

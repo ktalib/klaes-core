@@ -25,15 +25,18 @@ use Illuminate\Validation\ValidationException;
  */
 class SurveyCoordinateController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function __construct(private SurveyItsAnchors $anchors)
     {
     }
 
     /* ----------------------------- coordinates ----------------------------- */
 
+    /** The list is a section of the Surveyors Report table now (recording, 2026-11-06). */
     public function index(Request $r)
     {
-        return view('survey_module.gkn.coordinates.index', $this->overview($r, 'coordinates'));
+        return redirect()->route('survey-module.gkn.reports.index');
     }
 
     public function show(string $its)
@@ -114,7 +117,7 @@ class SurveyCoordinateController extends Controller
 
     public function observations(Request $r)
     {
-        return view('survey_module.gkn.observations.index', $this->overview($r, 'observations'));
+        return redirect()->route('survey-module.gkn.reports.index');
     }
 
     public function showObservations(string $its)
@@ -190,35 +193,6 @@ class SurveyCoordinateController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
-
-    /** Every issued I to S with how many beacons and readings it has. */
-    private function overview(Request $r, string $page): array
-    {
-        $coordCounts = Coord::query()->selectRaw("its_source, COALESCE(survey_its_id, cadastral_survey_job_id) AS aid, COUNT(*) AS n")
-            ->groupBy('its_source', DB::raw('COALESCE(survey_its_id, cadastral_survey_job_id)'))->get()
-            ->mapWithKeys(fn ($x) => [$x->its_source . '-' . $x->aid => (int) $x->n]);
-        $obsCounts = Obs::query()->selectRaw("its_source, COALESCE(survey_its_id, cadastral_survey_job_id) AS aid, COUNT(*) AS n")
-            ->groupBy('its_source', DB::raw('COALESCE(survey_its_id, cadastral_survey_job_id)'))->get()
-            ->mapWithKeys(fn ($x) => [$x->its_source . '-' . $x->aid => (int) $x->n]);
-
-        $rows = collect($this->anchors->all())->map(fn ($a) => $a + [
-            'coords' => $coordCounts[$a['key']] ?? 0,
-            'obs'    => $obsCounts[$a['key']] ?? 0,
-        ]);
-
-        if ($term = mb_strtolower(trim((string) $r->query('q', '')))) {
-            $rows = $rows->filter(fn ($a) => str_contains(mb_strtolower($a['label'] . ' ' . ($a['prefill']['grantee_name'] ?? '')), $term));
-        }
-        if ($r->query('has') === 'with') $rows = $rows->filter(fn ($a) => $a[$page === 'coordinates' ? 'coords' : 'obs'] > 0);
-        if ($r->query('has') === 'without') $rows = $rows->filter(fn ($a) => $a[$page === 'coordinates' ? 'coords' : 'obs'] === 0);
-
-        $page_ = max(1, (int) $r->query('page', 1));
-
-        return [
-            'rows'  => new \Illuminate\Pagination\LengthAwarePaginator($rows->values()->forPage($page_, 20)->values(), $rows->count(), 20, $page_, ['path' => $r->url(), 'query' => $r->query()]),
-            'totals' => ['its' => count($this->anchors->all()), 'coords' => Coord::count(), 'obs' => Obs::count()],
-        ];
-    }
 
     /** The Sketch Plan(s) filed for the survey, newest first (SurveyDocuments). */
     private function sketches(array $anchor)
@@ -358,5 +332,51 @@ class SurveyCoordinateController extends Controller
             'observer'          => $shared['observer'] ?? null,
             'remarks'           => $line['remarks'] ?? null,
         ];
+    }
+
+    /** The overview's list with its filters, shared with Export Records. */
+    private function overviewRows(Request $r, string $page)
+    {
+        $coordCounts = Coord::query()->selectRaw("its_source, COALESCE(survey_its_id, cadastral_survey_job_id) AS aid, COUNT(*) AS n")
+            ->groupBy('its_source', DB::raw('COALESCE(survey_its_id, cadastral_survey_job_id)'))->get()
+            ->mapWithKeys(fn ($x) => [$x->its_source . '-' . $x->aid => (int) $x->n]);
+        $obsCounts = Obs::query()->selectRaw("its_source, COALESCE(survey_its_id, cadastral_survey_job_id) AS aid, COUNT(*) AS n")
+            ->groupBy('its_source', DB::raw('COALESCE(survey_its_id, cadastral_survey_job_id)'))->get()
+            ->mapWithKeys(fn ($x) => [$x->its_source . '-' . $x->aid => (int) $x->n]);
+
+        $rows = collect($this->anchors->all())->map(fn ($a) => $a + [
+            'coords' => $coordCounts[$a['key']] ?? 0,
+            'obs'    => $obsCounts[$a['key']] ?? 0,
+        ]);
+
+        if ($term = mb_strtolower(trim((string) $r->query('q', '')))) {
+            $rows = $rows->filter(fn ($a) => str_contains(mb_strtolower($a['label'] . ' ' . ($a['prefill']['grantee_name'] ?? '')), $term));
+        }
+        if ($r->query('has') === 'with') $rows = $rows->filter(fn ($a) => $a[$page === 'coordinates' ? 'coords' : 'obs'] > 0);
+        if ($r->query('has') === 'without') $rows = $rows->filter(fn ($a) => $a[$page === 'coordinates' ? 'coords' : 'obs'] === 0);
+
+        return $rows;
+    }
+
+    public function exportCoordinates(Request $r)
+    {
+        return $this->exportOverview($r, 'coordinates');
+    }
+
+    public function exportObservations(Request $r)
+    {
+        return $this->exportOverview($r, 'observations');
+    }
+
+    private function exportOverview(Request $r, string $page)
+    {
+        return $this->exportRecords($r, fn () => $this->overviewRows($r, $page), [
+            'source' => 'Source', 'its_number' => 'I to S No.', 'file_number' => 'File No.', 'grantee' => 'Grantee', 'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA',
+            'surveyor' => 'Surveyor', 'beacons' => 'Beacons', 'readings' => 'Readings',
+        ], fn ($a) => [
+            'source' => $a['source'] === 'survey' ? 'Survey' : 'Cadastral', 'its_number' => $a['prefill']['its_number'], 'file_number' => $a['prefill']['file_number'],
+            'grantee' => $a['prefill']['grantee_name'], 'plot_no' => $a['prefill']['plot_no'], 'district' => $a['prefill']['district'], 'lga' => $a['prefill']['lga'],
+            'surveyor' => $a['prefill']['surveyor_name'], 'beacons' => $a['coords'], 'readings' => $a['obs'],
+        ], null);
     }
 }

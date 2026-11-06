@@ -32,6 +32,8 @@ use Illuminate\Validation\ValidationException;
  */
 class BeaconRegisterController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     /** The module role for this page (user, 2026-10-23). */
     public const MODULE = 'Survey - Beacon Register';
 
@@ -65,13 +67,7 @@ class BeaconRegisterController extends Controller
         // "By beacon number": one row per expanded number, carrying its line's details.
         $numbers = null;
         if ($view === 'numbers') {
-            $nq = SurveyBeaconNumber::query()
-                ->whereIn('survey_beacon_register_id', (clone $q)->select('id'))
-                ->with('register.files');
-            $term = SurveyBeaconRegister::normalise($r->query('q'));
-            if ($term && SurveyBeaconRegister::parseBeacon($term)) {
-                $nq->where('beacon_no', 'like', "%$term%");
-            }
+            $nq = $this->numbersQuery($q, $r);
             $numbers = $nq->orderBy('beacon_series')->orderBy('beacon_seq')->paginate(50)->withQueryString();
         }
 
@@ -92,6 +88,9 @@ class BeaconRegisterController extends Controller
                     ->orderBy('beacon_seq')->paginate(50, ['*'], 'gpage')->withQueryString();
             }
         }
+
+        // "By issue" lists the letter groups; a click opens a group's entries in place (groupRows).
+        $letterGroups = $view === 'issues' ? $this->letterGroups($q) : null;
 
         $filteredBeacons = (int) (clone $q)->sum('total_issued');
         $filteredAmount  = (float) (clone $q)->sum('amount');
@@ -125,6 +124,7 @@ class BeaconRegisterController extends Controller
             'groups'          => $groups,
             'openGroup'       => $openGroup,
             'groupNumbers'    => $groupNumbers,
+            'letterGroups'    => $letterGroups,
             'view'            => $view,
             'stats'           => $stats,
             'years'           => $years,
@@ -608,6 +608,59 @@ class BeaconRegisterController extends Controller
         }
     }
 
+    /** A number's leading letters: its series up to the bar, so A0875A and A1404B are both A (user, 2026-11-06). */
+    private const LETTERS_SQL = "LEFT(beacon_series, CHARINDEX('|', beacon_series + '|') - 1)";
+
+    /**
+     * The letter groups of a selection, in alphabetical order (user, 2026-11-06): K, KA, KAA, KB; numbers with no
+     * letters last. Each carries its first entry, the lowest number, which is the group's row in the table.
+     */
+    private function letterGroups($q)
+    {
+        return SurveyBeaconNumber::query()
+            ->whereIn('survey_beacon_register_id', (clone $q)->select('id'))
+            ->selectRaw(self::LETTERS_SQL . ' AS letters, COUNT(*) AS issued, COUNT(DISTINCT survey_beacon_register_id) AS entries, MIN(beacon_seq) AS lowest, MAX(beacon_seq) AS highest')
+            ->groupByRaw(self::LETTERS_SQL)->get()
+            ->sortBy(fn ($g) => $g->letters === '' ? '~' : $g->letters)->values()
+            ->each(fn ($g) => $g->setRelation('firstEntry', $this->groupEntries($q, (string) $g->letters)->first()));
+    }
+
+    /** A letter group's entries, lowest number first, with what their table rows show. */
+    private function groupEntries($q, string $letters)
+    {
+        $inGroup = SurveyBeaconNumber::query()->whereRaw(self::LETTERS_SQL . ' = ?', [$letters]);
+
+        return (clone $q)->whereIn('id', (clone $inGroup)->select('survey_beacon_register_id'))
+            ->with([
+                'creator:id,first_name,last_name', 'reviewer:id,first_name,last_name', 'auditor:id,first_name,last_name',
+                'numbers:id,survey_beacon_register_id,beacon_no,beacon_seq',
+                'files:id,survey_beacon_register_id,file_number,sort_order',
+            ])
+            ->orderBy((clone $inGroup)->selectRaw('MIN(beacon_seq)')->whereColumn('survey_beacon_numbers.survey_beacon_register_id', 'survey_beacon_register.id'))
+            ->orderBy('id');
+    }
+
+    /**
+     * The rest of a letter group for the By issue table, 20 at a time: its first entry is already the group's row.
+     * The same rows and actions as before, opened in place so a click does not reload the page. The page's filters apply.
+     */
+    public function groupRows(Request $r)
+    {
+        $this->authorizeAction('view');
+        $letters = (string) $r->query('group');
+        $first = $this->groupEntries($this->filtered($r), $letters)->value('id');
+
+        $entries = $this->groupEntries($this->filtered($r), $letters)->where('id', '!=', (int) $first)
+            ->paginate(20)->withQueryString();
+
+        return response()->json([
+            'html'  => view('survey_module.partials.sections._beacon_issue_rows', ['entries' => $entries, 'groupNo' => (int) $r->query('sn')])->render(),
+            'next'  => $entries->nextPageUrl(),
+            'shown' => $entries->lastItem(),
+            'total' => $entries->total(),
+        ]);
+    }
+
     private function filtered(Request $r)
     {
         $q = SurveyBeaconRegister::query();
@@ -877,5 +930,50 @@ class BeaconRegisterController extends Controller
         }
 
         return $range;
+    }
+
+    /** The By number view's list, shared with Export Records. */
+    private function numbersQuery($q, Request $r)
+    {
+        $nq = SurveyBeaconNumber::query()
+            ->whereIn('survey_beacon_register_id', (clone $q)->select('id'))
+            ->with('register.files');
+        $term = SurveyBeaconRegister::normalise($r->query('q'));
+        if ($term && SurveyBeaconRegister::parseBeacon($term)) {
+            $nq->where('beacon_no', 'like', "%$term%");
+        }
+
+        return $nq;
+    }
+
+    /** Export Records: the By number view gives one row per number; the other views give the issue lines. */
+    public function export(Request $r)
+    {
+        $this->authorizeAction('view');
+
+        $issue = fn ($x) => [
+            'type' => $x?->layout_type_label, 'file_number' => $x ? implode(', ', $x->fileNumberList()) : null, 'register_no' => $x?->register_no, 'plan_no' => $x?->plan_no,
+            'company' => $x->company_name, 'surveyor' => $x?->surveyor_name, 'registration' => $x?->surveyor_registration, 'plot_no' => $x?->prop_plot,
+            'district' => $x?->resolvedDistrict('prop_'), 'lga' => $x ? mb_strtoupper((string) \App\Support\AddressBuilder::resolve($x->prop_lga)) : null,
+            'location' => $x?->resolvedStreet('prop_'), 'x' => $x?->coord_x, 'y' => $x?->coord_y, 'teller' => $x?->teller_no,
+        ];
+        $columns = [
+            'type' => 'Type', 'file_number' => 'File No.', 'register_no' => 'Register No.', 'plan_no' => 'Plan No.', 'company' => 'Company', 'surveyor' => "Surveyor's Name",
+            'registration' => 'Registration', 'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'location' => 'Location', 'x' => 'X', 'y' => 'Y', 'teller' => 'Teller No.',
+        ];
+
+        if ($r->query('view') === 'numbers') {
+            return $this->exportRecords($r, fn () => $this->numbersQuery($this->filtered($r), $r)->orderBy('beacon_series')->orderBy('beacon_seq')->orderBy('id'),
+                ['beacon_no' => 'Beacon No.', 'date' => 'Date'] + $columns,
+                fn ($n) => ['beacon_no' => SurveyBeaconRegister::display($n->beacon_no), 'date' => $this->exportDate($n->register?->issue_date, 'd/m/Y')] + $issue($n->register), null);
+        }
+
+        return $this->exportRecords($r, fn () => $this->filtered($r)->with(['creator:id,first_name,last_name', 'files:id,survey_beacon_register_id,file_number,sort_order'])
+            ->orderByDesc('issue_date')->orderByDesc('id'),
+            ['date' => 'Date'] + $columns + ['issued' => 'Issued Number', 'total' => 'Total', 'amount' => 'Amount (₦)', 'received' => 'Date Received', 'created_by' => 'Created By', 'status' => 'Status'],
+            fn ($x) => ['date' => $this->exportDate($x->issue_date, 'd/m/Y')] + $issue($x) + [
+                'issued' => $x->issued_range, 'total' => $x->total_issued, 'amount' => $x->amount, 'received' => $this->exportDate($x->date_received, 'd/m/Y'),
+                'created_by' => $this->exportUser($x->creator), 'status' => $x->audited_at ? 'Audited' : ($x->reviewed_at ? 'Reviewed' : 'Entered'),
+            ], 'issue_date');
     }
 }

@@ -15,7 +15,7 @@
 @include('survey_module.partials._flash')
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.compensation.co-files.export'), 'title' => $commissioned ? 'Commissioned CO Files' : 'CO Files', 'params' => ['list' => $commissioned ? 'commissioned' : 'captured'], 'statuses' => \App\Models\Survey\SurveyCoFile::STATUSES])</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         @if ($commissioned)
             <a href="{{ route('survey-module.compensation.co-files.create') }}" class="btn btn-primary">

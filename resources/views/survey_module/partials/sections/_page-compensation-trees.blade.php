@@ -19,7 +19,7 @@
 @include('survey_module.partials._flash')
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.compensation.trees.export'), 'title' => 'Farm Features - ' . ($tab === 'cash' ? 'Cash Crops' : 'Economic Trees'), 'dates' => false])</div>
     <button type="button" class="btn btn-primary btn-sm" onclick="toggleTreeCatalogueForm()">
         <i class="fas {{ $tab === 'cash' ? 'fa-seedling' : 'fa-tree' }}"></i> {{ $tab === 'cash' ? 'Add Cash Crop' : 'Add Economic Tree' }}
     </button>

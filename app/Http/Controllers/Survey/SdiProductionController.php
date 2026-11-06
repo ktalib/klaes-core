@@ -16,6 +16,8 @@ use Illuminate\Support\Str;
  */
 class SdiProductionController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public const TABS = [
         'queue'    => 'Queue',
         'produced' => 'Produced',
@@ -26,24 +28,7 @@ class SdiProductionController extends Controller
     {
         $tab = array_key_exists((string) $r->query('tab'), self::TABS) ? $r->query('tab') : 'queue';
 
-        $q = SdiMapRequest::with(['mda', 'mapType', 'actionedBy']);
-        match ($tab) {
-            'produced' => $q->where('status', SdiMapRequest::FULFILLED)->orderByDesc('actioned_at'),
-            'rejected' => $q->where('status', SdiMapRequest::REJECTED)->orderByDesc('actioned_at'),
-            // High priority first, then the oldest due date / oldest request.
-            default    => $q->open()
-                ->orderByRaw("CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END")
-                ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')->orderBy('due_date')->orderBy('id'),
-        };
-
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(function ($w) use ($term) {
-                foreach (['request_ref', 'map_name', 'production_officer', 'requester_other'] as $col) {
-                    $w->orWhere($col, 'like', "%$term%");
-                }
-                $w->orWhereHas('mda', fn ($m) => $m->where('name', 'like', "%$term%")->orWhere('abbreviation', 'like', "%$term%"));
-            });
-        }
+        $q = $this->requestQuery($r, $tab);
 
         $counts = SdiMapRequest::selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status');
 
@@ -129,5 +114,44 @@ class SdiProductionController extends Controller
         $v = trim((string) $v);
 
         return $v === '' ? null : $v;
+    }
+
+    /** The open tab's list, shared with Export Records. */
+    private function requestQuery(Request $r, string $tab)
+    {
+        $q = SdiMapRequest::with(['mda', 'mapType', 'actionedBy']);
+        match ($tab) {
+            'produced' => $q->where('status', SdiMapRequest::FULFILLED)->orderByDesc('actioned_at'),
+            'rejected' => $q->where('status', SdiMapRequest::REJECTED)->orderByDesc('actioned_at'),
+            // High priority first, then the oldest due date / oldest request.
+            default    => $q->open()
+                ->orderByRaw("CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END")
+                ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')->orderBy('due_date')->orderBy('id'),
+        };
+
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(function ($w) use ($term) {
+                foreach (['request_ref', 'map_name', 'production_officer', 'requester_other'] as $col) {
+                    $w->orWhere($col, 'like', "%$term%");
+                }
+                $w->orWhereHas('mda', fn ($m) => $m->where('name', 'like', "%$term%")->orWhere('abbreviation', 'like', "%$term%"));
+            });
+        }
+
+        return $q;
+    }
+
+    public function export(Request $r)
+    {
+        $tab = array_key_exists((string) $r->query('tab'), self::TABS) ? $r->query('tab') : 'queue';
+
+        return $this->exportRecords($r, fn () => $this->requestQuery($r, $tab), [
+            'ref' => 'Request No', 'mda' => 'Requesting MDA', 'map' => 'Map', 'map_type' => 'Map Type', 'formats' => 'Formats', 'priority' => 'Priority', 'due' => 'Due',
+            'completed' => 'Completed', 'officer' => 'Officer', 'status' => 'Status',
+        ], fn ($m) => [
+            'ref' => $m->request_ref, 'mda' => $m->requesterName(), 'map' => $m->map_name, 'map_type' => $m->mapType?->name, 'formats' => $m->formatsLabel(),
+            'priority' => $m->priorityLabel(), 'due' => $this->exportDate($m->due_date), 'completed' => $this->exportDate($m->actioned_at), 'officer' => $m->production_officer,
+            'status' => $m->statusLabel(),
+        ]);
     }
 }

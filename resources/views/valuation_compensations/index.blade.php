@@ -123,7 +123,7 @@
                         <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100 group">
                             <td class="px-6 py-4 text-xs font-bold text-slate-400">{{ $loop->iteration }}</td>
                             <td class="px-6 py-4">
-                                <span class="font-bold text-slate-800">{{ $project->project_name ?? 'Individual Records' }}</span>
+                                <span class="font-bold text-slate-800">{{ mb_strtoupper($project->project_name ?? 'Individual Records') }}</span>
                             </td>
                             <td class="px-6 py-4 font-mono text-xs font-bold text-slate-500">{{ $project->project_code ?? 'N/A' }}</td>
                             <td class="px-6 py-4">

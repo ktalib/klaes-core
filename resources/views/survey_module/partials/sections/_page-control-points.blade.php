@@ -93,7 +93,7 @@
 @include('survey_module.partials._flash')
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.workflow.control-points.export'), 'title' => 'Control Points', 'dateLabel' => 'Issue Date', 'dates' => request('view') !== 'numbers'])</div>
     @if ($brCan['create'])
         <button type="button" class="btn btn-primary btn-sm" onclick="brOpenNew()">
             <i class="fas fa-plus"></i> New Entry

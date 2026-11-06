@@ -1809,7 +1809,7 @@ class FileIndexController extends Controller
                 ], 409);
             }
 
-            $fileIndexing->delete();
+            app(\App\Services\FileNumber\CrossedOutFiles::class)->crossOutIndexings([$fileIndexing->id]);
 
             Log::info('File indexing deleted', [
                 'file_indexing_id' => $id,
@@ -6110,9 +6110,7 @@ class FileIndexController extends Controller
             }
 
             // Soft delete by setting is_deleted = 1
-            $fileIndexing->is_deleted = 1;
-            $fileIndexing->deleted_at = now();
-            $fileIndexing->save();
+            app(\App\Services\FileNumber\CrossedOutFiles::class)->crossOutIndexings([$fileIndexing->id]);
 
             Log::info('File indexed record soft deleted', [
                 'file_id' => $id,

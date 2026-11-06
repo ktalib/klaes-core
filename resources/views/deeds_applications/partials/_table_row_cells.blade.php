@@ -14,8 +14,17 @@
 <!--cell-->
 {{ $sn }}
 <!--cell-->
-{{-- Painted by public/js/deeds-pipeline.js, one batched lookup per page drawn. --}}
-<span data-pipeline-file="{{ $application->file_number }}"></span>
+{{-- Painted by public/js/deeds-pipeline.js, one batched lookup per page drawn. R follows this row's own
+     registration, the same one as the Reg line, not any registration on the file (user, 2026-11-05). --}}
+@php
+  $rowRegistration = '';
+  if (!empty($registration)) {
+      $rowRegistration = trim((string) $registration->registration_number) ?: 'Registered';
+  } elseif (!empty($stRegistration)) {
+      $rowRegistration = $stRegistration['single'] ?: $stRegistration['count'] . ' of ' . $stRegistration['total'] . ' units';
+  }
+@endphp
+<span data-pipeline-file="{{ $application->file_number }}" data-pipeline-registration="{{ $rowRegistration }}"></span>
 <!--cell-->
 <button type="button" class="view-properties-btn flex items-center gap-2 hover:text-blue-600 transition outline-none"
         data-main-file="{{ $application->file_number }}"
@@ -38,6 +47,9 @@
 @if (!empty($registration))
   <div class="mt-1 text-[11px] font-bold whitespace-nowrap" style="color:#0f766e;" title="Registered as {{ $registration->instrument_type }}">
     Reg: <span class="font-mono">{{ $registration->registration_number }}</span>
+    @if ($regDate = \App\Services\DeedsRegistrationLookup::regDate($registration))
+      <div>Reg Date: {{ $regDate }}</div>
+    @endif
   </div>
 @endif
 {{-- ST Assignment: registered unit by unit; one unit shows its number, several show how many (each in View Units). --}}
@@ -48,6 +60,9 @@
       Reg: <span class="font-mono">{{ $stRegistration['single'] }}</span>
     @else
       Reg: {{ $stRegistration['count'] }} of {{ $stRegistration['total'] }} units
+    @endif
+    @if (!empty($stRegistration['single_date']))
+      <div>Reg Date: {{ $stRegistration['single_date'] }}</div>
     @endif
   </div>
 @endif

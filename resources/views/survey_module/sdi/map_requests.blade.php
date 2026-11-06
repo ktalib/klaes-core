@@ -18,7 +18,7 @@
 @include('survey_module.partials._flash')
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.sdi.map-requests.export'), 'title' => 'Map Requests', 'dateLabel' => 'Date Received', 'statuses' => SdiMapRequest::STATUS_LABELS])</div>
     <a class="btn btn-primary" href="{{ route('survey-module.sdi.map-requests.create') }}"><i class="fas fa-plus"></i> New Map Request</a>
 </div>
 

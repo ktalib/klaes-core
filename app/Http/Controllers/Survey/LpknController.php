@@ -18,6 +18,8 @@ use Illuminate\Validation\Rule;
  */
 class LpknController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public const STATUSES  = ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected'];
     public const LAND_USES = ['Residential', 'Commercial', 'Industrial', 'Agricultural', 'Institutional', 'Mixed'];
 
@@ -120,21 +122,7 @@ class LpknController extends Controller
 
     public function index(Request $r)
     {
-        $q = SurveyLpkn::query();
-
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(function ($w) use ($term) {
-                $w->where('lpkn_number', 'like', "%$term%")
-                  ->orWhere('layout_name', 'like', "%$term%")
-                  ->orWhere('application_file_number', 'like', "%$term%")
-                  ->orWhere('remarks', 'like', "%$term%")
-                  ->orWhere('prop_district', 'like', "%$term%")
-                  ->orWhere('prop_district_other', 'like', "%$term%");
-            });
-        }
-
-        if ($s = $r->query('status'))    $q->where('status', $s);
-        if ($u = $r->query('land_use'))  $q->where('land_use', $u);
+        $q = $this->lpknQuery($r);
 
         $layouts = $q->orderByDesc('id')->paginate(15)->withQueryString();
 
@@ -221,5 +209,38 @@ class LpknController extends Controller
             'prop_street_other.required_if'   => 'Please specify the street.',
             'prop_lga.required'               => 'The LGA is required.',
         ]);
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function lpknQuery(Request $r)
+    {
+        $q = SurveyLpkn::query();
+
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(function ($w) use ($term) {
+                $w->where('lpkn_number', 'like', "%$term%")
+                  ->orWhere('layout_name', 'like', "%$term%")
+                  ->orWhere('application_file_number', 'like', "%$term%")
+                  ->orWhere('remarks', 'like', "%$term%")
+                  ->orWhere('prop_district', 'like', "%$term%")
+                  ->orWhere('prop_district_other', 'like', "%$term%");
+            });
+        }
+
+        if ($s = $r->query('status'))    $q->where('status', $s);
+        if ($u = $r->query('land_use'))  $q->where('land_use', $u);
+
+        return $q;
+    }
+
+    public function export(Request $r)
+    {
+        return $this->exportRecords($r, fn () => $this->lpknQuery($r)->orderByDesc('id'), [
+            'ref' => 'LPKN Ref', 'application' => 'Application File', 'name' => 'Layout Name', 'location' => 'Location', 'plots' => 'Plots', 'area' => 'Area (Ha)', 'land_use' => 'Land Use',
+            'status' => 'Status', 'date' => 'Date', 'remarks' => 'Remarks',
+        ], fn ($l) => [
+            'ref' => $l->lpkn_number, 'application' => $l->application_file_number, 'name' => $l->layout_name, 'location' => $l->property_location, 'plots' => $l->plot_count,
+            'area' => $l->area_ha, 'land_use' => $l->land_use, 'status' => $l->status, 'date' => $this->exportDate($l->record_date), 'remarks' => $l->remarks,
+        ], 'record_date');
     }
 }

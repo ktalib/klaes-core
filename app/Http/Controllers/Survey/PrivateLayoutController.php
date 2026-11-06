@@ -18,25 +18,15 @@ use Illuminate\Validation\ValidationException;
  */
 class PrivateLayoutController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function index(Request $r)
     {
-        $q = PL::query()->with('creator:id,first_name,last_name');
-        if (($term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')))) !== '') {
-            $q->where(fn ($w) => $w->where('layout_ref', 'like', "%{$term}%")->orWhere('layout_no', 'like', "%{$term}%")
-                ->orWhere('layout_name', 'like', "%{$term}%")->orWhere('owner_name', 'like', "%{$term}%")
-                ->orWhere('surveyor_name', 'like', "%{$term}%")->orWhere('prop_district', 'like', "%{$term}%")
-                ->orWhere('location_text', 'like', "%{$term}%")->orWhere('check_note', 'like', "%{$term}%")
-                ->orWhere('approval_year', ctype_digit($term) ? (int) $term : -1));
-        }
-        if ($r->query('check') === '1') $q->whereNotNull('check_note');
-        if (in_array($r->query('status'), PL::STATUSES, true)) $q->where('status', $r->query('status'));
-        if ($lu = $r->query('land_use')) $q->where('land_use', $lu);
-        if ($lga = $r->query('lga')) $q->where('prop_lga', 'like', "%{$lga}%");
+        $q = $this->layoutQuery($r);
 
         return view('survey_module.records.private_layouts', [
             // Layouts added here first (newest first), then the Ministry list in its own S/N order (user, 2026-11-03).
-            'layouts' => $q->orderByRaw('CASE WHEN register_sn IS NULL THEN 0 ELSE 1 END')->orderBy('register_sn')->orderByDesc('id')
-                ->paginate(15)->withQueryString(),
+            'layouts' => $q->paginate(15)->withQueryString(),
             'editing' => $r->query('edit') ? PL::find($r->query('edit')) : null,
             'stats'   => [
                 'total'    => PL::count(),
@@ -137,5 +127,39 @@ class PrivateLayoutController extends Controller
         $file = $r->file('plan');
         $path = Storage::disk(PL::DISK)->putFileAs("app/survey/private-layouts/{$layout->id}", $file, Str::uuid() . '.' . strtolower($file->extension() ?: 'pdf'));
         $layout->update(['plan_path' => $path, 'plan_name' => mb_substr($file->getClientOriginalName(), 0, 255), 'plan_mime' => $file->getMimeType()]);
+    }
+
+    /** The list's filters and order, shared with Export Records. */
+    private function layoutQuery(Request $r)
+    {
+        $q = PL::query()->with('creator:id,first_name,last_name');
+        if (($term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')))) !== '') {
+            $q->where(fn ($w) => $w->where('layout_ref', 'like', "%{$term}%")->orWhere('layout_no', 'like', "%{$term}%")
+                ->orWhere('layout_name', 'like', "%{$term}%")->orWhere('owner_name', 'like', "%{$term}%")
+                ->orWhere('surveyor_name', 'like', "%{$term}%")->orWhere('prop_district', 'like', "%{$term}%")
+                ->orWhere('location_text', 'like', "%{$term}%")->orWhere('check_note', 'like', "%{$term}%")
+                ->orWhere('approval_year', ctype_digit($term) ? (int) $term : -1));
+        }
+        if ($r->query('check') === '1') $q->whereNotNull('check_note');
+        if (in_array($r->query('status'), PL::STATUSES, true)) $q->where('status', $r->query('status'));
+        if ($lu = $r->query('land_use')) $q->where('land_use', $lu);
+        if ($lga = $r->query('lga')) $q->where('prop_lga', 'like', "%{$lga}%");
+
+        return $q->orderByRaw('CASE WHEN register_sn IS NULL THEN 0 ELSE 1 END')->orderBy('register_sn')->orderByDesc('id');
+    }
+
+    public function export(Request $r)
+    {
+        return $this->exportRecords($r, fn () => $this->layoutQuery($r), [
+            'layout_no' => 'Layout No.', 'name' => 'Layout Name', 'district' => 'District', 'lga' => 'LGA', 'location' => 'Location (as written)', 'year' => 'Year of Approval',
+            'status' => 'Status', 'check' => 'Notes (check)', 'owner' => 'Owner / Developer', 'owner_phone' => 'Owner Phone', 'surveyor' => 'Surveyor',
+            'registration' => 'Registration', 'plots' => 'Plots', 'area' => 'Area (ha)', 'land_use' => 'Land Use', 'created_by' => 'Created By', 'created_at' => 'Date Created',
+        ], fn ($x) => [
+            'layout_no' => $x->layout_no, 'name' => $x->layout_name, 'district' => \App\Support\AddressBuilder::resolve($x->prop_district, $x->prop_district_other),
+            'lga' => \App\Support\AddressBuilder::resolve($x->prop_lga), 'location' => $x->location_text, 'year' => $x->approval_year ?: $x->approved_on?->format('Y'),
+            'status' => $x->status, 'check' => $x->check_note, 'owner' => $x->owner_name, 'owner_phone' => $x->owner_phone, 'surveyor' => $x->surveyor_name,
+            'registration' => $x->surveyor_registration, 'plots' => $x->plot_count, 'area' => $x->area_ha, 'land_use' => $x->land_use_label,
+            'created_by' => $this->exportUser($x->creator), 'created_at' => $this->exportDate($x->created_at),
+        ]);
     }
 }

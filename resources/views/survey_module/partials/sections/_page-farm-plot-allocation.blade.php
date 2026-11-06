@@ -25,9 +25,7 @@
         <button type="submit" form="paAddRowForm" class="btn btn-secondary btn-sm">
             <i class="fas fa-plus"></i> Add Plot
         </button>
-        <a class="btn btn-outline btn-sm" href="{{ route('survey-module.tools.plot-allocation.export', $qs) }}">
-            <i class="fas fa-file-export"></i> Export CSV
-        </a>
+        @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.tools.plot-allocation.export'), 'title' => 'Resettlement Plots' . ($case ? ' - ' . $case->case_ref : ''), 'dates' => false, 'class' => 'btn btn-outline btn-sm'])
     </div>
 </div>
 

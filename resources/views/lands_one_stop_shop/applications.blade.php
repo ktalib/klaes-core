@@ -643,11 +643,11 @@
                                 }
                             @endphp
                             @forelse($records as $record)
-                                <tr data-record='@json($record)'>
+                                <tr data-record='@json($record)' class="{{ !empty($record['is_crossed_out']) ? 'crossed-out-row' : '' }}">
                                     @if($isSupperAdmin)
                                         <td class="checkbox-col hidden px-4 py-2.5 text-center">
                                             @php
-                                                $isToT = (stripos($record['source'] ?? '', 'Transfer of Title') !== false);
+                                                $isToT = (stripos($record['source'] ?? '', 'Transfer of Title') !== false) && empty($record['is_crossed_out']);
                                             @endphp
                                             @if($isToT)
                                                 <input type="checkbox" class="master-row-checkbox rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" 
@@ -805,6 +805,9 @@
                                     <td class="px-4 py-2.5 font-mono text-xs text-slate-600" data-order="{{ $record['con_commissioned_sort'] ?? 0 }}">{{ $record['date_commissioned'] }}</td>
                                     <td class="px-4 py-2.5 font-mono text-xs text-slate-600" data-order="{{ $record['date_created_sort'] ?? 0 }}">{{ $record['date_created'] }}</td>
                                     <td class="px-4 py-2.5 text-center">
+                                        @if(!empty($record['is_crossed_out']))
+                                        <span class="text-slate-300">&mdash;</span>
+                                        @else
                                         <div class="inline-block" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
                                             <button type="button" x-ref="trigger"
                                                 @click="if(open){ open=false; } else { $nextTick(()=>{ let r=$refs.trigger.getBoundingClientRect(); let dd=$refs.dropdown; dd.style.visibility='hidden'; dd.style.display='flex'; let dh=dd.offsetHeight; dd.style.display=''; dd.style.visibility=''; let spaceBelow=window.innerHeight-r.bottom; if(spaceBelow < dh+8){ dd.style.top=(r.top - dh - 4)+'px'; } else { dd.style.top=(r.bottom+4)+'px'; } dd.style.left=Math.max(8, r.right - dd.offsetWidth)+'px'; open=true; setTimeout(()=>{ if(window.lucide) window.lucide.createIcons(); },10); }); }"
@@ -955,6 +958,7 @@
                                                 @endif
                                             </div>
                                         </div>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
@@ -1736,7 +1740,7 @@
     });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script src="{{ asset('js/global-fileno-modal.js') }}"></script>
+<script src="{{ asset('js/global-fileno-modal.js') }}?v={{ @filemtime(public_path('js/global-fileno-modal.js')) }}"></script>
 <script>window.OP_SEND_TO_OSS_URL = @json(route('lands-one-stop-shop.applications.send-to-oss-applications'));</script>
 <script src="{{ asset('js/send-to-oss-applications.js') }}?v={{ @filemtime(public_path('js/send-to-oss-applications.js')) }}"></script>
 <script>
@@ -2010,6 +2014,7 @@
                     if (found) return;
                     try {
                         const rec = JSON.parse(tr.getAttribute('data-record') || '{}');
+                        if (rec.is_crossed_out) return;
                         first = first || rec;
                         const keys = [rec.file_no, rec.mls_file_no, rec.source_temp_fileno]
                             .map(v => (v || '').toString().trim().toUpperCase());
@@ -2387,6 +2392,7 @@
             const tr = this.node();
             let rec = null;
             try { rec = JSON.parse(tr.getAttribute('data-record') || '{}'); } catch (_) { rec = {}; }
+            if (rec.is_crossed_out) return;
 
             const row = [
                 norm(rec.sn),
@@ -2440,6 +2446,7 @@
             const trNode = this.node();
             let rec = null;
             try { rec = JSON.parse(trNode.getAttribute('data-record') || '{}'); } catch (_) { rec = {}; }
+            if (rec.is_crossed_out) return;
 
             const cols = [
                 norm(rec.sn),
@@ -2841,6 +2848,7 @@
                 // on Direct Allocation or Resettlement radios.
                 component.defaultAllocationType = '';
                 component.requireOpSource = true;
+                component.lossOfDocument = false;
                 component.subSource = @json($isChangeOfName ? 'OP Change of Ownership' : '');
                 component.hideBatchMode = false; // Batch Mode re-enabled
                 if (mode === 'new' && preselectedFileNo) {

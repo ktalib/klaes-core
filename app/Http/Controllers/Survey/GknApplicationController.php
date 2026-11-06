@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\DB;
  */
 class GknApplicationController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     /** Tab => file-number prefixes (LIKE patterns) and chip colour. Order: Misc KN right after GKN, RDKN last (user, 2026-11-03). */
     public const TYPES = [
         'gkn'  => ['label' => 'GKN',     'like' => ['GKN%'],             'colour' => 'green'],
@@ -44,32 +46,9 @@ class GknApplicationController extends Controller
     {
         $tab = array_key_exists($r->query('type'), self::TYPES) ? $r->query('type') : null;
 
-        $base = function (?string $type) {
-            $q = DB::connection('sqlsrv')->table('file_indexings')
-                ->whereNotNull('file_number')
-                ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0));
-            $likes = $type ? self::TYPES[$type]['like'] : collect(self::TYPES)->pluck('like')->flatten()->all();
+        $base = fn (?string $type) => $this->applicationBase($type);
 
-            return $q->where(function ($w) use ($likes) {
-                foreach ($likes as $like) $w->orWhere('file_number', 'like', $like);
-            });
-        };
-
-        $q = $base($tab)->select(['id', 'file_number', 'file_title', 'plot_number', 'district', 'lga', 'location',
-            'land_use_type', 'source', 'created_at']);
-
-        if ($term = trim((string) $r->query('q', ''))) {
-            $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
-            $q->where(fn ($w) => $w->where('file_number', 'like', $like)
-                ->orWhere('file_title', 'like', $like)
-                ->orWhere('district', 'like', $like)
-                ->orWhere('lga', 'like', $like));
-        }
-        if ($src = $r->query('source')) {
-            $src === 'commissioned'
-                ? $q->where('source', self::COMMISSIONED_SOURCE)
-                : $q->where(fn ($w) => $w->whereNull('source')->orWhere('source', '!=', self::COMMISSIONED_SOURCE));
-        }
+        $q = $this->applicationQuery($r, $tab);
 
         $counts = ['all' => $base(null)->count()];
         foreach (array_keys(self::TYPES) as $k) $counts[$k] = $base($k)->count();
@@ -100,5 +79,53 @@ class GknApplicationController extends Controller
             })->values(),
             'serialStatuses' => \App\Models\GknSerialControl::all()->keyBy('prefix'),
         ];
+    }
+
+    /** Files of a type, or of them all. */
+    private function applicationBase(?string $type)
+    {
+        $q = DB::connection('sqlsrv')->table('file_indexings')
+            ->whereNotNull('file_number')
+            ->where(fn ($w) => $w->whereNull('is_deleted')->orWhere('is_deleted', 0));
+        $likes = $type ? self::TYPES[$type]['like'] : collect(self::TYPES)->pluck('like')->flatten()->all();
+
+        return $q->where(function ($w) use ($likes) {
+            foreach ($likes as $like) $w->orWhere('file_number', 'like', $like);
+        });
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function applicationQuery(Request $r, ?string $tab)
+    {
+        $q = $this->applicationBase($tab)->select(['id', 'file_number', 'file_title', 'plot_number', 'district', 'lga', 'location',
+            'land_use_type', 'source', 'created_at']);
+
+        if ($term = trim((string) $r->query('q', ''))) {
+            $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
+            $q->where(fn ($w) => $w->where('file_number', 'like', $like)
+                ->orWhere('file_title', 'like', $like)
+                ->orWhere('district', 'like', $like)
+                ->orWhere('lga', 'like', $like));
+        }
+        if ($src = $r->query('source')) {
+            $src === 'commissioned'
+                ? $q->where('source', self::COMMISSIONED_SOURCE)
+                : $q->where(fn ($w) => $w->whereNull('source')->orWhere('source', '!=', self::COMMISSIONED_SOURCE));
+        }
+
+        return $q;
+    }
+
+    public function export(Request $r)
+    {
+        $tab = array_key_exists($r->query('type'), self::TYPES) ? $r->query('type') : null;
+
+        return $this->exportRecords($r, fn () => $this->applicationQuery($r, $tab)->orderByDesc('created_at')->orderByDesc('id'), [
+            'file_number' => 'File No.', 'type' => 'Type', 'title' => 'Title', 'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'location' => 'Location',
+            'land_use' => 'Land Use', 'source' => 'Source', 'date' => 'Date',
+        ], fn ($x) => [
+            'file_number' => $x->file_number, 'type' => self::TYPES[self::typeOf($x->file_number)]['label'] ?? null, 'title' => $x->file_title, 'plot_no' => $x->plot_number,
+            'district' => $x->district, 'lga' => $x->lga, 'location' => $x->location, 'land_use' => $x->land_use_type, 'source' => $x->source, 'date' => $this->exportDate($x->created_at),
+        ]);
     }
 }

@@ -34,6 +34,7 @@
         includePrefixMessage: null, // Override for the refusal text when a number outside includePrefixes is applied
         allowedTabs: null,    // Array of registry tab names to show (e.g. ['mls']); null = show all
         tempOnly: false,      // MLPP tab only: restrict the smart selector to temporary "(T)" file numbers
+        commissionedYear: null, // MLPP tab only: list only files commissioned in this year (mls_file_no.year)
         includeOldNumbers: false, // MLPP tab only: also list old file numbers (Quick Search)
         blockedYears: null,   // Array of 4-digit years this caller refuses (e.g. [2026]); null/[] = accept any year
         blockedYearMessage: null, // Override for the refusal text; null = the generic wording below
@@ -92,6 +93,15 @@
                 $('#mls-smart-selector').removeData('select2-initialized');
             }
             this._lastTempOnly = Boolean(this.config.tempOnly);
+
+            // Same for the commissioned-year scope: a list loaded for another caller
+            // must not leak in, and this one must not leak out.
+            const commissionedYear = this.config.commissionedYear || null;
+            if (commissionedYear !== (this._lastCommissionedYear || null)) {
+                this.cache.mlsFiles = [];
+                $('#mls-smart-selector').removeData('select2-initialized');
+            }
+            this._lastCommissionedYear = commissionedYear;
 
             // Prefix scope (includePrefixes): when it differs from the previous open,
             // drop the cached lists so a list loaded for another caller never leaks in.
@@ -446,6 +456,7 @@
                     all_registries: (tabName === 'mls' && this.includeAllMlsRegistries()) ? 1 : 0,
                     // MLS temp-file toggle: restrict initial list to "(T)" files
                     temp_only: (tabName === 'mls' && this.config.tempOnly) ? 1 : 0,
+                    commissioned_year: (tabName === 'mls' && this.config.commissionedYear) || '',
                     // Prefix scope: let the server fill the first page with matching files
                     only_prefixes: tabName === 'mls' ? this.includePrefixList().join(',') : ''
                 },
@@ -550,6 +561,7 @@
                                     all_registries: (tabName === 'mls' && GlobalFileNoModal.includeAllMlsRegistries()) ? 1 : 0,
                                     // MLS temp-file toggle: restrict search results to "(T)" files
                                     temp_only: (tabName === 'mls' && GlobalFileNoModal.config.tempOnly) ? 1 : 0,
+                                    commissioned_year: (tabName === 'mls' && GlobalFileNoModal.config.commissionedYear) || '',
                                     with_old_numbers: (tabName === 'mls' && GlobalFileNoModal.config.includeOldNumbers) ? 1 : 0,
                                     only_prefixes: tabName === 'mls' ? GlobalFileNoModal.includePrefixList().join(',') : ''
                                 },
@@ -1797,6 +1809,9 @@
                             // MLS temp-file toggle: only surface "(T)" temporary file numbers
                             if (tabName === 'mls' && modal.config.tempOnly) {
                                 data.temp_only = 1;
+                            }
+                            if (tabName === 'mls' && modal.config.commissionedYear) {
+                                data.commissioned_year = modal.config.commissionedYear;
                             }
                             if (tabName === 'mls' && modal.config.includeOldNumbers) {
                                 data.with_old_numbers = 1;

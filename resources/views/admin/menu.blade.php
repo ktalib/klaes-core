@@ -76,5 +76,6 @@
   <!-- Loading Spinner Overlay -->
 </div>
 
+@include('admin.menu.partials.tab_cards')
 @include('admin.menu.partials.sidebar_styles')
 @include('admin.menu.partials.sidebar_scripts')

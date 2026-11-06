@@ -17,6 +17,8 @@ use Illuminate\Validation\ValidationException;
  */
 class TpNumberController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     /**
      * The list is the Ministry's register of layout drawings (user, 2026-11-03: "KANO LAYOUTS - cleaned",
      * loaded by survey:import-kano-layouts) plus entries added here; the general TP lookup table is not used
@@ -24,16 +26,7 @@ class TpNumberController extends Controller
      */
     public function index(Request $r)
     {
-        $q = TP::query()->listed()->with('creator:id,first_name,last_name');
-        if (($term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')))) !== '') {
-            $q->where(fn ($w) => $w->where('tp_no', 'like', "%{$term}%")->orWhere('serial_no', 'like', "%{$term}%")
-                ->orWhere('layout_name', 'like', "%{$term}%")->orWhere('prop_district', 'like', "%{$term}%")
-                ->orWhere('prop_district_other', 'like', "%{$term}%")->orWhere('drawing_date', 'like', "%{$term}%")
-                ->orWhere('remarks', 'like', "%{$term}%")->orWhere('check_note', 'like', "%{$term}%"));
-        }
-        if ($p = $r->query('prefix')) $q->where('prefix', $p);
-        if ($lga = $r->query('lga')) $q->where('prop_lga', 'like', "%{$lga}%");
-        if ($r->query('check') === '1') $q->whereNotNull('check_note');
+        $q = $this->tpQuery($r);
 
         $tps = $q->serialOrder()->paginate(25)->withQueryString();
 
@@ -45,6 +38,8 @@ class TpNumberController extends Controller
         return view('survey_module.records.tp_numbers', [
             'tps'      => $tps,
             'projects' => $projects,
+            // Large format scans of the drawings on this page (user, 2026-11-06), for View LF on the row.
+            'lfPages'  => app(\App\Services\Survey\TpLargeFormat::class)->pagesFor($tps->getCollection()->pluck('tp_no')->filter()->unique()),
             'editing'  => $r->query('edit') ? TP::listed()->find($r->query('edit')) : null,
             'prefixes' => TP::prefixOptions(),
             'prefixParts' => TP::prefixParts(),
@@ -152,5 +147,39 @@ class TpNumberController extends Controller
         }
 
         return $data;
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function tpQuery(Request $r)
+    {
+        $q = TP::query()->listed()->with('creator:id,first_name,last_name');
+        if (($term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')))) !== '') {
+            $q->where(fn ($w) => $w->where('tp_no', 'like', "%{$term}%")->orWhere('serial_no', 'like', "%{$term}%")
+                ->orWhere('layout_name', 'like', "%{$term}%")->orWhere('prop_district', 'like', "%{$term}%")
+                ->orWhere('prop_district_other', 'like', "%{$term}%")->orWhere('drawing_date', 'like', "%{$term}%")
+                ->orWhere('remarks', 'like', "%{$term}%")->orWhere('check_note', 'like', "%{$term}%"));
+        }
+        if ($p = $r->query('prefix')) $q->where('prefix', $p);
+        if ($lga = $r->query('lga')) $q->where('prop_lga', 'like', "%{$lga}%");
+        if ($r->query('check') === '1') $q->whereNotNull('check_note');
+
+        return $q;
+    }
+
+    public function export(Request $r)
+    {
+        $projects = SurveyProject::whereNotNull('plan_no')->get(['id', 'project_code', 'plan_no'])->groupBy(fn ($p) => self::key($p->plan_no));
+
+        return $this->exportRecords($r, fn () => $this->tpQuery($r)->serialOrder(), [
+            'prefix' => 'Prefix', 'sub_prefix' => 'Sub Prefix', 'serial_no' => 'Serial No.', 'tp_no' => 'Drawing No. (TP No.)', 'date' => 'Date', 'title' => 'Title',
+            'remarks' => 'Scanned / Remarks', 'check' => 'Notes (check)', 'district' => 'District', 'lga' => 'LGA', 'land_use' => 'Land Use', 'purpose' => 'Purpose',
+            'projects' => 'Projects', 'created_by' => 'Created By', 'created_at' => 'Date Created',
+        ], fn ($x) => [
+            'prefix' => $x->prefix_head, 'sub_prefix' => $x->sub_prefix, 'serial_no' => $x->serial_no, 'tp_no' => $x->tp_no, 'date' => $x->drawing_date, 'title' => $x->layout_name,
+            'remarks' => $x->remarks, 'check' => $x->check_note, 'district' => \App\Support\AddressBuilder::resolve($x->prop_district, $x->prop_district_other),
+            'lga' => \App\Support\AddressBuilder::resolve($x->prop_lga), 'land_use' => $x->land_use ? $x->land_use_label : null, 'purpose' => $x->purpose,
+            'projects' => $projects->get(self::key($x->tp_no), collect())->pluck('project_code')->implode(', '),
+            'created_by' => $this->exportUser($x->creator), 'created_at' => $this->exportDate($x->created_at),
+        ]);
     }
 }

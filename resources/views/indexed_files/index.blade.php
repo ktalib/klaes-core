@@ -20,6 +20,8 @@
              */
             $hasSuperRole = $user && $user->isSuperAdmin();
             $canIndexFiles = $hasSuperRole || ($user && $user->canDo('Indexing', 'create'));
+            // Move to NR's route needs EDMS Update create; Reassign FileNo follows it.
+            $canManageScans = $hasSuperRole || ($user && $user->canDo('EDMS Update', 'create'));
         @endphp
 
         <div class="p-6 space-y-8 max-w-7xl mx-auto">
@@ -525,6 +527,11 @@
 
     @include('components.global-fileno-modal')
 
+    {{-- Move to NR and Reassign FileNo in the action menu, the same dialogs as Doc-WARE and Page Typing. --}}
+    @if($canManageScans)
+        @include('indexed_files.partials.scan_action_dialogs')
+    @endif
+
     <div id="location-map-modal" class="fixed inset-0 z-50 hidden overflow-y-auto">
         <div class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm"></div>
         <div class="relative mx-auto my-8 w-full max-w-5xl px-4">
@@ -624,6 +631,7 @@
             canEdit: @json($user && $user->canDo('Indexing', 'edit')),
             canDelete: @json($user && $user->canDo('Indexing', 'delete')),
             canPrint: @json($user && $user->canDo('Indexing', 'print')),
+            canManageScans: @json($canManageScans),
             // "Move to Indexing Duplicates" is hidden unless assign_role is Supper Admin.
             canMoveToIndexingDuplicates: @json($hasSuperRole),
             // Move Transaction: same gate; MovedTransactionController re-checks.

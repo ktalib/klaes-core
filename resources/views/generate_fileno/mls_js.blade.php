@@ -1277,6 +1277,10 @@
                     ? `<span class="block text-[9px] font-bold text-amber-600 leading-none mt-0.5" title="This row represents ${batchCount} files">×${batchCount}</span>`
                     : '';
 
+                if (row.is_crossed_out) {
+                    return '<span class="text-gray-300">&mdash;</span>';
+                }
+
                 if (mlsfRowEntity(row.type) !== 'file_number') {
                     return '<span class="text-gray-300" title="Not held in the file number register — cannot be master-deleted here">&mdash;</span>';
                 }
@@ -1793,6 +1797,9 @@
     });
 
         table = $('#mlsfTable').DataTable({
+            createdRow: function (tr, row) {
+                if (row.is_crossed_out) tr.classList.add('crossed-out-row');
+            },
             processing: true,
             serverSide: true,
             deferRender: true, // Improve performance for large datasets
@@ -1894,7 +1901,8 @@
                             temporary: 'Temporary', extension: 'Extension', miscellaneous: 'Miscellaneous',
                             change_of_purpose: 'Change of Purpose', resettlement: 'Resettlement',
                             regrant: 'Re-grant', reissuance: 'Re-Issuance of FileNo', recertification: 'Recertification',
-                            subdivision: 'Subdivision', merger: 'Merger', separation: 'Separation', duplex: 'Duplex'
+                            subdivision: 'Subdivision', merger: 'Merger', separation: 'Separation', duplex: 'Duplex',
+                            loss_of_document: 'Loss of Documents'
                         };
                         const fileOpt = String(row.file_option || '').trim().toLowerCase();
                         const fileTypeLabel = fileTypeLabels[fileOpt] || '';
@@ -2364,6 +2372,11 @@
                     className: 'text-center',
                     width: '220px',
                     render: function (data, type, row) {
+                        // A deleted file is read-only.
+                        if (row.is_crossed_out) {
+                            return '<span class="text-gray-300">&mdash;</span>';
+                        }
+
                         // Check if record has a batch_no
                         const hasBatchNo = row.batch_no && row.batch_no !== null && row.batch_no.trim() !== '';
                         const batchNo = hasBatchNo ? row.batch_no : '';
@@ -2879,6 +2892,7 @@
             // Without this the top FILE TYPE select keeps displaying the previous choice
             // while fileOption reads '' — the label and the submitted value then disagree.
             component.fileTypeWorkflow = '';
+            component.lossOfDocument = false;
             component.existingFileNo = '';
             component.middlePrefix = 'KN';
             component.year = new Date().getFullYear();
@@ -7774,6 +7788,9 @@
             // select also expresses workflows (e.g. change_of_purpose) which map to an
             // applicationType rather than a fileOption. Must be reset with fileOption.
             fileTypeWorkflow: '',
+            // Loss of Documents numbers like a normal file (see applyFileTypeWorkflow) and is
+            // tagged as a file type by the backend from this flag.
+            lossOfDocument: false,
             // Reason captured for SIT files
             sitReason: '',
             // Extension has a single form: a new file number suffixed " AND EXTENSION".
@@ -10299,6 +10316,32 @@
                     if (bd) bd.innerHTML = '';
                 }
 
+                // Loss of Documents is always an OP: a lost OP has no file number, so one is
+                // commissioned for it. OP is selected for the officer, who then picks the OP
+                // type and captures the details. One file at a time, so Batch Mode goes off.
+                this.lossOfDocument = val === 'loss_of_document';
+                if (this.lossOfDocument) {
+                    this.applicationType = 'new';
+                    this.appTypeRadio = 'new';
+                    this.recertificationWorkflow = false;
+                    this.batchMode = false;
+                    this.fileOption = 'normal';
+                    this._currentAllocationSourceType = 'op';
+                    this.allocatedByFilter = '';
+                    this.requireOpSource = true;
+                    const opRadio = document.querySelector('input[name="allocation_source_type"][value="op"]');
+                    if (opRadio) opRadio.checked = true;
+                    // The OSS modal's OP radio. Its page leaves it unticked for every other file
+                    // type, and x-model does not tick it here, so it has to be set directly.
+                    this.$nextTick(() => {
+                        const ossOpRadio = document.querySelector('#generateModal input[name="allocated_by_filter"][value=""]');
+                        if (ossOpRadio && this.lossOfDocument) ossOpRadio.checked = true;
+                    });
+                    this.handleAllocationFilterChange();
+                    this.updateFileOption();
+                    return;
+                }
+
                 if (val === 'change_of_purpose') {
                     this.applicationType = 'change_of_purpose';
                     this.fileOption = 'normal';
@@ -10333,6 +10376,9 @@
             },
 
             updateFileOption() {
+                // Anything that moves fileOption off normal ends Loss of Documents.
+                if (this.fileOption !== 'normal') this.lossOfDocument = false;
+
                 // Detect a fresh transition INTO the extension file type, so the existing-file
                 // selector opens exactly once rather than on every re-render.
                 const switchingToExtension = this.fileOption === 'extension' && this._lastFileOption !== 'extension';
@@ -13738,6 +13784,11 @@
         // of the single-record registration dialog. Otherwise fall through to single capture.
         const alpineRoot = document.querySelector('[x-data="fileNumberGenerator()"]');
         const alpineData = (alpineRoot && alpineRoot._x_dataStack) ? alpineRoot._x_dataStack[0] : null;
+        // Loss of Documents is one OP, so neither batch route below applies.
+        if (alpineData && alpineData.lossOfDocument) {
+            openSingleOpRegistrationDialog(normalized);
+            return;
+        }
         // Batch Mode already on (the OSS toggle): still offer to resume an uncommissioned batch
         // rather than always starting a fresh one. The quantity already entered is the default.
         if (alpineData && alpineData.batchMode && parseInt(alpineData.batchQuantity) > 1

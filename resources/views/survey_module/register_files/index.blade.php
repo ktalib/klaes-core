@@ -49,6 +49,10 @@
       </a>
     </div>
 
+    <div class="flex justify-end mb-3">
+      @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.workflow.register-file.export'), 'title' => 'Register File', 'dateLabel' => 'Date Received', 'statuses' => RF::STATUSES, 'class' => 'inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm hover:bg-gray-50'])
+    </div>
+
     <form method="GET" class="flex flex-wrap items-end gap-3 mb-4">
       <div>
         <label class="block text-xs font-semibold text-gray-500 mb-1">Search</label>

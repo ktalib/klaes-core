@@ -84,6 +84,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // CO files (CO-YYYY-0001), one to many projects (user, 2026-10-25)
         // Two lists (user, 2026-10-30): CO Files = captured files, Commission CO File = commissioned files.
         Route::get('/co-files', [CoFileController::class, 'index'])->name('co-files');
+        Route::get('/co-files/export', [CoFileController::class, 'export'])->name('co-files.export');
         Route::get('/co-files/commissioned', [CoFileController::class, 'commissioned'])->name('co-files.commissioned');
         Route::get('/co-files/commission', [CoFileController::class, 'create'])->name('co-files.create');
         Route::get('/co-files/related-lookup', [CoFileController::class, 'relatedLookup'])->name('co-files.related-lookup');
@@ -107,10 +108,13 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         // Plot Confirmation register: OP showings and ground checks from the field app (2026-10-30).
         Route::get('/plot-confirmations', [PlotConfirmationController::class, 'index'])->name('plot-confirmations');
+        Route::get('/plot-confirmations/export', [PlotConfirmationController::class, 'export'])->name('plot-confirmations.export');
         // Record Plot Showing from the office (user, 2026-11-02): the OP search and the save.
         Route::get('/plot-confirmations/op-search', [PlotConfirmationController::class, 'opSearch'])->name('plot-confirmations.op-search');
         Route::get('/plot-confirmations/tp-plots', [PlotConfirmationController::class, 'tpPlots'])->name('plot-confirmations.tp-plots');
         Route::post('/plot-confirmations/showings', [PlotConfirmationController::class, 'storeShowing'])->name('plot-confirmations.showings.store');
+        // Ground Check from the office (user, 2026-11-06): a tab on Record Plot Showing.
+        Route::post('/plot-confirmations/checks', [PlotConfirmationController::class, 'storeCheck'])->name('plot-confirmations.checks.store');
         // Old register entries (user, 2026-11-03): showings captured from the old book, no OP needed.
         Route::post('/plot-confirmations/old', [PlotConfirmationController::class, 'storeOld'])->name('plot-confirmations.old.store');
         Route::put('/plot-confirmations/old/{showing}', [PlotConfirmationController::class, 'updateOld'])->whereNumber('showing')->name('plot-confirmations.old.update');
@@ -118,6 +122,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         // Resettlement Calculator: plots = area ÷ plot size by land use / density (SG formulas, 2026-10-29).
         Route::get('/resettlement-calculator', [ResettlementCalculatorController::class, 'index'])->name('resettlement-calculator');
+        Route::get('/resettlement-calculator/export', [ResettlementCalculatorController::class, 'export'])->name('resettlement-calculator.export');
         Route::post('/resettlement-calculator', [ResettlementCalculatorController::class, 'store'])->name('resettlement-calculator.store');
         Route::post('/resettlement-calculator/rates', [ResettlementCalculatorController::class, 'storeRate'])->name('resettlement-calculator.rates.store');
         Route::put('/resettlement-calculator/rates/{rate}', [ResettlementCalculatorController::class, 'updateRate'])->whereNumber('rate')->name('resettlement-calculator.rates.update');
@@ -125,6 +130,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         // Complaints (2026-10-25)
         Route::get('/complaints', [ComplaintController::class, 'index'])->name('complaints');
+        Route::get('/complaints/export', [ComplaintController::class, 'export'])->name('complaints.export');
         Route::post('/complaints', [ComplaintController::class, 'store'])->name('complaints.store');
         Route::get('/complaints/print-blank', [ComplaintController::class, 'printBlank'])->name('complaints.print-blank');
         Route::get('/complaints/{complaint}/print', [ComplaintController::class, 'print'])->name('complaints.print');
@@ -135,6 +141,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         // Projects — scheme type is set here and inherited by cases
         Route::get('/projects', [ProjectController::class, 'index'])->name('projects');
+        Route::get('/projects/export', [ProjectController::class, 'export'])->name('projects.export');
         Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
         Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
         Route::get('/projects/{project}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
@@ -159,6 +166,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         // Beneficiaries
         Route::get('/beneficiaries', [BeneficiaryController::class, 'index'])->name('beneficiaries');
+        Route::get('/beneficiaries/export', [BeneficiaryController::class, 'export'])->name('beneficiaries.export');
         Route::post('/beneficiaries', [BeneficiaryController::class, 'store'])->name('beneficiaries.store');
         Route::get('/beneficiaries/{beneficiary}/edit', [BeneficiaryController::class, 'edit'])->name('beneficiaries.edit');
         Route::put('/beneficiaries/{beneficiary}', [BeneficiaryController::class, 'update'])->name('beneficiaries.update');
@@ -166,6 +174,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         // Economic trees — catalogue plus per-case lines
         Route::get('/trees', [TreeController::class, 'index'])->name('trees');
+        Route::get('/trees/export', [TreeController::class, 'export'])->name('trees.export');
         Route::post('/trees', [TreeController::class, 'store'])->name('trees.store');
         Route::put('/trees/{treeType}', [TreeController::class, 'update'])->name('trees.update');
         Route::delete('/trees/{treeType}', [TreeController::class, 'destroy'])->name('trees.destroy');
@@ -187,6 +196,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         // Occupancy Permits
         Route::get('/op', [OpController::class, 'index'])->name('op');
+        Route::get('/op/export', [OpController::class, 'export'])->name('op.export');
         Route::post('/op/generate', [OpController::class, 'generate'])->name('op.generate');
         // Existing OPs, captured as issued (user, 2026-11-03): the Existing tab; no generator.
         Route::post('/op/existing', [OpController::class, 'storeExisting'])->name('op.existing.store');
@@ -204,26 +214,33 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
     Route::prefix('gkn')->name('gkn.')->group(function () {
         // Plot Showing Register, Resettlement + Direct Allocation, with the actions (CR 03112026 item 1).
         Route::get('/plot-showing', [PlotConfirmationController::class, 'gkn'])->name('plot-showing');
+        Route::get('/plot-showing/export', [PlotConfirmationController::class, 'gknExport'])->name('plot-showing.export');
         Route::get('/dashboard', [DashboardController::class, 'gkn'])->name('dashboard');
         // Applications: GKN / LPKN / LPPL / Misc KN files in one typed table (2026-10-25).
         Route::get('/applications', [GknApplicationController::class, 'index'])->name('applications');
+        Route::get('/applications/export', [GknApplicationController::class, 'export'])->name('applications.export');
         // Commissioning Sheet for GKN, Misc KN, LPKN, LPPL and RDKN files (CR 30102026 item 2).
         Route::get('/applications/{id}/commissioning-sheet', [CommissioningSheetController::class, 'applicationFile'])->whereNumber('id')->name('applications.commissioning-sheet');
         // Computation Files (Field Jackets), CR 30102026 items 12-14 (2026-10-31): Government = commissioned here
         // (LPKN-<year>-<serial>); Private = Cadastral's (LPPL-<year>-<serial>), read-only.
         Route::get('/computation-files', [\App\Http\Controllers\Survey\ComputationFileController::class, 'index'])->name('computation-files');
+        Route::get('/computation-files/export', [\App\Http\Controllers\Survey\ComputationFileController::class, 'export'])->name('computation-files.export');
+        Route::get('/computation-files/beacon-search', [\App\Http\Controllers\Survey\ComputationFileController::class, 'beaconSearch'])->name('computation-files.beacon-search');
         Route::post('/computation-files', [\App\Http\Controllers\Survey\ComputationFileController::class, 'store'])->name('computation-files.store');
         Route::put('/computation-files/{computationFile}', [\App\Http\Controllers\Survey\ComputationFileController::class, 'update'])->whereNumber('computationFile')->name('computation-files.update');
         // Passing & Checking (Final Survey Plan), CR 30102026 item 21 (2026-10-31): a first version.
         Route::get('/passing-checks', [\App\Http\Controllers\Survey\PassingCheckController::class, 'index'])->name('passing-checks');
+        Route::get('/passing-checks/export', [\App\Http\Controllers\Survey\PassingCheckController::class, 'export'])->name('passing-checks.export');
         Route::post('/passing-checks', [\App\Http\Controllers\Survey\PassingCheckController::class, 'store'])->name('passing-checks.store');
         Route::put('/passing-checks/{passingCheck}', [\App\Http\Controllers\Survey\PassingCheckController::class, 'update'])->whereNumber('passingCheck')->name('passing-checks.update');
         // Instruction to Survey: Survey's own jobs plus Cadastral's, read-only (2026-10-25).
         Route::prefix('instruction-to-survey')->name('its.')->group(function () {
             Route::get('/', [SurveyItsController::class, 'index'])->name('index');
+            Route::get('/export', [SurveyItsController::class, 'export'])->name('export');
             Route::get('/create', [SurveyItsController::class, 'create'])->name('create');
             Route::post('/', [SurveyItsController::class, 'store'])->name('store');
             Route::get('/lookup', [SurveyItsController::class, 'lookup'])->name('lookup');
+            Route::get('/beacon-search', [SurveyItsController::class, 'beaconSearch'])->name('beacon-search');
             Route::get('/{its}/edit', [SurveyItsController::class, 'edit'])->name('edit');
             Route::put('/{its}', [SurveyItsController::class, 'update'])->name('update');
             Route::post('/{its}/issue', [SurveyItsController::class, 'issue'])->name('issue');
@@ -234,6 +251,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // List of Coordinates and Field Observations, per I to S (2026-10-25). {its} = survey-<id> | cadastral-<id>.
         Route::prefix('coordinates')->name('coordinates.')->group(function () {
             Route::get('/', [SurveyCoordinateController::class, 'index'])->name('index');
+            Route::get('/export', [SurveyCoordinateController::class, 'exportCoordinates'])->name('export');
             Route::get('/{its}', [SurveyCoordinateController::class, 'show'])->where('its', '(survey|cadastral)-[0-9]+')->name('show');
             Route::post('/{its}', [SurveyCoordinateController::class, 'storeCoordinate'])->where('its', '(survey|cadastral)-[0-9]+')->name('store');
             Route::put('/{its}/{coord}', [SurveyCoordinateController::class, 'updateCoordinate'])->where('its', '(survey|cadastral)-[0-9]+')->name('update');
@@ -242,17 +260,20 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         });
         Route::prefix('field-observations')->name('observations.')->group(function () {
             Route::get('/', [SurveyCoordinateController::class, 'observations'])->name('index');
+            Route::get('/export', [SurveyCoordinateController::class, 'exportObservations'])->name('export');
             Route::get('/{its}', [SurveyCoordinateController::class, 'showObservations'])->where('its', '(survey|cadastral)-[0-9]+')->name('show');
             Route::post('/{its}', [SurveyCoordinateController::class, 'storeObservation'])->where('its', '(survey|cadastral)-[0-9]+')->name('store');
             Route::delete('/{its}/{obs}', [SurveyCoordinateController::class, 'destroyObservation'])->where('its', '(survey|cadastral)-[0-9]+')->name('destroy');
         });
         // Beacon Nos (checked against the Beacon Register) and the Sketch Plan on Field Observations (change list p.2, 2026-10-29).
         Route::get('/beacon-nos', [SurveyBeaconNosController::class, 'index'])->name('beacons.index');
+        Route::get('/beacon-nos/export', [SurveyBeaconNosController::class, 'export'])->name('beacons.export');
         Route::get('/beacon-nos/{its}', [SurveyBeaconNosController::class, 'show'])->where('its', '(survey|cadastral)-[0-9]+')->name('beacons.show');
         Route::post('/field-observations/{its}/sketch-plan', [SurveySketchPlanController::class, 'store'])->where('its', '(survey|cadastral)-[0-9]+')->name('sketch.store');
         // Surveyors Report against an issued I to S, from the Survey Dept form (2026-10-25).
         Route::prefix('surveyors-report')->name('reports.')->group(function () {
             Route::get('/', [SurveyorReportController::class, 'index'])->name('index');
+            Route::get('/export', [SurveyorReportController::class, 'export'])->name('export');
             Route::get('/create', [SurveyorReportController::class, 'create'])->name('create');
             Route::post('/', [SurveyorReportController::class, 'store'])->name('store');
             Route::get('/{report}/edit', [SurveyorReportController::class, 'edit'])->name('edit');
@@ -287,6 +308,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Survey Department staff list (surveyors_list), user 2026-10-22
         Route::prefix('surveyors')->name('surveyors.')->group(function () {
             Route::get('/', [SurveyorListController::class, 'index'])->name('index');
+            Route::get('/export', [SurveyorListController::class, 'export'])->name('export');
             Route::post('/', [SurveyorListController::class, 'store'])->name('store');
             Route::put('/{surveyor}', [SurveyorListController::class, 'update'])->name('update');
             Route::post('/{surveyor}/toggle', [SurveyorListController::class, 'toggle'])->name('toggle');
@@ -294,18 +316,22 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         // Public Survey → Private Layout and Layout Records (user, 2026-10-30).
         Route::get('/private-layouts', [\App\Http\Controllers\Survey\PrivateLayoutController::class, 'index'])->name('private-layouts');
+        Route::get('/private-layouts/export', [\App\Http\Controllers\Survey\PrivateLayoutController::class, 'export'])->name('private-layouts.export');
         Route::post('/private-layouts', [\App\Http\Controllers\Survey\PrivateLayoutController::class, 'store'])->name('private-layouts.store');
         Route::put('/private-layouts/{layout}', [\App\Http\Controllers\Survey\PrivateLayoutController::class, 'update'])->whereNumber('layout')->name('private-layouts.update');
         Route::delete('/private-layouts/{layout}', [\App\Http\Controllers\Survey\PrivateLayoutController::class, 'destroy'])->whereNumber('layout')->name('private-layouts.destroy');
         Route::get('/private-layouts/{layout}/plan', [\App\Http\Controllers\Survey\PrivateLayoutController::class, 'plan'])->whereNumber('layout')->name('private-layouts.plan');
         Route::get('/layout-records', [\App\Http\Controllers\Survey\LayoutRecordsController::class, 'index'])->name('layout-records');
+        Route::get('/layout-records/export', [\App\Http\Controllers\Survey\LayoutRecordsController::class, 'export'])->name('layout-records.export');
         // TP Nos register, by serial number (user, 2026-10-30).
         Route::get('/tp-numbers', [\App\Http\Controllers\Survey\TpNumberController::class, 'index'])->name('tp-numbers');
+        Route::get('/tp-numbers/export', [\App\Http\Controllers\Survey\TpNumberController::class, 'export'])->name('tp-numbers.export');
         Route::post('/tp-numbers', [\App\Http\Controllers\Survey\TpNumberController::class, 'store'])->name('tp-numbers.store');
         Route::put('/tp-numbers/{tp}', [\App\Http\Controllers\Survey\TpNumberController::class, 'update'])->whereNumber('tp')->name('tp-numbers.update');
         Route::delete('/tp-numbers/{tp}', [\App\Http\Controllers\Survey\TpNumberController::class, 'destroy'])->whereNumber('tp')->name('tp-numbers.destroy');
 
         Route::get('/lpkn', [LpknController::class, 'index'])->name('lpkn');
+        Route::get('/lpkn/export', [LpknController::class, 'export'])->name('lpkn.export');
         foreach (['instruction', 'report', 'coordinates', 'observations'] as $section) {
             Route::get('/lpkn/' . $section, [LpknController::class, 'section'])
                 ->defaults('section', $section)->name('lpkn.' . $section);
@@ -345,6 +371,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Register File (2026-10-25): files from Cadastral (auto) and registered here; Verification only.
         Route::prefix('register-file')->name('register-file.')->group(function () {
             Route::get('/', [RegisterFileController::class, 'index'])->name('index');
+            Route::get('/export', [RegisterFileController::class, 'export'])->name('export');
             Route::get('/create', [RegisterFileController::class, 'create'])->name('create');
             Route::post('/', [RegisterFileController::class, 'store'])->name('store');
             Route::post('/{file}/status', [RegisterFileController::class, 'status'])->name('status');
@@ -360,6 +387,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Boundary Dispute, Old Surveys, Surveyors' Report (Changes) (2026-10-25)
         Route::prefix('boundary-disputes')->name('boundary-disputes.')->group(function () {
             Route::get('/', [BoundaryDisputeController::class, 'index'])->name('index');
+            Route::get('/export', [BoundaryDisputeController::class, 'export'])->name('export');
             Route::post('/', [BoundaryDisputeController::class, 'store'])->name('store');
             Route::get('/{dispute}/edit', [BoundaryDisputeController::class, 'edit'])->name('edit');
             Route::put('/{dispute}', [BoundaryDisputeController::class, 'update'])->name('update');
@@ -368,6 +396,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         });
         Route::prefix('old-surveys')->name('old-surveys.')->group(function () {
             Route::get('/', [OldSurveyController::class, 'index'])->name('index');
+            Route::get('/export', [OldSurveyController::class, 'export'])->name('export');
             Route::post('/', [OldSurveyController::class, 'store'])->name('store');
             Route::get('/{old}/edit', [OldSurveyController::class, 'edit'])->name('edit');
             Route::put('/{old}', [OldSurveyController::class, 'update'])->name('update');
@@ -376,6 +405,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         });
         Route::prefix('change-reports')->name('change-reports.')->group(function () {
             Route::get('/', [ChangeReportController::class, 'index'])->name('index');
+            Route::get('/export', [ChangeReportController::class, 'export'])->name('export');
             Route::get('/create', [ChangeReportController::class, 'create'])->name('create');
             Route::post('/', [ChangeReportController::class, 'store'])->name('store');
             Route::get('/{report}/edit', [ChangeReportController::class, 'edit'])->name('edit');
@@ -392,6 +422,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Control Points: a copy of the Beacon Register in its own tables (user, 2026-10-25)
         Route::prefix('control-points')->name('control-points.')->group(function () {
             Route::get('/', [ControlPointRegisterController::class, 'index'])->name('index');
+            Route::get('/export', [ControlPointRegisterController::class, 'export'])->name('export');
             Route::post('/', [ControlPointRegisterController::class, 'store'])->name('store');
             Route::put('/{entry}', [ControlPointRegisterController::class, 'update'])->name('update');
             Route::delete('/{entry}', [ControlPointRegisterController::class, 'destroy'])->name('destroy');
@@ -402,6 +433,9 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // SURCON Beacon Register (user, 2026-10-22)
         Route::prefix('beacon-register')->name('beacon-register.')->group(function () {
             Route::get('/', [BeaconRegisterController::class, 'index'])->name('index');
+            Route::get('/export', [BeaconRegisterController::class, 'export'])->name('export');
+            // By issue: the entries of one letter group, opened in place (user, 2026-11-06).
+            Route::get('/group-rows', [BeaconRegisterController::class, 'groupRows'])->name('group-rows');
             // Rev-M payment lookup for the Payment section, and the printed book (2026-10-25).
             Route::get('/revm-lookup', [BeaconRegisterController::class, 'revmLookup'])->name('revm-lookup');
             Route::get('/print', [BeaconRegisterController::class, 'printBook'])->name('print');
@@ -425,6 +459,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
     /* ------------------- Beacon Requests (the SG's desk, CR 03112026) ------------------- */
     Route::prefix('beacon-requests')->name('beacon-requests.')->group(function () {
         Route::get('/', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'index'])->name('index');
+        Route::get('/export', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'export'])->name('export');
         Route::post('/{request}/issue', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'issue'])->whereNumber('request')->name('issue');
         Route::post('/{request}/reject', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'reject'])->whereNumber('request')->name('reject');
         Route::get('/{request}/slip', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'slip'])->whereNumber('request')->name('slip');
@@ -448,6 +483,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
     /* ------------- Geo-informatics → SDI (ported from ALAES, 2026-10-29) ------------- */
     Route::prefix('sdi')->name('sdi.')->group(function () {
         Route::get('/map-requests', [SdiMapRequestController::class, 'index'])->name('map-requests');
+        Route::get('/map-requests/export', [SdiMapRequestController::class, 'export'])->name('map-requests.export');
         Route::get('/map-requests/create', [SdiMapRequestController::class, 'create'])->name('map-requests.create');
         Route::get('/map-requests/land-use-points', [SdiMapRequestController::class, 'landUsePoints'])->name('map-requests.land-use-points');
         Route::post('/map-requests', [SdiMapRequestController::class, 'store'])->name('map-requests.store');
@@ -461,11 +497,13 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Geo-informatics > Basemap (Satellite Imagery) (user, 2026-11-03): the SDI maps on the satellite basemap.
         Route::get('/basemap', [SdiMapRequestController::class, 'basemap'])->name('basemap');
         Route::get('/production', [SdiProductionController::class, 'index'])->name('production');
+        Route::get('/production/export', [SdiProductionController::class, 'export'])->name('production.export');
         Route::post('/production/{mapRequest}/start', [SdiProductionController::class, 'start'])->whereNumber('mapRequest')->name('production.start');
         Route::post('/production/{mapRequest}/fulfil', [SdiProductionController::class, 'fulfil'])->whereNumber('mapRequest')->name('production.fulfil');
         Route::post('/production/{mapRequest}/reject', [SdiProductionController::class, 'reject'])->whereNumber('mapRequest')->name('production.reject');
 
         Route::get('/registry', [SdiRegistryController::class, 'index'])->name('registry');
+        Route::get('/registry/export', [SdiRegistryController::class, 'export'])->name('registry.export');
         Route::post('/registry/mdas', [SdiRegistryController::class, 'storeMda'])->name('registry.mdas.store');
         Route::put('/registry/mdas/{mda}', [SdiRegistryController::class, 'updateMda'])->whereNumber('mda')->name('registry.mdas.update');
         Route::post('/registry/mdas/{mda}/toggle', [SdiRegistryController::class, 'toggleMda'])->whereNumber('mda')->name('registry.mdas.toggle');

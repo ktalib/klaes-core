@@ -17,17 +17,15 @@ use Illuminate\Validation\Rule;
  */
 class PassingCheckController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function index(Request $r)
     {
         $term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')));
         $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
 
         return view('survey_module.gkn.passing_checks', [
-            'rows'      => PC::query()->with('checker:id,first_name,last_name')
-                ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('check_ref', 'like', $like)->orWhere('file_number', 'like', $like)
-                    ->orWhere('plan_no', 'like', $like)->orWhere('computation_no', 'like', $like)->orWhere('surveyor_name', 'like', $like)))
-                ->when(in_array($r->query('result'), PC::RESULTS, true), fn ($q) => $q->where('result', $r->query('result')))
-                ->orderByDesc('checked_at')->orderByDesc('id')->paginate(25)->withQueryString(),
+            'rows'      => $this->checkQuery($r)->paginate(25)->withQueryString(),
             'term'      => $term,
             'editing'   => $r->query('edit') ? PC::find($r->query('edit')) : null,
             'surveyors' => SurveyorListEntry::query()->where('is_active', true)->orderBy('first_name')->orderBy('surname')->get(['id', 'first_name', 'surname', 'other_name', 'rank']),
@@ -101,5 +99,35 @@ class PassingCheckController extends Controller
             'checked_at'        => $d['checked_at'],
             'remarks'           => Normalise::text($d['remarks'] ?? null) ?: null,
         ];
+    }
+
+    /** The list's filters and order, shared with Export Records. */
+    private function checkQuery(Request $r)
+    {
+        $term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')));
+        $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
+
+        return PC::query()->with('checker:id,first_name,last_name')
+                ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('check_ref', 'like', $like)->orWhere('file_number', 'like', $like)
+                    ->orWhere('plan_no', 'like', $like)->orWhere('computation_no', 'like', $like)->orWhere('surveyor_name', 'like', $like)))
+                ->when(in_array($r->query('result'), PC::RESULTS, true), fn ($q) => $q->where('result', $r->query('result')))
+                ->orderByDesc('checked_at')->orderByDesc('id');
+    }
+
+    public function export(Request $r)
+    {
+        return $this->exportRecords($r, fn () => $this->checkQuery($r), [
+            'check_ref' => 'Check Ref', 'file_number' => 'File No.', 'plan_no' => 'Plan No.', 'computation' => 'Computation File', 'surveyor' => 'Surveyor', 'lines' => 'Lines',
+            'largest' => 'Largest Difference', 'result' => 'Result', 'checked' => 'Checked', 'checker' => 'Checked By',
+        ], function ($x) {
+            $lines = collect($x->lines ?? []);
+            $worst = $lines->sortByDesc(fn ($l) => abs($l['difference'] ?? 0))->first();
+
+            return [
+                'check_ref' => $x->check_ref, 'file_number' => $x->file_number, 'plan_no' => $x->plan_no, 'computation' => $x->computation_no, 'surveyor' => $x->surveyor_name,
+                'lines' => $lines->count(), 'largest' => $worst ? $worst['from'] . '–' . $worst['to'] . ': ' . sprintf('%+.3f', $worst['difference']) . ' m' : null,
+                'result' => $x->result, 'checked' => $this->exportDate($x->checked_at), 'checker' => $x->checker?->name,
+            ];
+        }, 'checked_at');
     }
 }

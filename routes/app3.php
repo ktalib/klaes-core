@@ -488,10 +488,20 @@ Route::middleware(['auth'])->group(function () {
 
     Route::prefix('loss-of-document')->name('loss-of-document.')->group(function () {
         Route::get('/', [LossOfDocumentController::class, 'index'])->name('index');
+        Route::get('/op-search', [LossOfDocumentController::class, 'opSearch'])->name('op-search');
         Route::post('/', [LossOfDocumentController::class, 'store'])->name('store');
         Route::get('/{id}', [LossOfDocumentController::class, 'show'])->name('show')->where('id', '[0-9]+');
         Route::put('/{id}', [LossOfDocumentController::class, 'update'])->name('update')->where('id', '[0-9]+');
         Route::delete('/{id}', [LossOfDocumentController::class, 'destroy'])->name('destroy')->where('id', '[0-9]+');
+    });
+
+    Route::prefix('oss-loss-of-document')->name('oss-loss-of-document.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\LandsOneStopShop\OssLossOfDocumentController::class, 'index'])->name('index');
+        Route::get('/op-search', [\App\Http\Controllers\LandsOneStopShop\OssLossOfDocumentController::class, 'opSearch'])->name('op-search');
+        Route::post('/', [\App\Http\Controllers\LandsOneStopShop\OssLossOfDocumentController::class, 'store'])->name('store');
+        Route::get('/{id}', [\App\Http\Controllers\LandsOneStopShop\OssLossOfDocumentController::class, 'show'])->name('show')->where('id', '[0-9]+');
+        Route::put('/{id}', [\App\Http\Controllers\LandsOneStopShop\OssLossOfDocumentController::class, 'update'])->name('update')->where('id', '[0-9]+');
+        Route::delete('/{id}', [\App\Http\Controllers\LandsOneStopShop\OssLossOfDocumentController::class, 'destroy'])->name('destroy')->where('id', '[0-9]+');
     });
 
     // Document Verification console + its verify endpoint.
@@ -1021,6 +1031,9 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('api/indexing-duplicates')->name('indexing-duplicates.api.')->group(function () {
         Route::get('/stats', [App\Http\Controllers\IndexingDuplicateController::class, 'stats'])->name('stats');
         Route::get('/list', [App\Http\Controllers\IndexingDuplicateController::class, 'list'])->name('list');
+        // Reverse Duplicate: puts a moved file back in the live tables (Super Admin, checked in the controller).
+        Route::get('/{id}/reverse-preview', [App\Http\Controllers\IndexingDuplicateController::class, 'reversePreview'])->name('reverse-preview');
+        Route::post('/{id}/reverse', [App\Http\Controllers\IndexingDuplicateController::class, 'reverse'])->name('reverse');
         Route::get('/{id}', [App\Http\Controllers\IndexingDuplicateController::class, 'show'])->name('show');
     });
 

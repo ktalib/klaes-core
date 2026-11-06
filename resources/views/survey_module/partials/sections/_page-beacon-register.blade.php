@@ -72,6 +72,15 @@
     .survey-proto .br-tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid var(--gray-200, #e5e7eb); }
     .survey-proto .br-tabs a { padding: 8px 14px; font-size: 14px; color: var(--gray-600, #4b5563); border-bottom: 2px solid transparent; margin-bottom: -1px; text-decoration: none; }
     .survey-proto .br-tabs a.on { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+    .survey-proto tr.br-group { cursor: pointer; }
+    .survey-proto tr.br-group:hover td { background: var(--gray-100, #f3f4f6); }
+    .survey-proto tr.br-group[aria-expanded="true"] td { background: #eef2ff; }
+    .survey-proto tr.br-group:focus-visible { outline: 2px solid var(--primary, #2563eb); outline-offset: -2px; }
+    .survey-proto .br-group-icon { width: 14px; font-size: 11px; color: var(--gray-500); margin-right: 6px; transition: transform .15s; }
+    .survey-proto tr.br-group[aria-expanded="true"] .br-group-icon { transform: rotate(90deg); }
+    .survey-proto .br-group-sub { display: block; font-size: 12px; color: var(--gray-500); }
+    .survey-proto #brGroups tr[data-br-group] td:first-child { padding-left: 34px; color: var(--gray-500); }
+    .survey-proto tr.br-more td { text-align: center; padding: 8px; }
     .survey-proto .br-head { display:flex; flex-wrap:wrap; gap:8px 24px; font-size:13px; color:var(--gray-700); margin-bottom:12px; }
     .survey-proto .br-head strong { color: var(--gray-900); }
     .br-modal { display: none; position: fixed; inset: 0; z-index: 1000; align-items: flex-start; justify-content: center; padding: 4vh 16px; }
@@ -103,7 +112,7 @@
     .br-actions .br-btn-dup { background: #4f46e5; }
 </style>
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.workflow.beacon-register.export'), 'title' => 'Beacon Register', 'dateLabel' => 'Issue Date', 'dates' => request('view') !== 'numbers'])</div>
     <div class="br-actions">
         {{-- The register as the printed book, for the current filters (2026-10-25). --}}
         <a href="{{ route('survey-module.workflow.beacon-register.print', request()->only(['q', 'layout', 'year', 'quarter', 'month', 'status'])) }}"
@@ -660,7 +669,7 @@
 <div class="br-head">
     <span>Quarter: <strong>{{ request('quarter') ? $quarters[(int) request('quarter')] ?? '—' : 'All' }}</strong></span>
     <span>Month: <strong>{{ request('month') ? $months[(int) request('month')] ?? '—' : 'All' }}</strong></span>
-    <span>Total Number Issued Per Page: <strong>{{ number_format($pageBeacons) }}</strong></span>
+    @if ($view !== 'issues')<span>Total Number Issued Per Page: <strong>{{ number_format($pageBeacons) }}</strong></span>@endif
     <span>Total for this selection: <strong>{{ number_format($filteredBeacons) }}</strong> beacons · <strong>₦{{ number_format($filteredAmount, 2) }}</strong></span>
 </div>
 
@@ -695,129 +704,13 @@
                     <th style="width:48px;"></th>
                 </tr>
             </thead>
-            <tbody>
-                @forelse ($entries as $row)
-                    <tr @if ($e && $e->id === $row->id) style="background:#fff8e1;" @endif>
-                        <td>{{ $entries->firstItem() + $loop->index }}</td>
-                        <td style="white-space:nowrap;">{{ $row->layout_type_label ?: '—' }}</td>
-                        <td style="white-space:nowrap;">@forelse ($row->fileNumberList() as $fno)<div>{{ $fno }}</div>@empty — @endforelse</td>
-                        <td>{{ $row->register_no ?: '—' }}</td>
-                        <td style="white-space:nowrap;">
-                            <strong>{{ $row->issued_range }}</strong>
-                            @if ($row->numbers->count() > 1)
-                                <button type="button" class="br-expand" onclick="brToggleNumbers({{ $row->id }}, this)" aria-expanded="false">
-                                    <i class="fas fa-chevron-down"></i> {{ $row->numbers->count() }} numbers
-                                </button>
-                            @endif
-                        </td>
-                        <td>{{ number_format($row->total_issued) }}</td>
-                        <td>{{ $row->plan_no ?: '—' }}</td>
-                        <td>{{ $row->company_name ?: '—' }}</td><td>{{ $row->surveyor_name ?: '—' }}</td>
-                        <td>{{ $row->surveyor_registration ?: '—' }}</td>
-                        <td>{{ $row->prop_plot ?: '—' }}</td>
-                        <td>{{ $row->resolvedDistrict('prop_') ?: '—' }}</td>
-                        <td>{{ mb_strtoupper((string) \App\Support\AddressBuilder::resolve($row->prop_lga)) ?: '—' }}</td>
-                        <td>{{ $row->resolvedStreet('prop_') ?: '—' }}</td>
-                        <td style="white-space:nowrap;">{{ $row->coord_x !== null ? rtrim(rtrim(number_format((float) $row->coord_x, 4, '.', ''), '0'), '.') : '—' }}</td>
-                        <td style="white-space:nowrap;">{{ $row->coord_y !== null ? rtrim(rtrim(number_format((float) $row->coord_y, 4, '.', ''), '0'), '.') : '—' }}</td>
-                        <td>
-                            {{ $row->teller_no ?: '—' }}
-                        </td>
-                        <td style="text-align:right;">{{ $row->amount !== null ? number_format((float) $row->amount, 2) : '—' }}</td>
-                        <td style="white-space:nowrap;">{{ optional($row->date_received)->format('d/m/Y') ?: '—' }}</td>
-                        {{-- Who entered it, in its own column (user, 2026-11-03), no longer under the status. --}}
-                        <td style="white-space:nowrap;">{{ $userName($row->creator) ?: '—' }}</td>
-                        <td style="white-space:nowrap;">{{ $row->issue_date->format('d/m/Y') }}</td>
-                        <td style="white-space:nowrap;">
-                            @if ($row->audited_at)
-                                <span class="status-badge completed" title="Audited by {{ $userName($row->auditor) }} on {{ $row->audited_at->format('d/m/Y H:i') }}"><span class="dot"></span>Audited</span>
-                            @elseif ($row->reviewed_at)
-                                <span class="status-badge review" title="Reviewed by {{ $userName($row->reviewer) }} on {{ $row->reviewed_at->format('d/m/Y H:i') }}"><span class="dot"></span>Reviewed</span>
-                            @else
-                                <span class="status-badge pending"><span class="dot"></span>Entered</span>
-                            @endif
-                        </td>
-                        <td>
-                            <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
-                                <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
-                                        @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open"
-                                        class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
-                                    <i data-lucide="more-vertical" class="w-5 h-5"></i>
-                                </button>
-                                <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
-                                     :style="'top:' + top + 'px; left:' + left + 'px'"
-                                     class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                                    @if (! $row->audited_at && $brCan['edit'])
-                                        <a href="{{ route('survey-module.workflow.beacon-register.index', $keep + ['edit' => $row->id]) }}" class="{{ $brItem }}">
-                                            <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit
-                                        </a>
-                                    @endif
-                                    @if (! $row->reviewed_at && $brCan['approve'])
-                                        <form method="POST" action="{{ route('survey-module.workflow.beacon-register.review', $row) }}">
-                                            @csrf
-                                            <button type="submit" class="{{ $brItem }}"><i data-lucide="check" class="w-4 h-4 text-gray-500"></i> Mark reviewed</button>
-                                        </form>
-                                    @elseif ($row->reviewed_at && ! $row->audited_at && $brCan['approve'])
-                                        <form method="POST" action="{{ route('survey-module.workflow.beacon-register.audit', $row) }}">
-                                            @csrf
-                                            <button type="submit" class="{{ $brItem }}"><i data-lucide="check-check" class="w-4 h-4 text-gray-500"></i> Mark audited</button>
-                                        </form>
-                                    @endif
-                                    @if ($row->audited_at)
-                                        <div class="px-3 py-2 text-xs text-gray-500">Audited entries are locked.</div>
-                                    @elseif ($brCan['delete'])
-                                        <form method="POST" action="{{ route('survey-module.workflow.beacon-register.destroy', $row) }}"
-                                              onsubmit="return confirm('Delete the entry {{ $row->issued_range }} for {{ addslashes($row->surveyor_name) }}?');">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="{{ $brItem }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4 text-red-500"></i> Delete</button>
-                                        </form>
-                                    @endif
-                                    @if (! $row->audited_at && ! $brCan['edit'] && ! $brCan['approve'] && ! $brCan['delete'])
-                                        <div class="px-3 py-2 text-xs text-gray-500">No actions available to you.</div>
-                                    @endif
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                    @if ($row->numbers->count() > 1)
-                        {{-- One row per beacon record, in the issue row's columns. The amount
-                             covers the whole line, so it is not repeated on each beacon. --}}
-                        @php
-                            $rowSn       = $entries->firstItem() + $loop->index;
-                            $rowDistrict = $row->resolvedDistrict('prop_') ?: '—';
-                            $rowLga      = mb_strtoupper((string) \App\Support\AddressBuilder::resolve($row->prop_lga)) ?: '—';
-                            $rowStreet   = $row->resolvedStreet('prop_') ?: '—';
-                        @endphp
-                        @foreach ($row->numbers as $n)
-                            <tr class="br-num-row" data-parent="{{ $row->id }}" hidden>
-                                <td class="br-num-sn">{{ $rowSn }}.{{ $loop->iteration }}</td>
-                                <td style="white-space:nowrap;">{{ $row->layout_type_label ?: '—' }}</td>
-                                <td style="white-space:nowrap;">@forelse ($row->fileNumberList() as $fno)<div>{{ $fno }}</div>@empty — @endforelse</td>
-                                <td>{{ $row->register_no ?: '—' }}</td>
-                                <td style="white-space:nowrap;"><span class="br-num-no">{{ \App\Models\Survey\SurveyBeaconRegister::display($n->beacon_no) }}</span></td>
-                                <td>1</td>
-                                <td>{{ $row->plan_no ?: '—' }}</td>
-                                <td>{{ $row->company_name ?: '—' }}</td><td>{{ $row->surveyor_name ?: '—' }}</td>
-                                <td>{{ $row->surveyor_registration ?: '—' }}</td>
-                                <td>{{ $row->prop_plot ?: '—' }}</td>
-                                <td>{{ $rowDistrict }}</td>
-                                <td>{{ $rowLga }}</td>
-                                <td>{{ $rowStreet }}</td>
-                                <td style="white-space:nowrap;">{{ $row->coord_x !== null ? rtrim(rtrim(number_format((float) $row->coord_x, 4, '.', ''), '0'), '.') : '—' }}</td>
-                                <td style="white-space:nowrap;">{{ $row->coord_y !== null ? rtrim(rtrim(number_format((float) $row->coord_y, 4, '.', ''), '0'), '.') : '—' }}</td>
-                                <td>{{ $row->teller_no ?: '—' }}</td>
-                                <td style="text-align:right;color:var(--gray-400);">—</td>
-                                <td style="white-space:nowrap;">{{ optional($row->date_received)->format('d/m/Y') ?: '—' }}</td>
-                                <td style="white-space:nowrap;">{{ $userName($row->creator) ?: '—' }}</td>
-                                <td style="white-space:nowrap;">{{ $row->issue_date->format('d/m/Y') }}</td>
-                                <td></td>
-                                <td></td>
-                            </tr>
-                        @endforeach
-                    @endif
+            <tbody id="brGroups" data-rows-url="{{ route('survey-module.workflow.beacon-register.group-rows', request()->only(['q', 'layout', 'year', 'quarter', 'month', 'status'])) }}" data-open-all="{{ request()->filled('q') ? '1' : '' }}">
+                @forelse ($letterGroups as $g)
+                    {{-- One row per letter group, its first entry in full; a click opens the rest under it, in place. --}}
+                    @include('survey_module.partials.sections._beacon_issue_rows', ['entries' => collect([$g->firstEntry]), 'group' => $g, 'groupNo' => $loop->iteration])
                 @empty
                     <tr>
-                        <td colspan="24" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="23" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-map-pin" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             No beacon issues recorded{{ request()->hasAny(['q', 'layout', 'year', 'quarter', 'month', 'status']) ? ' for this selection' : ' yet' }}.
                             @if ($brCan['create'])<a href="#" onclick="brOpenNew();return false;">Record one</a>.@endif
@@ -828,11 +721,7 @@
         </table>
     </div>
     <div class="table-footer">
-        <span>
-            Showing {{ $entries->firstItem() ?? 0 }}–{{ $entries->lastItem() ?? 0 }} of {{ number_format($entries->total()) }} entries ·
-            {{ number_format($pageBeacons) }} beacons on this page
-        </span>
-        <div class="pagination">{{ $entries->links() }}</div>
+        <span>{{ $letterGroups->count() }} {{ $letterGroups->count() === 1 ? 'group' : 'groups' }} · {{ number_format($entries->total()) }} entries</span>
     </div>
 </div>
 @elseif ($view === 'numbers')
@@ -1692,6 +1581,78 @@
         });
         box.hidden = false;
     }
+
+    // By issue: a letter group opens in place, because a page load would bring the loading screen back on every click.
+    // What is open is remembered for this tab, so a save that comes back here lands where it left off.
+    var BR_OPEN = 'brOpenGroups';
+    function brOpenRead() { try { return JSON.parse(sessionStorage.getItem(BR_OPEN)) || []; } catch (e) { return []; } }
+    function brOpenSave(series, on) {
+        var list = brOpenRead().filter(function (s) { return s !== series; });
+        if (on) list.push(series);
+        try { sessionStorage.setItem(BR_OPEN, JSON.stringify(list)); } catch (e) {}
+    }
+    function brGroupRows(tr) {
+        return Array.prototype.filter.call(document.querySelectorAll('#brGroups tr[data-br-group]'), function (r) { return r.dataset.brGroup === tr.dataset.series; });
+    }
+    function brGroupNote(tr, text) {
+        var row = document.createElement('tr'), cell = document.createElement('td');
+        row.className = 'br-more'; row.dataset.brGroup = tr.dataset.series;
+        cell.colSpan = 23; cell.textContent = text; row.appendChild(cell);
+        return row;
+    }
+    function brGroupFetch(tr, url, after) {
+        var icon = tr.querySelector('.br-group-icon');
+        icon.className = 'fas fa-spinner fa-spin br-group-icon';
+        return fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+            .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+            .then(function (d) {
+                if (tr.getAttribute('aria-expanded') !== 'true') return;   // closed while it was loading
+                var holder = document.createElement('tbody'), last = after;
+                holder.innerHTML = d.html;
+                Array.prototype.slice.call(holder.children).forEach(function (row) {
+                    row.dataset.brGroup = tr.dataset.series;
+                    last.after(row); last = row;
+                });
+                if (d.next) {
+                    var more = brGroupNote(tr, ''), btn = document.createElement('button');
+                    more.firstChild.textContent = '';
+                    btn.type = 'button'; btn.className = 'btn btn-outline btn-sm';
+                    btn.textContent = 'Show more (' + d.shown + ' of ' + d.total + ')';
+                    btn.addEventListener('click', function () { btn.disabled = true; var before = more.previousElementSibling; brGroupFetch(tr, d.next, before).then(function () { more.remove(); }); });
+                    more.firstChild.appendChild(btn);
+                    last.after(more);
+                }
+                if (window.lucide && lucide.createIcons) lucide.createIcons();
+            })
+            .catch(function () {
+                if (tr.getAttribute('aria-expanded') === 'true') after.after(brGroupNote(tr, 'This group could not be loaded. Close it and try again.'));
+            })
+            .finally(function () { icon.className = 'fas fa-chevron-right br-group-icon'; });
+    }
+    function brGroupToggle(tr, e) {
+        // The row is also an entry: its own buttons and menu do their own work.
+        if (e && e.target.closest('a, button, form, input, [x-data]')) return;
+        var open = tr.getAttribute('aria-expanded') !== 'true';
+        tr.setAttribute('aria-expanded', open ? 'true' : 'false');
+        brOpenSave(tr.dataset.series, open);
+        brGroupRows(tr).forEach(function (r) { r.remove(); });
+        if (!open) return;
+        var body = document.getElementById('brGroups'), url = new URL(body.dataset.rowsUrl, location.href);
+        url.searchParams.set('group', tr.dataset.series);
+        url.searchParams.set('sn', tr.dataset.sn);
+        // Under the row's own beacon lines, when the entry has several numbers.
+        var after = tr;
+        while (after.nextElementSibling && after.nextElementSibling.classList.contains('br-num-row')) after = after.nextElementSibling;
+        brGroupFetch(tr, url.toString(), after);
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        var body = document.getElementById('brGroups');
+        if (!body) return;
+        var remembered = brOpenRead(), all = body.dataset.openAll === '1';   // a search opens what it found
+        body.querySelectorAll('tr.br-group').forEach(function (tr) {
+            if (all || remembered.indexOf(tr.dataset.series) !== -1) brGroupToggle(tr);
+        });
+    });
 
     function brToggleNumbers(id, btn) {
         var rows = document.querySelectorAll('tr.br-num-row[data-parent="' + id + '"]');

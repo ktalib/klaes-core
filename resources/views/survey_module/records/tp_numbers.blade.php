@@ -32,7 +32,7 @@
 
 {{-- From the KANO LAYOUTS register (user, 2026-11-03); the general TP lookup table is no longer used. --}}
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.records.tp-numbers.export'), 'title' => 'Public Layout Plans'])</div>
     <button type="button" class="btn btn-primary" onclick="document.getElementById('tpForm').classList.add('open')"><i class="fas fa-plus"></i> Add TP No.</button>
 </div>
 
@@ -202,6 +202,9 @@
                                 </button>
                                 <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false" :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                    @if (! empty($lfPages[$x->tp_no]))
+                                        <button type="button" class="{{ $svItem }}" data-lf-title="{{ $x->tp_no }}" data-lf-pages='@json($lfPages[$x->tp_no])' @click.stop="open = false; tpLfOpen($el)"><i data-lucide="map" class="w-4 h-4 text-gray-500"></i> View LF</button>
+                                    @endif
                                     <a class="{{ $svItem }}" href="{{ route('survey-module.records.tp-numbers', array_merge(request()->query(), ['edit' => $x->id])) }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit</a>
                                     <form method="POST" action="{{ route('survey-module.records.tp-numbers.destroy', $x) }}" onsubmit="return confirm('Delete TP No. {{ $x->tp_no }}?');">
                                         @csrf @method('DELETE')
@@ -220,8 +223,88 @@
     <div class="table-footer"><span>{{ number_format($tps->total()) }} layout drawings, in drawing-number order</span><div class="pagination">{{ $tps->links() }}</div></div>
 </div>
 
+{{-- View LF: the large format scan of the drawing, opened over the page. Some are very large, so it fits first; zoom and drag from there. --}}
+<div id="tpLf" role="dialog" aria-modal="true" aria-labelledby="tpLfTitle" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:10000;background:#111827;flex-direction:column;">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 16px;background:#fff;border-bottom:1px solid var(--gray-200);">
+        <strong id="tpLfTitle" class="tp" style="margin-right:auto;"></strong>
+        <span id="tpLfPager" style="display:none;align-items:center;gap:6px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="tpLfPrev" aria-label="Previous page"><i class="fas fa-chevron-left"></i></button>
+            <span id="tpLfPage" style="font-size:13px;color:var(--gray-600);"></span>
+            <button type="button" class="btn btn-secondary btn-sm" id="tpLfNext" aria-label="Next page"><i class="fas fa-chevron-right"></i></button>
+        </span>
+        <button type="button" class="btn btn-secondary btn-sm" id="tpLfOut" aria-label="Zoom out"><i class="fas fa-search-minus"></i></button>
+        <button type="button" class="btn btn-secondary btn-sm" id="tpLfFit">Fit</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="tpLfIn" aria-label="Zoom in"><i class="fas fa-search-plus"></i></button>
+        <a class="btn btn-secondary btn-sm" id="tpLfFull" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> Full size</a>
+        <button type="button" class="btn btn-primary btn-sm" id="tpLfClose">Close</button>
+    </div>
+    <div id="tpLfStage" style="flex:1;min-height:0;overflow:auto;cursor:grab;position:relative;">
+        <div id="tpLfMsg" style="position:absolute;top:24px;left:0;right:0;text-align:center;color:#e5e7eb;font-size:14px;"></div>
+        <img id="tpLfImg" alt="" draggable="false" style="display:block;max-width:none;margin:auto;">
+    </div>
+</div>
+
 @include('survey_module.partials._searchable_selects')
 
+<script>
+// View LF: fit first, then zoom about the middle of the view; drag to move around.
+window.tpLfOpen = (function () {
+    var $ = function (id) { return document.getElementById(id); };
+    var box = $('tpLf'), stage = $('tpLfStage'), img = $('tpLfImg'), msg = $('tpLfMsg');
+    var pages = [], at = 0, scale = 1, fit = 1;
+
+    function size(next) {
+        var midX = (stage.scrollLeft + stage.clientWidth / 2) / (img.width || 1), midY = (stage.scrollTop + stage.clientHeight / 2) / (img.height || 1);
+        scale = Math.min(1, Math.max(fit, next));
+        img.style.width = Math.round(img.naturalWidth * scale) + 'px';
+        img.style.height = Math.round(img.naturalHeight * scale) + 'px';
+        stage.scrollLeft = midX * img.width - stage.clientWidth / 2;
+        stage.scrollTop = midY * img.height - stage.clientHeight / 2;
+    }
+    function fitNow() {
+        fit = Math.min(1, stage.clientWidth / img.naturalWidth, stage.clientHeight / img.naturalHeight);
+        size(fit);
+    }
+    function show(i) {
+        at = i;
+        img.style.display = 'none';
+        msg.textContent = 'Loading the scan. Large plans can take a moment.';
+        $('tpLfPage').textContent = 'Page ' + (at + 1) + ' of ' + pages.length;
+        $('tpLfPrev').disabled = at === 0;
+        $('tpLfNext').disabled = at === pages.length - 1;
+        $('tpLfFull').href = pages[at].url;
+        img.alt = $('tpLfTitle').textContent + ', page ' + (at + 1);
+        img.src = pages[at].url;
+    }
+    function close() {
+        box.style.display = 'none';
+        img.removeAttribute('src');
+    }
+
+    img.onload = function () { msg.textContent = ''; img.style.display = 'block'; fitNow(); };
+    img.onerror = function () { if (img.getAttribute('src')) msg.textContent = 'This scan could not be opened here. Try Full size.'; };
+    $('tpLfPrev').onclick = function () { show(at - 1); };
+    $('tpLfNext').onclick = function () { show(at + 1); };
+    $('tpLfIn').onclick = function () { size(scale * 1.5); };
+    $('tpLfOut').onclick = function () { size(scale / 1.5); };
+    $('tpLfFit').onclick = fitNow;
+    $('tpLfClose').onclick = close;
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && box.style.display !== 'none') close(); });
+
+    var drag = null;
+    stage.addEventListener('mousedown', function (e) { drag = { x: e.clientX, y: e.clientY, l: stage.scrollLeft, t: stage.scrollTop }; stage.style.cursor = 'grabbing'; e.preventDefault(); });
+    window.addEventListener('mousemove', function (e) { if (drag) { stage.scrollLeft = drag.l - (e.clientX - drag.x); stage.scrollTop = drag.t - (e.clientY - drag.y); } });
+    window.addEventListener('mouseup', function () { drag = null; stage.style.cursor = 'grab'; });
+
+    return function (btn) {
+        pages = JSON.parse(btn.dataset.lfPages);
+        $('tpLfTitle').textContent = btn.dataset.lfTitle;
+        $('tpLfPager').style.display = pages.length > 1 ? 'inline-flex' : 'none';
+        box.style.display = 'flex';
+        show(0);
+    };
+})();
+</script>
 <script>
 (function () {
     var sel = document.getElementById('tpPrefix'), box = document.getElementById('tpPrefixOtherBox'),

@@ -17,7 +17,7 @@
 @include('survey_module.partials._flash')
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.records.lpkn.export'), 'title' => 'LPKN Layouts', 'dateLabel' => 'Record Date', 'statuses' => \App\Http\Controllers\Survey\LpknController::STATUSES])</div>
     <button type="button" class="btn btn-primary btn-sm"
             onclick="document.getElementById('lpknForm').classList.toggle('open')">
         <i class="fas fa-plus"></i> Register Layout

@@ -22,6 +22,11 @@ class DeskQueues
     /** True when the file belongs on the list. A list with no rules takes every file. */
     public function matches(CadastralCase $case, array $rules): bool
     {
+        // Not on this list until these tasks of its step are done, whatever the rules below say.
+        if (!empty($rules['requires']) && array_diff((array) $rules['requires'], $case->doneTaskKeys())) {
+            return false;
+        }
+
         $def = $this->engine->definition();
         $hasRule = false;
 

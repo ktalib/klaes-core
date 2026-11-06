@@ -18,7 +18,7 @@
 @include('survey_module.partials._flash')
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.workflow.old-surveys.export'), 'title' => 'Old Surveys', 'statuses' => OS::STATUSES])</div>
     <button type="button" class="btn btn-primary" onclick="document.getElementById('osPanel').classList.toggle('open')">
         <i class="fas fa-plus"></i> {{ $editing ? 'Edit Old Survey' : 'Record Old Survey' }}
     </button>

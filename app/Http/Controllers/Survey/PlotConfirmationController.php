@@ -7,7 +7,9 @@ use App\Models\Survey\SurveyOpShowing as Showing;
 use App\Models\Survey\SurveyOpShowingPhoto as ShowingPhoto;
 use App\Models\Survey\SurveyorListEntry;
 use App\Models\Survey\SurveyPlotCheck as Check;
+use App\Models\Survey\SurveyPlotCheckPhoto as CheckPhoto;
 use App\Models\Survey\SurveyTpNumber;
+use App\Services\Survey\BeaconNumberCheck;
 use App\Services\Survey\OpLookup;
 use App\Services\Survey\OpTpGroups;
 use Illuminate\Http\Request;
@@ -26,7 +28,8 @@ use Illuminate\Validation\ValidationException;
  *
  * Opened from Records > Plot Showing Register (user, 2026-11-02). Showings are recorded in the
  * field with the app, or here with Record Plot Showing (same rules: numbered per OP, latest
- * first, a reason from the 2nd showing on). Search, filters and S/N in display order.
+ * first, a reason from the 2nd showing on). Ground checks too, on that form's Ground Check tab
+ * (user, 2026-11-06). Search, filters and S/N in display order.
  *
  * Two entries (CR 03112026 item 1): GKN > Plot Showing Register has Resettlement + Direct Allocation and
  * every action; Compensation > Plot Showing Register - Resettlement is the same list, Resettlement only,
@@ -34,6 +37,8 @@ use Illuminate\Validation\ValidationException;
  */
 class PlotConfirmationController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     private const GKN = 'survey-module.gkn.plot-showing';
     private const COMPENSATION = 'survey-module.compensation.plot-confirmations';
 
@@ -52,40 +57,7 @@ class PlotConfirmationController extends Controller
 
             return redirect()->route(self::GKN, $r->query());
         }
-        $source = $r->query('tab') === 'old' ? 'old' : (string) $r->query('source', '');
-
-        // Confirmation Forms is a tab here too (user, 2026-11-03); it switches without a page load.
-        $tab = $r->query('tab') === 'checks' ? 'checks' : ($gkn && $r->query('tab') === 'confirmation' ? 'confirmation' : 'showings');
-        // Compensation sees Resettlement only (CR 03112026 item 1).
-        $resettlementOnly = fn ($q) => $gkn ? $q : $q->where('op_type', Showing::RESETTLEMENT);
-        $resettlementChecks = fn ($q) => $gkn ? $q : $q->whereIn('survey_op_showing_id', Showing::query()->where('op_type', Showing::RESETTLEMENT)->select('id'));
-        $term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')));
-        $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
-        $from = $r->query('from');
-        $to = $r->query('to');
-
-        // One list (CR 03112026): OP showings and lines from the old book (op_source 'old', no OP), told apart by the Source column.
-        $showings = $resettlementOnly(Showing::query())->whereNotNull('op_source')->withCount('photos')
-            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('op_serial', 'like', $like)->orWhere('allottee_name', 'like', $like)
-                ->orWhere('plot_no', 'like', $like)->orWhere('district', 'like', $like)->orWhere('surveyor_name', 'like', $like)
-                ->orWhere('requester_name', 'like', $like)->orWhere('tp_no', 'like', $like)->orWhere('notes', 'like', $like)))
-            ->when($source === 'old', fn ($q) => $q->where('op_source', Showing::SOURCE_OLD))
-            ->when($source === 'new', fn ($q) => $q->where('op_source', '!=', Showing::SOURCE_OLD))
-            ->when(in_array($r->query('type'), [Showing::RESETTLEMENT, Showing::DIRECT], true) && $gkn,
-                fn ($q) => $r->query('type') === Showing::RESETTLEMENT ? $q->where('op_type', Showing::RESETTLEMENT)
-                    : $q->where(fn ($w) => $w->whereNull('op_type')->orWhere('op_type', '!=', Showing::RESETTLEMENT)))
-            ->when(in_array($r->query('reason'), Showing::REASONS, true), fn ($q) => $q->where('reason', $r->query('reason')))
-            ->when($r->query('reason') === 'first', fn ($q) => $q->where('showing_no', 1)->where('op_source', '!=', Showing::SOURCE_OLD))
-            ->when($from, fn ($q) => $q->whereDate('shown_on', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('shown_on', '<=', $to));
-
-        $checks = $resettlementChecks(Check::query())->withCount('photos')
-            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('check_ref', 'like', $like)->orWhere('op_serial', 'like', $like)
-                ->orWhere('holder_name', 'like', $like)->orWhere('plot_no', 'like', $like)->orWhere('layout_no', 'like', $like)
-                ->orWhere('district', 'like', $like)->orWhere('surveyor_name', 'like', $like)->orWhere('beacons_found', 'like', $like)))
-            ->when(in_array($r->query('result'), Check::RESULTS, true), fn ($q) => $q->where('result', $r->query('result')))
-            ->when($from, fn ($q) => $q->whereDate('checked_on', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('checked_on', '<=', $to));
+        [$tab, $source, $resettlementOnly, $resettlementChecks, $showings, $checks] = $this->registerQueries($r, $gkn);
 
         $opShowings = fn () => $resettlementOnly(Showing::query())->whereNotNull('op_source')->where('op_source', '!=', Showing::SOURCE_OLD);
 
@@ -138,13 +110,17 @@ class PlotConfirmationController extends Controller
         $ids = array_column($results, 'id');
         $counts = $ids ? Showing::whereNotNull('op_source')->whereIn('op_source_id', $ids)->selectRaw('op_source, op_source_id, MAX(showing_no) n')->groupBy('op_source', 'op_source_id')
             ->get()->mapWithKeys(fn ($x) => [$x->op_source . '-' . $x->op_source_id => (int) $x->n]) : collect();
+        // The showings a ground check can answer, latest first (Against Showing on the Ground Check tab).
+        $shown = $ids ? Showing::whereNotNull('op_source')->whereIn('op_source_id', $ids)->orderByDesc('showing_no')->get(['id', 'op_source', 'op_source_id', 'showing_no', 'shown_on'])
+            ->groupBy(fn ($x) => $x->op_source . '-' . $x->op_source_id) : collect();
         $groups = app(OpTpGroups::class);
 
-        return array_map(function ($op) use ($counts, $groups) {
+        return array_map(function ($op) use ($counts, $groups, $shown) {
             $next = ($counts[$op['key']] ?? 0) + 1;
 
             return array_intersect_key($op, array_flip(['key', 'serial', 'type', 'allottee', 'address', 'plot_no', 'district', 'lga', 'location', 'layout', 'file_number']))
-                + ['next' => $next, 'next_label' => Showing::ordinal($next) . ' showing', 'tp_number_id' => $groups->forRaw($op['tp_no'])->survey_tp_number_id ?? null];
+                + ['next' => $next, 'next_label' => Showing::ordinal($next) . ' showing', 'tp_number_id' => $groups->forRaw($op['tp_no'])->survey_tp_number_id ?? null,
+                   'showings' => collect($shown[$op['key']] ?? [])->map(fn ($s) => ['id' => $s->id, 'label' => trim($s->label . ' · ' . $s->shown_on?->format('d M Y'), ' ·')])->values()->all()];
         }, $results);
     }
 
@@ -285,16 +261,7 @@ class PlotConfirmationController extends Controller
             'photos.*.max'              => 'Each photograph can be at most 12 MB.',
         ]);
 
-        // A Survey staff member, or a name typed under Other (taken as that staff member if on the list).
-        if ($data['surveyor'] === 'other') {
-            $name = trim(preg_replace('/\s+/', ' ', (string) $data['surveyor_other']));
-            $match = SurveyorListEntry::all()->first(fn ($s) => mb_strtolower($s->full_name) === mb_strtolower($name));
-            [$staffId, $svName] = [$match?->id, $match?->full_name ?? $name];
-        } elseif ($s = SurveyorListEntry::find((int) $data['surveyor'])) {
-            [$staffId, $svName] = [$s->id, $s->full_name];
-        } else {
-            throw ValidationException::withMessages(['surveyor' => 'Choose the surveyor.']);
-        }
+        [$staffId, $svName] = $this->pickedSurveyor($data);
         $notes = trim(preg_replace('/\s+/', ' ', (string) ($data['notes'] ?? '')));
         // Who asked for the showing (user, 2026-11-02).
         $requester = \App\Services\Survey\ShowingRequester::resolve($r, $op);
@@ -354,6 +321,127 @@ class PlotConfirmationController extends Controller
     }
 
     /**
+     * Ground Check from the office (user, 2026-11-06): the Ground Check tab on Record Plot Showing, the same
+     * record the Plot Confirmation app makes for an OP's plot and under the same rules: it answers one of the
+     * OP's showings (the latest unless picked), and the beacons are read against the Beacon Register.
+     * A layout plot with no OP stays on the app.
+     */
+    public function storeCheck(Request $r, OpLookup $ops)
+    {
+        $op = $ops->find((string) $r->input('op'));
+        if (! $op) {
+            throw ValidationException::withMessages(['op' => 'Find and pick the OP whose plot was checked.']);
+        }
+
+        $data = $r->validate([
+            'showing'           => 'nullable|integer',
+            'surveyor'          => 'required|string|max:50',
+            'surveyor_other'    => ['nullable', 'string', 'max:255', Rule::requiredIf(fn () => $r->input('surveyor') === 'other')],
+            'checked_on'        => 'required|date|before_or_equal:today',
+            'checked_at'        => ['nullable', 'regex:/^([01]\d|2[0-3]):[0-5]\d$/'],
+            'beacons_found'     => 'nullable|string|max:1000',
+            'result'            => ['required', Rule::in(Check::RESULTS)],
+            'discrepancy'       => ['nullable', 'required_if:result,' . Check::DISCREPANCY, Rule::in(Check::DISCREPANCIES)],
+            'discrepancy_other' => ['nullable', 'string', 'max:255', Rule::requiredIf(fn () => $r->input('result') === Check::DISCREPANCY && $r->input('discrepancy') === Check::OTHER)],
+            'notes'             => 'nullable|string|max:2000',
+            'photos'            => 'nullable|array|max:10',
+            'photos.*'          => 'file|mimes:jpg,jpeg,png|max:12288',
+        ], [
+            'surveyor.required'          => 'Choose the surveyor who checked the plot.',
+            'checked_on.before_or_equal' => 'The date cannot be in the future.',
+            'surveyor_other.required'    => "Type the surveyor's name.",
+            'checked_at.regex'           => 'Give the time as HH:MM.',
+            'result.required'            => 'Say whether the plot is confirmed or there is a discrepancy.',
+            'discrepancy.required_if'    => 'Say what the discrepancy is.',
+            'discrepancy_other.required' => 'Describe the discrepancy.',
+            'photos.max'                 => 'At most 10 photographs per ground check.',
+            'photos.*.mimes'             => 'Photographs must be JPG or PNG.',
+            'photos.*.max'               => 'Each photograph can be at most 12 MB.',
+        ]);
+
+        // An OP never shown cannot be ground-checked yet: the showing is the record the check answers.
+        $showings = Showing::where('op_source', $op['source'])->where('op_source_id', $op['id']);
+        $against = ! empty($data['showing']) ? (clone $showings)->whereKey((int) $data['showing'])->first() : (clone $showings)->orderByDesc('showing_no')->first();
+        if (! $against) {
+            throw ValidationException::withMessages(['op' => 'Record the OP showing first: the ground check is the response to a showing.']);
+        }
+
+        [$staffId, $svName] = $this->pickedSurveyor($data);
+        $clean = fn ($v) => ($v = trim(preg_replace('/\s+/u', ' ', (string) $v))) === '' ? null : $v;
+        $discrepancy = $data['result'] === Check::DISCREPANCY;
+
+        // Beacons read off the ground, against the Beacon Register.
+        $codes = collect(preg_split('/[\s,;]+/', (string) ($data['beacons_found'] ?? '')))->map(fn ($c) => trim($c))->filter()->values()->all();
+        $beacons = app(BeaconNumberCheck::class)->forCodes($codes);
+
+        $stored = [];
+        try {
+            $check = DB::connection('sqlsrv')->transaction(function () use ($op, $data, $against, $staffId, $svName, $clean, $discrepancy, $codes, $beacons, $r, &$stored) {
+                $check = Check::create([
+                    'check_ref'            => Check::nextRef('check_ref', 'PC', 4),
+                    'target_type'          => Check::TARGET_OP,
+                    'survey_op_showing_id' => $against->id,
+                    'op_source'            => $op['source'],
+                    'op_source_id'         => $op['id'],
+                    'op_serial'            => $op['serial'],
+                    'holder_name'          => $op['allottee'],
+                    'layout_no'            => $op['layout'],
+                    'plot_no'              => $op['plot_no'],
+                    'district'             => $op['district'],
+                    'lga'                  => $op['lga'],
+                    'location'             => $op['location'] ? mb_substr($op['location'], 0, 500) : null,
+                    'checked_on'           => $data['checked_on'],
+                    'checked_at'           => $data['checked_at'] ?? null,
+                    'surveyors_list_id'    => $staffId,
+                    'surveyor_name'        => $svName,
+                    'beacons_found'        => $codes ? implode(', ', array_column($beacons, 'beacon')) : null,
+                    'beacon_check'         => $beacons ?: null,
+                    'result'               => $data['result'],
+                    'discrepancy'          => $discrepancy ? $data['discrepancy'] : null,
+                    'discrepancy_other'    => $discrepancy && $data['discrepancy'] === Check::OTHER ? $clean($data['discrepancy_other']) : null,
+                    'notes'                => $clean($data['notes'] ?? null),
+                    'source'               => 'office',
+                ]);
+                foreach ((array) $r->file('photos', []) as $file) {
+                    $path = Storage::disk(CheckPhoto::DISK)->putFileAs("app/survey/plot-checks/{$check->id}", $file, Str::uuid() . '.' . strtolower($file->extension() ?: 'jpg'));
+                    $stored[] = $path;
+                    CheckPhoto::create([
+                        'survey_plot_check_id' => $check->id,
+                        'path'                 => $path,
+                        'original_name'        => mb_substr($file->getClientOriginalName(), 0, 255),
+                        'mime'                 => $file->getMimeType(),
+                        'size'                 => $file->getSize(),
+                    ]);
+                }
+
+                return $check;
+            });
+        } catch (\Throwable $e) {
+            foreach ($stored as $path) Storage::disk(CheckPhoto::DISK)->delete($path);   // nothing left behind
+            throw $e;
+        }
+
+        return redirect()->route(self::GKN, ['tab' => 'checks'])
+            ->with('success', "Ground check {$check->check_ref} of OP {$check->op_serial} recorded.");
+    }
+
+    /** A Survey staff member, or a name typed under Other (taken as that staff member if on the list). */
+    private function pickedSurveyor(array $data): array
+    {
+        if ($data['surveyor'] === 'other') {
+            $name = trim(preg_replace('/\s+/', ' ', (string) $data['surveyor_other']));
+            $match = SurveyorListEntry::all()->first(fn ($s) => mb_strtolower($s->full_name) === mb_strtolower($name));
+
+            return [$match?->id, $match?->full_name ?? $name];
+        }
+        if ($s = SurveyorListEntry::find((int) $data['surveyor'])) {
+            return [$s->id, $s->full_name];
+        }
+
+        throw ValidationException::withMessages(['surveyor' => 'Choose the surveyor.']);
+    }
+
+    /**
      * The TP No. picked on Record Plot Showing: a Public Layout Plans entry, or Other with the number typed (an
      * identifier: kept as typed, spaces tidied). An Other that is already in the register is taken as that entry.
      */
@@ -376,5 +464,96 @@ class PlotConfirmationController extends Controller
     {
         return SurveyorListEntry::query()->where(fn ($q) => $q->whereNull('is_active')->orWhere('is_active', 1))
             ->orderBy('first_name')->orderBy('surname')->get(['id', 'first_name', 'surname', 'other_name', 'rank']);
+    }
+
+    /** The tab and the two lists with their filters, shared with Export Records. */
+    private function registerQueries(Request $r, bool $gkn): array
+    {
+        $source = $r->query('tab') === 'old' ? 'old' : (string) $r->query('source', '');
+
+        // Confirmation Forms is a tab here too (user, 2026-11-03); it switches without a page load.
+        $tab = $r->query('tab') === 'checks' ? 'checks' : ($gkn && $r->query('tab') === 'confirmation' ? 'confirmation' : 'showings');
+        // Compensation sees Resettlement only (CR 03112026 item 1).
+        $resettlementOnly = fn ($q) => $gkn ? $q : $q->where('op_type', Showing::RESETTLEMENT);
+        $resettlementChecks = fn ($q) => $gkn ? $q : $q->whereIn('survey_op_showing_id', Showing::query()->where('op_type', Showing::RESETTLEMENT)->select('id'));
+        $term = trim(preg_replace('/\s+/', ' ', (string) $r->query('q', '')));
+        $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
+        $from = $r->query('from');
+        $to = $r->query('to');
+
+        // One list (CR 03112026): OP showings and lines from the old book (op_source 'old', no OP), told apart by the Source column.
+        $showings = $resettlementOnly(Showing::query())->whereNotNull('op_source')->withCount('photos')
+            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('op_serial', 'like', $like)->orWhere('allottee_name', 'like', $like)
+                ->orWhere('plot_no', 'like', $like)->orWhere('district', 'like', $like)->orWhere('surveyor_name', 'like', $like)
+                ->orWhere('requester_name', 'like', $like)->orWhere('tp_no', 'like', $like)->orWhere('notes', 'like', $like)))
+            ->when($source === 'old', fn ($q) => $q->where('op_source', Showing::SOURCE_OLD))
+            ->when($source === 'new', fn ($q) => $q->where('op_source', '!=', Showing::SOURCE_OLD))
+            ->when(in_array($r->query('type'), [Showing::RESETTLEMENT, Showing::DIRECT], true) && $gkn,
+                fn ($q) => $r->query('type') === Showing::RESETTLEMENT ? $q->where('op_type', Showing::RESETTLEMENT)
+                    : $q->where(fn ($w) => $w->whereNull('op_type')->orWhere('op_type', '!=', Showing::RESETTLEMENT)))
+            ->when(in_array($r->query('reason'), Showing::REASONS, true), fn ($q) => $q->where('reason', $r->query('reason')))
+            ->when($r->query('reason') === 'first', fn ($q) => $q->where('showing_no', 1)->where('op_source', '!=', Showing::SOURCE_OLD))
+            ->when($from, fn ($q) => $q->whereDate('shown_on', '>=', $from))
+            ->when($to, fn ($q) => $q->whereDate('shown_on', '<=', $to));
+
+        $checks = $resettlementChecks(Check::query())->withCount('photos')
+            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('check_ref', 'like', $like)->orWhere('op_serial', 'like', $like)
+                ->orWhere('holder_name', 'like', $like)->orWhere('plot_no', 'like', $like)->orWhere('layout_no', 'like', $like)
+                ->orWhere('district', 'like', $like)->orWhere('surveyor_name', 'like', $like)->orWhere('beacons_found', 'like', $like)))
+            ->when(in_array($r->query('result'), Check::RESULTS, true), fn ($q) => $q->where('result', $r->query('result')))
+            ->when($from, fn ($q) => $q->whereDate('checked_on', '>=', $from))
+            ->when($to, fn ($q) => $q->whereDate('checked_on', '<=', $to));
+
+        return [$tab, $source, $resettlementOnly, $resettlementChecks, $showings, $checks];
+    }
+
+    public function export(Request $r)
+    {
+        return $this->exportRegister($r, false);
+    }
+
+    public function gknExport(Request $r)
+    {
+        return $this->exportRegister($r, true);
+    }
+
+    private function exportRegister(Request $r, bool $gkn)
+    {
+        if ($gkn && $r->query('tab') === 'confirmation') {
+            return $this->exportRecords($r, fn () => app(ConfirmationFormController::class)->capturedForms((string) $r->query('q'), trim((string) $r->query('cflayout', ''))), [
+                'serial_no' => 'Serial No.', 'land_owner' => 'Land Owner', 'layout' => 'Layout', 'section' => 'Section', 'id_number' => 'ID Number', 'location' => 'Location',
+                'nin' => 'NIN', 'gsm' => 'GSM', 'vendor' => 'Vendor / Agent', 'guarantor' => 'Guarantor', 'captured' => 'Captured',
+            ], fn ($x) => [
+                'serial_no' => $x->serial_no, 'land_owner' => $x->land_owner_name, 'layout' => $x->layout_name, 'section' => $x->section, 'id_number' => $x->id_number,
+                'location' => $x->location, 'nin' => $x->nin, 'gsm' => $x->gsm, 'vendor' => $x->vendor_name, 'guarantor' => $x->guarantor_name,
+                'captured' => $this->exportDate($x->captured_at),
+            ], 'captured_at');
+        }
+
+        if ($r->query('tab') === 'checks') {
+            return $this->exportRecords($r, fn () => $this->registerQueries($r, $gkn)[5]->orderByDesc('checked_on')->orderByDesc('id'), [
+                'check_ref' => 'Ref', 'layout' => 'TP No. / Layout', 'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'location' => 'Location', 'op' => 'OP',
+                'holder' => 'Holder', 'checked' => 'Checked', 'surveyor' => 'Surveyor', 'beacons' => 'Beacons', 'result' => 'Result', 'discrepancy' => 'Discrepancy',
+            ], fn ($x) => [
+                'check_ref' => $x->check_ref, 'layout' => $x->layout_no, 'plot_no' => $x->plot_no, 'district' => $x->district, 'lga' => $x->lga, 'location' => $x->location,
+                'op' => $x->op_serial, 'holder' => $x->holder_name, 'checked' => $this->exportDate($x->checked_on), 'surveyor' => $x->surveyor_name,
+                'beacons' => $x->beacons_found, 'result' => $x->result, 'discrepancy' => $x->discrepancy_label,
+            ], 'checked_on');
+        }
+
+        return $this->exportRecords($r, fn () => $this->registerQueries($r, $gkn)[4]->with('groundChecks:id,survey_op_showing_id,check_ref,result')->orderByDesc('shown_on')->orderByDesc('id'), [
+            'op' => 'OP', 'allottee' => 'Allottee', 'tp_no' => 'TP No.', 'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'location' => 'Location',
+            'source' => 'Source', 'op_type' => 'OP Type', 'showing' => 'Showing', 'reason' => 'Reason', 'shown' => 'Shown', 'surveyor' => 'Surveyor / Pointed Out By',
+            'present' => 'Allottee there', 'requester' => 'Requester', 'ground_check' => 'Ground Check',
+        ], function ($x) {
+            $old = $x->op_source === Showing::SOURCE_OLD;
+
+            return [
+                'op' => $x->op_serial, 'allottee' => $x->allottee_name, 'tp_no' => $x->tp_no, 'plot_no' => $x->plot_no, 'district' => $x->district, 'lga' => $x->lga,
+                'location' => $x->location, 'source' => $old ? 'Old Register' : 'New', 'op_type' => $x->op_type ?: ($old ? null : Showing::DIRECT), 'showing' => $x->showing_no,
+                'reason' => $x->reason, 'shown' => $this->exportDate($x->shown_on), 'surveyor' => $x->surveyor_name, 'present' => $x->allottee_present ? 'Yes' : 'No',
+                'requester' => $x->requester_name, 'ground_check' => $x->groundChecks->map(fn ($c) => trim($c->check_ref . ' ' . $c->result))->implode(', '),
+            ];
+        }, 'shown_on');
     }
 }

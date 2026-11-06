@@ -70,22 +70,22 @@ class SurveyorPortalNotifier
     public function registered(SurveyorPortalAccount $a): void
     {
         $this->afterCommit(function () use ($a) {
-            $this->sms->queue(SmsSetting::KEY_SURVEY_PORTAL_REGISTERED, $a->phone, ['Name' => $a->name, 'Ref' => $a->registration_id],
+            $this->sms->queue(SmsSetting::KEY_SURVEY_PORTAL_REGISTERED, $a->phone, ['Name' => $a->holder_name, 'Ref' => $a->registration_id],
                 ['dedupe_key' => 'kssgof-reg:' . $a->id, 'phone_confirmed' => true]);
             $path = parse_url(route('survey-module.beacon-requests.index', ['tab' => 'registrations']), PHP_URL_PATH) . '?tab=registrations';
-            $this->toSg('New surveyor registration', "{$a->name} ({$a->type_label}) registered on the portal and is waiting for approval. {$a->registration_id}.", $path);
+            $this->toSg('New surveyor registration', "{$a->holder_name} ({$a->type_label}) registered on the portal and is waiting for approval. {$a->registration_id}.", $path);
         });
     }
 
     public function accountApproved(SurveyorPortalAccount $a): void
     {
         $this->afterCommit(fn () => $this->toAccount($a, 'Account approved', "Your account is active. Your Surveyor ID is {$a->surveyor_id_no}.", null,
-            SmsSetting::KEY_SURVEY_PORTAL_ACTIVE, ['Name' => $a->name, 'Ref' => $a->surveyor_id_no], 'kssgof-active:' . $a->id));
+            SmsSetting::KEY_SURVEY_PORTAL_ACTIVE, ['Name' => $a->holder_name, 'Ref' => $a->surveyor_id_no], 'kssgof-active:' . $a->id));
     }
 
     public function accountRejected(SurveyorPortalAccount $a): void
     {
-        $this->afterCommit(fn () => $this->sms->queue(SmsSetting::KEY_SURVEY_PORTAL_DECLINED, $a->phone, ['Name' => $a->name, 'Ref' => $a->registration_id],
+        $this->afterCommit(fn () => $this->sms->queue(SmsSetting::KEY_SURVEY_PORTAL_DECLINED, $a->phone, ['Name' => $a->holder_name, 'Ref' => $a->registration_id],
             ['dedupe_key' => 'kssgof-declined:' . $a->id, 'phone_confirmed' => true]));
     }
 

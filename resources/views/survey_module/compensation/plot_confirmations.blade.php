@@ -9,7 +9,7 @@
   // Opened from Records > Plot Showing Register (user, 2026-11-02).
   $PageTitle = $isGkn ? 'Plot Showing Register' : 'Plot Showing Register - Resettlement';
   $PageDescription = $isGkn
-      ? 'OP plots shown to their allottees (Showing History) and ground checks of plots against their layout and the Beacon Register: recorded here or with the Plot Confirmation app. Confirmation Forms are issued and captured on their own tab.'
+      ? 'OP plots shown to their allottees (Showing History) and ground checks of plots against their layout and the Beacon Register: recorded here or with the Plot Confirmation app. Confirmation Forms has its own button below the cards.'
       : 'Resettlement OP plots shown to their allottees, and their ground checks. View only: they are recorded under GKN > Plot Showing Register.';
   $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
   $field = 'border:1.5px solid var(--gray-300);border-radius:6px;padding:7px 8px;';
@@ -45,23 +45,13 @@
 @endphp
 <form method="POST" id="pcOldForm" class="farmer-entry-form {{ $oldOpen ? 'open' : '' }}"
       action="{{ $editOld ? route('survey-module.compensation.plot-confirmations.old.update', $editOld) : route('survey-module.compensation.plot-confirmations.old.store') }}"
-      data-sv-modal="{{ $editOld ? 'Edit Old Register Entry' : 'Record Plot Showing' }}">
+      data-sv-modal="{{ $editOld ? 'Edit Old Register Entry' : 'Record Plot Showing (Old Register)' }}">
     @csrf
     @if ($editOld) @method('PUT') @endif
     <input type="hidden" name="_form" value="old">
     @if ($errors->any() && old('_form') === 'old')
         <div class="comp-type-note" style="margin-bottom:14px;border-color:#fecaca;background:#fef2f2;color:#991b1b;">{{ $errors->first() }}</div>
     @endif
-    @unless ($editOld)
-        {{-- One form, one attribute (recording 2026-11-05): New or Old Register. --}}
-        <div class="form-group" style="margin-bottom:10px;">
-            <label>Entry</label>
-            <div style="display:flex;gap:18px;">
-                <label style="display:inline-flex;align-items:center;gap:6px;font-weight:500;"><input type="radio" name="pc_entry_old" value="new" style="width:auto;" onchange="pcEntry('new')"> New</label>
-                <label style="display:inline-flex;align-items:center;gap:6px;font-weight:500;"><input type="radio" name="pc_entry_old" value="old" style="width:auto;" checked onchange="pcEntry('old')"> Old Register</label>
-            </div>
-        </div>
-    @endunless
     <p class="helper-text" style="margin:0 0 10px;">Copy the line as written in the old register. Give at least the plot no., the allottee or the number.</p>
     <div class="form-grid">
         <div class="form-group"><label>Date</label><input type="date" name="shown_on" value="{{ $ov('shown_on') }}" max="{{ now()->format('Y-m-d') }}"></div>
@@ -124,14 +114,22 @@
     </div>
 </form>
 
-{{-- Record Plot Showing (user, 2026-11-02): the same record the Plot Confirmation app makes. --}}
-@php $pcOpen = $errors->any() && old('_form') === 'showing'; @endphp
-<form method="POST" action="{{ route('survey-module.compensation.plot-confirmations.showings.store') }}" enctype="multipart/form-data"
+{{-- Record Plot Showing (user, 2026-11-02): the same record the Plot Confirmation app makes. Plot Showing and Ground
+     Check are one form (user, 2026-11-06): the OP block is shared and the tabs swap what is asked below it. Only the
+     open tab's fields are sent or validated, because the other tab's fieldset is disabled. --}}
+@php
+    $pcOpen = $errors->any() && in_array(old('_form'), ['showing', 'check'], true);
+    $pcPane = $pcOpen && old('_form') === 'check' ? 'check' : 'show';
+    $pcSaveShowing = route('survey-module.compensation.plot-confirmations.showings.store');
+    $pcSaveCheck = route('survey-module.compensation.plot-confirmations.checks.store');
+@endphp
+<form method="POST" action="{{ $pcPane === 'check' ? $pcSaveCheck : $pcSaveShowing }}" enctype="multipart/form-data"
       id="pcShowForm" class="farmer-entry-form {{ $pcOpen ? 'open' : '' }}" data-sv-modal="Record Plot Showing" data-sv-modal-size="lg" data-sv-modal-static
       data-search="{{ route('survey-module.compensation.plot-confirmations.op-search') }}"
-      data-plots="{{ route('survey-module.compensation.plot-confirmations.tp-plots') }}">
+      data-plots="{{ route('survey-module.compensation.plot-confirmations.tp-plots') }}"
+      data-save-showing="{{ $pcSaveShowing }}" data-save-check="{{ $pcSaveCheck }}">
     @csrf
-    <input type="hidden" name="_form" value="showing">
+    <input type="hidden" name="_form" id="pcFormKind" value="{{ $pcPane === 'check' ? 'check' : 'showing' }}">
     <input type="hidden" name="op" id="pcOp" value="{{ old('op') }}">
     @if ($pcOpen)
         <div class="comp-type-note" style="margin-bottom:14px;border-color:#fecaca;background:#fef2f2;color:#991b1b;">
@@ -139,12 +137,9 @@
         </div>
     @endif
 
-    <div class="form-group" style="margin-bottom:10px;">
-        <label>Entry</label>
-        <div style="display:flex;gap:18px;">
-            <label style="display:inline-flex;align-items:center;gap:6px;font-weight:500;"><input type="radio" name="pc_entry_new" value="new" style="width:auto;" checked onchange="pcEntry('new')"> New</label>
-            <label style="display:inline-flex;align-items:center;gap:6px;font-weight:500;"><input type="radio" name="pc_entry_new" value="old" style="width:auto;" onchange="pcEntry('old')"> Old Register</label>
-        </div>
+    <div class="pc-tabs" id="pcFormTabs" role="tablist">
+        <button type="button" role="tab" data-pane="show" aria-selected="{{ $pcPane === 'show' ? 'true' : 'false' }}" class="{{ $pcPane === 'show' ? 'on' : '' }}" onclick="pcFormTab('show')">Plot Showing</button>
+        <button type="button" role="tab" data-pane="check" aria-selected="{{ $pcPane === 'check' ? 'true' : 'false' }}" class="{{ $pcPane === 'check' ? 'on' : '' }}" onclick="pcFormTab('check')">Ground Check</button>
     </div>
 
     <div class="form-grid cols-3">
@@ -158,9 +153,15 @@
             </select>
             <p class="helper-text">{{ number_format($tpGroups->count()) }} layouts, grouped from the TP numbers on the OPs.</p>
         </div>
-        <div class="form-group">
+        <div class="form-group" data-pc-on="show" style="{{ $pcPane === 'show' ? '' : 'display:none;' }}">
             <label>Showing</label>
             <input type="text" id="pcNext" readonly tabindex="-1" style="background:var(--gray-100);font-weight:700;" value="{{ old('op') ? '' : '—' }}">
+        </div>
+        {{-- The showing this check answers: the latest unless another is picked (user, 2026-11-03). --}}
+        <div class="form-group" data-pc-on="check" style="{{ $pcPane === 'check' ? '' : 'display:none;' }}">
+            <label>Against Showing</label>
+            <select name="showing" id="pcAgainst" data-no-search data-old="{{ old('showing') }}" @disabled($pcPane !== 'check')><option value="">—</option></select>
+            <p class="helper-text" id="pcAgainstHint"></p>
         </div>
         <div class="form-group span-2" style="position:relative;">
             <label>Plot No. <span class="required">*</span></label>
@@ -182,6 +183,11 @@
         <div class="form-group"><label>District</label><input type="text" id="pcDistrict" readonly tabindex="-1" style="background:var(--gray-100);"></div>
         <div class="form-group"><label>LGA</label><input type="text" id="pcLga" readonly tabindex="-1" style="background:var(--gray-100);"></div>
         <div class="form-group span-2"><label>Location</label><input type="text" id="pcLocation" readonly tabindex="-1" style="background:var(--gray-100);"></div>
+    </div>
+
+    {{-- Plot Showing tab --}}
+    <fieldset class="pc-pane" id="pcPaneShow" {{ $pcPane === 'show' ? '' : 'disabled hidden' }}>
+    <div class="form-grid cols-3">
         {{-- TP No. (user, 2026-11-03): from the Public Layout Plans register, or Other with the number typed.
              Picked for you when the OP's layout number is in the register. --}}
         <div class="form-group span-2">
@@ -273,21 +279,98 @@
             <textarea name="notes" maxlength="2000" rows="2">{{ old('notes') }}</textarea>
         </div>
     </div>
+    </fieldset>
+
+    {{-- Ground Check tab: the app's check of an OP's plot (a layout plot with no OP stays on the app). --}}
+    <fieldset class="pc-pane" id="pcPaneCheck" {{ $pcPane === 'check' ? '' : 'disabled hidden' }}>
+    <div class="form-grid cols-3">
+        <div class="sv-group"><i class="fas fa-map-marked-alt"></i><span>Ground Check</span></div>
+        <div class="form-group">
+            <label>Date <span class="required">*</span></label>
+            <input type="date" name="checked_on" value="{{ old('checked_on', now()->format('Y-m-d')) }}" max="{{ now()->format('Y-m-d') }}" required>
+        </div>
+        <div class="form-group">
+            <label>Time</label>
+            <input type="time" name="checked_at" value="{{ old('checked_at', now()->format('H:i')) }}">
+        </div>
+        <div class="form-group">
+            <label>Surveyor <span class="required">*</span></label>
+            <select name="surveyor" id="pcCheckSurveyor" required>
+                <option value="">— Select surveyor —</option>
+                @foreach ($surveyors as $s)
+                    <option value="{{ $s->id }}" @selected(old('surveyor') === (string) $s->id)>{{ $s->full_name }}{{ $s->rank ? ' · ' . $s->rank : '' }}</option>
+                @endforeach
+                <option value="other" @selected(old('surveyor') === 'other')>Other (specify)</option>
+            </select>
+            <input type="text" name="surveyor_other" id="pcCheckSurveyorOther" maxlength="255" placeholder="Specify the surveyor's name *"
+                   value="{{ old('surveyor_other') }}" style="margin-top:6px;{{ old('surveyor') === 'other' ? '' : 'display:none;' }}" @if (old('surveyor') === 'other') required @endif>
+        </div>
+        <div class="form-group full">
+            <label>Beacon numbers found on the plot</label>
+            <input type="text" name="beacons_found" maxlength="1000" value="{{ old('beacons_found') }}" placeholder="e.g. KN4010, KN4011, KN4012">
+            <p class="helper-text">Each is checked against the Beacon Register when saved.</p>
+        </div>
+        <div class="form-group">
+            <label>Result <span class="required">*</span></label>
+            <select name="result" id="pcResult" required>
+                <option value="">— Select —</option>
+                @foreach (Check::RESULTS as $x)<option value="{{ $x }}" @selected(old('result') === $x)>{{ $x }}</option>@endforeach
+            </select>
+        </div>
+        <div class="form-group" id="pcDiscBox" style="{{ old('result') === Check::DISCREPANCY ? '' : 'display:none;' }}">
+            <label>What is wrong? <span class="required">*</span></label>
+            <select name="discrepancy" id="pcDisc" @disabled(old('result') !== Check::DISCREPANCY) @if (old('result') === Check::DISCREPANCY) required @endif>
+                <option value="">— Select —</option>
+                @foreach (Check::DISCREPANCIES as $x)<option value="{{ $x }}" @selected(old('discrepancy') === $x)>{{ $x === Check::OTHER ? 'Other (specify)' : $x }}</option>@endforeach
+            </select>
+            <input type="text" name="discrepancy_other" id="pcDiscOther" maxlength="255" placeholder="Describe it *" value="{{ old('discrepancy_other') }}"
+                   style="margin-top:6px;{{ old('result') === Check::DISCREPANCY && old('discrepancy') === Check::OTHER ? '' : 'display:none;' }}"
+                   @disabled(old('discrepancy') !== Check::OTHER) @if (old('result') === Check::DISCREPANCY && old('discrepancy') === Check::OTHER) required @endif>
+        </div>
+        <div class="form-group">
+            <label>Photographs</label>
+            <input type="file" name="photos[]" accept="image/jpeg,image/png" multiple>
+            <p class="helper-text">Up to 10, JPG or PNG.</p>
+        </div>
+        <div class="form-group full">
+            <label>Notes</label>
+            <textarea name="notes" maxlength="2000" rows="2">{{ old('notes') }}</textarea>
+        </div>
+    </div>
+    </fieldset>
 
     <div class="form-actions">
         <div class="left"><button type="button" class="btn btn-secondary" onclick="document.getElementById('pcShowForm').classList.remove('open')"><i class="fas fa-times"></i> Close</button></div>
-        <div class="right"><button type="submit" class="btn btn-success"><i class="fas fa-check"></i> Save Showing</button></div>
+        <div class="right"><button type="submit" class="btn btn-success"><i class="fas fa-check"></i> <span id="pcSaveLabel">{{ $pcPane === 'check' ? 'Save Ground Check' : 'Save Showing' }}</span></button></div>
     </div>
 </form>
 
 <script>
-// New or Old Register: one Record Plot Showing, the entry attribute swaps the fields it asks for.
-function pcEntry(kind) {
+// The dropdown on Record Plot Showing (user, 2026-11-06): New or Old Register. New opens on the tab of the list behind it.
+function pcEntry(kind, pane) {
     var show = document.getElementById('pcShowForm'), old = document.getElementById('pcOldForm');
     if (!show || !old) return;
+    if (kind === 'new') pcFormTab(pane || 'show');
     show.classList.toggle('open', kind === 'new');
     old.classList.toggle('open', kind === 'old');
-    document.querySelectorAll('input[name="pc_entry_new"], input[name="pc_entry_old"]').forEach(function (r) { r.checked = r.value === kind; });
+}
+// Plot Showing / Ground Check on the form: one OP block, the tab sets what is asked, sent and where it saves.
+function pcFormTab(pane) {
+    var form = document.getElementById('pcShowForm'), check = pane === 'check';
+    if (!form) return;
+    form.setAttribute('action', check ? form.dataset.saveCheck : form.dataset.saveShowing);
+    document.getElementById('pcFormKind').value = check ? 'check' : 'showing';
+    [['pcPaneShow', !check], ['pcPaneCheck', check]].forEach(function (p) {
+        var el = document.getElementById(p[0]);
+        el.disabled = !p[1]; el.hidden = !p[1];
+    });
+    document.getElementById('pcAgainst').disabled = !check;
+    form.querySelectorAll('[data-pc-on]').forEach(function (el) { el.style.display = el.dataset.pcOn === pane ? '' : 'none'; });
+    document.querySelectorAll('#pcFormTabs [data-pane]').forEach(function (b) {
+        var on = b.dataset.pane === pane;
+        b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.getElementById('pcSaveLabel').textContent = check ? 'Save Ground Check' : 'Save Showing';
 }
 // Old register: "Requester is the allottee" copies the Allottee into Requester's Name and locks it.
 (function () {
@@ -365,8 +448,20 @@ document.addEventListener('DOMContentLoaded', function () {
         if (current.address) reqHint.textContent = (reqHint.textContent ? reqHint.textContent + ' ' : '') + "Allottee's address on record: " + current.address + '.';
     }
     reqSame.addEventListener('change', syncRequester);
+    // Against Showing: the OP's showings, latest first. An OP never shown cannot be checked yet.
+    var against = document.getElementById('pcAgainst'), againstHint = document.getElementById('pcAgainstHint');
+    function fillAgainst(op) {
+        var rows = op ? (op.showings || []) : [], keep = against.dataset.old;
+        against.innerHTML = '';
+        if (!rows.length) { var none = document.createElement('option'); none.value = ''; none.textContent = '—'; against.appendChild(none); }
+        rows.forEach(function (s) { var o = document.createElement('option'); o.value = s.id; o.textContent = s.label; against.appendChild(o); });
+        if (keep && rows.some(function (s) { return String(s.id) === keep; })) against.value = keep;
+        against.dataset.old = '';
+        againstHint.textContent = op && !rows.length ? 'This OP has not been shown yet: record the showing first.' : '';
+    }
     function pick(op) {
         current = op;
+        fillAgainst(op);
         set('pcOp', op.key); set('pcOpLabel', 'OP ' + (op.serial || '—') + ' · ' + (op.allottee || ''));
         box.value = document.getElementById('pcOpLabel').value;
         set('pcNext', op.next_label); set('pcAllottee', op.allottee); set('pcPlot', op.plot_no);
@@ -425,6 +520,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     function clearPick() {
         current = null;
+        fillAgainst(null);
         ['pcOp', 'pcOpLabel', 'pcAllottee', 'pcPlot', 'pcDistrict', 'pcLga', 'pcLocation'].forEach(function (id) { set(id, ''); });
         pcTpFromOp(null);
         set('pcNext', '—');
@@ -465,8 +561,25 @@ document.addEventListener('DOMContentLoaded', function () {
     var sv = document.getElementById('pcSurveyor'), other = document.getElementById('pcSurveyorOther');
     function syncOther() { var on = sv.value === 'other'; other.style.display = on ? '' : 'none'; other.required = on; if (!on) other.value = ''; }
     if (window.jQuery) window.jQuery(sv).on('change', syncOther); else sv.addEventListener('change', syncOther);
+    // Ground Check: the same Other, and a Discrepancy asks what is wrong (exactly one Other, with a required specify).
+    var csv = document.getElementById('pcCheckSurveyor'), cOther = document.getElementById('pcCheckSurveyorOther'),
+        res = document.getElementById('pcResult'), discBox = document.getElementById('pcDiscBox'),
+        disc = document.getElementById('pcDisc'), discOther = document.getElementById('pcDiscOther');
+    function syncCheckOther() { var on = csv.value === 'other'; cOther.style.display = on ? '' : 'none'; cOther.required = on; if (!on) cOther.value = ''; }
+    function syncDisc() {
+        var bad = res.value === 'Discrepancy', other = bad && disc.value === 'Other';
+        discBox.style.display = bad ? '' : 'none'; disc.disabled = !bad; disc.required = bad;
+        if (!bad) disc.value = '';
+        discOther.style.display = other ? '' : 'none'; discOther.disabled = !other; discOther.required = other;
+        if (!other) discOther.value = '';
+    }
+    if (window.jQuery) window.jQuery(csv).on('change', syncCheckOther); else csv.addEventListener('change', syncCheckOther);
+    res.addEventListener('change', syncDisc);
+    disc.addEventListener('change', syncDisc);
     form.addEventListener('submit', function (e) {
-        if (!document.getElementById('pcOp').value) { e.preventDefault(); plotBox.style.borderColor = '#dc2626'; box.style.borderColor = '#dc2626'; alert('Choose the TP No. and the plot that was shown.'); }
+        var checking = document.getElementById('pcFormKind').value === 'check';
+        if (!document.getElementById('pcOp').value) { e.preventDefault(); plotBox.style.borderColor = '#dc2626'; box.style.borderColor = '#dc2626'; alert(checking ? 'Choose the TP No. and the plot that was checked.' : 'Choose the TP No. and the plot that was shown.'); return; }
+        if (checking && !against.value) { e.preventDefault(); alert('Record the OP showing first: the ground check is the response to a showing.'); }
     });
     // Back from a failed save with an OP chosen: look it up again so its details and the reason show.
     var keep = document.getElementById('pcOp').value;
@@ -480,8 +593,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <style>
     .survey-proto .pc-tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px; }
-    .survey-proto .pc-tabs a { padding:8px 14px; border-radius:8px; border:1.5px solid var(--gray-300,#d1d5db); font-weight:600; font-size:14px; color:var(--gray-700,#374151); text-decoration:none; }
-    .survey-proto .pc-tabs a.on { background:var(--primary); border-color:var(--primary); color:#fff; }
+    .survey-proto .pc-tabs a, .survey-proto .pc-tabs button { padding:8px 14px; border-radius:8px; border:1.5px solid var(--gray-300,#d1d5db); background:#fff; cursor:pointer; font-weight:600; font-size:14px; color:var(--gray-700,#374151); text-decoration:none; }
+    .survey-proto .pc-tabs a.on, .survey-proto .pc-tabs button.on { background:var(--primary); border-color:var(--primary); color:#fff; }
+    .survey-proto .pc-pane { border:0; margin:0; padding:0; min-width:0; }
     .survey-proto .pc-sub { font-size:12px; color:var(--gray-500); }
     .survey-proto .pc-photos { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
     .survey-proto .pc-photos img { width:120px; height:90px; object-fit:cover; border-radius:8px; border:1px solid var(--gray-200,#e5e7eb); }
@@ -491,14 +605,11 @@ document.addEventListener('DOMContentLoaded', function () {
 </style>
 
 <div x-data="{ view: null }">
-{{-- Tabs first, so each tab brings its own counts and buttons. Confirmation Forms (user, 2026-11-03) opens here
-     without a page load; so does going back to the tab the page was opened on. --}}
-<div class="pc-tabs" id="pcTabs" data-server-tab="{{ $tab }}">
+{{-- Tabs first, so each tab brings its own counts and buttons. Confirmation Forms (its own button below the cards,
+     user 2026-11-06) opens here without a page load; so does going back to the tab the page was opened on. --}}
+<div class="pc-tabs" id="pcTabs" data-server-tab="{{ $tab }}" data-confirm-url="{{ $tabUrl('confirmation') }}">
     <a href="{{ $tabUrl('showings') }}" data-tab="showings" class="{{ $tab === 'showings' ? 'on' : '' }}">Plot Showing</a>
     <a href="{{ $tabUrl('checks') }}" data-tab="checks" class="{{ $tab === 'checks' ? 'on' : '' }}">Ground Check</a>
-    @if ($isGkn)
-        <a href="{{ $tabUrl('confirmation') }}" data-tab="confirmation" class="{{ $tab === 'confirmation' ? 'on' : '' }}">Confirmation Forms</a>
-    @endif
 </div>
 
 <div id="pcMain" @if ($tab === 'confirmation') hidden @endif>
@@ -510,7 +621,7 @@ document.addEventListener('DOMContentLoaded', function () {
     {{-- Which register this is, and how it is recorded (user, 2026-11-03). --}}
     @php
       [$regName, $regIcon, $regHow] = match ($tab) {
-          'checks' => ['Ground Check', 'fa-map-marked-alt', 'Checked in the field with the Plot Confirmation app.'],
+          'checks' => ['Ground Check', 'fa-map-marked-alt', $isGkn ? 'Record Plot Showing > Ground Check, or the Plot Confirmation app in the field.' : 'View only: recorded under GKN.'],
           default  => ['Plot Showing', 'fa-street-view', $isGkn ? 'Record Plot Showing, or the Plot Confirmation app in the field.' : 'View only: recorded under GKN.'],
       };
     @endphp
@@ -519,13 +630,26 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="pc-sub">{{ $regHow }}</div></div>
 </div>
 
-{{-- One button; New or Old Register is an attribute on the form (recording 2026-11-05). --}}
+{{-- Below the cards (user, 2026-11-06). Record Plot Showing's dropdown is New or Old Register; Confirmation Forms is its own button. --}}
 @if ($isGkn)
 <div class="page-header" style="margin-bottom:10px;">
     <div></div>
-    <button type="button" class="btn btn-primary" onclick="pcEntry('new')"><i class="fas fa-plus"></i> Record Plot Showing</button>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button type="button" class="btn btn-secondary" onclick="pcConfirmOpen()"><i class="fas fa-clipboard-check"></i> Confirmation Forms</button>
+        <div x-data="{ open: false }" class="relative" @keydown.escape.window="open = false">
+            <button type="button" class="btn btn-primary" aria-haspopup="true" :aria-expanded="open" @click.stop="open = !open">
+                <i class="fas fa-plus"></i> Record Plot Showing <i class="fas fa-chevron-down" style="font-size:11px;margin-left:4px;"></i>
+            </button>
+            <div x-show="open" x-cloak @click.outside="open = false" role="menu" class="absolute right-0 z-50 w-48 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                <button type="button" role="menuitem" class="{{ $svItem }}" @click.stop="open = false; pcEntry('new', '{{ $tab === 'checks' ? 'check' : 'show' }}')"><i class="fas fa-plus" style="width:16px;color:var(--gray-500);"></i> New</button>
+                <button type="button" role="menuitem" class="{{ $svItem }}" @click.stop="open = false; pcEntry('old')"><i class="fas fa-book" style="width:16px;color:var(--gray-500);"></i> Old Register</button>
+            </div>
+        </div>
+    </div>
 </div>
 @endif
+
+<div class="page-header" style="margin-bottom:10px;"><div></div>@include('survey_module.partials._records_export', ['endpoint' => route($isGkn ? 'survey-module.gkn.plot-showing.export' : 'survey-module.compensation.plot-confirmations.export'), 'title' => 'Plot Showing Register', 'dateLabel' => $tab === 'checks' ? 'Date Checked' : 'Date Shown', 'onclick' => "pcExport('" . ($tab === 'confirmation' ? 'showings' : request('tab', 'showings')) . "', 'Plot Showing Register')"])</div>
 
 <div class="table-container">
     <div class="table-header">
@@ -685,17 +809,18 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!bar) return;
     var server = bar.dataset.serverTab, main = document.getElementById('pcMain'), confirm = document.getElementById('pcConfirm');
     var serverUrl = server === 'confirmation' ? null : location.href;
+    function show(on, href, tab) {
+        main.hidden = on; confirm.hidden = !on;
+        bar.querySelectorAll('a[data-tab]').forEach(function (x) { x.classList.toggle('on', x === tab); });
+        try { history.replaceState(null, '', href); } catch (err) {}
+        if (window.lucide && lucide.createIcons) lucide.createIcons();
+    }
+    window.pcConfirmOpen = function () { show(true, bar.dataset.confirmUrl, null); };
     bar.addEventListener('click', function (e) {
         var a = e.target.closest('a[data-tab]');
-        if (!a) return;
-        var t = a.dataset.tab;
-        if (t !== 'confirmation' && (t !== server || !serverUrl)) return;   // another list: load it
+        if (!a || a.dataset.tab !== server || !serverUrl) return;   // another list: load it
         e.preventDefault();
-        var on = t === 'confirmation';
-        main.hidden = on; confirm.hidden = !on;
-        bar.querySelectorAll('a[data-tab]').forEach(function (x) { x.classList.toggle('on', x === a); });
-        try { history.replaceState(null, '', on ? a.href : serverUrl); } catch (err) {}
-        if (window.lucide && lucide.createIcons) lucide.createIcons();
+        show(false, serverUrl, a);
     });
 })();
 </script>
@@ -720,3 +845,16 @@ document.addEventListener('DOMContentLoaded', function () {
 </template>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    /* One export modal for the page: the button says which list it opens on. */
+    function pcExport(tab, title) {
+        window.recordsExportConfig.params.tab = tab;
+        window.recordsExportConfig.reportTitle = title;
+        window.recordsExportConfig.filename = 'Survey_' + title.replace(/\s+/g, '_');
+        document.getElementById('records-export-title').textContent = 'Export ' + title;
+        openRecordsExportModal();
+    }
+</script>
+@endpush

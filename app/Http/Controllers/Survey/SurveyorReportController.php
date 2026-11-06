@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Survey;
 use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyIts;
 use App\Models\Survey\SurveySurveyorReport as SR;
+use App\Services\Survey\ReportRecords;
 use App\Services\SurveyItsAnchors;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -18,25 +21,85 @@ use Illuminate\Validation\ValidationException;
  * Instruction to Survey, Survey's own or Cadastral's. File, grantee, plot and
  * location come from the I to S. One live report per I to S; submitting locks it
  * and moves Survey's own I to S to "Report Submitted".
+ *
+ * One page since the recording of 2026-11-06: Beacon Nos, List of Coordinates and Computation Field Observations
+ * left the sidebar and are the three sections of this one table, a row per issued I to S with or without a report.
  */
 class SurveyorReportController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public function index(Request $r)
     {
-        $q = SR::query();
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(fn ($w) => $w->where('report_ref', 'like', "%$term%")->orWhere('file_number', 'like', "%$term%")
-                ->orWhere('its_number', 'like', "%$term%")->orWhere('grantee_name', 'like', "%$term%")
-                ->orWhere('surveyor_name', 'like', "%$term%"));
-        }
-        if (in_array($s = $r->query('status'), [SR::DRAFT, SR::SUBMITTED], true)) $q->where('status', $s);
-        if (in_array($src = $r->query('source'), ['survey', 'cadastral'], true)) $q->where('its_source', $src);
+        $rows = $this->rows($r);
+        $page = max(1, (int) $r->query('page', 1));
+        $records = app(ReportRecords::class);
+        $shown = $rows->forPage($page, 20)->values()->map(fn ($x) => $x + ['rec' => $x['anchor'] ? $records->summary($x['anchor']) : null]);
 
         return view('survey_module.gkn.reports.index', [
-            'reports'  => $q->orderByDesc('id')->paginate(20)->withQueryString(),
+            'rows'     => new LengthAwarePaginator($shown, $rows->count(), 20, $page, ['path' => $r->url(), 'query' => $r->query()]),
             'stats'    => ['total' => SR::count(), 'draft' => SR::where('status', SR::DRAFT)->count(), 'submitted' => SR::where('status', SR::SUBMITTED)->count()],
             'awaiting' => count($this->openInstructions()),
         ]);
+    }
+
+    /**
+     * The table's rows with its filters, shared with Export Records: every issued I to S with its report if it has
+     * one, newest first, and any report whose I to S has since been cancelled.
+     */
+    private function rows(Request $r): Collection
+    {
+        $keyOf = fn (SR $x) => $x->survey_its_id ? 'survey-' . $x->survey_its_id : 'cadastral-' . $x->cadastral_survey_job_id;
+        $reports = SR::query()->orderByDesc('id')->get()->keyBy($keyOf);
+        $anchors = app(SurveyItsAnchors::class)->all();
+
+        $rows = collect($anchors)->values()->map(fn ($a) => $this->row($a, $reports->get($a['key'])))
+            ->concat($reports->reject(fn ($x, $key) => isset($anchors[$key]))->values()->map(fn ($x) => $this->row(null, $x)));
+
+        if ($term = mb_strtolower(trim((string) $r->query('q', '')))) {
+            $rows = $rows->filter(fn ($x) => str_contains(mb_strtolower(implode(' ', [$x['report']?->report_ref, $x['its_number'], $x['file_number'], $x['grantee'], $x['surveyor']])), $term));
+        }
+        $status = $r->query('status');
+        if (in_array($status, [SR::DRAFT, SR::SUBMITTED], true)) $rows = $rows->filter(fn ($x) => $x['report']?->status === $status);
+        if ($status === 'awaiting') $rows = $rows->filter(fn ($x) => ! $x['report']);
+        if (in_array($src = $r->query('source'), ['survey', 'cadastral'], true)) $rows = $rows->filter(fn ($x) => $x['source'] === $src);
+
+        return $rows->values();
+    }
+
+    /** One line of the table: the report's own details, or the I to S's until there is a report. */
+    private function row(?array $a, ?SR $x): array
+    {
+        $p = $a['prefill'] ?? [];
+        $pick = fn ($field, $key = null) => $x?->{$field} ?: ($p[$key ?? $field] ?? null);
+
+        return [
+            'anchor' => $a, 'report' => $x, 'source' => $a['source'] ?? $x?->its_source, 'its_number' => $pick('its_number'),
+            'file_number' => $pick('file_number'), 'grantee' => $pick('grantee_name'), 'plot_no' => $pick('plot_no'),
+            'district' => $pick('district'), 'lga' => $pick('lga'), 'location' => $pick('location'), 'surveyor' => $pick('surveyor_name'),
+        ];
+    }
+
+    public function export(Request $r)
+    {
+        $records = app(ReportRecords::class);
+
+        return $this->exportRecords($r, fn () => $this->rows($r), [
+            'report' => 'SR No.', 'its_number' => 'I to S No.', 'file_number' => 'File No.', 'grantee' => 'Grantee', 'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'location' => 'Location',
+            'surveyor' => 'Surveyor', 'status' => 'Status', 'beacons' => 'Beacons', 'in_register' => 'In Register', 'flagged' => 'Flagged', 'points' => 'Coordinates', 'area' => 'Area (m²)',
+            'perimeter' => 'Perimeter (m)', 'readings' => 'Readings', 'closure' => 'Closure', 'misclosure' => 'Misclosure (m)', 'sketch' => 'Sketch Plan',
+        ], function ($x) use ($records) {
+            $rec = $x['anchor'] ? $records->summary($x['anchor']) : null;
+
+            return [
+                'report' => $x['report']?->report_ref, 'its_number' => $x['its_number'], 'file_number' => $x['file_number'], 'grantee' => $x['grantee'], 'plot_no' => $x['plot_no'],
+                'district' => $x['district'], 'lga' => $x['lga'], 'location' => $x['location'], 'surveyor' => $x['surveyor'], 'status' => $x['report']?->status ?? 'Awaiting report',
+                'beacons' => $rec['beacons'] ?? null, 'in_register' => $rec['in_register'] ?? null, 'flagged' => $rec['flagged'] ?? null, 'points' => $rec['points'] ?? null,
+                'area' => isset($rec['area']) ? round($rec['area'], 2) : null, 'perimeter' => isset($rec['perimeter']) ? round($rec['perimeter'], 2) : null, 'readings' => $rec['readings'] ?? null,
+                'closure' => empty($rec['readings']) ? null : ($rec['closed'] ? 'Closed' : 'Open'), 'misclosure' => isset($rec['misclosure']) ? round($rec['misclosure'], 3) : null,
+                'sketch' => $rec ? ($rec['sketch'] ? 'Uploaded' : 'Not uploaded') : null,
+            ];
+        }, null);
     }
 
     public function create(Request $r)

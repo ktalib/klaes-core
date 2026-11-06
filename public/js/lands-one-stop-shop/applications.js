@@ -1529,6 +1529,14 @@ function _ossPrefillFromPra(d) {
 
     // Main identity/contact fields
     _ossSetIfEmpty('oss_res_phone', phone);
+    // Applicant address from what FC / FEFR saved. The builder only rewrites these
+    // when one of its parts is edited, so the value survives to the save.
+    var address = (d.address || '').toString().trim();
+    _ossSetIfEmpty('oss_residential_address', address);
+    _ossSetIfEmpty('oss_res_correspondence_address', address);
+    _ossSetIfEmpty('oss_com_correspondence_address', address);
+    _ossSetIfEmpty('oss_ind_correspondence_address', address);
+    _ossSetIfEmpty('oss_agr_correspondence_address', address);
     _ossSetIfEmpty('oss_res_nationality', 'Nigerian');
     _ossSetIfEmpty('oss_com_nationality', 'Nigerian');
     _ossSetIfEmpty('oss_ind_nationality', 'Nigerian');

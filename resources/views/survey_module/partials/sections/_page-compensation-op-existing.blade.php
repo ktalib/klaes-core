@@ -53,7 +53,7 @@
 </div>
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.compensation.op.export'), 'title' => $byTp ? 'Existing OPs by TP No.' : 'Existing OPs', 'dateLabel' => 'Date', 'dates' => ! $byTp])</div>
     <button type="button" class="btn btn-primary" onclick="document.getElementById('opExistingForm').classList.add('open')"><i class="fas fa-plus"></i> Capture Existing OP</button>
 </div>
 

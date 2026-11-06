@@ -2846,6 +2846,7 @@ class LegalSearchService
             'change_of_purpose' => 'Change of Purpose', 'resettlement' => 'Resettlement',
             'regrant' => 'Re-grant', 'reissuance' => 'Re-Issuance', 'recertification' => 'Recertification',
             'subdivision' => 'Subdivision', 'merger' => 'Merger', 'separation' => 'Separation', 'duplex' => 'Duplex',
+            'loss_of_document' => 'Loss of Documents',
         ];
         $label = $fileTypeLabels[strtolower(trim((string) $fileOption))] ?? null;
 

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Survey;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Examination/Verification > Coordinate Register (docs/KLAES-CORE Survey Module.md
@@ -21,6 +20,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class CoordinateRegisterController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public const SOURCES = [
         'its'     => 'I to S list',
         'beacon'  => 'Beacon Register',
@@ -41,21 +42,19 @@ class CoordinateRegisterController extends Controller
         ]);
     }
 
-    /** The current selection as CSV, for GIS. */
-    public function export(Request $r): StreamedResponse
+    /**
+     * Export Records: the current selection, for GIS. Fetched whole rather than in pages:
+     * source + point is not unique, so paging over it could skip or repeat a point.
+     */
+    public function export(Request $r)
     {
-        $q = $this->filtered($r)->orderBy('source')->orderBy('point_id');
-
-        return response()->streamDownload(function () use ($q) {
-            $out = fopen('php://output', 'w');
-            fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, ['Source', 'Point', 'Northing (Y)', 'Easting (X)', 'Elevation', 'File No.', 'Reference', 'Recorded']);
-            foreach ($q->cursor() as $p) {
-                fputcsv($out, [self::SOURCES[$p->source] ?? $p->source, $p->point_id, $p->northing, $p->easting, $p->elevation,
-                    $p->file_number, $p->reference, $p->recorded_at]);
-            }
-            fclose($out);
-        }, 'coordinate-register-' . now()->format('Ymd-His') . '.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+        return $this->exportRecords($r, fn () => $this->filtered($r)->orderBy('source')->orderBy('point_id')->get(), [
+            'source' => 'Source', 'point' => 'Point', 'northing' => 'Northing (Y)', 'easting' => 'Easting (X)', 'elevation' => 'Elevation',
+            'file_number' => 'File No.', 'reference' => 'Reference', 'recorded' => 'Recorded',
+        ], fn ($p) => [
+            'source' => self::SOURCES[$p->source] ?? $p->source, 'point' => $p->point_id, 'northing' => $p->northing, 'easting' => $p->easting, 'elevation' => $p->elevation,
+            'file_number' => $p->file_number, 'reference' => $p->reference, 'recorded' => $p->recorded_at,
+        ], 'recorded_at');
     }
 
     private function filtered(Request $r)

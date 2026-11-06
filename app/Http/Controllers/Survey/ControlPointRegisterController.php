@@ -28,6 +28,8 @@ use Illuminate\Validation\ValidationException;
  */
 class ControlPointRegisterController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     /** The module role for this page: Survey - Records, like the other Examination pages. */
     public const MODULE = 'Survey - Records';
 
@@ -58,13 +60,7 @@ class ControlPointRegisterController extends Controller
         // "By beacon number": one row per expanded number, carrying its line's details.
         $numbers = null;
         if ($view === 'numbers') {
-            $nq = SurveyControlPointNumber::query()
-                ->whereIn('survey_control_point_register_id', (clone $q)->select('id'))
-                ->with('register.files');
-            $term = SurveyControlPointRegister::normalise($r->query('q'));
-            if ($term && SurveyControlPointRegister::parseBeacon($term)) {
-                $nq->where('beacon_no', 'like', "%$term%");
-            }
+            $nq = $this->numbersQuery($q, $r);
             $numbers = $nq->orderBy('beacon_series')->orderBy('beacon_seq')->paginate(50)->withQueryString();
         }
 
@@ -417,8 +413,8 @@ class ControlPointRegisterController extends Controller
             'amount'                => 'nullable|numeric|min:0|max:9999999999999',
             'date_received'         => 'nullable|date|after_or_equal:issue_date',
         ] + AddressBuilder::rules('prop_', false), [
-            'layout_type.required'           => 'Choose the type: Government or Private.',
-            'layout_type.in'                 => 'Choose the type: Government or Private.',
+            'layout_type.required'           => 'Choose the type: Public or Private.',
+            'layout_type.in'                 => 'Choose the type: Public or Private.',
             'issue_date.required'            => 'The issue date is required.',
             'beacon_from.required'           => 'Enter the first control point number of the range.',
             'coord_x.numeric'                => 'X must be a number.',
@@ -517,5 +513,50 @@ class ControlPointRegisterController extends Controller
         }
 
         return $range;
+    }
+
+    /** The By number view's list, shared with Export Records. */
+    private function numbersQuery($q, Request $r)
+    {
+        $nq = SurveyControlPointNumber::query()
+            ->whereIn('survey_control_point_register_id', (clone $q)->select('id'))
+            ->with('register.files');
+        $term = SurveyControlPointRegister::normalise($r->query('q'));
+        if ($term && SurveyControlPointRegister::parseBeacon($term)) {
+            $nq->where('beacon_no', 'like', "%$term%");
+        }
+
+        return $nq;
+    }
+
+    /** Export Records: the By number view gives one row per number; the other views give the issue lines. */
+    public function export(Request $r)
+    {
+        $this->authorizeAction('view');
+
+        $issue = fn ($x) => [
+            'type' => $x?->layout_type_label, 'file_number' => $x ? implode(', ', $x->fileNumberList()) : null, 'register_no' => $x?->register_no, 'plan_no' => $x?->plan_no,
+            'surveyor' => $x?->surveyor_name, 'registration' => $x?->surveyor_registration, 'plot_no' => $x?->prop_plot,
+            'district' => $x?->resolvedDistrict('prop_'), 'lga' => $x ? mb_strtoupper((string) \App\Support\AddressBuilder::resolve($x->prop_lga)) : null,
+            'location' => $x?->resolvedStreet('prop_'), 'x' => $x?->coord_x, 'y' => $x?->coord_y, 'teller' => $x?->teller_no,
+        ];
+        $columns = [
+            'type' => 'Type', 'file_number' => 'File No.', 'register_no' => 'Register No.', 'plan_no' => 'Plan No.', 'surveyor' => "Surveyor's Name",
+            'registration' => 'Registration', 'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'location' => 'Location', 'x' => 'X', 'y' => 'Y', 'teller' => 'Teller No.',
+        ];
+
+        if ($r->query('view') === 'numbers') {
+            return $this->exportRecords($r, fn () => $this->numbersQuery($this->filtered($r), $r)->orderBy('beacon_series')->orderBy('beacon_seq')->orderBy('id'),
+                ['beacon_no' => 'Control Point No.', 'date' => 'Date'] + $columns,
+                fn ($n) => ['beacon_no' => SurveyControlPointRegister::display($n->beacon_no), 'date' => $this->exportDate($n->register?->issue_date, 'd/m/Y')] + $issue($n->register), null);
+        }
+
+        return $this->exportRecords($r, fn () => $this->filtered($r)->with(['creator:id,first_name,last_name', 'files:id,survey_control_point_register_id,file_number,sort_order'])
+            ->orderByDesc('issue_date')->orderByDesc('id'),
+            ['date' => 'Date'] + $columns + ['issued' => 'Issued Number', 'total' => 'Total', 'amount' => 'Amount (₦)', 'received' => 'Date Received', 'created_by' => 'Created By', 'status' => 'Status'],
+            fn ($x) => ['date' => $this->exportDate($x->issue_date, 'd/m/Y')] + $issue($x) + [
+                'issued' => $x->issued_range, 'total' => $x->total_issued, 'amount' => $x->amount, 'received' => $this->exportDate($x->date_received, 'd/m/Y'),
+                'created_by' => $this->exportUser($x->creator), 'status' => $x->audited_at ? 'Audited' : ($x->reviewed_at ? 'Reviewed' : 'Entered'),
+            ], 'issue_date');
     }
 }

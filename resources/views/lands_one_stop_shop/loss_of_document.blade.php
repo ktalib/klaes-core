@@ -28,7 +28,7 @@
     }
 
     #lod-table tbody td:nth-child(2),
-    #lod-table tbody td:nth-child(6) {
+    #lod-table tbody td:nth-child(10) {
         white-space: normal;
         min-width: 180px;
         max-width: 260px;
@@ -42,8 +42,8 @@
 @section('content')
 <div class="flex-1 overflow-auto bg-slate-50/60">
     @include('admin.header', [
-        'PageTitle' => 'Loss of Document Applications',
-        'PageDescription' => 'Capture and manage Loss of Document applications.'
+        'PageTitle' => 'Loss of Document (Land FC)',
+        'PageDescription' => 'Capture and manage Land FC Loss of Document applications.'
     ])
 
     <div class="py-10 bg-slate-50 min-h-screen">
@@ -51,8 +51,8 @@
             {{-- Page Header --}}
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <p class="text-[11px] font-black uppercase tracking-[0.4em] text-slate-400">Lands</p>
-                    <h1 class="text-3xl font-extrabold text-slate-900 mt-1">Loss of Document</h1>
+                    <p class="text-[11px] font-black uppercase tracking-[0.4em] text-slate-400">Land FC</p>
+                    <h1 class="text-3xl font-extrabold text-slate-900 mt-1">Loss of Document (Land FC)</h1>
                     <p class="text-slate-500 mt-1 text-sm">{{ number_format($records->count()) }} record(s) loaded</p>
                 </div>
                 <div class="flex items-center gap-3">
@@ -77,54 +77,60 @@
             {{-- Data Table --}}
             <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
                 <div class="overflow-x-auto">
-                    <table id="lod-table" class="w-full text-sm" style="min-width:1200px">
+                    <table id="lod-table" class="w-full text-sm" style="min-width:1400px">
                         <thead>
                             <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80">
-                                <th class="px-4 py-3 text-left">#</th>
+                                <th class="px-4 py-3 text-left">S/N</th>
                                 <th class="px-4 py-3 text-left">Applicant</th>
+                                <th class="px-4 py-3 text-left">Type</th>
                                 <th class="px-4 py-3 text-left">File No</th>
+                                <th class="px-4 py-3 text-left">OP Serial</th>
                                 <th class="px-4 py-3 text-left">Land Use</th>
                                 <th class="px-4 py-3 text-left">Plot No</th>
+                                <th class="px-4 py-3 text-left">District</th>
+                                <th class="px-4 py-3 text-left">LGA</th>
                                 <th class="px-4 py-3 text-left">Location</th>
                                 <th class="px-4 py-3 text-left">Phone</th>
                                 <th class="px-4 py-3 text-left">Date</th>
-                                <th class="px-4 py-3 text-center">Actions</th>
+                                <th class="px-4 py-3 text-center"><span class="sr-only">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($records as $record)
+                            @foreach($records as $record)
                                 <tr data-record='@json($record)'>
-                                    <td class="px-4 py-2.5 text-xs text-slate-400 font-mono">{{ $record->id }}</td>
+                                    <td class="px-4 py-2.5 text-xs text-slate-400 font-mono"></td>
                                     <td class="px-4 py-2.5 font-semibold text-slate-700">{{ $record->applicant_name }}</td>
+                                    <td class="px-4 py-2.5 text-slate-700">{{ $record->document_kind === 'op' ? 'OP' : 'Regular File' }}</td>
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->file_no ?: '—' }}</td>
+                                    <td class="px-4 py-2.5 text-slate-700">{{ $record->op_serial_number ?: '—' }}</td>
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->land_use ?: '—' }}</td>
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->plot_no ?: '—' }}</td>
+                                    <td class="px-4 py-2.5 text-slate-700">{{ $record->district ?: '—' }}</td>
+                                    <td class="px-4 py-2.5 text-slate-700">{{ $record->lga ?: '—' }}</td>
                                     <td class="px-4 py-2.5 text-slate-600 text-xs leading-snug">{{ $record->location ?: '—' }}</td>
                                     <td class="px-4 py-2.5 text-slate-700">{{ $record->phone ?: '—' }}</td>
-                                    <td class="px-4 py-2.5 font-mono text-xs text-slate-600">
+                                    <td class="px-4 py-2.5 font-mono text-xs text-slate-600" data-order="{{ $record->created_at ? \Carbon\Carbon::parse($record->created_at)->format('YmdHis') : '' }}">
                                         {{ $record->created_at ? \Carbon\Carbon::parse($record->created_at)->format('M d, Y') : '—' }}
                                     </td>
                                     <td class="px-4 py-2.5 text-center">
-                                        <div class="inline-flex items-center gap-1">
-                                            <button class="px-2 py-1 text-xs rounded bg-blue-50 text-blue-700 hover:bg-blue-100" onclick="lodView(this)">View</button>
-                                            <button class="px-2 py-1 text-xs rounded bg-amber-50 text-amber-700 hover:bg-amber-100" onclick="lodEdit(this)">Edit</button>
-                                            <button class="px-2 py-1 text-xs rounded bg-red-50 text-red-700 hover:bg-red-100" onclick="lodDelete(this)">Delete</button>
+                                        <button type="button" aria-label="Actions" onclick="lodToggleMenu(event, this)"
+                                            class="p-2 hover:bg-slate-100 text-slate-600 rounded-full transition">
+                                            <i data-lucide="more-vertical" class="w-5 h-5"></i>
+                                        </button>
+                                        <div class="lod-action-menu hidden fixed z-[999] w-max rounded-xl bg-white shadow-xl ring-1 ring-black/5 py-1 text-left">
+                                            <button type="button" onclick="lodView(this)" class="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                                                <i data-lucide="eye" class="w-4 h-4 text-blue-500"></i> View Details
+                                            </button>
+                                            <button type="button" onclick="lodEdit(this)" class="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                                                <i data-lucide="pencil" class="w-4 h-4 text-amber-500"></i> Edit
+                                            </button>
+                                            <button type="button" onclick="lodDelete(this)" class="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td class="px-4 py-2.5"></td>
-                                    <td class="px-4 py-2.5"></td>
-                                    <td class="px-4 py-2.5"></td>
-                                    <td class="px-4 py-2.5"></td>
-                                    <td class="px-4 py-2.5"></td>
-                                    <td class="px-4 py-2.5"></td>
-                                    <td class="px-4 py-2.5"></td>
-                                    <td class="px-4 py-2.5"></td>
-                                    <td class="px-4 py-2.5"></td>
-                                </tr>
-                            @endforelse
+                            @endforeach
                         </tbody>
                     </table>
                 </div>
@@ -192,6 +198,38 @@
                                 <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wider">File &amp; Applicant Info</h4>
                             </div>
 
+                            {{-- Regular file or OP: a lost OP is found by serial number, not by file number --}}
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Type <span class="text-red-500">*</span></label>
+                                <div class="flex items-center gap-6">
+                                    <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                                        <input type="radio" name="document_kind" value="regular" onchange="lodKindChanged()" class="w-4 h-4 text-blue-600 border-slate-300">
+                                        Regular File
+                                    </label>
+                                    <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                                        <input type="radio" name="document_kind" value="op" onchange="lodKindChanged()" class="w-4 h-4 text-blue-600 border-slate-300">
+                                        OP
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="lod-op-panel" class="hidden rounded-xl border border-slate-200 p-4 space-y-3">
+                                <div class="flex flex-col md:flex-row md:items-end gap-3">
+                                    <div class="flex-1">
+                                        <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">OP Serial Number <span class="text-red-500">*</span></label>
+                                        <input id="lod-op-serial" type="text" autocomplete="off"
+                                            onkeydown="if (event.key === 'Enter') { event.preventDefault(); lodFindOp(); }"
+                                            class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
+                                            placeholder="Enter the OP serial number">
+                                    </div>
+                                    <button type="button" onclick="lodFindOp()"
+                                        class="inline-flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition">
+                                        <i data-lucide="search" class="w-4 h-4"></i> Find OP
+                                    </button>
+                                </div>
+                                <div id="lod-op-results" class="space-y-2"></div>
+                            </div>
+
                             {{-- Passport Photo Upload (first) --}}
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Passport Photograph</label>
@@ -224,7 +262,7 @@
                                                 <i data-lucide="check-circle" class="h-5 w-5 text-emerald-500"></i>
                                             </div>
                                         </div>
-                                        <button type="button" id="lod-select-file-btn"
+                                        <button type="button" id="lod-select-file-btn" style="display:none"
                                             class="p-3 rounded-xl bg-blue-50 text-blue-600 font-bold border border-blue-100 hover:bg-blue-100 transition flex items-center justify-center shrink-0"
                                             title="Select File Number">
                                             <i data-lucide="search" class="h-5 w-5"></i>
@@ -445,6 +483,19 @@
                                 </div>
                             </div>
 
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">District</label>
+                                    <input id="lod-district" name="district" type="text"
+                                        class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">LGA</label>
+                                    <input id="lod-lga" name="lga" type="text"
+                                        class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition">
+                                </div>
+                            </div>
+
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Property Location</label>
                                 <textarea id="lod-location" name="location" rows="3"
@@ -504,6 +555,10 @@
     const lodCsrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const LOD_TOTAL_STEPS = 4;
     let lodStep = 1;
+    const LOD_CAPTURE_OP_URL = '{{ route("instruments.index") }}';
+    const LOD_FILE_LOOKUP_URL = '{{ route("lands-one-stop-shop.all-applications.lookup-file-indexing") }}';
+    let lodOpMatches = [];      // the OPs the last serial search returned
+    let lodOpKey = '';          // the OP picked from them; what the save sends
 
     /* ─── Address Builder ─── */
     var lodAddrDefs = [
@@ -643,9 +698,24 @@
     }
 
     function lodNextStep() {
-        if (lodStep === 1 && !document.getElementById('lod-applicant-name').value.trim()) {
-            Swal.fire({ icon: 'warning', title: 'Applicant name is required' });
-            return;
+        if (lodStep === 1) {
+            var kind = lodKind();
+            if (!kind) {
+                Swal.fire({ icon: 'warning', title: 'Select Regular File or OP' });
+                return;
+            }
+            if (kind === 'regular' && !document.getElementById('lod-file-no').value.trim()) {
+                Swal.fire({ icon: 'warning', title: 'Select the file number' });
+                return;
+            }
+            if (kind === 'op' && !lodOpKey) {
+                Swal.fire({ icon: 'warning', title: 'Find and select the OP' });
+                return;
+            }
+            if (!document.getElementById('lod-applicant-name').value.trim()) {
+                Swal.fire({ icon: 'warning', title: 'Applicant name is required' });
+                return;
+            }
         }
         if (lodStep < LOD_TOTAL_STEPS) lodSetStep(lodStep + 1);
     }
@@ -658,7 +728,9 @@
         var container = document.getElementById('lod-review-summary');
         if (!container) return;
         var rows = [
-            ['File No', document.getElementById('lod-file-no')?.value],
+            ['Type', lodKind() === 'op' ? 'OP' : 'Regular File'],
+            ['OP Serial', lodKind() === 'op' ? document.getElementById('lod-op-serial')?.value : ''],
+            ['File No', document.getElementById('lod-file-no')?.value || (lodKind() === 'op' ? 'Temporary number on save' : '')],
             ['Applicant', document.getElementById('lod-applicant-name')?.value],
             ['Nationality', document.getElementById('lod-nationality')?.value],
             ['Occupation', document.getElementById('lod-occupation')?.value],
@@ -667,14 +739,177 @@
             ['Residential Address', document.getElementById('lod_residential_address')?.value],
             ['Correspondence Address', document.getElementById('lod_correspondence_address')?.value],
             ['Land Use', document.getElementById('lod-land-use')?.value],
-            ['Plot No', document.getElementById('lod-plot-no')?.value],
             ['Plan No', document.getElementById('lod-plan-no')?.value],
+            ['Plot No', document.getElementById('lod-plot-no')?.value],
+            ['District', document.getElementById('lod-district')?.value],
+            ['LGA', document.getElementById('lod-lga')?.value],
             ['Location', document.getElementById('lod-location')?.value],
             ['Passport Photo', document.getElementById('lod-passport-file')?.files?.length ? 'Attached' : 'None'],
         ];
         container.innerHTML = rows.map(function (r) {
-            return '<div><strong>' + r[0] + ':</strong> ' + (r[1] || '—') + '</div>';
+            return '<div><strong>' + r[0] + ':</strong> ' + lodSafe(r[1]) + '</div>';
         }).join('');
+    }
+
+    /* ─── Regular file or OP ─── */
+    function lodKind() {
+        return document.querySelector('input[name="document_kind"]:checked')?.value || '';
+    }
+
+    function lodShowKindPanels() {
+        var kind = lodKind();
+        document.getElementById('lod-op-panel').classList.toggle('hidden', kind !== 'op');
+        // An OP's file number comes from the OP, so the selector is only for a regular file.
+        document.getElementById('lod-select-file-btn').style.display = kind === 'regular' ? '' : 'none';
+    }
+
+    // Changing the type starts the record again: nothing of the previous one is kept.
+    function lodKindChanged() {
+        lodClearDetails();
+        lodOpMatches = [];
+        lodOpKey = '';
+        lodOpResults('');
+        document.getElementById('lod-op-serial').value = '';
+        lodShowKindPanels();
+    }
+
+    function lodOpResults(html) {
+        document.getElementById('lod-op-results').innerHTML = html;
+    }
+
+    // The fields a file or OP fills in, emptied so the last selection leaves nothing behind.
+    function lodClearDetails() {
+        ['lod-file-no', 'lod-applicant-name', 'lod-phone', 'lod-land-use', 'lod-plot-no', 'lod-plan-no',
+            'lod-district', 'lod-lga', 'lod-location', 'lod_residential_address'].forEach(function (id) {
+            document.getElementById(id).value = '';
+        });
+        document.getElementById('lod-file-indicator')?.classList.add('hidden');
+    }
+
+    function lodFill(details) {
+        var set = function (id, value) {
+            document.getElementById(id).value = (value || '').toString().trim();
+        };
+        set('lod-applicant-name', details.applicant);
+        set('lod-phone', details.phone);
+        set('lod_residential_address', details.address);
+        set('lod-land-use', details.land_use);
+        set('lod-plot-no', details.plot_no);
+        set('lod-plan-no', details.plan_no);
+        set('lod-district', details.district);
+        set('lod-lga', details.lga);
+        set('lod-location', details.location);
+    }
+
+    async function lodFindOp() {
+        var serial = document.getElementById('lod-op-serial').value.trim();
+        lodClearDetails();
+        lodOpMatches = [];
+        lodOpKey = '';
+        if (!serial) {
+            lodOpResults('<div class="text-sm text-red-600">Enter the OP serial number.</div>');
+            return;
+        }
+        lodOpResults('<div class="text-sm text-slate-500">Searching...</div>');
+        try {
+            var response = await fetch('{{ route("loss-of-document.op-search") }}?serial=' + encodeURIComponent(serial), {
+                headers: { 'Accept': 'application/json' }
+            });
+            var payload = await response.json();
+            if (!response.ok || !payload.success) throw new Error(payload.message || 'Search failed.');
+            lodOpMatches = payload.data || [];
+        } catch (err) {
+            lodOpResults('<div class="text-sm text-red-600">' + lodSafe(err.message) + '</div>');
+            return;
+        }
+
+        if (!lodOpMatches.length) {
+            lodOpResults('<div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">'
+                + 'No OP with serial ' + lodSafe(serial) + ' is in the system. Capture the OP first, then come back to this application.'
+                + '<div class="mt-2"><a href="' + LOD_CAPTURE_OP_URL + '" target="_blank" rel="noopener" class="font-semibold underline">Go to Capture OP</a></div></div>');
+            return;
+        }
+        if (lodOpMatches.length === 1) {
+            lodPickOp(0);
+            return;
+        }
+        lodOpResults('<div class="text-xs font-semibold text-slate-600">' + lodOpMatches.length + ' OPs carry this serial. Select the right one.</div>'
+            + lodOpMatches.map(function (op, i) {
+                return '<button type="button" onclick="lodPickOp(' + i + ')" class="block w-full text-left rounded-lg border border-slate-200 p-3 text-sm hover:bg-blue-50">'
+                    + '<span class="font-semibold text-slate-800">' + lodSafe(op.allottee) + '</span>'
+                    + '<span class="block text-xs text-slate-500">' + lodSafe(op.type) + ' · File: ' + lodSafe(op.file_number)
+                    + ' · Plot ' + lodSafe(op.plot_no) + ' · ' + lodSafe(op.location) + '</span></button>';
+            }).join(''));
+    }
+
+    function lodPickOp(index) {
+        var op = lodOpMatches[index];
+        if (!op) return;
+        lodClearDetails();
+        lodOpKey = op.key;
+        lodFill({
+            applicant: op.allottee, phone: op.phone, address: op.address, land_use: op.land_use, plot_no: op.plot_no,
+            plan_no: op.tp_no, district: op.district, lga: op.lga, location: op.location
+        });
+        document.getElementById('lod-file-no').value = (op.file_number || '').toUpperCase();
+        if (op.file_number) document.getElementById('lod-file-indicator')?.classList.remove('hidden');
+        lodOpResults('<div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">'
+            + 'Selected: <strong>' + lodSafe(op.allottee) + '</strong> (' + lodSafe(op.type) + '). '
+            + (op.file_number ? 'File number ' + lodSafe(op.file_number) + '.' : 'It has no file number, so a temporary number is given on save.')
+            + '</div>');
+    }
+
+    // Regular file: fill what the records hold, reusing the OSS form's lookup.
+    async function lodBackfillFromFile(fileNo, fallbackName) {
+        try {
+            var response = await fetch(LOD_FILE_LOOKUP_URL + '?file_no=' + encodeURIComponent(fileNo), {
+                headers: { 'Accept': 'application/json' }
+            });
+            var payload = await response.json();
+            if (!response.ok || !payload.success) return;
+            var d = payload.data || {};
+            lodFill({
+                applicant: d.file_name || fallbackName, phone: d.phone, address: d.address, land_use: d.land_use,
+                plot_no: d.plot_no, plan_no: d.plan_no || d.tp_no, district: d.op_district, lga: d.lga, location: d.location
+            });
+        } catch (err) {
+            // A failed lookup leaves the fields for the officer to fill.
+        }
+    }
+
+    /* ─── Row action menu ─── */
+    var lodOpenMenu = null;     // { menu, button } while a row menu is open
+
+    function lodCloseMenus() {
+        document.querySelectorAll('.lod-action-menu').forEach(function (m) { m.classList.add('hidden'); });
+        lodOpenMenu = null;
+    }
+
+    // Fixed, so the table's overflow does not clip it. Flips up near the bottom of the screen.
+    function lodPlaceMenu() {
+        if (!lodOpenMenu) return;
+        var rect = lodOpenMenu.button.getBoundingClientRect();
+        // The table scrolled the button out of sight: nothing left to hang the menu from.
+        if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
+            lodCloseMenus();
+            return;
+        }
+        var menu = lodOpenMenu.menu;
+        var top = rect.bottom + 4;
+        if (top + menu.offsetHeight > window.innerHeight) top = rect.top - menu.offsetHeight - 4;
+        menu.style.top = Math.max(8, top) + 'px';
+        menu.style.left = Math.max(8, rect.right - menu.offsetWidth) + 'px';
+    }
+
+    function lodToggleMenu(event, button) {
+        event.stopPropagation();
+        var menu = button.parentElement.querySelector('.lod-action-menu');
+        var wasOpen = !menu.classList.contains('hidden');
+        lodCloseMenus();
+        if (wasOpen) return;
+        menu.classList.remove('hidden');
+        lodOpenMenu = { menu: menu, button: button };
+        lodPlaceMenu();
     }
 
     /* ─── CRUD ─── */
@@ -694,6 +929,8 @@
         Swal.fire({
             title: 'Loss of Document Record',
             html: '<div style="text-align:left;font-size:13px;line-height:1.7;">' +
+                '<div><strong>Type:</strong> ' + (data.document_kind === 'op' ? 'OP' : 'Regular File') + '</div>' +
+                '<div><strong>OP Serial:</strong> ' + lodSafe(data.op_serial_number) + '</div>' +
                 '<div><strong>Applicant:</strong> ' + lodSafe(data.applicant_name) + '</div>' +
                 '<div><strong>Nationality:</strong> ' + lodSafe(data.nationality) + '</div>' +
                 '<div><strong>Occupation:</strong> ' + lodSafe(data.occupation) + '</div>' +
@@ -701,6 +938,9 @@
                 '<div><strong>Email:</strong> ' + lodSafe(data.email) + '</div>' +
                 '<div><strong>File No:</strong> ' + lodSafe(data.file_no) + '</div>' +
                 '<div><strong>Land Use:</strong> ' + lodSafe(data.land_use) + '</div>' +
+                '<div><strong>Plot No:</strong> ' + lodSafe(data.plot_no) + '</div>' +
+                '<div><strong>District:</strong> ' + lodSafe(data.district) + '</div>' +
+                '<div><strong>LGA:</strong> ' + lodSafe(data.lga) + '</div>' +
                 '<div><strong>Location:</strong> ' + lodSafe(data.location) + '</div>' +
                 '<div><strong>Remarks:</strong> ' + lodSafe(data.remarks) + '</div>' +
                 passportHtml +
@@ -725,12 +965,26 @@
         document.getElementById('lod-land-use').value = data.land_use || '';
         document.getElementById('lod-plot-no').value = data.plot_no || '';
         document.getElementById('lod-plan-no').value = data.plan_no || '';
+        document.getElementById('lod-district').value = data.district || '';
+        document.getElementById('lod-lga').value = data.lga || '';
         document.getElementById('lod-location').value = data.location || '';
         document.getElementById('lod-remarks').value = data.remarks || '';
         document.getElementById('lod_residential_address').value = data.residential_address || '';
         document.getElementById('lod_correspondence_address').value = data.correspondence_address || '';
 
         if (data.file_no) document.getElementById('lod-file-indicator')?.classList.remove('hidden');
+
+        var kindRadio = document.querySelector('input[name="document_kind"][value="' + data.document_kind + '"]');
+        if (kindRadio) kindRadio.checked = true;
+        lodShowKindPanels();
+        if (data.document_kind === 'op') {
+            document.getElementById('lod-op-serial').value = data.op_serial_number || '';
+            lodOpKey = data.op_source && data.op_id ? data.op_source + '-' + data.op_id : '';
+            if (lodOpKey) {
+                lodOpResults('<div class="text-sm text-emerald-700">Saved against OP ' + lodSafe(data.op_serial_number)
+                    + '. Search again to pick a different OP.</div>');
+            }
+        }
 
         if (data.passport_photo) {
             var img = document.getElementById('lod-passport-img');
@@ -785,6 +1039,10 @@
         document.getElementById('lod-form').reset();
         document.getElementById('lod-id').value = '';
         document.getElementById('lod-file-indicator')?.classList.add('hidden');
+        lodOpMatches = [];
+        lodOpKey = '';
+        lodOpResults('');
+        lodShowKindPanels();
         var img = document.getElementById('lod-passport-img');
         var placeholder = document.getElementById('lod-passport-placeholder');
         if (img) { img.classList.add('hidden'); img.src = ''; }
@@ -797,6 +1055,8 @@
         var id = document.getElementById('lod-id').value;
         var formData = new FormData();
 
+        formData.append('document_kind', lodKind());
+        formData.append('op_key', lodOpKey);
         formData.append('applicant_name', document.getElementById('lod-applicant-name').value);
         formData.append('residential_address', document.getElementById('lod_residential_address').value);
         formData.append('correspondence_address', document.getElementById('lod_correspondence_address').value);
@@ -808,6 +1068,8 @@
         formData.append('land_use', document.getElementById('lod-land-use').value);
         formData.append('plot_no', document.getElementById('lod-plot-no').value);
         formData.append('plan_no', document.getElementById('lod-plan-no').value);
+        formData.append('district', document.getElementById('lod-district').value);
+        formData.append('lga', document.getElementById('lod-lga').value);
         formData.append('location', document.getElementById('lod-location').value);
         formData.append('remarks', document.getElementById('lod-remarks').value);
 
@@ -863,14 +1125,29 @@
             dom: '<"overflow-x-auto"t><"px-4 py-3 flex items-center justify-between border-t border-slate-100"ip>',
             pageLength: parseInt(document.getElementById('lod-length')?.value || '50', 10),
             lengthChange: false,
-            order: [[7, 'desc']],
-            columnDefs: [{ orderable: false, targets: [8] }],
+            order: [[11, 'desc']],
+            columnDefs: [{ orderable: false, targets: [0, 12] }],
             language: {
                 info: 'Showing _START_ to _END_ of _TOTAL_ loss of document records',
                 emptyTable: 'No loss of document applications found.',
                 paginate: { previous: 'Prev', next: 'Next' }
             }
         });
+
+        // S/N follows the rows as shown, across search, sort and paging.
+        table.on('draw.dt', function () {
+            var start = table.page.info().start;
+            table.column(0, { page: 'current', search: 'applied', order: 'applied' }).nodes().each(function (cell, i) {
+                cell.textContent = start + i + 1;
+            });
+            lodCloseMenus();
+            if (window.lucide) window.lucide.createIcons();
+        });
+        table.draw(false);
+
+        document.addEventListener('click', lodCloseMenus);
+        window.addEventListener('scroll', lodPlaceMenu, true);
+        window.addEventListener('resize', lodPlaceMenu);
 
         document.getElementById('lod-search')?.addEventListener('input', function () {
             table.search(this.value).draw();
@@ -895,11 +1172,12 @@
             GlobalFileNoModal.open({
                 callback: function (data) {
                     if (data.fileNumber) {
+                        lodClearDetails();
                         document.getElementById('lod-file-no').value = data.fileNumber.toUpperCase();
                         document.getElementById('lod-file-indicator')?.classList.remove('hidden');
-                        if (data.record && data.record.file_name) {
-                            document.getElementById('lod-applicant-name').value = data.record.file_name.toUpperCase();
-                        }
+                        var name = data.record && data.record.file_name ? data.record.file_name.toUpperCase() : '';
+                        document.getElementById('lod-applicant-name').value = name;
+                        lodBackfillFromFile(data.fileNumber, name);
                     }
                 }
             });

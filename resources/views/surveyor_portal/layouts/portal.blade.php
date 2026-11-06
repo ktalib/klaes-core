@@ -17,8 +17,8 @@
         </a>
         <div class="flex items-center gap-3 text-sm">
             <div class="text-right">
-                <div class="font-semibold">{{ $me->name }}</div>
-                <div class="ks-help">{{ $me->surveyor_id_no }}@if ($me->company_name) · {{ $me->company_name }}@endif</div>
+                <div class="font-semibold">{{ $me->holder_name }}</div>
+                <div class="ks-help">{{ $me->surveyor_id_no }}@if ($me->holder_name !== $me->name) · {{ $me->name }}@endif</div>
             </div>
             <form method="POST" action="{{ route('surveyor-portal.logout') }}">
                 @csrf

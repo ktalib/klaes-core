@@ -18,6 +18,8 @@ use Illuminate\Validation\ValidationException;
  */
 class OldSurveyController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public const SOURCE_OTHER = '__other__';
 
     public function index(Request $r)
@@ -85,13 +87,7 @@ class OldSurveyController extends Controller
 
     private function pageData(Request $r, ?OS $editing = null): array
     {
-        $q = OS::query()->with('registerFile');
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(fn ($w) => $w->where('old_survey_ref', 'like', "%$term%")->orWhere('file_number', 'like', "%$term%")
-                ->orWhere('old_plan_no', 'like', "%$term%")->orWhere('kn_number', 'like', "%$term%")
-                ->orWhere('surveyor_name', 'like', "%$term%")->orWhere('district', 'like', "%$term%"));
-        }
-        if (in_array($s = $r->query('status'), OS::STATUSES, true)) $q->where('verification_status', $s);
+        $q = $this->oldQuery($r);
 
         $stats = [];
         foreach (OS::STATUSES as $s) $stats[$s] = OS::where('verification_status', $s)->count();
@@ -151,5 +147,31 @@ class OldSurveyController extends Controller
         $data['location'] = implode(', ', array_filter([$data['district'] ?? null, $data['lga'] ?? null])) ?: null;
 
         return $data;
+    }
+
+    /** The list's filters, shared with Export Records. */
+    private function oldQuery(Request $r)
+    {
+        $q = OS::query()->with('registerFile');
+        if ($term = trim((string) $r->query('q', ''))) {
+            $q->where(fn ($w) => $w->where('old_survey_ref', 'like', "%$term%")->orWhere('file_number', 'like', "%$term%")
+                ->orWhere('old_plan_no', 'like', "%$term%")->orWhere('kn_number', 'like', "%$term%")
+                ->orWhere('surveyor_name', 'like', "%$term%")->orWhere('district', 'like', "%$term%"));
+        }
+        if (in_array($s = $r->query('status'), OS::STATUSES, true)) $q->where('verification_status', $s);
+
+        return $q;
+    }
+
+    public function export(Request $r)
+    {
+        return $this->exportRecords($r, fn () => $this->oldQuery($r)->orderByDesc('id'), [
+            'ref' => 'Reference', 'register_ref' => 'Register File', 'old_plan_no' => 'Old Plan No.', 'kn' => 'KN', 'file_number' => 'File No.', 'surveyor' => 'Surveyor',
+            'survey_date' => 'Survey Date', 'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'source' => 'Record found in', 'verdict' => 'Verdict',
+        ], fn ($o) => [
+            'ref' => $o->old_survey_ref, 'register_ref' => $o->registerFile?->register_ref, 'old_plan_no' => $o->old_plan_no, 'kn' => $o->kn_number, 'file_number' => $o->file_number,
+            'surveyor' => $o->surveyor_name, 'survey_date' => $this->exportDate($o->survey_date), 'plot_no' => $o->plot_no, 'district' => $o->district, 'lga' => $o->lga,
+            'source' => $o->record_source, 'verdict' => $o->verification_status,
+        ]);
     }
 }

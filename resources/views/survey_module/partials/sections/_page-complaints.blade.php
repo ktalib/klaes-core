@@ -51,7 +51,7 @@
 </style>
 
 <div class="page-header">
-    <div></div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.compensation.complaints.export'), 'title' => 'Complaints - ' . \App\Models\Survey\SurveyComplaint::CATEGORIES[$tab], 'dateLabel' => 'Date Received', 'statuses' => \App\Models\Survey\SurveyComplaint::STATUSES])</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <a class="btn btn-secondary" href="{{ route('survey-module.compensation.complaints.print-blank') }}" target="_blank">
             <i class="fas fa-print"></i> Print Blank Form
