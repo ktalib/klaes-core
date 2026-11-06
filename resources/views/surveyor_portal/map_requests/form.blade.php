@@ -1,4 +1,4 @@
-@extends('surveyor_portal.layouts.portal')
+@extends(auth('surveyor')->check() ? 'surveyor_portal.layouts.portal' : 'surveyor_portal.layouts.public')
 
 @section('title', 'Request Map — KSSGOF Portal')
 @section('heading', 'Request Map')
@@ -22,30 +22,49 @@
 
 @section('main')
     @php
-        $me = auth('surveyor')->user();
+        $me = $account;
         $formats = (array) old('output_formats', ['pdf']);
+        $mdaOther = \App\Http\Controllers\SurveyorPortal\MapRequestController::MDA_OTHER;
+        $mdaPick = (string) old('mda_id');
+        $isOther = $mdaPick === $mdaOther;
     @endphp
     <form method="POST" id="mrqForm" enctype="multipart/form-data" action="{{ route('surveyor-portal.map-requests.store') }}">
         @csrf
         <div class="mrq-layout">
             <div class="ks-card p-6 space-y-4">
-                <div class="grid sm:grid-cols-2 gap-4">
+                <div class="grid sm:grid-cols-3 gap-4">
                     <div>
-                        <span class="ks-label">Requested By</span>
-                        <div class="ks-input" style="background:#F1F3F5;">{{ $me->holder_name }}</div>
+                        <label class="ks-label" for="contact_name">Your Name <span class="ks-req">*</span></label>
+                        <input class="ks-input" id="contact_name" name="contact_name" value="{{ old('contact_name', $me?->name) }}" maxlength="200" required>
                     </div>
                     <div>
-                        <span class="ks-label">Contact Person</span>
-                        <div class="ks-input" style="background:#F1F3F5;">{{ $me->name }}</div>
+                        <label class="ks-label" for="contact_phone">Phone <span class="ks-req">*</span></label>
+                        <input class="ks-input" id="contact_phone" name="contact_phone" value="{{ old('contact_phone', $me?->phone) }}" maxlength="50" required>
                     </div>
                     <div>
-                        <span class="ks-label">Phone</span>
-                        <div class="ks-input" style="background:#F1F3F5;">{{ $me->phone }}</div>
+                        <label class="ks-label" for="contact_email">Email (optional)</label>
+                        <input class="ks-input" id="contact_email" type="email" name="contact_email" value="{{ old('contact_email', $me?->email) }}" maxlength="255">
                     </div>
-                    <div>
-                        <span class="ks-label">Email</span>
-                        <div class="ks-input" style="background:#F1F3F5;overflow:hidden;text-overflow:ellipsis;">{{ $me->email ?: '—' }}</div>
-                    </div>
+                </div>
+                <div>
+                    <label class="ks-label" for="mda_id">MDA <span class="ks-req">*</span></label>
+                    <select class="ks-input" id="mda_id" name="mda_id" required>
+                        <option value="">Select…</option>
+                        @foreach ($mdas->groupBy(fn ($x) => $x->category?->name ?? 'Unsorted') as $cat => $list)
+                            <optgroup label="{{ $cat }}">
+                                @foreach ($list as $md)
+                                    <option value="{{ $md->id }}" @selected($mdaPick === (string) $md->id)>{{ $md->displayName() }}</option>
+                                @endforeach
+                            </optgroup>
+                        @endforeach
+                        <option value="{{ $mdaOther }}" @selected($isOther)>Other (specify)</option>
+                    </select>
+                    @error('mda_id')<div class="ks-error">{{ $message }}</div>@enderror
+                </div>
+                <div id="mrqOtherBox" @style(['display:none' => ! $isOther])>
+                    <label class="ks-label" for="requester_other">Requesting Body <span class="ks-req">*</span></label>
+                    <input class="ks-input" id="requester_other" name="requester_other" value="{{ old('requester_other') }}" maxlength="300" @required($isOther) @disabled(! $isOther)>
+                    @error('requester_other')<div class="ks-error">{{ $message }}</div>@enderror
                 </div>
                 <div>
                     <label class="ks-label" for="map_type_id">Map Type <span class="ks-req">*</span></label>
@@ -102,6 +121,19 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script src="{{ asset('js/survey/sdi-basemaps.js') }}?v=2"></script>
+<script>
+// MDA "Other" reveals a required box; any other choice hides, clears and disables it.
+(function () {
+    var pick = document.getElementById('mda_id'), wrap = document.getElementById('mrqOtherBox'), input = document.getElementById('requester_other');
+    pick.addEventListener('change', function () {
+        var on = pick.value === @json($mdaOther);
+        wrap.style.display = on ? '' : 'none';
+        input.disabled = !on;
+        input.required = on;
+        if (on) input.focus(); else input.value = '';
+    });
+})();
+</script>
 <script>
 (function () {
     var box = document.getElementById('mrqMap'), hint = document.getElementById('mrqHint');

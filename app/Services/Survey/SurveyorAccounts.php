@@ -69,7 +69,7 @@ class SurveyorAccounts
             $same = SurveyorPortalAccount::sameCompanyAs($a->only(['company_id', 'company_name', 'company_rc_no']), $data);
             if (! $same) continue;
 
-            $field = $same === 'rc' ? 'company_rc_no' : (empty($data['company_id']) ? 'company_other' : 'company_choice');
+            $field = 'company_choice';
             throw ValidationException::withMessages([$field => ($same === 'rc' ? 'This RC number is already registered' : "{$a->company_name} is already registered")
                 . ' on the portal. Each company has one account. Contact the Office of the Surveyor General if this is wrong.']);
         }

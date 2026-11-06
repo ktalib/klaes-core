@@ -144,6 +144,7 @@ class FilearchiveController extends Controller
                 'missing' => \App\Models\MissingFile::where('status', '!=', \App\Models\MissingFile::STATUS_FOUND)->count(),
             ];
             $activeStatusFilter = null;
+            $surveySections = $completedFiles->storage_sections ?? null;
 
             return view('filearchive.index', compact(
                 'PageTitle',
@@ -155,7 +156,8 @@ class FilearchiveController extends Controller
                 'yearOptions',
                 'registryOptions',
                 'statusCounts',
-                'activeStatusFilter'
+                'activeStatusFilter',
+                'surveySections'
             ));
         }
 
@@ -1943,6 +1945,16 @@ class FilearchiveController extends Controller
         $sortedPaths = collect($folderIndex['sorted']);   // [{path, ts}]
         $totalFiles  = (int) ($folderIndex['total_files'] ?? 0);
 
+        // Survey has two tabs (user, 2026-11-06): its files, and the scanned layout maps. Each lists and counts only its own.
+        $sections = null;
+        if (strtolower(trim($module)) === 'survey') {
+            $isLayout = fn ($entry) => \App\Services\Survey\TpLargeFormat::isLayoutFolder($entry['path']);
+            $sections = ['files' => $sortedPaths->reject($isLayout)->count(), 'layouts' => $sortedPaths->filter($isLayout)->count()];
+            $wantLayouts = $request->get('section') === 'layouts';
+            $sortedPaths = $sortedPaths->filter(fn ($entry) => $isLayout($entry) === $wantLayouts)->values();
+            $totalFiles = $sortedPaths->sum(fn ($entry) => count($groups[$entry['path']] ?? []));
+        }
+
         // ── Apply search filter (cheap — only basename matching) ─────────────
         if ($search !== '') {
             $sortedPaths = $sortedPaths->filter(
@@ -1994,6 +2006,7 @@ class FilearchiveController extends Controller
 
         $paginator->storage_total_pages = $totalFiles;
         $paginator->storage_total_bytes = null;
+        $paginator->storage_sections = $sections;
 
         return $paginator;
     }

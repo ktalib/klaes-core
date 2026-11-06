@@ -90,6 +90,23 @@ class SurveyorPortalNotifier
             ['dedupe_key' => 'kssgof-declined:' . $a->id, 'phone_confirmed' => true]));
     }
 
+    public function companyApproved(\stdClass $company): void
+    {
+        $this->afterCommit(function () use ($company) {
+            SurveyorPortalNotification::create([
+                'company_id' => $company->id,
+                'title' => 'Company registration confirmed',
+                'body' => "{$company->name} can now register surveyors. Its system-assigned beacon prefix is {$company->beacon_letters}.",
+                'link' => route('surveyor-portal.register'),
+            ]);
+
+            $this->sms->queue(SmsSetting::KEY_SURVEY_COMPANY_APPROVED, $company->phone ?? null, [
+                'Company' => $company->name,
+                'Prefix' => $company->beacon_letters,
+            ], ['dedupe_key' => 'kssgof-company-approved:' . $company->id, 'phone_confirmed' => true]);
+        });
+    }
+
     public function requestSubmitted(SurveyBeaconRequest $q): void
     {
         $this->afterCommit(function () use ($q) {
@@ -145,7 +162,7 @@ class SurveyorPortalNotifier
     {
         $this->afterCommit(function () use ($m) {
             $path = parse_url(route('survey-module.beacon-requests.index'), PHP_URL_PATH) . '?tab=maps';
-            $this->toSg("Map request {$m->request_ref}", "{$m->requester_other} asked for a map on the portal: {$m->map_name}.", $path);
+            $this->toSg("Map request {$m->request_ref}", "{$m->contact_name} ({$m->requesterName()}) asked for a map on the portal: {$m->map_name}.", $path);
             $this->toMapAccount($m, "Map request {$m->request_ref} submitted", 'Your request has gone to the Production Unit.');
         });
     }

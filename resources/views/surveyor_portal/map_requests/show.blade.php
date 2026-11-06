@@ -18,7 +18,7 @@
     @php
         $badge = ['pending' => 'submitted', 'in_progress' => 'issued', 'fulfilled' => 'accepted', 'rejected' => 'rejected'];
         $rows = [
-            'Status' => null, 'Date' => optional($m->received_date)->format('d/m/Y'), 'Map Name' => $m->map_name, 'Map Type' => $m->mapType?->name,
+            'Status' => null, 'Date' => optional($m->received_date)->format('d/m/Y'), 'MDA' => $m->requesterName(), 'Map Name' => $m->map_name, 'Map Type' => $m->mapType?->name,
             'Map Reference' => $m->map_reference, 'Formats' => $m->formatsLabel(), 'Description' => $m->map_description,
         ];
     @endphp

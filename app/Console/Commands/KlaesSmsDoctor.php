@@ -27,7 +27,7 @@ class KlaesSmsDoctor extends Command
     protected $signature = 'klaes:sms-doctor
                             {--key= : Show only this message}
                             {--file-number= : Show which phone number this file would be texted on}
-                            {--send= : Send a real test message to this number (costs credit)}';
+                            {--send= : Send a real test message to this number (costs credit); with --key, in that message\'s wording}';
 
     protected $description = 'Check why the transactional SMS are or are not sending on this machine';
 
@@ -47,7 +47,15 @@ class KlaesSmsDoctor extends Command
         }
 
         if ($this->option('send')) {
-            return $this->sendTest((string) $this->option('send'));
+            // With --key, the message's own wording and sample values, as the SMS Control Centre's test sends it.
+            $body = $this->option('key') ? ($dispatcher->preview((string) $this->option('key'))['body'] ?? null) : null;
+            if ($this->option('key') && $body === null) {
+                $this->error('  This message has no wording to send.');
+
+                return self::FAILURE;
+            }
+
+            return $this->sendTest((string) $this->option('send'), $body);
         }
 
         return self::SUCCESS;
@@ -237,7 +245,7 @@ class KlaesSmsDoctor extends Command
      * key, so it works while every message is still switched off -- which is the
      * state you want to test from.
      */
-    private function sendTest(string $number): int
+    private function sendTest(string $number, ?string $body = null): int
     {
         $this->line('<options=bold>Test send</> to ' . $number);
 
@@ -252,7 +260,7 @@ class KlaesSmsDoctor extends Command
         $gateway = new BulkSmsNgService();
         $sent = $gateway->send(
             $normalised,
-            'KLAES test message from the SMS doctor. No action is needed.'
+            $body ?? 'KLAES test message from the SMS doctor. No action is needed.'
         );
 
         if ($sent) {

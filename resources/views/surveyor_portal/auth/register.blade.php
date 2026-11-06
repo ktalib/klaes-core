@@ -6,43 +6,25 @@
 @section('card')
     <h1 class="text-lg font-bold mb-1" id="ksHeading">Register as a surveyor</h1>
     <p class="ks-help mb-4">The Office of the Surveyor General confirms each registration. We will text you when you can sign in.</p>
-    @php $type = old('surveyor_type'); $co = old('company_choice'); @endphp
+    @php $co = old('company_choice'); @endphp
     <form method="POST" action="{{ route('surveyor-portal.register.submit') }}" class="space-y-4" enctype="multipart/form-data" id="ksRegisterForm">
         @csrf
-        <div>
-            <span class="ks-label">Surveyor Type <span class="ks-req">*</span></span>
-            <div class="flex gap-6 text-sm">
-                @foreach (['Government' => 'Public', 'Private' => 'Private'] as $v => $l)
-                    <label class="flex items-center gap-2"><input type="radio" name="surveyor_type" value="{{ $v }}" required @checked($type === $v) onchange="ksCompany()"> {{ $l }}</label>
-                @endforeach
-            </div>
-            @error('surveyor_type')<p class="ks-error">{{ $message }}</p>@enderror
-        </div>
-        <div id="ksCompanyBox" style="{{ $type === 'Private' ? '' : 'display:none;' }}">
+        <div id="ksCompanyBox">
             <label class="ks-label" for="company_choice">Company <span class="ks-req">*</span></label>
             <select class="ks-input" id="company_choice" name="company_choice" onchange="ksCompany()">
                 <option value="">Select company…</option>
-                @foreach ($companies as $c)<option value="{{ $c->id }}" data-surveyor="{{ $c->surveyor_name }}" @selected((string) $co === (string) $c->id)>{{ $c->name }}</option>@endforeach
-                <option value="other" @selected($co === 'other')>Other (specify)</option>
+                @foreach ($companies as $c)<option value="{{ $c->id }}" @selected((string) $co === (string) $c->id)>{{ $c->name }}</option>@endforeach
             </select>
             @error('company_choice')<p class="ks-error">{{ $message }}</p>@enderror
-            <div id="ksCompanyOther" class="mt-2" style="{{ $co === 'other' ? '' : 'display:none;' }}">
-                <input class="ks-input" name="company_other" value="{{ old('company_other') }}" maxlength="255" placeholder="Specify your company *" aria-label="Specify your company">
-                @error('company_other')<p class="ks-error">{{ $message }}</p>@enderror
-            </div>
-            <div class="mt-4">
-                <label class="ks-label" for="company_rc_no">RC No. <span class="ks-req">*</span></label>
-                <input class="ks-input" id="company_rc_no" name="company_rc_no" value="{{ old('company_rc_no') }}" maxlength="50" autocomplete="off" placeholder="RC 123456">
-                @error('company_rc_no')<p class="ks-error">{{ $message }}</p>@enderror
-            </div>
+            <p class="ks-help mt-2">Only approved companies are listed. If your company is not listed, <a href="{{ route('surveyor-portal.company.register') }}" style="color:var(--ks-blue);font-weight:600;">submit it for approval</a>.</p>
         </div>
-        <div>
+        <div id="ksPersonalName">
             <label class="ks-label" for="name"><span id="ksNameLabel">Surveyor's Name</span> <span class="ks-req">*</span></label>
             <input class="ks-input" id="name" name="name" value="{{ old('name') }}" maxlength="255" required autocomplete="name">
             @error('name')<p class="ks-error">{{ $message }}</p>@enderror
         </div>
         {{-- Passport photograph (user, 2026-11-05). Checked for one clear face in the browser, as at MLPP commissioning. --}}
-        <div>
+        <div id="ksPersonalPassport">
             <span class="ks-label"><span id="ksPassportLabel">Passport Photograph</span> <span class="ks-req">*</span></span>
             <div class="flex items-start gap-4">
                 <div id="ksPassportPreview" aria-hidden="true"
@@ -72,7 +54,7 @@
                 @error('email')<p class="ks-error">{{ $message }}</p>@enderror
             </div>
         </div>
-        <div>
+        <div id="ksPersonalSurcon">
             <label class="ks-label" for="surcon_number"><span id="ksSurconLabel">SURCON No.</span></label>
             <input class="ks-input" id="surcon_number" name="surcon_number" value="{{ old('surcon_number') }}" maxlength="50">
             @error('surcon_number')<p class="ks-error">{{ $message }}</p>@enderror
@@ -89,7 +71,7 @@
                 <input class="ks-input" id="password_confirmation" type="password" name="password_confirmation" required autocomplete="new-password">
             </div>
         </div>
-        <button class="ks-btn ks-btn-primary w-full">Register</button>
+        <button class="ks-btn ks-btn-primary w-full" id="ksSubmitLabel">Register</button>
     </form>
     <p class="ks-help text-center mt-4">Already registered? <a href="{{ route('surveyor-portal.login') }}" style="color:var(--ks-blue);font-weight:600;">Sign in</a></p>
 @endsection
@@ -170,56 +152,31 @@
             // Checked here too: a server refusal comes back without the chosen photo, which a browser cannot refill.
             var field = function (id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
             var problem = '';
-            if (field('addr_district') === 'Other' && !field('addr_district_other')) problem = 'Please specify the district.';
-            else if (field('addr_street') === 'Other' && !field('addr_street_other')) problem = 'Please specify the street.';
-            else if (!field('addr_lga')) problem = 'Choose the LGA in your address.';
+            if (!field('addr_lga')) problem = 'Enter the LGA in your address.';
             else if (!field('addr_state')) problem = 'Choose the state in your address.';
             var box = document.getElementById('ksAddressError');
             box.textContent = problem;
             box.style.display = problem ? '' : 'none';
             if (problem) { e.preventDefault(); box.closest('.address-builder').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
         });
+        document.getElementById('addr_lga').addEventListener('input', function () {
+            var box = document.getElementById('ksAddressError');
+            box.textContent = '';
+            box.style.display = 'none';
+        });
     })();
 
     function ksPrivate() {
-        var t = document.querySelector('input[name="surveyor_type"]:checked');
-        return !!(t && t.value === 'Private');
+        return true;
     }
-
-    // Private registers the company (user, 2026-11-06): its phone, email and address, with its surveyor under it.
-    var ksLabels = {
-        ksHeading: ['Register as a surveyor', 'Register your company'],
-        ksNameLabel: ["Surveyor's Name", 'Principal Surveyor'],
-        ksPassportLabel: ['Passport Photograph', "Principal Surveyor's Passport Photograph"],
-        ksPassportWhose: ['your face', "the principal surveyor's face"],
-        ksPhoneLabel: ['Phone', 'Company Phone'],
-        ksEmailLabel: ['Email', 'Company Email'],
-        ksSurconLabel: ['SURCON No.', "Principal Surveyor's SURCON No."]
-    };
-    var ksStarted = false;
 
     function ksCompany() {
         var priv = ksPrivate();
         var sel = document.getElementById('company_choice');
         document.getElementById('ksCompanyBox').style.display = priv ? '' : 'none';
         sel.required = priv;
-        document.getElementById('company_rc_no').required = priv;
-        var other = priv && sel.value === 'other', box = document.getElementById('ksCompanyOther');
-        box.style.display = other ? '' : 'none';
-        box.querySelector('input').required = other;
-
-        Object.keys(ksLabels).forEach(function (id) { document.getElementById(id).textContent = ksLabels[id][priv ? 1 : 0]; });
-        document.querySelector('#ksRegisterForm .ab-legend').textContent = priv ? 'Company Address' : 'Address';
-
-        // The listed company's surveyor fills the name, and goes when the choice changes. A name typed over it stays.
-        var name = document.getElementById('name');
-        var picked = sel.options[sel.selectedIndex];
-        var want = priv && picked ? (picked.getAttribute('data-surveyor') || '') : '';
-        if (ksStarted && (name.value.trim() === '' || name.value === name.dataset.filled)) {
-            name.value = want;
-            name.dataset.filled = want;
-        }
-        ksStarted = true;
+        document.getElementById('ksSubmitLabel').textContent = 'Register';
+        document.querySelector('#ksRegisterForm .ab-legend').textContent = 'Address';
     }
     ksCompany();
 </script>

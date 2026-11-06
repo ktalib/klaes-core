@@ -15,9 +15,10 @@
 @php
     $item = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
     $tabUrl = fn ($t) => route('survey-module.beacon-requests.index', $t === 'requests' ? [] : ['tab' => $t]);
+    $registrationUrl = fn ($t) => route('survey-module.beacon-requests.index', ['tab' => 'registrations', 'registration_tab' => $t]);
     $badge = fn ($s) => match (strtolower((string) $s)) {
         'submitted', 'pending' => 'pending',
-        'issued', 'active'     => 'review',
+        'issued', 'active', 'approved' => 'review',
         'accepted'             => 'completed',
         default                => 'cancelled',
     };
@@ -40,7 +41,29 @@
     @endif
 </div>
 
-<div class="page-header"><div></div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.beacon-requests.export'), 'title' => ['registrations' => 'Surveyor Registrations', 'maps' => 'KSSGOF Map Requests'][$tab] ?? 'Beacon Requests'])</div>
+@if ($tab === 'registrations')
+<nav class="flex flex-wrap gap-2 mb-4" aria-label="Registration categories">
+    <a class="btn {{ $registrationTab === 'companies' ? 'btn-primary' : 'btn-outline' }}"
+       href="{{ $registrationUrl('companies') }}" @if ($registrationTab === 'companies') aria-current="page" @endif>
+        Company Registrations <span class="ml-1">({{ number_format($companyApplications->total()) }})</span>
+    </a>
+    <a class="btn {{ $registrationTab === 'surveyors' ? 'btn-primary' : 'btn-outline' }}"
+       href="{{ $registrationUrl('surveyors') }}" @if ($registrationTab === 'surveyors') aria-current="page" @endif>
+        Surveyor Registrations <span class="ml-1">({{ number_format($accounts->total()) }})</span>
+    </a>
+</nav>
+@endif
+
+<div class="page-header">
+    <div>
+        @if ($tab === 'registrations')
+            <a class="btn btn-primary" href="{{ route('surveyor-portal.company.register') }}" target="_blank" rel="noopener">
+                <i class="fas fa-plus"></i> Add Company
+            </a>
+        @endif
+    </div>
+    @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.beacon-requests.export'), 'title' => $tab === 'registrations' ? ($registrationTab === 'companies' ? 'Company Registrations' : 'Surveyor Registrations') : ($tab === 'maps' ? 'KSSGOF Map Requests' : 'Beacon Requests')])
+</div>
 
 <form method="GET" class="table-toolbar">
     @if ($tab !== 'requests')<input type="hidden" name="tab" value="{{ $tab }}" />@endif
@@ -55,7 +78,7 @@
             @endforeach
         </select>
         <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
-        @if ($filtered)<a class="btn btn-outline btn-sm" href="{{ $tabUrl($tab) }}">Clear</a>@endif
+        @if ($filtered)<a class="btn btn-outline btn-sm" href="{{ $tab === 'registrations' ? $registrationUrl($registrationTab) : $tabUrl($tab) }}">Clear</a>@endif
     </div>
 </form>
 
@@ -261,6 +284,77 @@
 })();
 </script>
 @else
+@if ($registrationTab === 'companies')
+<section class="mb-6">
+    <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold">Company Registrations</h2>
+        <span class="text-sm text-gray-500">{{ number_format($companyApplications->total()) }} companies · {{ number_format($stats['pendingCompanies']) }} awaiting review</span>
+    </div>
+    <div class="table-wrapper">
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>S/N</th><th>Prefix</th><th>Company</th><th>RC No.</th><th>Phone</th><th>Email</th><th>Address</th><th>Submitted</th><th>Status</th><th style="width:48px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($companyApplications as $c)
+                        @php $companyStatus = $c->status ?: ($c->is_active ? 'approved' : 'inactive'); @endphp
+                        <tr>
+                            <td>{{ $companyApplications->firstItem() + $loop->index }}</td>
+                            <td style="font-family:monospace;font-weight:700;">{{ $c->beacon_letters ?: '—' }}</td>
+                            <td>{{ $c->name }}</td>
+                            <td>{{ $c->company_rc_no ?: '—' }}</td>
+                            <td>{{ $c->phone ?: '—' }}</td>
+                            <td>{{ $c->email ?: '—' }}</td>
+                            <td style="min-width:180px;">{{ \App\Services\Cadastral\CadastralAddress::personAddress($c, 'addr_') ?: '—' }}</td>
+                            <td style="white-space:nowrap;">{{ optional($c->created_at)->format('d/m/Y') ?: '—' }}</td>
+                            <td style="white-space:nowrap;">
+                                <span class="status-badge {{ $badge($companyStatus) }}"><span class="dot"></span>{{ ['pending' => 'Waiting', 'approved' => 'Approved', 'rejected' => 'Not approved'][$companyStatus] ?? $companyStatus }}</span>
+                                @if ($c->review_note)<div class="helper-text" style="margin:2px 0 0;white-space:normal;">{{ $c->review_note }}</div>@endif
+                            </td>
+                            <td>
+                                <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
+                                    <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
+                                            @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open"
+                                            class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
+                                        <i data-lucide="more-vertical" class="w-5 h-5"></i>
+                                    </button>
+                                    <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
+                                         :style="'top:' + top + 'px; left:' + left + 'px'"
+                                         class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                        @if ($c->status === 'pending')
+                                            <form method="POST" action="{{ route('survey-module.beacon-requests.companies.approve', $c->id) }}" data-company-approve data-name="{{ $c->name }}">
+                                                @csrf
+                                                <button type="submit" class="{{ $item }}"><i data-lucide="check" class="w-4 h-4 text-gray-500"></i> Approve company</button>
+                                            </form>
+                                            <button type="button" class="{{ $item }} text-red-600" @click="open = false"
+                                                    data-company-reject data-url="{{ route('survey-module.beacon-requests.companies.reject', $c->id) }}" data-name="{{ $c->name }}">
+                                                <i data-lucide="x-circle" class="w-4 h-4 text-red-500"></i> Do Not Approve
+                                            </button>
+                                        @else
+                                            <div class="px-3 py-2 text-xs text-gray-500">No actions available.</div>
+                                        @endif
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="11" style="text-align:center;padding:28px;color:var(--gray-500);">No company registrations{{ $filtered ? ' for this selection' : ' yet' }}.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <div class="table-footer">
+            <span>Showing {{ $companyApplications->firstItem() ?? 0 }}–{{ $companyApplications->lastItem() ?? 0 }} of {{ number_format($companyApplications->total()) }} companies</span>
+            <div class="pagination">{{ $companyApplications->links() }}</div>
+        </div>
+    </div>
+</section>
+@endif
+
+@if ($registrationTab === 'surveyors')
 <div class="table-wrapper">
     <div class="table-scroll">
         <table>
@@ -351,6 +445,19 @@
     </div>
 </form>
 <script>
+    document.addEventListener('submit', function (e) {
+        var f = e.target;
+        if (f.matches('[data-company-approve]') && !window.confirm('Approve ' + f.dataset.name + '?')) e.preventDefault();
+    });
+    document.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-company-reject]');
+        if (!b) return;
+        var f = document.getElementById('companyReject');
+        f.action = b.dataset.url;
+        document.getElementById('companyRejectHead').textContent = b.dataset.name;
+        f.classList.add('open');
+    });
+
     document.addEventListener('click', function (e) {
         var b = e.target.closest('[data-acc-reject]');
         if (!b) return;
@@ -360,5 +467,18 @@
         f.classList.add('open');
     });
 </script>
+<form method="POST" id="companyReject" action="" class="farmer-entry-form" data-sv-modal="Do Not Approve Company" data-sv-modal-size="sm">
+    @csrf
+    <p id="companyRejectHead" style="font-weight:600;margin:0 0 12px;"></p>
+    <div class="form-group">
+        <label>Reason <span class="required">*</span></label>
+        <textarea name="review_note" rows="3" maxlength="1000" required></textarea>
+    </div>
+    <div class="form-actions">
+        <div class="left"><button type="button" class="btn btn-secondary" onclick="document.getElementById('companyReject').classList.remove('open')">Cancel</button></div>
+        <div class="right"><button class="btn btn-danger" type="submit">Do Not Approve</button></div>
+    </div>
+</form>
+@endif
 @endif
 @endsection

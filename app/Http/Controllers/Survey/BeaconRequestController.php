@@ -10,9 +10,11 @@ use App\Services\Survey\BeaconPool;
 use App\Services\Survey\BeaconRequests;
 use App\Services\Survey\SurveyorAccounts;
 use App\Services\Survey\SurveyorPortalNotifier;
+use App\Services\Survey\SurveyCompanyRegistry;
 use App\Services\Survey\SurveySettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The Surveyor General's desk (CR 03112026 items 18-21): surveyor registrations waiting for approval,
@@ -23,7 +25,12 @@ class BeaconRequestController extends Controller
 {
     use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
 
-    public function __construct(private BeaconRequests $requests, private SurveyorAccounts $accounts)
+    public function __construct(
+        private BeaconRequests $requests,
+        private SurveyorAccounts $accounts,
+        private SurveyCompanyRegistry $companies,
+        private SurveyorPortalNotifier $portalNotifier
+    )
     {
     }
 
@@ -36,6 +43,7 @@ class BeaconRequestController extends Controller
     {
         $this->authorizeSg();
         $tab = in_array($r->query('tab'), ['registrations', 'maps'], true) ? $r->query('tab') : 'requests';
+        $registrationTab = $r->query('registration_tab') === 'surveyors' ? 'surveyors' : 'companies';
         $term = trim((string) $r->query('q', ''));
         $status = (string) $r->query('status', '');
 
@@ -44,7 +52,8 @@ class BeaconRequestController extends Controller
         $accounts = $this->accountsQuery($r)->paginate(20, ['*'], 'page')->withQueryString();
 
         return view('survey_module.beacon_requests.index', [
-            'tab' => $tab, 'requests' => $requests, 'accounts' => $accounts, 'status' => $status,
+            'tab' => $tab, 'registrationTab' => $registrationTab, 'requests' => $requests, 'accounts' => $accounts, 'status' => $status,
+            'companyApplications' => $this->companyApplicationsQuery($r)->paginate(20, ['*'], 'company_page')->withQueryString(),
             'maps' => $this->mapsQuery($r)->paginate(20, ['*'], 'page')->withQueryString(),
             'mapCounts' => SdiMapRequest::whereNotNull('surveyor_portal_account_id')->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status'),
             'companies' => SurveySettings::companies(),
@@ -54,6 +63,7 @@ class BeaconRequestController extends Controller
                 'issued'   => SurveyBeaconRequest::where('status', SurveyBeaconRequest::ISSUED)->count(),
                 'accepted' => SurveyBeaconRequest::where('status', SurveyBeaconRequest::ACCEPTED)->count(),
                 'pending'  => SurveyorPortalAccount::where('status', SurveyorPortalAccount::PENDING)->count(),
+                'pendingCompanies' => DB::connection('sqlsrv')->table('survey_companies')->where('status', SurveyCompanyRegistry::PENDING)->count(),
             ],
         ]);
     }
@@ -119,6 +129,26 @@ class BeaconRequestController extends Controller
         return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations'])->with('success', "{$done->holder_name}'s registration was not approved.");
     }
 
+    public function approveCompany(int $company)
+    {
+        $this->authorizeSg();
+        $done = $this->companies->approve($company);
+        $this->portalNotifier->companyApproved($done);
+
+        return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations'])
+            ->with('success', "{$done->name} approved. Its system-assigned beacon prefix is {$done->beacon_letters}.");
+    }
+
+    public function rejectCompany(Request $r, int $company)
+    {
+        $this->authorizeSg();
+        $data = $r->validate(['review_note' => 'required|string|max:1000'], ['review_note.required' => 'Give the reason.']);
+        $done = $this->companies->reject($company, trim($data['review_note']));
+
+        return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations'])
+            ->with('success', "{$done->name}'s company registration was not approved.");
+    }
+
     /** The Requests tab's filters and order, shared with Export Records. */
     private function requestsQuery(Request $r)
     {
@@ -143,8 +173,25 @@ class BeaconRequestController extends Controller
         return SurveyorPortalAccount::query()
             ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('name', 'like', "%$term%")->orWhere('company_name', 'like', "%$term%")
                 ->orWhere('registration_id', 'like', "%$term%")->orWhere('surveyor_id_no', 'like', "%$term%")->orWhere('phone', 'like', "%$term%")))
-            ->when($tab === 'registrations' && $status !== '', fn ($q) => $q->where('status', $status))
+            ->when($tab === 'registrations' && $status !== '', fn ($q) => $q->where('status', $status === SurveyCompanyRegistry::APPROVED ? SurveyorPortalAccount::ACTIVE : $status))
             ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")->orderByDesc('id');
+    }
+
+    private function companyApplicationsQuery(Request $r)
+    {
+        $term = trim((string) $r->query('q', ''));
+        $status = (string) $r->query('status', '');
+
+        return DB::connection('sqlsrv')->table('survey_companies')
+            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('name', 'like', "%$term%")
+                ->orWhere('company_rc_no', 'like', "%$term%")
+                ->orWhere('phone', 'like', "%$term%")->orWhere('email', 'like', "%$term%")))
+            ->when($status === SurveyorPortalAccount::ACTIVE, fn ($q) => $q->where('is_active', 1)
+                ->where(fn ($w) => $w->where('status', SurveyCompanyRegistry::APPROVED)->orWhereNull('status')))
+            ->when($status !== '' && $status !== SurveyorPortalAccount::ACTIVE, fn ($q) => $q->where('status', $status))
+            ->orderByRaw("CASE WHEN beacon_letters IS NULL OR LTRIM(RTRIM(beacon_letters)) = '' THEN 1 ELSE 0 END")
+            ->orderBy('beacon_letters')
+            ->orderBy('name');
     }
 
     /** Map Requests: what surveyors asked for on the portal. The Production Unit works them; this list follows them. */

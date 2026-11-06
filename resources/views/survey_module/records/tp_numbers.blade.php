@@ -170,13 +170,17 @@
             </tr></thead>
             <tbody>
                 @forelse ($tps as $x)
-                    @php $linked = $projects->get(TPC::key($x->tp_no), collect()); @endphp
+                    @php
+                        $linked = $projects->get(TPC::key($x->tp_no), collect());
+                        // Larger and bold (user, 2026-11-06).
+                        $tpBig = 'font-size:16px;font-weight:700;';
+                    @endphp
                     <tr>
                         <td class="muted">{{ $tps->firstItem() + $loop->index }}</td>
-                        <td class="nowrap">{!! $x->prefix_head !== '' ? e($x->prefix_head) : '<span class="muted">—</span>' !!}</td>
-                        <td class="nowrap">{!! $x->sub_prefix !== '' ? e($x->sub_prefix) : '<span class="muted">—</span>' !!}</td>
-                        <td class="nowrap">{!! trim((string) $x->serial_no) !== '' ? '<strong>' . e($x->serial_no) . '</strong>' : '<span class="muted">—</span>' !!}</td>
-                        <td class="nowrap">{!! $x->tp_no !== '' ? '<span class="tp">' . e($x->tp_no) . '</span>' : '<span class="muted">—</span>' !!}</td>
+                        <td class="nowrap" style="{{ $tpBig }}">{!! $x->prefix_head !== '' ? e($x->prefix_head) : '<span class="muted">—</span>' !!}</td>
+                        <td class="nowrap" style="{{ $tpBig }}">{!! $x->sub_prefix !== '' ? e($x->sub_prefix) : '<span class="muted">—</span>' !!}</td>
+                        <td class="nowrap" style="{{ $tpBig }}">{!! trim((string) $x->serial_no) !== '' ? e($x->serial_no) : '<span class="muted">—</span>' !!}</td>
+                        <td class="nowrap">{!! $x->tp_no !== '' ? '<span class="tp" style="' . $tpBig . '">' . e($x->tp_no) . '</span>' : '<span class="muted">—</span>' !!}</td>
                         <td class="nowrap">{!! $x->drawing_date ? e($x->drawing_date) : '<span class="muted">—</span>' !!}</td>
                         <td class="wide strong">{!! $x->layout_name ? e($x->layout_name) : '<span class="muted">—</span>' !!}</td>
                         <td>{!! $x->remarks ? e($x->remarks) : '<span class="muted">—</span>' !!}</td>
@@ -202,14 +206,13 @@
                                 </button>
                                 <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false" :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                                    @if (! empty($lfPages[$x->tp_no]))
-                                        <button type="button" class="{{ $svItem }}" data-lf-title="{{ $x->tp_no }}" data-lf-pages='@json($lfPages[$x->tp_no])' @click.stop="open = false; tpLfOpen($el)"><i data-lucide="map" class="w-4 h-4 text-gray-500"></i> View LF</button>
-                                    @endif
                                     <a class="{{ $svItem }}" href="{{ route('survey-module.records.tp-numbers', array_merge(request()->query(), ['edit' => $x->id])) }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit</a>
                                     <form method="POST" action="{{ route('survey-module.records.tp-numbers.destroy', $x) }}" onsubmit="return confirm('Delete TP No. {{ $x->tp_no }}?');">
                                         @csrf @method('DELETE')
                                         <button type="submit" class="{{ $svItem }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete</button>
                                     </form>
+                                    {{-- On every row, last in the menu (user, 2026-11-06): a row with no scan says so. --}}
+                                    <button type="button" class="{{ $svItem }}" data-lf-title="{{ $x->tp_no }}" data-lf-pages='@json($lfPages[$x->tp_no] ?? [])' @click.stop="open = false; tpLfOpen($el)"><i data-lucide="map" class="w-4 h-4 text-gray-500"></i> Scanned Map Sheet</button>
                                 </div>
                             </div>
                         </td>
@@ -223,9 +226,10 @@
     <div class="table-footer"><span>{{ number_format($tps->total()) }} layout drawings, in drawing-number order</span><div class="pagination">{{ $tps->links() }}</div></div>
 </div>
 
-{{-- View LF: the large format scan of the drawing, opened over the page. Some are very large, so it fits first; zoom and drag from there. --}}
+{{-- Scanned Map Sheet: the large format scan of the drawing, opened over the page. Some are very large, so it fits first; zoom and drag from there. --}}
 <div id="tpLf" role="dialog" aria-modal="true" aria-labelledby="tpLfTitle" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:10000;background:#111827;flex-direction:column;">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 16px;background:#fff;border-bottom:1px solid var(--gray-200);">
+        <span style="font-weight:700;">Scanned Map Sheet</span>
         <strong id="tpLfTitle" class="tp" style="margin-right:auto;"></strong>
         <span id="tpLfPager" style="display:none;align-items:center;gap:6px;">
             <button type="button" class="btn btn-secondary btn-sm" id="tpLfPrev" aria-label="Previous page"><i class="fas fa-chevron-left"></i></button>
@@ -243,15 +247,25 @@
         <img id="tpLfImg" alt="" draggable="false" style="display:block;max-width:none;margin:auto;">
     </div>
 </div>
+<div id="tpNoMap" role="dialog" aria-modal="true" aria-labelledby="tpNoMapHead" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:10000;background:rgba(15,23,42,.45);align-items:center;justify-content:center;padding:16px;">
+    <div style="background:#fff;border-radius:12px;box-shadow:0 20px 40px rgba(0,0,0,.25);width:min(420px,100%);padding:20px;">
+        <h3 id="tpNoMapHead" style="font-size:16px;font-weight:700;margin:0 0 12px;">Scanned Map Sheet</h3>
+        <p style="margin:0;color:var(--gray-600);"><i class="fas fa-map" style="margin-right:6px;color:var(--gray-400);"></i> No scanned map found<span id="tpNoMapFor"></span>.</p>
+        <div style="display:flex;justify-content:flex-end;margin-top:16px;"><button type="button" class="btn btn-primary btn-sm" id="tpNoMapClose">Close</button></div>
+    </div>
+</div>
 
 @include('survey_module.partials._searchable_selects')
 
 <script>
-// View LF: fit first, then zoom about the middle of the view; drag to move around.
+// Scanned Map Sheet: fit first, then zoom about the middle of the view; drag to move around. No scan: a small modal says so.
 window.tpLfOpen = (function () {
     var $ = function (id) { return document.getElementById(id); };
-    var box = $('tpLf'), stage = $('tpLfStage'), img = $('tpLfImg'), msg = $('tpLfMsg');
+    var box = $('tpLf'), stage = $('tpLfStage'), img = $('tpLfImg'), msg = $('tpLfMsg'), none = $('tpNoMap');
     var pages = [], at = 0, scale = 1, fit = 1;
+    function closeNone() { none.style.display = 'none'; }
+    $('tpNoMapClose').onclick = closeNone;
+    none.addEventListener('click', function (e) { if (e.target === none) closeNone(); });
 
     function size(next) {
         var midX = (stage.scrollLeft + stage.clientWidth / 2) / (img.width || 1), midY = (stage.scrollTop + stage.clientHeight / 2) / (img.height || 1);
@@ -289,7 +303,11 @@ window.tpLfOpen = (function () {
     $('tpLfOut').onclick = function () { size(scale / 1.5); };
     $('tpLfFit').onclick = fitNow;
     $('tpLfClose').onclick = close;
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && box.style.display !== 'none') close(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (box.style.display !== 'none') close();
+        closeNone();
+    });
 
     var drag = null;
     stage.addEventListener('mousedown', function (e) { drag = { x: e.clientX, y: e.clientY, l: stage.scrollLeft, t: stage.scrollTop }; stage.style.cursor = 'grabbing'; e.preventDefault(); });
@@ -298,6 +316,12 @@ window.tpLfOpen = (function () {
 
     return function (btn) {
         pages = JSON.parse(btn.dataset.lfPages);
+        if (!pages.length) {
+            $('tpNoMapFor').textContent = btn.dataset.lfTitle ? ' for ' + btn.dataset.lfTitle : '';
+            none.style.display = 'flex';
+            $('tpNoMapClose').focus();
+            return;
+        }
         $('tpLfTitle').textContent = btn.dataset.lfTitle;
         $('tpLfPager').style.display = pages.length > 1 ? 'inline-flex' : 'none';
         box.style.display = 'flex';

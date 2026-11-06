@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -65,20 +65,31 @@ class AuthController extends Controller
         return redirect()->intended(route('surveyor-portal.dashboard'));
     }
 
-    public function showRegister()
+    public function showRegister(Request $request)
     {
-        return $this->guard()->check()
-            ? redirect()->route('surveyor-portal.dashboard')
-            : view('surveyor_portal.auth.register', ['companies' => SurveySettings::companies()]);
+        if ($this->guard()->check()) {
+            return redirect()->route('surveyor-portal.dashboard');
+        }
+
+        if ($request->query('type') !== null) {
+            abort_unless($request->query('type') === 'Private', 404);
+        }
+
+        $company = $request->query('company');
+        if ($company === 'no') {
+            return redirect()->route('surveyor-portal.company.register');
+        }
+        if ($company !== 'yes') {
+            return view('surveyor_portal.auth.register_choice');
+        }
+
+        return view('surveyor_portal.auth.register', ['companies' => SurveySettings::companies()]);
     }
 
     public function register(Request $r)
     {
         $data = $r->validate([
-            'surveyor_type'  => ['required', Rule::in(['Government', 'Private'])],
-            'company_choice' => 'nullable|string|max:30',
-            'company_other'  => 'nullable|string|max:255',
-            'company_rc_no'  => 'nullable|string|max:50',
+            'company_choice' => ['required', 'string', 'max:30'],
             'name'           => 'required|string|max:255',
             'phone'          => 'required|string|max:30',
             'email'          => 'required|email|max:150',
@@ -87,10 +98,10 @@ class AuthController extends Controller
             // Passport photograph (user, 2026-11-05). 2 MB, as at MLPP commissioning.
             'passport'       => 'required|file|image|mimes:jpg,jpeg,png|max:2048',
             // The address builder, one value each: the Cadastral directory's rules, except that District is
-            // optional here (user, 2026-11-05). Choosing Other still needs the name typed.
+            // optional here (user, 2026-11-05).
             'addr_district'  => 'nullable|string|max:255',
         ] + CadastralAddress::rules('addr_'), CadastralAddress::messages('addr_') + [
-            'surveyor_type.required' => 'Choose Public or Private.',
+            'company_choice.required' => 'Choose your approved surveying company.',
             'passport.required' => 'Upload your passport photograph.',
             'passport.image' => 'The passport photograph must be a JPG or PNG picture.',
             'passport.mimes' => 'The passport photograph must be a JPG or PNG picture.',
@@ -109,12 +120,12 @@ class AuthController extends Controller
             throw ValidationException::withMessages(['email' => 'An account already exists for this email address.']);
         }
 
-        [$companyId, $companyName] = $this->company($data);
-        $companyRc = $this->companyRc($data);
+        $data['surveyor_type'] = 'Private';
+        [$companyId, $companyName, $companyRc] = $this->company($data);
 
         // Kept on the private disk, never under public/: only the SG's page streams it.
         $file = $r->file('passport');
-        $passport = $file->storeAs('surveyor_portal/passports', \Illuminate\Support\Str::uuid() . '.' . strtolower($file->extension() ?: 'jpg'), 'local');
+        $passport = $file ? $file->storeAs('surveyor_portal/passports', \Illuminate\Support\Str::uuid() . '.' . strtolower($file->extension() ?: 'jpg'), 'local') : null;
 
         $address = array_intersect_key(CadastralAddress::normalise($data, 'addr_'), array_flip(Account::addressColumns('addr_')));
 
@@ -132,7 +143,7 @@ class AuthController extends Controller
                 'password'      => $data['password'],
             ]);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Storage::disk('local')->delete($passport);   // no account, no photo left behind
+            if ($passport) \Illuminate\Support\Facades\Storage::disk('local')->delete($passport);   // no account, no photo left behind
             throw $e;
         }
 
@@ -146,40 +157,25 @@ class AuthController extends Controller
         return $id ? view('surveyor_portal.auth.registered', ['registrationId' => $id]) : redirect()->route('surveyor-portal.login');
     }
 
-    /** A Private surveyor names a company: a listed one, or a typed one the SG adds when issuing. */
-    /** Required of a company (user, 2026-11-06), in capitals, otherwise as written. */
-    private function companyRc(array $data): ?string
-    {
-        if ($data['surveyor_type'] !== 'Private') return null;
-
-        $rc = mb_strtoupper(preg_replace('/\s+/', ' ', trim((string) ($data['company_rc_no'] ?? ''))));
-        if (! preg_match('/\d/', $rc)) {
-            throw ValidationException::withMessages(['company_rc_no' => "Enter the company's RC number, e.g. RC 123456."]);
-        }
-
-        return $rc;
-    }
-
     private function company(array $data): array
     {
-        if ($data['surveyor_type'] !== 'Private') return [null, null];
+        if ($data['surveyor_type'] !== 'Private') return [null, null, null];
 
         $choice = (string) ($data['company_choice'] ?? '');
         if ($choice === '') {
             throw ValidationException::withMessages(['company_choice' => 'Choose your company.']);
         }
-        if ($choice === 'other') {
-            $name = preg_replace('/\s+/', ' ', trim((string) ($data['company_other'] ?? '')));
-            if ($name === '') throw ValidationException::withMessages(['company_other' => "Type your company's name."]);
-            $listed = DB::connection('sqlsrv')->table('survey_companies')->whereRaw('UPPER(name) = ?', [mb_strtoupper($name)])->first(['id', 'name']);
 
-            return $listed ? [$listed->id, $listed->name] : [null, mb_substr($name, 0, 255)];
+        $query = DB::connection('sqlsrv')->table('survey_companies')->where('id', $choice)->where('is_active', 1);
+        if (Schema::connection('sqlsrv')->hasColumn('survey_companies', 'status')) {
+            $query->where(fn ($q) => $q->where('status', \App\Services\Survey\SurveyCompanyRegistry::APPROVED)->orWhereNull('status'));
+        }
+        $company = ctype_digit($choice) ? $query->first() : null;
+        if (! $company) {
+            throw ValidationException::withMessages(['company_choice' => 'Choose an approved company from the list.']);
         }
 
-        $company = ctype_digit($choice) ? DB::connection('sqlsrv')->table('survey_companies')->find($choice) : null;
-        if (! $company) throw ValidationException::withMessages(['company_choice' => 'Choose a company from the list, or Other.']);
-
-        return [$company->id, $company->name];
+        return [$company->id, $company->name, $company->company_rc_no ?? null];
     }
 
     /** Ends this portal's sign-in only: a staff session in the same browser shares the cookie and stays. */

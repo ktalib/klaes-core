@@ -602,7 +602,6 @@ document.addEventListener('DOMContentLoaded', function () {
      user 2026-11-06) opens here without a page load; so does going back to the tab the page was opened on. --}}
 <div class="pc-tabs" id="pcTabs" data-server-tab="{{ $tab }}" data-confirm-url="{{ $tabUrl('confirmation') }}">
     <a href="{{ $tabUrl('showings') }}" data-tab="showings" class="{{ $tab === 'showings' ? 'on' : '' }}">Plot Showing</a>
-    <a href="{{ $tabUrl('checks') }}" data-tab="checks" class="{{ $tab === 'checks' ? 'on' : '' }}">Ground Check</a>
 </div>
 
 <div id="pcMain" @if ($tab === 'confirmation') hidden @endif>

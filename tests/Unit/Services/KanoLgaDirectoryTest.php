@@ -44,6 +44,8 @@ class KanoLgaDirectoryTest extends TestCase
         $this->assertContains('Garko', $this->directory->shortNames());
         $this->assertNotContains('Garki', $this->directory->shortNames());
         $this->assertNull($this->directory->shortName('Garki Local Government'));
+        $this->assertContains('Kunchi', $this->directory->shortNames());
+        $this->assertNotContains('Ghari', $this->directory->shortNames());
     }
 
     /**

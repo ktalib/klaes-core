@@ -10,6 +10,9 @@
   $e = $editing ?? null;
   $open = $e || $errors->any();
   $v = fn ($k) => old($k, $e?->$k);
+  $propertyLocation = ($v('district') || $v('lga'))
+      ? \App\Support\AddressBuilder::propertyLocation(['district' => $v('district'), 'lga' => $v('lga'), 'state' => 'Kano'])
+      : $v('location');
 @endphp
 
 @section('survey-content')
@@ -69,9 +72,25 @@
     <div class="form-grid cols-3">
         <div class="sv-group"><i class="fas fa-map-marker-alt"></i><span>Property</span></div>
         <div class="form-group"><label>Plot No.</label><input type="text" name="plot_no" id="cfPlot" value="{{ $v('plot_no') }}" maxlength="100" /></div>
-        <div class="form-group"><label>District</label><input type="text" name="district" id="cfDistrict" value="{{ $v('district') }}" maxlength="150" /></div>
-        <div class="form-group"><label>LGA</label><input type="text" name="lga" id="cfLga" value="{{ $v('lga') }}" maxlength="150" /></div>
-        <div class="form-group span-3"><label>Location</label><input type="text" name="location" value="{{ $v('location') }}" maxlength="500" placeholder="Street, district, LGA (no plot number)" /></div>
+        <div class="form-group">
+            <label for="cfDistrict">District</label>
+            <select name="district" id="cfDistrict" class="cf-location-select" data-placeholder="Search district…">
+                <option value=""></option>
+                @if ($v('district'))<option value="{{ $v('district') }}" selected>{{ $v('district') }}</option>@endif
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="cfLga">LGA</label>
+            <select name="lga" id="cfLga" class="cf-location-select" data-placeholder="Search LGA…">
+                <option value=""></option>
+                @if ($v('lga'))<option value="{{ $v('lga') }}" selected>{{ $v('lga') }}</option>@endif
+            </select>
+        </div>
+        <div class="form-group span-3">
+            <label for="cfLocation">Location</label>
+            <input type="text" name="location" id="cfLocation" value="{{ $propertyLocation }}" maxlength="500" readonly
+                   style="background:var(--gray-100);" placeholder="Filled from District and LGA" />
+        </div>
     </div>
     <div class="form-grid cols-3">
         <div class="sv-group"><i class="fas fa-user-tie"></i><span>Survey</span></div>
@@ -264,9 +283,54 @@
 (function () {
     // The file comes from the global file number selector and fills the details the records hold (rule 5).
     var no = document.getElementById('cfFileNo'), note = document.getElementById('cfFileNote');
+    var district = document.getElementById('cfDistrict'), lga = document.getElementById('cfLga');
+    var location = document.getElementById('cfLocation');
+    function syncLocation() {
+        var parts = [district.value, lga.value].map(function (value) { return value.trim(); }).filter(Boolean);
+        location.value = parts.length ? parts.concat('Kano').join(', ') : '';
+    }
+    window.addEventListener('load', function () {
+        if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+            [
+                { element: district, url: @json(route('survey-module.lookup.districts')) },
+                { element: lga, url: @json(route('survey-module.lookup.lgas')) }
+            ].forEach(function (lookup) {
+                var $select = jQuery(lookup.element);
+                $select.select2({
+                    width: '100%',
+                    placeholder: $select.data('placeholder'),
+                    allowClear: true,
+                    ajax: {
+                        url: lookup.url,
+                        dataType: 'json',
+                        delay: 250,
+                        data: function (params) { return { q: params.term || '', page: params.page || 1 }; },
+                        processResults: function (data) { return data; },
+                        cache: true
+                    },
+                    minimumInputLength: 0
+                }).on('change', syncLocation);
+            });
+        } else {
+            [district, lga].forEach(function (select) { select.addEventListener('change', syncLocation); });
+        }
+    });
     var fill = { title: 'cfTitle', plot: 'cfPlot', district: 'cfDistrict', lga: 'cfLga' }, filled = {};
+    function setValue(el, value) {
+        if (el.tagName === 'SELECT') {
+            var option = Array.prototype.find.call(el.options, function (item) { return item.value === value; });
+            if (!option) { el.add(new Option(value, value, true, true)); }
+            el.value = value;
+            if (window.jQuery) jQuery(el).trigger('change');
+        } else {
+            el.value = value;
+        }
+    }
     function clearFilled() {
-        Object.keys(filled).forEach(function (k) { var el = document.getElementById(fill[k]); if (el && el.value === filled[k]) el.value = ''; });
+        Object.keys(filled).forEach(function (k) {
+            var el = document.getElementById(fill[k]);
+            if (el && el.value === filled[k]) setValue(el, '');
+        });
         filled = {};
     }
     function lookup(fileNo) {
@@ -275,7 +339,7 @@
             .then(function (d) {
                 Object.keys(fill).forEach(function (k) {
                     var el = document.getElementById(fill[k]);
-                    if (el && d[k] && !el.value) { el.value = d[k]; filled[k] = d[k]; }
+                    if (el && d[k] && !el.value) { setValue(el, d[k]); filled[k] = d[k]; }
                 });
                 note.textContent = d.indexed ? 'Indexed file: its details were filled in; check them.' : (d.known ? 'On the file number register, not yet indexed.' : 'Not in the records yet; enter the details.');
             })

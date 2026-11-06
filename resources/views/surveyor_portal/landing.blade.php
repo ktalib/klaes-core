@@ -142,7 +142,7 @@
                     <a class="ks-btn ks-btn-primary" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.dashboard') }}"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Go to my dashboard</a>
                     <a class="ks-btn ks-btn-light" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.requests.create') }}"><i data-lucide="plus-circle" class="w-4 h-4"></i> Request beacons</a>
                 @else
-                    <a class="ks-btn ks-btn-primary" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.register') }}"><i data-lucide="user-plus" class="w-4 h-4"></i> Register as a surveyor</a>
+                    <a class="ks-btn ks-btn-primary" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.register') }}" data-register-dialog-trigger><i data-lucide="user-plus" class="w-4 h-4"></i> Register as a surveyor</a>
                     <a class="ks-btn ks-btn-light" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.login') }}"><i data-lucide="log-in" class="w-4 h-4"></i> Sign in</a>
                 @endif
             </div>
@@ -166,7 +166,7 @@
                     @if ($signedIn)
                         <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ route('surveyor-portal.requests.create') }}"><i data-lucide="plus-circle" class="w-4 h-4"></i> Request beacons</a>
                     @else
-                        <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ route('surveyor-portal.register') }}"><i data-lucide="user-plus" class="w-4 h-4"></i> Register as a surveyor</a>
+                        <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ route('surveyor-portal.register') }}" data-register-dialog-trigger><i data-lucide="user-plus" class="w-4 h-4"></i> Register as a surveyor</a>
                         <a class="ks-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);padding:12px 22px;" href="{{ route('surveyor-portal.login') }}">Sign in</a>
                     @endif
                 </div>
@@ -180,7 +180,7 @@
                     <h2 class="ks-slide-title">The Surveyor General's Office, online.</h2>
                     <p class="ks-slide-text">Registrations are approved by the SG's office, and every beacon number is issued from the state's own register.</p>
                     <div class="flex flex-wrap gap-3" style="margin-top:24px;">
-                        <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ $signedIn ? route('surveyor-portal.dashboard') : route('surveyor-portal.register') }}">{{ $signedIn ? 'Go to my dashboard' : 'Get started' }}</a>
+                        <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ $signedIn ? route('surveyor-portal.dashboard') : route('surveyor-portal.register') }}" @unless ($signedIn) data-register-dialog-trigger @endunless>{{ $signedIn ? 'Go to my dashboard' : 'Get started' }}</a>
                         <a class="ks-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.45);padding:12px 22px;" href="#how">How it works</a>
                     </div>
                 </div>
@@ -232,9 +232,9 @@
         </div>
         <ol class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4" style="list-style:none;padding:0;">
             @foreach ([
-                ['user-plus', '#EEF3FA', 'var(--ks-blue)', 'Register', 'Choose Public or Private, give your name, phone, email and SURCON number, and your company if you are private. You get a Registration ID.'],
+                ['user-plus', '#EEF3FA', 'var(--ks-blue)', 'Register', 'Confirm your company is registered, then give your name, phone, email and SURCON number. You get a Registration ID.'],
                 ['shield-check', '#ECF7EF', 'var(--ks-green)', 'Get approved', 'The Surveyor General\'s office checks your details and activates your account with a Surveyor ID. You can sign in from then on.'],
-                ['map-pin', '#FBF5E6', '#9A7414', 'Request beacons', 'Say how many beacons you need, the type of survey, the name of the survey and where it is: plot, district and LGA.'],
+                ['map-pin', '#FBF5E6', '#9A7414', 'Request beacons', 'Say how many beacons you need and where the survey is: plot, district and LGA.'],
                 ['printer', '#EEF3FA', 'var(--ks-blue)', 'Accept and print', 'The SG issues the next available numbers. Accept them in the portal and print your Beacon Issue Slip.'],
             ] as $i => [$icon, $bg, $fg, $title, $text])
                 <li class="ks-card ks-step">
@@ -248,13 +248,7 @@
     </section>
 
     {{-- Who can register, and what to have ready --}}
-    <section class="mx-auto px-4 grid gap-6 lg:grid-cols-3" style="max-width:1120px;padding-top:40px;padding-bottom:56px;">
-        <div class="ks-card p-6">
-            <div class="ks-icon" style="background:#EEF3FA;color:var(--ks-blue);"><i data-lucide="landmark" class="w-5 h-5"></i></div>
-            <h3 class="font-bold" style="font-size:18px;margin-top:14px;">Public surveyors</h3>
-            <p class="ks-help" style="font-size:14px;line-height:1.6;margin-top:6px;">For surveys on public layouts. Numbers come from the state's public beacon series, issued in order.</p>
-            <p style="margin-top:12px;font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--ks-blue);">e.g. KDJ 0001</p>
-        </div>
+    <section class="mx-auto px-4 grid gap-6 lg:grid-cols-2" style="max-width:1120px;padding-top:40px;padding-bottom:56px;">
         <div class="ks-card p-6">
             <div class="ks-icon" style="background:#ECF7EF;color:var(--ks-green);"><i data-lucide="briefcase" class="w-5 h-5"></i></div>
             <h3 class="font-bold" style="font-size:18px;margin-top:14px;">Private surveyors</h3>
@@ -286,7 +280,7 @@
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-3 shrink-0">
-                    <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ route('surveyor-portal.register') }}">Register now</a>
+                    <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ route('surveyor-portal.register') }}" data-register-dialog-trigger>Register now</a>
                     <a class="ks-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55);padding:12px 22px;" href="{{ route('surveyor-portal.login') }}">Sign in</a>
                 </div>
             </div>
@@ -305,7 +299,7 @@
         </div>
         <div class="flex items-center gap-5" style="font-size:14px;">
             <a href="{{ route('surveyor-portal.login') }}" style="color:#C9D1DA;">Sign in</a>
-            <a href="{{ route('surveyor-portal.register') }}" style="color:#C9D1DA;">Register</a>
+            <a href="{{ route('surveyor-portal.register') }}" style="color:#C9D1DA;" data-register-dialog-trigger>Register</a>
             <span style="opacity:.6;">© {{ date('Y') }}</span>
         </div>
     </div>

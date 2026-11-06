@@ -84,8 +84,8 @@
 
     /** Every selected value of a field, whether it is multi-select or not. */
     function values(root, name) {
-        var el = root.querySelector('[name="' + name + '"]') ||
-                 root.querySelector('[name="' + name + '[]"]');
+        var matches = root.querySelectorAll('[name="' + name + '"], [name="' + name + '[]"]');
+        var el = Array.prototype.find.call(matches, function (candidate) { return !candidate.disabled; }) || matches[0];
         if (!el) return [];
         if (el.multiple) {
             return Array.prototype.slice.call(el.selectedOptions)
@@ -200,14 +200,14 @@
         if (hasSelect2) {
             var $root = jQuery(root);
 
-            var $district = $root.find('.ab-district');
-            var $street   = $root.find('.ab-street');
+            var $district = $root.find('select.ab-district');
+            var $street   = $root.find('select.ab-street');
 
             if ($district.length) remoteSelect($district, root.dataset.districtsUrl, $district.data('placeholder'));
             if ($street.length)   remoteSelect($street,   root.dataset.streetsUrl,   $street.data('placeholder'));
 
             // LGA (45) and State (37) are small enough to stay inline.
-            $root.find('.ab-lga').each(function () {
+            $root.find('select.ab-lga').each(function () {
                 var $s = jQuery(this);
                 $s.select2({
                     width: '100%',

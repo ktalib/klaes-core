@@ -27,7 +27,6 @@ class SurveySettingsController extends Controller
         'classmarks'      => 'survey_classmarks',
         'land-rates'      => 'survey_land_rates',
         'beacon-prefixes' => 'survey_beacon_prefixes',
-        'companies'       => 'survey_companies',
         'survey-types'    => 'survey_types',
     ];
 
@@ -48,7 +47,6 @@ class SurveySettingsController extends Controller
             'classmarks'      => $this->classmarkValues($r, $id),
             'land-rates'      => $this->landRateValues($r, $id),
             'beacon-prefixes' => $this->prefixValues($r, $id),
-            'companies'       => $this->companyValues($r, $id),
             'survey-types'    => $this->surveyTypeValues($r, $id),
         };
 
@@ -104,7 +102,6 @@ class SurveySettingsController extends Controller
             $uses = match ($list) {
                 'ratios' => $this->db()->table('survey_projects')->where('farmer_share_pct', $row->farmer_pct)->whereNull('deleted_at')->count(),
                 'beacon-prefixes' => $this->db()->table('survey_beacon_register')->where('beacon_series', 'like', $row->prefix . '|%')->whereNull('deleted_at')->count(),
-                'companies' => $this->db()->table('survey_beacon_register')->where('company_id', $id)->whereNull('deleted_at')->count(),
                 'survey-types' => $this->db()->table('survey_its')->where('survey_type', $row->name)->count()
                     + $this->db()->table('cadastral_survey_jobs')->where('survey_type', $row->name)->count(),
                 default => 0,
@@ -186,24 +183,6 @@ class SurveySettingsController extends Controller
         ], ['name.unique' => 'That survey type is already in the list.', 'name.not_in' => 'Other is already offered on the form.']);
 
         return ['name' => preg_replace('/\s+/', ' ', trim($d['name']))];
-    }
-
-    /** A private survey company: a name, its beacon letters (one company to a set of letters) and its surveyor. */
-    private function companyValues(Request $r, ?int $id): array
-    {
-        $r->merge(['beacon_letters' => strtoupper(trim((string) $r->input('beacon_letters'))) ?: null]);
-        $d = $r->validate([
-            'name'           => ['required', 'string', 'max:255', Rule::unique('sqlsrv.survey_companies', 'name')->ignore($id)],
-            'beacon_letters' => ['nullable', 'regex:/^[A-Z]{1,3}$/', Rule::unique('sqlsrv.survey_companies', 'beacon_letters')->ignore($id)],
-            'surveyor_name'  => 'nullable|string|max:255',
-        ], [
-            'name.unique'           => 'That company is already in the list.',
-            'beacon_letters.regex'  => 'Letters only, at most three, e.g. G or AB.',
-            'beacon_letters.unique' => 'Another company already has those letters.',
-        ]);
-
-        return ['name' => preg_replace('/\s+/', ' ', trim($d['name'])), 'beacon_letters' => $d['beacon_letters'] ?? null,
-                'surveyor_name' => preg_replace('/\s+/', ' ', trim((string) ($d['surveyor_name'] ?? ''))) ?: null];
     }
 
     private function prefixValues(Request $r, ?int $id): array

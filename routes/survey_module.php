@@ -469,6 +469,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/accounts/{account}/passport', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'passport'])->whereNumber('account')->name('accounts.passport');
         Route::post('/accounts/{account}/approve', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'approveAccount'])->whereNumber('account')->name('accounts.approve');
         Route::post('/accounts/{account}/reject', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'rejectAccount'])->whereNumber('account')->name('accounts.reject');
+        Route::post('/companies/{company}/approve', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'approveCompany'])->whereNumber('company')->name('companies.approve');
+        Route::post('/companies/{company}/reject', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'rejectCompany'])->whereNumber('company')->name('companies.reject');
     });
 
     /* ---------------------------------- Tools ---------------------------------- */

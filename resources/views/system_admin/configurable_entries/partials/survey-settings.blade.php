@@ -22,9 +22,6 @@
         'beacon-prefixes' => ['title' => 'Beacon Prefixes', 'icon' => 'map-pin', 'tone' => 'red', 'rows' => $svPrefixes,
             'sub' => 'Offered when a beacon number is issued on the Beacon Register, for its beacon type.',
             'cols' => ['Prefix', 'Beacon Type', 'Description', 'Status']],
-        'companies' => ['title' => 'Survey Companies', 'icon' => 'building-2', 'tone' => 'green', 'rows' => $svCompanies ?? collect(),
-            'sub' => 'Private survey companies. Choosing one on Issue Beacon No fills its letters and surveyor.',
-            'cols' => ['Company', 'Beacon Letters', "Surveyor's Name", 'Status']],
         'survey-types' => ['title' => 'Survey Types', 'icon' => 'compass', 'tone' => 'blue', 'rows' => $svTypes ?? collect(),
             'sub' => 'Offered on the Instruction to Survey, in Survey and Cadastral.',
             'cols' => ['Survey Type', 'Status']],
@@ -83,11 +80,6 @@
                                         @break
                                     @case('survey-types')
                                         <td class="font-medium text-gray-900">{{ $row->name }}</td>
-                                        @break
-                                    @case('companies')
-                                        <td class="font-medium text-gray-900">{{ $row->name }}</td>
-                                        <td style="font-family:monospace">{{ $row->beacon_letters ?: '—' }}</td>
-                                        <td>{{ $row->surveyor_name ?: '—' }}</td>
                                         @break
                                 @endswitch
                                 <td>@if($row->is_active)<span class="ce-pill green">Active</span>@else<span class="ce-pill">Off</span>@endif</td>
@@ -197,11 +189,6 @@
                                 @break
                             @case('survey-types')
                                 <div class="iw-field"><label class="iw-label">Survey Type <span class="req">*</span></label><input type="text" name="name" value="{{ $row?->name }}" maxlength="100" required class="iw-input"></div>
-                                @break
-                            @case('companies')
-                                <div class="iw-field"><label class="iw-label">Company <span class="req">*</span></label><input type="text" name="name" value="{{ $row?->name }}" maxlength="255" required class="iw-input"></div>
-                                <div class="iw-field"><label class="iw-label">Beacon Letters</label><input type="text" name="beacon_letters" value="{{ $row?->beacon_letters }}" maxlength="3" class="iw-input" style="text-transform:uppercase" placeholder="e.g. G"></div>
-                                <div class="iw-field"><label class="iw-label">Surveyor's Name</label><input type="text" name="surveyor_name" value="{{ $row?->surveyor_name }}" maxlength="255" class="iw-input"></div>
                                 @break
                         @endswitch
                     </div>

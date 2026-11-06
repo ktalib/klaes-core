@@ -296,7 +296,7 @@
 
     <div class="kpi-grid">
         <div class="kpi-card">
-            <div class="kpi-label">Total Cases</div>
+            <div class="kpi-label">Total Assessment</div>
             <div class="kpi-value">{{ number_format($stats['total']) }}</div>
         </div>
         <div class="kpi-card">
@@ -412,8 +412,8 @@
                                     <a href="{{ route('survey-module.compensation.cases', ['origin' => $tab] + (request('view') === 'showing' ? ['view' => 'showing'] : [])) }}">Clear them</a>.
                                 @elseif ($tab === 'entered')
                                     No captured lands yet.
-                                    Use <strong>Capture Land</strong>: <a href="{{ route('survey-module.compensation.cases.register') }}">Capture Farmer</a> or
-                                    <a href="{{ route('survey-module.compensation.capture-list') }}">Update Farmers List (paper record)</a>.
+                                    Use <strong>Capture Land</strong>: <a href="{{ route('survey-module.compensation.cases.register') }}">Capture New Farm</a> or
+                                    <a href="{{ route('survey-module.compensation.capture-list') }}">Capture Existing Farmers List (paper record)</a>.
                                 @else
                                     No imported lands.
                                 @endif

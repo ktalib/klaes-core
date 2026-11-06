@@ -460,7 +460,7 @@
 
         {{-- g. File Digital Library / h. Digital Archive --}}
         @if($hasRole('Survey - E-Registry') || $hasRole('Supper Admin'))
-          <a href="{{ route('filearchive.index', ['url' => 'survey']) }}"
+          <a data-tab-card="survey-docware" href="{{ route('filearchive.index', ['url' => 'survey']) }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('filearchive.index') && request('url') === 'survey' ? 'active' : '' }}">
             <i data-lucide="library" class="h-4 w-4 text-pink-500"></i>
             <span>File Digital Library – Doc-WARE</span>

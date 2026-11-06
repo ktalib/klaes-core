@@ -8,6 +8,9 @@
             @if(request('url'))
                 <input type="hidden" name="url" value="{{ request('url') }}">
             @endif
+            @if(request('section'))
+                <input type="hidden" name="section" value="{{ request('section') }}">
+            @endif
             <div class="flex flex-col md:flex-row gap-4">
                 <div class="flex-1">
                     <label for="search" class="block text-sm font-medium mb-1">Search Term</label>

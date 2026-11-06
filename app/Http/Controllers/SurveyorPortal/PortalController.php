@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\SurveyorPortal;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Survey\LookupController;
 use App\Models\Survey\SurveyBeaconRequest as BeaconRequest;
 use App\Models\Survey\SurveyorPortalNotification as Note;
 use App\Services\Survey\BeaconRequests;
@@ -41,7 +42,6 @@ class PortalController extends Controller
                 'accepted'  => $base()->where('status', BeaconRequest::ACCEPTED)->count(),
             ],
             'latest' => $base()->orderByDesc('id')->limit(5)->get(),
-            'latestMaps' => \App\Models\Sdi\SdiMapRequest::with('mapType:id,name')->where('surveyor_portal_account_id', $this->me()->id)->orderByDesc('id')->limit(5)->get(),
         ]);
     }
 
@@ -53,20 +53,26 @@ class PortalController extends Controller
     public function store(Request $r)
     {
         $data = $r->validate([
-            'layout_type' => ['required', Rule::in(['Government', 'Private'])],
-            'job_name'    => 'required|string|max:255',
+            'job_name'    => 'nullable|string|max:255',
             'quantity'    => 'required|integer|min:1|max:' . BeaconRequests::MAX_QUANTITY,
             'plot_no'     => 'nullable|string|max:100',
-            'district'    => 'nullable|string|max:255',
+            'district'    => ['nullable', 'string', 'max:255', Rule::in(array_merge(LookupController::options('districts'), ['Other']))],
+            'district_other' => ['nullable', 'string', 'max:255', Rule::requiredIf(fn () => $r->input('district') === 'Other')],
             'lga'         => ['nullable', Rule::in(CompensationListReader::LGAS)],
             'latitude'    => 'nullable|numeric|between:-90,90|required_with:longitude',
             'longitude'   => 'nullable|numeric|between:-180,180|required_with:latitude',
             'remarks'     => 'nullable|string|max:2000',
         ], [
-            'job_name.required' => 'Enter the name of the survey this is for.',
             'quantity.required' => 'Enter the number of beacons.',
+            'district.in' => 'Choose a district from the list, or select Other.',
+            'district_other.required' => 'Specify the district.',
         ]);
+        $data['layout_type'] = $this->me()->surveyor_type;
 
+        if (($data['district'] ?? null) === 'Other') {
+            $data['district'] = trim(preg_replace('/[ \t]+/', ' ', (string) $data['district_other']));
+        }
+        unset($data['district_other']);
         foreach (['job_name', 'plot_no', 'district', 'remarks'] as $k) {
             $data[$k] = trim(preg_replace('/[ \t]+/', ' ', (string) ($data[$k] ?? ''))) ?: null;
         }
@@ -105,8 +111,9 @@ class PortalController extends Controller
 
     public function notifications()
     {
-        $notes = Note::where('surveyor_portal_account_id', $this->me()->id)->orderByDesc('id')->paginate(20);
-        Note::where('surveyor_portal_account_id', $this->me()->id)->whereNull('read_at')->update(['read_at' => now()]);
+        $account = $this->me();
+        $notes = Note::visibleTo($account)->orderByDesc('id')->paginate(20);
+        Note::visibleTo($account)->whereNull('read_at')->update(['read_at' => now()]);
 
         return view('surveyor_portal.notifications', ['notes' => $notes]);
     }

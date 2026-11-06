@@ -1,5 +1,5 @@
 {{-- Farm Assessment > Capture Land (user, 2026-11-03: "capture existing, capture new"; it's not "register").
-     Items renamed Capture Farmer (New) and Update Farmers List (Old) the same day (user).
+     Items are Capture New Farm and Capture Existing Farmers List (user, 2026-11-06; "Update" misled: it always creates a new land).
      New opens the land form (field assessment); Old opens Capture Compensation, for lists kept on paper.
      $captureProject (optional) carries ?project= through. --}}
 @php $cpq = ! empty($captureProject) ? ['project' => $captureProject] : []; @endphp
@@ -13,11 +13,11 @@
          class="fixed z-50 rounded-lg border border-gray-200 bg-white shadow-lg py-1" style="width:300px;">
         <a href="{{ route('survey-module.compensation.cases.register', $cpq) }}" role="menuitem" class="flex items-start gap-3 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50">
             <i data-lucide="file-plus" class="w-4 h-4 text-gray-500" style="margin-top:2px;"></i>
-            <span><strong>Capture Farm</strong><br><span class="text-xs text-gray-500">A land assessed now: farmers, farm, trees and compensation.</span></span>
+            <span><strong>Capture New Farm</strong><br><span class="text-xs text-gray-500">A land assessed now: farmers, farm, trees and compensation.</span></span>
         </a>
         <a href="{{ route('survey-module.compensation.capture-list', $cpq) }}" role="menuitem" class="flex items-start gap-3 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50">
             <i data-lucide="archive" class="w-4 h-4 text-gray-500" style="margin-top:2px;"></i>
-            <span><strong>Update Farmers List</strong><br><span class="text-xs text-gray-500">An existing record kept on paper: key in its compensation list.</span></span>
+            <span><strong>Capture Existing Farmers List</strong><br><span class="text-xs text-gray-500">An existing record kept on paper: key in its compensation list.</span></span>
         </a>
     </div>
 </div>

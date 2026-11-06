@@ -1,9 +1,9 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'Update Farmers List — KLAES')
+@section('page-title', 'Capture Existing Farmers List — KLAES')
 
 @php
-  $PageTitle = 'Update Farmers List'; // was Capture Land (Old), before that Capture Compensation (user, 2026-11-03)
+  $PageTitle = 'Capture Existing Farmers List'; // was Update Farmers List (user, 2026-11-06), Capture Land (Old), Capture Compensation
   $PageDescription = 'Key in a paper compensation or resettlement allocation list that did not come as a spreadsheet. It is saved as a land with its farmers and allocation lines, like the imported lists.';
 @endphp
 

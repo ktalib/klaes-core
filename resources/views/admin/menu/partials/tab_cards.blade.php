@@ -76,6 +76,10 @@
       ],
       'survey-recommendation' => $tcRecommendation('survey-module.lg.land-recommendations.index', 'ROFO'),
       'survey-rofo' => $tcRofo('survey-module.lg.land-rofos.index', []),
+      'survey-docware' => [
+          ['Files', 'folder', route('filearchive.index', ['url' => 'survey']), 'pink'],
+          ['Scanned Map Layouts', 'map', route('filearchive.index', ['url' => 'survey', 'section' => 'layouts']), 'blue'],
+      ],
       'survey-op' => [
           ['Existing', 'archive', route('survey-module.compensation.op', ['tab' => 'existing']), 'slate'],
           ['New', 'file-signature', route('survey-module.compensation.op', ['tab' => 'new']), 'blue'],

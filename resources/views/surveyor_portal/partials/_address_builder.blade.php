@@ -13,10 +13,7 @@
 
     $prefix = 'addr_';
     $val = fn (string $suffix) => old($prefix . $suffix, $suffix === 'state' ? 'Kano' : '');
-    $lgas = LookupController::options('lgas');
     $states = LookupController::options('states');
-    $curDistrict = $val('district');
-    $curStreet = $val('street');
 @endphp
 
 <div class="address-builder ks-address" data-prefix="{{ $prefix }}" data-mode="person"
@@ -40,44 +37,17 @@
 
         <div class="sm:col-span-2">
             <label class="ks-label" for="addr_street">Street Name</label>
-            <select class="ks-input ab-street" id="addr_street" name="addr_street" data-placeholder="Search street…">
-                <option value=""></option>
-                @if ($curStreet !== '')
-                    <option value="{{ $curStreet }}" selected>{{ $curStreet === 'Other' ? 'Other (specify)' : $curStreet }}</option>
-                @endif
-            </select>
+            <input class="ks-input ab-street" id="addr_street" name="addr_street" value="{{ $val('street') }}" maxlength="255" placeholder="Type the street name">
             @error('addr_street')<p class="ks-error">{{ $message }}</p>@enderror
         </div>
-        <div class="sm:col-span-2 ab-other ab-street-other" @style(['display:none' => $curStreet !== 'Other'])>
-            <label class="ks-label" for="addr_street_other">Specify Street <span class="ks-req">*</span></label>
-            <input class="ks-input" id="addr_street_other" name="addr_street_other" value="{{ $val('street_other') }}" maxlength="255" placeholder="Type the street name">
-            @error('addr_street_other')<p class="ks-error">{{ $message }}</p>@enderror
-        </div>
-
         <div class="sm:col-span-2">
             <label class="ks-label" for="addr_district">District</label>
-            <select class="ks-input ab-district" id="addr_district" name="addr_district" data-placeholder="Search district…">
-                <option value=""></option>
-                @if ($curDistrict !== '')
-                    <option value="{{ $curDistrict }}" selected>{{ $curDistrict === 'Other' ? 'Other (specify)' : $curDistrict }}</option>
-                @endif
-            </select>
+            <input class="ks-input ab-district" id="addr_district" name="addr_district" value="{{ $val('district') }}" maxlength="255" placeholder="Type the district">
             @error('addr_district')<p class="ks-error">{{ $message }}</p>@enderror
         </div>
-        <div class="sm:col-span-2 ab-other ab-district-other" @style(['display:none' => $curDistrict !== 'Other'])>
-            <label class="ks-label" for="addr_district_other">Specify District <span class="ks-req">*</span></label>
-            <input class="ks-input" id="addr_district_other" name="addr_district_other" value="{{ $val('district_other') }}" maxlength="255" placeholder="Type the district name">
-            @error('addr_district_other')<p class="ks-error">{{ $message }}</p>@enderror
-        </div>
-
         <div>
             <label class="ks-label" for="addr_lga">LGA <span class="ks-req">*</span></label>
-            <select class="ks-input ab-lga" id="addr_lga" name="addr_lga" data-placeholder="Select LGA…">
-                <option value=""></option>
-                @foreach ($lgas as $l)
-                    <option value="{{ $l }}" @selected($val('lga') === $l)>{{ $l }}</option>
-                @endforeach
-            </select>
+            <input class="ks-input ab-lga" id="addr_lga" name="addr_lga" value="{{ $val('lga') }}" maxlength="255" placeholder="Type the LGA" required>
             @error('addr_lga')<p class="ks-error">{{ $message }}</p>@enderror
         </div>
         <div>

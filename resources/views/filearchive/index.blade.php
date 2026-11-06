@@ -31,6 +31,19 @@
                 @include('filearchive.partials.header')
 
                 <div class="flex-1 p-4 sm:p-6 container mx-auto space-y-6">
+                    {{-- Survey's two tabs (user, 2026-11-06): its files, and the scanned layout maps. --}}
+                    @if (! empty($surveySections))
+                        @php $docwareSection = request('section') === 'layouts' ? 'layouts' : 'files'; @endphp
+                        <div class="flex flex-wrap gap-2" role="tablist">
+                            @foreach (['files' => ['Files', 'folder'], 'layouts' => ['Scanned Map Layouts', 'map']] as $k => [$label, $icon])
+                                <a href="{{ route('filearchive.index', $k === 'files' ? ['url' => 'survey'] : ['url' => 'survey', 'section' => $k]) }}" role="tab" aria-selected="{{ $docwareSection === $k ? 'true' : 'false' }}"
+                                   class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border {{ $docwareSection === $k ? 'bg-pink-600 border-pink-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50' }}">
+                                    <i data-lucide="{{ $icon }}" class="h-4 w-4"></i> {{ $label }} <span style="opacity:.75;">({{ number_format($surveySections[$k]) }})</span>
+                                </a>
+                            @endforeach
+                        </div>
+                    @endif
+
                     <!-- Stats Cards -->
                     @include('filearchive.partials.stats')
 

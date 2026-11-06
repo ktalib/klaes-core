@@ -41,10 +41,10 @@ class SurveyorPortalAccount extends Authenticatable
         return SurveyBeaconRegister::LAYOUT_TYPES[$this->surveyor_type] ?? (string) $this->surveyor_type;
     }
 
-    /** Who holds the account: a Private registration is the company's, with its surveyor under it (user, 2026-11-06). */
+    /** The portal account belongs to the surveyor, including a surveyor registered under a private company. */
     public function getHolderNameAttribute(): string
     {
-        return $this->surveyor_type === 'Private' && $this->company_name ? $this->company_name : (string) $this->name;
+        return (string) $this->name;
     }
 
     /**

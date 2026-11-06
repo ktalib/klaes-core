@@ -34,15 +34,12 @@ class PortalMapRequests
         return json_encode(['type' => 'Feature', 'properties' => (object) [], 'geometry' => ['type' => 'Polygon', 'coordinates' => [$ring]]]);
     }
 
-    /** @param array{map_type_id:int, map_name:string, map_reference:?string, map_description:?string, output_formats:array, geometry_geojson:string} $data */
-    public function submit(SurveyorPortalAccount $account, array $data, ?UploadedFile $file = null): SdiMapRequest
+    /** @param array{map_type_id:int, map_name:string, map_reference:?string, map_description:?string, output_formats:array, geometry_geojson:string, contact_name:string, contact_phone:string, contact_email:?string} $data */
+    public function submit(?SurveyorPortalAccount $account, array $data, ?UploadedFile $file = null): SdiMapRequest
     {
         $values = $data + SdiMapRequest::boundsFromGeoJson(json_decode($data['geometry_geojson'], true)) + [
-            'surveyor_portal_account_id' => $account->id,
-            'requester_other' => $account->holder_name,
-            'contact_name'    => $account->name,
-            'contact_phone'   => $account->phone,
-            'contact_email'   => $account->email,
+            'surveyor_portal_account_id' => $account?->id,
+            'requester_other' => $account?->holder_name ?? $data['contact_name'],
             'priority'        => 'medium',
             'received_date'   => now()->toDateString(),
             'status'          => SdiMapRequest::PENDING,

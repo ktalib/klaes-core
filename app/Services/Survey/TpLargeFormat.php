@@ -15,6 +15,12 @@ class TpLargeFormat
 
     private const IMAGES = ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'webp'];
 
+    /** A scan folder holding a layout map: named from its TP or BLM number, e.g. .../TP-KNUPDA-358E. */
+    public static function isLayoutFolder(string $path): bool
+    {
+        return (bool) preg_match('/^(TP|BLM)-/i', basename(str_replace('\\', '/', $path)));
+    }
+
     /**
      * The folders a TP No. may be scanned under. The register writes TP/K/358E where the drawing itself says
      * TP/KNUPDA/358E: the same plan (title and project agree), and no serial is on the register under both.

@@ -141,9 +141,13 @@ class SurveySettings
     {
         if (! Schema::connection('sqlsrv')->hasTable('survey_companies')) return collect();
 
-        return self::db()->table('survey_companies')
-            ->when($activeOnly, fn ($q) => $q->where('is_active', 1))
-            ->orderBy('name')->get();
+        $query = self::db()->table('survey_companies')
+            ->when($activeOnly, fn ($q) => $q->where('is_active', 1));
+        if (Schema::connection('sqlsrv')->hasColumn('survey_companies', 'status')) {
+            $query->where(fn ($q) => $q->where('status', SurveyCompanyRegistry::APPROVED)->orWhereNull('status'));
+        }
+
+        return $query->orderBy('name')->get();
     }
 
     /** Survey types for the I to S (CR 03112026 item 11). */

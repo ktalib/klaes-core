@@ -37,6 +37,9 @@ class ChangeReportController extends Controller
 {
     use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
 
+    /** Off for now (user, 2026-11-06): the table and cards hold only reports. True lists the Private Beacon Register lines again. */
+    private const FROM_BEACON_REGISTER = false;
+
     public function index(Request $r)
     {
         $all = $this->allRows();
@@ -63,7 +66,7 @@ class ChangeReportController extends Controller
      */
     private function allRows(): Collection
     {
-        $groups = app(PrivateRegisterLines::class)->groups();
+        $groups = self::FROM_BEACON_REGISTER ? app(PrivateRegisterLines::class)->groups() : collect();
         $reports = CR::query()->with('registerFile')->orderByDesc('id')->get()->toBase();
 
         $withReport = $reports->map(function (CR $x) use ($groups) {

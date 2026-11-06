@@ -658,6 +658,19 @@ return [
             'fallback' => 'Dear [Name], please contact the Office of the Surveyor General about your registration [Ref].',
         ],
 
+        SmsSetting::KEY_SURVEY_COMPANY_APPROVED => [
+            'sender' => 'department',
+            'group' => 'Surveyor Portal',
+            'label' => 'Survey company confirmed',
+            'audience' => 'applicant',
+            'recipient' => 'The company contact, when the Surveyor General confirms its registration.',
+            'default_enabled' => false,
+            'tokens' => ['Company', 'Prefix'],
+            'sample' => ['Company' => 'Peak Profile Surveys', 'Prefix' => 'E'],
+            'template' => 'KSSGOF: [Company] can now register surveyors. Company beacon prefix: [Prefix].',
+            'fallback' => 'KSSGOF: [Company] is ready for surveyor registration. Prefix [Prefix].',
+        ],
+
         SmsSetting::KEY_SURVEY_BEACON_REQUEST => [
             // CR 03112026: Surveyor General's Office portal. Ships off, like every message here.
             'sender' => 'staff',

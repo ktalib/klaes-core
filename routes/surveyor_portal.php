@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\SurveyorPortal\AuthController;
+use App\Http\Controllers\SurveyorPortal\CompanyRegistrationController;
 use App\Http\Controllers\SurveyorPortal\MapRequestController;
 use App\Http\Controllers\SurveyorPortal\PortalController;
 use Illuminate\Support\Facades\Route;
@@ -16,7 +17,11 @@ Route::prefix('kssgof')->name('surveyor-portal.')->group(function () {
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1')->name('login.submit');
     Route::get('register', [AuthController::class, 'showRegister'])->name('register');
     Route::post('register', [AuthController::class, 'register'])->middleware('throttle:10,1')->name('register.submit');
+    Route::get('company/register', [CompanyRegistrationController::class, 'create'])->name('company.register');
+    Route::post('company/register', [CompanyRegistrationController::class, 'store'])->middleware('throttle:10,1')->name('company.submit');
     Route::get('registered', [AuthController::class, 'registered'])->name('registered');
+    Route::get('map-requests/new', [MapRequestController::class, 'create'])->name('map-requests.create');
+    Route::post('map-requests', [MapRequestController::class, 'store'])->middleware('throttle:10,1')->name('map-requests.store');
 
     // The address builder's search, open to someone registering. Place names only; the staff lookups need a login.
     Route::middleware('throttle:60,1')->prefix('lookup')->name('lookup.')->group(function () {
@@ -46,8 +51,6 @@ Route::prefix('kssgof')->name('surveyor-portal.')->group(function () {
         // A map from the Production Unit (user, 2026-11-06). The requests join Survey's own in the SDI queue.
         Route::prefix('map-requests')->name('map-requests.')->group(function () {
             Route::get('/', [MapRequestController::class, 'index'])->name('index');
-            Route::get('new', [MapRequestController::class, 'create'])->name('create');
-            Route::post('/', [MapRequestController::class, 'store'])->middleware('throttle:10,1')->name('store');
             Route::get('{mapRequest}', [MapRequestController::class, 'show'])->whereNumber('mapRequest')->name('show');
             Route::get('{mapRequest}/request-file', [MapRequestController::class, 'requestFile'])->whereNumber('mapRequest')->name('request-file');
             Route::get('{mapRequest}/map', [MapRequestController::class, 'map'])->whereNumber('mapRequest')->name('map');

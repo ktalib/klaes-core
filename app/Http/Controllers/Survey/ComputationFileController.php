@@ -9,6 +9,7 @@ use App\Models\Survey\SurveyorListEntry;
 use App\Services\Survey\ComputationNumbers;
 use App\Services\CadastralDept\Normalise;
 use App\Services\Survey\ItsBeacons;
+use App\Support\AddressBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -209,15 +210,25 @@ class ComputationFileController extends Controller
             array_diff($picks, ['Other']),
             in_array('Other', $picks, true) ? [$d['beacon_other'] ?? ''] : [],
         )));
+        $district = $clean($d['district'] ?? null);
+        $lga = $clean($d['lga'] ?? null);
+        $location = $clean($d['location'] ?? null);
+        if ($district || $lga) {
+            $location = AddressBuilder::propertyLocation([
+                'district' => $district,
+                'lga' => $lga,
+                'state' => 'Kano',
+            ]);
+        }
 
         return [
             // An identifier: kept exactly as picked.
             'file_number'       => $clean($d['file_number'] ?? null),
             'file_title'        => $clean($d['file_title'] ?? null),
             'plot_no'           => $clean($d['plot_no'] ?? null),
-            'district'          => $clean($d['district'] ?? null),
-            'lga'               => $clean($d['lga'] ?? null),
-            'location'          => $clean($d['location'] ?? null),
+            'district'          => $district,
+            'lga'               => $lga,
+            'location'          => $location,
             'surveyors_list_id' => $surveyor->id,
             'surveyor_name'     => $surveyor->full_name,
             // Optional again (user, 2026-11-03; it was taken off on 2026-11-02).

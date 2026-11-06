@@ -498,6 +498,10 @@ class LandRofoController extends Controller
             });
         $ossTotal = (clone $ossBaseQuery)->count();
         $ossDailyTotal = (clone $ossBaseQuery)->whereDate('created_at', now()->toDateString())->count();
+        // Survey's page counts only what Survey created (user, 2026-11-06), and these applications are Lands' own.
+        if (str_starts_with((string) optional($request->route())->getName(), \App\Support\SurveyLandRoutes::NAME)) {
+            $ossTotal = $ossDailyTotal = 0;
+        }
 
         $stats = [
             'total_eligible'    => (int) ($statsRow->total_eligible    ?? 0),

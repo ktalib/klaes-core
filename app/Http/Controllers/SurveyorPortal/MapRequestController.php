@@ -5,6 +5,7 @@ namespace App\Http\Controllers\SurveyorPortal;
 use App\Http\Controllers\Controller;
 use App\Models\Sdi\SdiMapRequest;
 use App\Models\Sdi\SdiMapType;
+use App\Models\Sdi\SdiMda;
 use App\Services\Survey\PortalMapRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,6 +15,9 @@ use Illuminate\Validation\ValidationException;
 /** Map requests on the KSSGOF portal (user, 2026-11-06). Every request shown is the surveyor's own. */
 class MapRequestController extends Controller
 {
+    /** The MDA list's "Other (specify)" (user, 2026-11-06): the staff form's list, active MDAs only. */
+    public const MDA_OTHER = '__other__';
+
     private const FILE_TYPES = ['pdf', 'png', 'jpg', 'jpeg', 'tif', 'tiff', 'dwg', 'dxf', 'zip', 'kml', 'kmz'];
 
     public function __construct(private PortalMapRequests $requests)
@@ -41,12 +45,21 @@ class MapRequestController extends Controller
 
     public function create()
     {
-        return view('surveyor_portal.map_requests.form', ['mapTypes' => SdiMapType::where('is_active', true)->orderBy('sort_order')->get(['id', 'name'])]);
+        return view('surveyor_portal.map_requests.form', [
+            'mapTypes' => SdiMapType::where('is_active', true)->orderBy('sort_order')->get(['id', 'name']),
+            'mdas' => SdiMda::with('category:id,name,sort_order')->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(),
+            'account' => $this->me(),
+        ]);
     }
 
     public function store(Request $r)
     {
         $data = $r->validate([
+            'contact_name'     => 'required|string|max:200',
+            'contact_phone'    => 'required|string|max:50',
+            'contact_email'    => 'nullable|email:rfc|max:255',
+            'mda_id'           => ['required', 'string', 'max:30'],
+            'requester_other'  => ['nullable', 'string', 'max:300', Rule::requiredIf(fn () => $r->input('mda_id') === self::MDA_OTHER)],
             'map_type_id'      => ['required', Rule::exists('sqlsrv.sdi_map_types', 'id')->where('is_active', true)->whereNull('deleted_at')],
             'map_name'         => 'required|string|max:300',
             'map_reference'    => 'nullable|string|max:120',
@@ -61,6 +74,8 @@ class MapRequestController extends Controller
                 }
             }],
         ], [
+            'mda_id.required'           => 'Choose the MDA, or Other.',
+            'requester_other.required'  => 'Name the requesting body.',
             'map_type_id.required'      => 'Choose the type of map needed.',
             'map_name.required'         => 'Enter the map name.',
             'output_formats.required'   => 'Tick at least one format.',
@@ -75,12 +90,34 @@ class MapRequestController extends Controller
         }
 
         $one = fn ($v) => ($v = trim(preg_replace('/\s+/', ' ', (string) $v))) === '' ? null : $v;
-        foreach (['map_name', 'map_description', 'map_reference'] as $k) $data[$k] = $one($data[$k] ?? null);
+        foreach (['contact_name', 'contact_phone', 'map_name', 'map_description', 'map_reference'] as $k) $data[$k] = $one($data[$k] ?? null);
+        $data['contact_email'] = trim((string) ($data['contact_email'] ?? '')) ?: null;
         $data['output_formats'] = array_values(array_unique($data['output_formats']));
 
-        $m = $this->requests->submit($this->me(), $data, $r->file('request_file'));
+        // A listed MDA, or the typed name unless it is a listed MDA typed again. Stored as the staff form stores it.
+        if ($data['mda_id'] === self::MDA_OTHER) {
+            $typed = $one($data['requester_other'] ?? null);
+            $match = SdiMda::where('is_active', true)->where(fn ($q) => $q->whereRaw('LOWER(name) = ?', [mb_strtolower($typed)])
+                ->orWhereRaw('LOWER(abbreviation) = ?', [mb_strtolower($typed)]))->first();
+            $data['mda_id'] = $match?->id;
+            $data['requester_other'] = $match ? null : $typed;
+        } else {
+            // ctype_digit first: a public form, and SQL Server errors on a non-number here.
+            if (! ctype_digit($data['mda_id']) || ! SdiMda::where('is_active', true)->whereKey($data['mda_id'])->exists()) {
+                throw ValidationException::withMessages(['mda_id' => 'Choose the MDA, or Other.']);
+            }
+            $data['mda_id'] = (int) $data['mda_id'];
+            $data['requester_other'] = null;
+        }
 
-        return redirect()->route('surveyor-portal.map-requests.show', $m)->with('status', "Map request {$m->request_ref} has gone to the Production Unit.");
+        $account = $this->me();
+        $m = $this->requests->submit($account, $data, $r->file('request_file'));
+
+        if ($account) {
+            return redirect()->route('surveyor-portal.map-requests.show', $m)->with('status', "Map request {$m->request_ref} has gone to the Production Unit.");
+        }
+
+        return redirect()->route('surveyor-portal.map-requests.create')->with('status', "Map request {$m->request_ref} has gone to the Production Unit.");
     }
 
     public function show(SdiMapRequest $mapRequest)

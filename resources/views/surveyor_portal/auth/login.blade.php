@@ -22,5 +22,5 @@
         </div>
         <button class="ks-btn ks-btn-primary w-full">Sign in</button>
     </form>
-    <p class="ks-help text-center mt-4">New here? <a href="{{ route('surveyor-portal.register') }}" style="color:var(--ks-blue);font-weight:600;">Register as a surveyor</a></p>
+    <p class="ks-help text-center mt-4">New here? <a href="{{ route('surveyor-portal.register') }}" style="color:var(--ks-blue);font-weight:600;" data-register-dialog-trigger>Register as a surveyor</a></p>
 @endsection
