@@ -416,11 +416,12 @@
                                                 <button type="button" onclick="ossViewRecord(this)" class="inline-flex items-center gap-2">
                                                     <i data-lucide="eye" class="w-3.5 h-3.5 text-blue-500"></i> View Record
                                                 </button>
-                                                @if(!empty($record->oss_application_id))
+                                                {{-- Edit Record hidden (user, 2026-11-06). Its address fields fed nothing; the
+                                                     address now comes from commissioning or capture.
                                                 <button type="button" onclick="ossEditRecord(this)" class="inline-flex items-center gap-2">
                                                     <i data-lucide="pencil" class="w-3.5 h-3.5 text-amber-500"></i> Edit Record
                                                 </button>
-                                                @endif
+                                                --}}
                                                 <button type="button" onclick="ossChangeOfOwnershipRecord(this)" class="inline-flex items-center gap-2">
                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-amber-500 flex-shrink-0" style="flex-shrink:0;">
                                                         <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>

@@ -2,6 +2,7 @@
 
 namespace App\Services\Survey;
 
+use App\Models\Sdi\SdiMapRequest;
 use App\Models\SmsSetting;
 use App\Models\Survey\SurveyBeaconRequest;
 use App\Models\Survey\SurveyorPortalAccount;
@@ -134,6 +135,43 @@ class SurveyorPortalNotifier
     {
         $this->afterCommit(fn () => $this->toSg("Beacons accepted: {$q->request_no}", ($q->company_name ?: $q->surveyor_name) . ' accepted ' . $q->issued_numbers . '.',
             parse_url(route('survey-module.beacon-requests.index'), PHP_URL_PATH)));
+    }
+
+    /*
+     | Map requests from the portal (user, 2026-11-06): the SG on the staff bell, the surveyor in the portal. No SMS yet:
+     | a text needs its own switched-off message in config/klaes_sms.php.
+     */
+    public function mapRequestSubmitted(SdiMapRequest $m): void
+    {
+        $this->afterCommit(function () use ($m) {
+            $path = parse_url(route('survey-module.beacon-requests.index'), PHP_URL_PATH) . '?tab=maps';
+            $this->toSg("Map request {$m->request_ref}", "{$m->requester_other} asked for a map on the portal: {$m->map_name}.", $path);
+            $this->toMapAccount($m, "Map request {$m->request_ref} submitted", 'Your request has gone to the Production Unit.');
+        });
+    }
+
+    public function mapRequestStarted(SdiMapRequest $m): void
+    {
+        $this->afterCommit(fn () => $this->toMapAccount($m, "Map request {$m->request_ref} in production", 'The Production Unit has started on your map.'));
+    }
+
+    public function mapRequestFulfilled(SdiMapRequest $m): void
+    {
+        $this->afterCommit(fn () => $this->toMapAccount($m, "Your map is ready: {$m->request_ref}", $m->response_note ?: 'Open the request to download it.'));
+    }
+
+    public function mapRequestRejected(SdiMapRequest $m): void
+    {
+        $this->afterCommit(fn () => $this->toMapAccount($m, "Map request {$m->request_ref} rejected", (string) $m->response_note));
+    }
+
+    /** Requests logged by Survey staff have no account, so nobody is told here. */
+    private function toMapAccount(SdiMapRequest $m, string $title, string $body): void
+    {
+        if ($m->surveyor_portal_account_id) {
+            SurveyorPortalNotification::create(['surveyor_portal_account_id' => $m->surveyor_portal_account_id, 'title' => $title, 'body' => $body,
+                'link' => route('surveyor-portal.map-requests.show', $m)]);
+        }
     }
 
     private function jobPath(SurveyBeaconRequest $q): string

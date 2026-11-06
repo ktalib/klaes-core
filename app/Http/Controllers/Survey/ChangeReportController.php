@@ -6,11 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyChangeReport as CR;
 use App\Models\Survey\SurveyItsCoordinate;
 use App\Models\Survey\SurveyItsObservation;
+use App\Models\Survey\SurveyTpNumber;
 use App\Models\Survey\SurveyRegisterFile;
 use App\Services\Survey\BeaconNumberCheck;
+use App\Services\Survey\PrivateRegisterLines;
 use App\Services\Survey\SurveyDocuments;
 use App\Services\SurveyItsAnchors;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use App\Models\Survey\SurveyorListEntry;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -35,25 +39,79 @@ class ChangeReportController extends Controller
 
     public function index(Request $r)
     {
-        $reports = $this->reportQuery($r)->orderByDesc('id')->paginate(20)->withQueryString();
-        // The three sections of the table (recording, 2026-11-06), as on the GKN report.
-        $anchors = app(SurveyItsAnchors::class);
-        $sections = app(\App\Services\Survey\ReportRecords::class);
-        $rowRecords = $reports->getCollection()->mapWithKeys(function ($x) use ($anchors, $sections) {
-            $a = $anchors->resolve('private-' . $x->id);
+        $all = $this->allRows();
+        $rows = $this->filtered($all, $r);
+        $page = max(1, (int) $r->query('page', 1));
+        $shown = $rows->forPage($page, 20)->values()->map(fn ($x) => $x + $this->sections($x));
 
-            return [$x->id => ['anchor' => $a, 'rec' => $a ? $sections->summary($a) : null]];
-        });
+        // Examination lines cleared with "Changes required" and no report yet.
+        $waiting = SurveyRegisterFile::where('finding', 'changes_required')
+            ->whereNotIn('id', CR::whereNotNull('survey_register_file_id')->pluck('survey_register_file_id')->all() ?: [0])
+            ->orderByDesc('id')->get(['id', 'register_ref', 'file_number', 'file_title']);
 
         return view('survey_module.workflow.change_reports.index', [
-            'reports' => $reports,
-            'rowRecords' => $rowRecords,
-            'stats'   => ['total' => CR::count(), 'draft' => CR::where('status', CR::DRAFT)->count(), 'issued' => CR::where('status', CR::ISSUED)->count()],
-            // Examination lines cleared with "Changes required" and no report yet.
-            'waiting' => SurveyRegisterFile::where('finding', 'changes_required')
-                ->whereNotIn('id', CR::whereNotNull('survey_register_file_id')->pluck('survey_register_file_id')->all() ?: [0])
-                ->orderByDesc('id')->get(['id', 'register_ref', 'file_number', 'file_title']),
+            'reports'  => new LengthAwarePaginator($shown, $rows->count(), 20, $page, ['path' => $r->url(), 'query' => $r->query()]),
+            'stats'    => ['total' => CR::count(), 'draft' => CR::where('status', CR::DRAFT)->count(), 'issued' => CR::where('status', CR::ISSUED)->count()],
+            'waiting'  => $waiting,
+            'awaiting' => $waiting->count() + $all->whereNull('report')->count(),
         ]);
+    }
+
+    /**
+     * Every row of the table (user, 2026-11-06, as GKN lists every I to S): the reports, each with the Private
+     * Beacon Register lines of its file if there are any, then those lines' files that have no report yet.
+     */
+    private function allRows(): Collection
+    {
+        $groups = app(PrivateRegisterLines::class)->groups();
+        $reports = CR::query()->with('registerFile')->orderByDesc('id')->get()->toBase();
+
+        $withReport = $reports->map(function (CR $x) use ($groups) {
+            // Its file's lines, or the one line with no file number it was raised from.
+            $g = $groups->get(PrivateRegisterLines::key($x->file_number) ?? '') ?? $groups->get('#' . $x->survey_beacon_register_id);
+
+            return ['report' => $x, 'group' => $g, 'file_number' => $x->file_number, 'plan_no' => $x->plan_no ?: ($g['plan_no'] ?? null), 'surveyor' => $x->surveyor_name ?: ($g['surveyor'] ?? null),
+                'plot_no' => $x->plot_no, 'district' => $x->district, 'lga' => $x->lga, 'location' => $g['location'] ?? null, 'date' => $x->report_date];
+        });
+        $reported = $withReport->map(fn ($x) => $x['group']['key'] ?? null)->filter()->flip();
+
+        return $withReport->concat($groups->reject(fn ($g, $key) => $reported->has($key))->values()->map(fn ($g) => [
+            'report' => null, 'group' => $g, 'file_number' => $g['file_number'], 'plan_no' => $g['plan_no'], 'surveyor' => $g['surveyor'],
+            'plot_no' => $g['plot_no'], 'district' => $g['district'], 'lga' => $g['lga'], 'location' => $g['location'], 'date' => $g['date'],
+        ]))->values();
+    }
+
+    /** The table's filters, shared with Export Records. */
+    private function filtered(Collection $rows, Request $r): Collection
+    {
+        if ($term = mb_strtolower(trim((string) $r->query('q', '')))) {
+            $rows = $rows->filter(fn ($x) => str_contains(mb_strtolower(implode(' ', [$x['report']?->report_ref, $x['file_number'], $x['plan_no'], $x['surveyor'], $x['plot_no'], $x['district'], $x['lga'], $x['location'], $x['group']['numbers'] ?? ''])), $term));
+        }
+        $status = $r->query('status');
+        if (in_array($status, [CR::DRAFT, CR::ISSUED], true)) $rows = $rows->filter(fn ($x) => $x['report']?->status === $status);
+        if ($status === 'awaiting') $rows = $rows->filter(fn ($x) => ! $x['report']);
+
+        return $rows->values();
+    }
+
+    /**
+     * A row's three sections: the report's own records, and the register's figures where its own list has no
+     * beacons yet. A file with no report has only the register's.
+     *
+     * @return array{anchor:?array, rec:?array, links:array}
+     */
+    private function sections(array $x): array
+    {
+        $a = $x['report'] ? app(SurveyItsAnchors::class)->resolve('private-' . $x['report']->id) : null;
+        $rec = $a ? app(\App\Services\Survey\ReportRecords::class)->summary($a) : null;
+        $g = $x['group'];
+        if (! $g || ($rec && $rec['beacons'] > 0)) {
+            return ['anchor' => $a, 'rec' => $rec, 'links' => []];
+        }
+        $reg = PrivateRegisterLines::summary($g);
+        $keep = ['beacons' => $reg['beacons'], 'in_register' => $reg['in_register'], 'flagged' => $reg['flagged'], 'points' => $reg['points']];
+
+        return ['anchor' => $a, 'rec' => $rec ? $keep + $rec : $reg, 'links' => PrivateRegisterLines::links($g)];
     }
 
     public function create(Request $r)
@@ -66,7 +124,18 @@ class ChangeReportController extends Controller
             'report_date' => now()->toDateString(), 'examined_by' => Auth::user()?->name,
         ]);
 
-        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $line, 'surveyors' => $this->surveyorOptions()]);
+        // From a Private Beacon Register row. Only a row that exists: this is a URL, and a prefilled file number locks.
+        $group = ! $line && $r->query('beacon') ? app(PrivateRegisterLines::class)->groups()->get((string) $r->query('beacon')) : null;
+        if ($group) {
+            $found = $group['file_number'] ? app(SurveyItsController::class)->lookup(Request::create('/', 'GET', ['file_number' => $group['file_number']]))->getData(true) : [];
+            $report->fill([
+                'file_number' => $group['file_number'], 'file_title' => $found['title'] ?? null, 'plan_no' => $group['plan_no'], 'surveyor_name' => $group['surveyor'],
+                'plot_no' => ($found['plot'] ?? null) ?: $group['plot_no'], 'district' => ($found['district'] ?? null) ?: $group['district'], 'lga' => ($found['lga'] ?? null) ?: $group['lga'],
+            ]);
+        }
+
+        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $line, 'surveyors' => $this->surveyorOptions(), 'plans' => $this->planOptions(),
+            'fromBeacons' => (bool) ($group['file_number'] ?? null), 'beaconLine' => $group && ! $group['file_number'] ? $group['line_id'] : null]);
     }
 
     /**
@@ -87,6 +156,36 @@ class ChangeReportController extends Controller
         }
 
         return $out;
+    }
+
+    /** TP No. dropdown (user, 2026-11-06: "plan no is the same as TP no"): the Public Layout Plans register, as on Record Plot Showing. "Other" is added by the view. */
+    private function planOptions(): array
+    {
+        return SurveyTpNumber::listed()->whereNotNull('tp_no')->where('tp_no', '<>', '')->serialOrder()->get(['id', 'tp_no', 'layout_name'])
+            ->map(fn ($t) => ['no' => trim((string) $t->tp_no), 'name' => trim((string) $t->layout_name)])
+            ->filter(fn ($t) => $t['no'] !== '')->unique(fn ($t) => self::tpKey($t['no']))->values()->all();
+    }
+
+    /** The same TP number whatever its case or spaces. */
+    public static function tpKey(?string $no): string
+    {
+        return mb_strtoupper(str_replace(' ', '', (string) $no));
+    }
+
+    /** The TP No. to store (in plan_no): one from the register as it is written there, or typed under Other. */
+    private function planNo(Request $r): ?string
+    {
+        $choice = trim((string) $r->input('plan_choice'));
+        if ($choice === '') return null;
+        $typed = $choice === 'other';
+        $wanted = $typed ? trim(preg_replace('/\s+/u', ' ', (string) $r->input('plan_no_other'))) : $choice;
+        if ($typed && $wanted === '') throw ValidationException::withMessages(['plan_no_other' => 'Type the TP number.']);
+
+        // A listed number typed again under Other, in any case or spacing, is that number.
+        $listed = collect($this->planOptions())->first(fn ($p) => self::tpKey($p['no']) === self::tpKey($wanted));
+        if (! $listed && ! $typed) throw ValidationException::withMessages(['plan_choice' => 'Choose a TP number from the list, or Other.']);
+
+        return $listed['no'] ?? mb_substr($wanted, 0, 100);
     }
 
     /** The stored name for the dropdown choice: read from the source table, or typed under Other. */
@@ -126,7 +225,7 @@ class ChangeReportController extends Controller
 
     public function edit(CR $report)
     {
-        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $report->registerFile, 'records' => $this->records($report), 'surveyors' => $this->surveyorOptions()]);
+        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $report->registerFile, 'records' => $this->records($report), 'surveyors' => $this->surveyorOptions(), 'plans' => $this->planOptions()]);
     }
 
     public function update(Request $r, CR $report)
@@ -181,13 +280,15 @@ class ChangeReportController extends Controller
     {
         $data = $r->validate([
             'survey_register_file_id' => ['nullable', Rule::exists('sqlsrv.survey_register_files', 'id')->whereNull('deleted_at')],
+            'survey_beacon_register_id' => ['nullable', Rule::exists('sqlsrv.survey_beacon_register', 'id')->where('layout_type', 'Private')->whereNull('deleted_at')],
             // From a Register File line the file is the line's; otherwise it must be picked.
             'file_number'      => ($existing?->survey_register_file_id || $r->filled('survey_register_file_id')) ? 'nullable|string|max:100' : 'required|string|max:100',
             'file_title'       => 'nullable|string|max:500',
             'plot_no'          => 'nullable|string|max:100',
             'district'         => 'nullable|string|max:255',
             'lga'              => 'nullable|string|max:255',
-            'plan_no'          => 'nullable|string|max:100',
+            'plan_choice'      => 'nullable|string|max:100',
+            'plan_no_other'    => 'nullable|string|max:100',
             'surveyor_choice'  => 'nullable|string|max:50',
             'surveyor_name_other' => 'nullable|string|max:255',
             'discrepancies'    => 'required|string|max:4000',
@@ -200,8 +301,9 @@ class ChangeReportController extends Controller
             'required_changes.required' => 'List the changes required.',
         ]);
 
-        unset($data['surveyor_choice'], $data['surveyor_name_other']);
+        unset($data['surveyor_choice'], $data['surveyor_name_other'], $data['plan_choice'], $data['plan_no_other']);
         $data['surveyor_name'] = $this->surveyorName($r);
+        $data['plan_no'] = $this->planNo($r);
 
         // A report raised from a Register File line keeps that line's file.
         $lineId = $existing?->survey_register_file_id ?? ($data['survey_register_file_id'] ?? null);
@@ -213,27 +315,22 @@ class ChangeReportController extends Controller
         return $data;
     }
 
-    /** The list's filters, shared with Export Records. */
-    private function reportQuery(Request $r)
-    {
-        $q = CR::query()->with('registerFile');
-        if ($term = trim((string) $r->query('q', ''))) {
-            $q->where(fn ($w) => $w->where('report_ref', 'like', "%$term%")->orWhere('file_number', 'like', "%$term%")
-                ->orWhere('plan_no', 'like', "%$term%")->orWhere('surveyor_name', 'like', "%$term%"));
-        }
-        if (in_array($s = $r->query('status'), [CR::DRAFT, CR::ISSUED], true)) $q->where('status', $s);
-
-        return $q;
-    }
-
     public function export(Request $r)
     {
-        return $this->exportRecords($r, fn () => $this->reportQuery($r)->orderByDesc('id'), [
-            'ref' => 'Report No', 'register_ref' => 'Register File', 'file_number' => 'File No.', 'plan_no' => 'Plan No.', 'surveyor' => 'Surveyor', 'plot_no' => 'Plot No.',
-            'district' => 'District', 'lga' => 'LGA', 'date' => 'Date', 'status' => 'Status',
-        ], fn ($x) => [
-            'ref' => $x->report_ref, 'register_ref' => $x->registerFile?->register_ref, 'file_number' => $x->file_number, 'plan_no' => $x->plan_no, 'surveyor' => $x->surveyor_name,
-            'plot_no' => $x->plot_no, 'district' => $x->district, 'lga' => $x->lga, 'date' => $this->exportDate($x->report_date), 'status' => $x->status,
-        ], 'report_date');
+        return $this->exportRecords($r, fn () => $this->filtered($this->allRows(), $r), [
+            'ref' => 'Report No', 'register_ref' => 'Register File', 'file_number' => 'File No.', 'plan_no' => 'TP No.', 'surveyor' => 'Surveyor', 'plot_no' => 'Plot No.',
+            'district' => 'District', 'lga' => 'LGA', 'location' => 'Location', 'report_date' => 'Date', 'status' => 'Status',
+            'beacons' => 'Beacons', 'in_register' => 'In Register', 'flagged' => 'Flagged', 'points' => 'Coordinates', 'area' => 'Area (m²)', 'perimeter' => 'Perimeter (m)',
+            'readings' => 'Readings', 'misclosure' => 'Misclosure (m)',
+        ], function ($x) {
+            $rec = $this->sections($x)['rec'];
+
+            return [
+                'ref' => $x['report']?->report_ref, 'register_ref' => $x['report']?->registerFile?->register_ref, 'file_number' => $x['file_number'], 'plan_no' => $x['plan_no'], 'surveyor' => $x['surveyor'],
+                'plot_no' => $x['plot_no'], 'district' => $x['district'], 'lga' => $x['lga'], 'location' => $x['location'], 'report_date' => $this->exportDate($x['date']), 'status' => $x['report']?->status ?? 'Awaiting report',
+                'beacons' => $rec['beacons'] ?? null, 'in_register' => $rec['in_register'] ?? null, 'flagged' => $rec['flagged'] ?? null, 'points' => $rec['points'] ?? null,
+                'area' => $rec['area'] ?? null, 'perimeter' => $rec['perimeter'] ?? null, 'readings' => $rec['readings'] ?? null, 'misclosure' => $rec['misclosure'] ?? null,
+            ];
+        }, 'date');
     }
 }

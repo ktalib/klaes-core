@@ -4,7 +4,7 @@
 
 @php
   $PageTitle = 'Coordinate Register';
-  $PageDescription = 'Every coordinate recorded in the Survey module: I to S lists, Beacon Register, Control Points and LPKN layouts.';
+  $PageDescription = "Every coordinate recorded in the Survey module: I to S lists, Surveyor's Reports (Private), Beacon Register, Control Points and LPKN layouts.";
 @endphp
 
 @section('survey-content')

@@ -149,6 +149,24 @@ class MlsCommissioningOssApplicationService
         $opSerial = $this->isOpBackedCommissioning($row)
             ? app(OpSerialSourceResolver::class)->serial($row) : null;
 
+        // Several capture paths mirror a row with no contact details, though the file already
+        // holds them. A Change of Ownership application takes them from FC / FEFR.
+        if ($systemSource === self::CHANGE_OF_NAME_SOURCE
+            && (trim((string) ($row['address'] ?? '')) === '' || trim((string) ($row['phone_no'] ?? '')) === '')) {
+            // Commissioning runs through here, and a failed lookup must never stop it.
+            try {
+                $contact = app(ApplicantContactResolver::class)->forFiles([$fileNumber])[ApplicantContactResolver::key($fileNumber)] ?? [];
+            } catch (\Throwable $e) {
+                $contact = [];
+                Log::warning('Could not look up the applicant contact for the OSS application', [
+                    'file_number' => $fileNumber,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            $row['address'] = $this->nullable($row['address'] ?? null) ?? ($contact['address'] ?? null);
+            $row['phone_no'] = $this->nullable($row['phone_no'] ?? null) ?? ($contact['phone'] ?? null);
+        }
+
         $payload = [
             'op_serial_number' => $opSerial,
             'application_type' => $this->resolveApplicationType($row['land_use'] ?? null, $fileNumber),
@@ -163,6 +181,7 @@ class MlsCommissioningOssApplicationService
             // What FC took from the applicant. sync() only fills blanks on an existing row.
             'phone' => PlaceholderPhone::is($row['phone_no'] ?? null) ? null : $this->nullable($row['phone_no'] ?? null),
             'address' => $this->nullable($row['address'] ?? null),
+            // The applicant address is the Residential Address the OSS recommendation prints.
             'residential_address' => $this->nullable($row['address'] ?? null),
             'passport_photo' => $this->findPassportPath($fileNumber),
             'status' => 'approved',

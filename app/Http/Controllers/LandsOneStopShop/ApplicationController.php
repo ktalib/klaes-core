@@ -2340,6 +2340,10 @@ class ApplicationController extends Controller
                 'district' => data_get($opRecord, 'district'),
                 'lga' => $lgaValue,
                 'land_use' => $validated['land_use'] ?? data_get($opRecord, 'land_use'),
+                'address' => $validated['residence_address'] ?? null,
+                'phone_no' => $validated['phone'] ?? null,
+                // Required on a change-of-name row; without it this mirror failed outright.
+                'op_serial_number' => $validated['op_serial_number'] ?? data_get($opRecord, 'op_serial_number'),
                 // Both halves of the OSS gate in MlsCommissioningOssApplicationService:
                 // OSS entry point, and OP-backed via the "OP " sub_source prefix.
                 // Without both it would be filed as a plain generator record and never
@@ -2958,6 +2962,8 @@ class ApplicationController extends Controller
                 'district' => data_get($motherOpRecord, 'district'),
                 'lga' => $resolvedLga ?: data_get($motherOpRecord, 'lga'),
                 'land_use' => $resolvedLandUse ?: data_get($motherOpRecord, 'land_use'),
+                'address' => $address ?: null,
+                'phone_no' => $phoneNo ?: null,
                 // A change-of-name row must carry its OP serial (OpSerialSourceResolver);
                 // without it every FEFR capture's mirror failed and the file never
                 // reached Applications -> Change of Ownership.
@@ -3350,6 +3356,8 @@ class ApplicationController extends Controller
                 'district' => null,
                 'lga' => $lga ?: null,
                 'land_use' => $landUse ?: null,
+                // Required on a change-of-name row; without it this mirror failed outright.
+                'op_serial_number' => $opSerialNumber,
                 'system_sub_type' => \App\Support\OssOpCommissionFilter::OSS,
                 'sub_source' => 'OP Change of Ownership',
                 'created_at' => now(),

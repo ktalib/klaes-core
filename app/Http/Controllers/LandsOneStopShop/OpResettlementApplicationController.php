@@ -1983,6 +1983,8 @@ class OpResettlementApplicationController extends Controller
                 'district' => $mfn->district ?? null,
                 'lga' => $lga,
                 'land_use' => $landUse,
+                // Required on a change-of-name row; without it this mirror failed outright.
+                'op_serial_number' => $validated['op_serial_number'] ?? null,
                 'system_sub_type' => \App\Support\OssOpCommissionFilter::OSS,
                 'sub_source' => 'OP Change of Ownership',
                 'created_at' => $mfn->created_at ?? $now,

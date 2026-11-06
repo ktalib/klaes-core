@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\SurveyorPortal\AuthController;
+use App\Http\Controllers\SurveyorPortal\MapRequestController;
 use App\Http\Controllers\SurveyorPortal\PortalController;
 use Illuminate\Support\Facades\Route;
 
@@ -40,6 +41,16 @@ Route::prefix('kssgof')->name('surveyor-portal.')->group(function () {
             Route::get('{request}', [PortalController::class, 'show'])->whereNumber('request')->name('show');
             Route::post('{request}/accept', [PortalController::class, 'accept'])->whereNumber('request')->name('accept');
             Route::get('{request}/slip', [PortalController::class, 'slip'])->whereNumber('request')->name('slip');
+        });
+
+        // A map from the Production Unit (user, 2026-11-06). The requests join Survey's own in the SDI queue.
+        Route::prefix('map-requests')->name('map-requests.')->group(function () {
+            Route::get('/', [MapRequestController::class, 'index'])->name('index');
+            Route::get('new', [MapRequestController::class, 'create'])->name('create');
+            Route::post('/', [MapRequestController::class, 'store'])->middleware('throttle:10,1')->name('store');
+            Route::get('{mapRequest}', [MapRequestController::class, 'show'])->whereNumber('mapRequest')->name('show');
+            Route::get('{mapRequest}/request-file', [MapRequestController::class, 'requestFile'])->whereNumber('mapRequest')->name('request-file');
+            Route::get('{mapRequest}/map', [MapRequestController::class, 'map'])->whereNumber('mapRequest')->name('map');
         });
     });
 });

@@ -36,6 +36,15 @@ class CaseController extends Controller
     /** Statuses a beneficiary row on the register may carry. */
     private const BEN_STATUSES = ['Verified', 'Pending', 'Review'];
 
+    /** Lands by their project's TP No., in natural order, those with none last. Key '' = no TP No. */
+    private static function byTpNo($lands)
+    {
+        $groups = $lands->groupBy(fn ($c) => trim((string) $c->project?->plan_no))->all();
+        uksort($groups, fn ($a, $b) => ($a === '') <=> ($b === '') ?: strnatcasecmp((string) $a, (string) $b));
+
+        return collect($groups);
+    }
+
     public function index(Request $r)
     {
         // The Plot Showing Register view (?view=showing) stays blank (user, 2026-11-02; the sidebar now opens
@@ -54,7 +63,8 @@ class CaseController extends Controller
                   ->orWhere('prop_district_other', 'like', "%$term%")
                   ->orWhere('prop_lga', 'like', "%$term%")
                   ->orWhereHas('project', fn ($p) => $p->where('name', 'like', "%$term%")
-                                                       ->orWhere('project_code', 'like', "%$term%"));
+                                                       ->orWhere('project_code', 'like', "%$term%")
+                                                       ->orWhere('plan_no', 'like', "%$term%"));
             });
         }
         if ($st = $r->query('status'))  $q->where('status', $st);
@@ -65,7 +75,19 @@ class CaseController extends Controller
         $tab = in_array($r->query('origin'), ['imported', 'entered'], true) ? $r->query('origin') : 'imported';
         $q->origin($tab);
 
-        $cases = $q->orderByDesc('id')->paginate(15)->withQueryString();
+        // Imported (user, 2026-11-06): every land, grouped by TP No., and the Computation Sheet's staged rows. Those have no
+        // status, project or scheme, so filtering by one leaves them out. Captured stays a paged list.
+        $cases = null;
+        $tpGroups = collect();
+        $staged = collect();
+        if ($tab === 'imported') {
+            $tpGroups = self::byTpNo($q->orderByDesc('id')->get());
+            if (! $r->filled('status') && ! $r->filled('project') && ! $r->filled('scheme')) {
+                $staged = app(ComputationSheetController::class)->sheets($r->query('q'));
+            }
+        } else {
+            $cases = $q->orderByDesc('id')->paginate(15)->withQueryString();
+        }
 
         $mine = fn () => SurveyCompCase::query()->origin($tab);
         $stats = [
@@ -80,6 +102,9 @@ class CaseController extends Controller
             'stats'    => $stats,
             'tab'      => $tab,
             'tabCounts' => ['imported' => SurveyCompCase::query()->origin('imported')->count(), 'entered' => SurveyCompCase::query()->origin('entered')->count()],
+            'tpGroups' => $tpGroups,
+            'staged'   => $staged,
+            'stagedLines' => $tab === 'imported' ? app(ComputationSheetController::class)->lineCount() : 0,
             'projects' => $this->projectOptions(),
             'detail'   => null,
         ]);

@@ -49,7 +49,11 @@ class LandRecommendation extends Model
         return app()->bound('request') ? request()->route() : null;
     }
 
-    /** Narrow a list to its module: NULL for Lands, 'survey' for Survey. Off the list routes, nothing changes. */
+    /**
+     * Narrow a list to its module: NULL for Lands. Survey lists its own records and also Lands' Direct records (user,
+     * 2026-11-06), view only there (SurveyLandRecommendation refuses changes). The bulk print picker stays Survey's own:
+     * it is for printing. Off the list routes, nothing changes.
+     */
     public static function listOrigin($query, string $table = 'land_recommendations')
     {
         $name = (string) optional(self::currentRoute())->getName();
@@ -57,7 +61,12 @@ class LandRecommendation extends Model
             $query->whereNull($table . '.origin_module');
         } elseif (str_starts_with($name, \App\Support\SurveyLandRoutes::NAME)
             && in_array(substr($name, strlen(\App\Support\SurveyLandRoutes::NAME)), self::LIST_ROUTES, true)) {
-            $query->where($table . '.origin_module', self::ORIGIN_SURVEY);
+            $query->where(function ($q) use ($table, $name) {
+                $q->where($table . '.origin_module', self::ORIGIN_SURVEY);
+                if (! str_ends_with($name, 'unprinted-json')) {
+                    $q->orWhere(fn ($lands) => $lands->whereNull($table . '.origin_module')->whereRaw('UPPER(ISNULL(' . $table . ".type, '')) = 'DIRECT'"));
+                }
+            });
         }
 
         return $query;

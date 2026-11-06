@@ -3,7 +3,7 @@
 
     $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
     $inputStyle = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;';
-    $colours = ['its' => 'pink', 'beacon' => 'blue', 'control' => 'purple', 'lpkn' => 'green'];
+    $colours = ['its' => 'pink', 'private' => 'yellow', 'beacon' => 'blue', 'control' => 'purple', 'lpkn' => 'green'];
     $chip = fn ($label, $c) => '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-' . $c . '-100 text-' . $c . '-800">' . e($label) . '</span>';
     $n = fn ($v) => $v === null ? '—' : number_format((float) $v, 3);
 @endphp
@@ -62,6 +62,7 @@
                     @php
                         $open = match ($p->source) {
                             'its'     => route('survey-module.gkn.coordinates.show', $p->link),
+                            'private' => route('survey-module.workflow.private.coordinates.show', $p->link),
                             'beacon'  => route('survey-module.workflow.beacon-register.index', ['q' => $p->point_id]),
                             'control' => route('survey-module.workflow.control-points.index', ['q' => $p->point_id]),
                             'lpkn'    => route('survey-module.records.lpkn.coordinates', ['layout' => $p->link]),

@@ -1549,9 +1549,11 @@ async function searchFile() {
 
       // A land file is usually kept inside its KANGIS file, so the request is worded
       // as going to the KANGIS Registry, and the Registry (Origin) is the KANGIS
-      // Registry too (set by applyKangisContainer()).
+      // Registry too (set by applyKangisContainer()). Same when the KANGIS file itself
+      // is searched and it holds land files.
       const kangisFiles = Array.isArray(d.kangis_files) ? d.kangis_files : [];
-      if (kangisFiles.length && d.next_action === 'Send File Search Request to SCB Monitor') {
+      const holdsLandFiles = Array.isArray(d.land_files) && d.land_files.length > 0;
+      if ((kangisFiles.length || holdsLandFiles) && d.next_action === 'Send File Search Request to SCB Monitor') {
         d.next_action = 'Send Request to KANGIS Registry';
       }
       const fsOriginRegistry = d.origin_registry;
@@ -1759,7 +1761,10 @@ async function searchFile() {
       // Works both ways: a land file shows its KANGIS file, a KANGIS file its land file.
       const landFiles = Array.isArray(d.land_files) ? d.land_files : [];
       const linkedPanel = (files, title, rgb, hex, idPrefix) => files.map((k, i) => {
-        const km = LOC_STATUS_META[k.status] || { label: k.status, color: '#6b7185', icon: 'fa-file' };
+        // A land file listed under its KANGIS file is kept there, not in the Archive.
+        const km = (title === 'Land file' && k.status === 'IN_ARCHIVE')
+          ? { label: 'KANGIS Registry', color: '#ea580c', icon: LOC_STATUS_META.REFER_TO_ORIGINAL_REGISTRY.icon }
+          : (LOC_STATUS_META[k.status] || { label: k.status, color: '#6b7185', icon: 'fa-file' });
         const where = k.is_in_transit
           ? `Out at <strong>${esc(k.current_location || '—')}</strong>${k.receiving_officer_name ? ` — ${esc(k.receiving_officer_name)}` : ''}`
           : `${esc(k.current_location || k.registry || '—')}${k.rack_shelf && !String(k.current_location || '').includes(k.rack_shelf) ? ` — Shelf/Rack ${esc(k.rack_shelf)}` : ''}`;
@@ -1935,8 +1940,10 @@ async function searchFile() {
       // Exception: an IN_TRANSIT (logged-out) file is NOT in its registry — it is
       // out at another office — so it always shows the "In Transit" status pill,
       // never "In {Registry}" (which would wrongly imply it sits in the registry).
-      const badge = (d.origin_registry && !/^IN_TRANSIT/.test(d.status || '') && d.status !== 'MISSING_FILE')
-        ? { label: 'In ' + d.origin_registry, color: REGISTRY_THEME[d.origin_registry] || meta.color, icon: 'fa-folder-open' }
+      // Same when the file sits inside a KANGIS file that is out (kh). A file linked to a
+      // KANGIS file reads plain "KANGIS Registry", as on the web Quick Search.
+      const badge = (d.origin_registry && !kh && !/^IN_TRANSIT/.test(d.status || '') && d.status !== 'MISSING_FILE')
+        ? { label: (d._kangisApplied ? '' : 'In ') + d.origin_registry, color: REGISTRY_THEME[d.origin_registry] || meta.color, icon: 'fa-folder-open' }
         : meta;
 
       // Keep the duplicate-registry notice above the file-picker gate. When a
@@ -2104,13 +2111,13 @@ async function searchFile() {
           </div>
         </div>`;
       // When the file's origin registry was auto-detected and the Send form is shown,
-      // sync the pre-selected Registry (Origin): set its code, theme its colour, enable
-      // Send and load the digital copy from that registry. Otherwise load the default lib.
+      // sync the pre-selected Registry (Origin): set its code, theme its colour and
+      // enable Send. The digital copies open on request, nothing is fetched until then.
+      fsDigitalRequested = false;
       if (fsOriginRegistry && document.getElementById('fsRegistry')) {
         onFsRegistryChange();
-      } else {
-        loadFsDigital(d.file_number);
       }
+      offerFsDigital(d.file_number);
     } else {
       result.innerHTML = `<p style="color:#ef4444;font-size:12px;margin-top:6px;"><i class="fas fa-times-circle"></i> Could not resolve "<strong>${esc(val)}</strong>".</p>`;
     }
@@ -2473,6 +2480,20 @@ const DIG_DIGITAL_URL  = '{{ route('digital-request.digital-files') }}';
 const DIG_REGISTRY_URL = '{{ route('digital-request.registry-files') }}';
 const DIG_IMG = ['jpg','jpeg','png','tif','tiff','gif','webp'];
 let digFiles = [], digIndex = 0, digStripBuilt = false, digRotation = 0;
+// False until "View Digital Copies" is tapped on the current result.
+let fsDigitalRequested = false;
+
+// Show the button only. Tapping it loads the digital copy for the selected registry.
+function offerFsDigital(fileNo) {
+  const box = document.getElementById('fsDigital');
+  if (!box) return;
+  box.innerHTML = `<button type="button" data-dig-request style="width:100%;padding:11px;font-size:13px;font-weight:700;border-radius:12px;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--primary);cursor:pointer;"><i class="fas fa-images" style="margin-right:6px;"></i>View Digital Copies</button>`;
+  box.querySelector('[data-dig-request]').addEventListener('click', () => {
+    fsDigitalRequested = true;
+    const sel = document.getElementById('fsRegistry');
+    loadFsDigital(fileNo, sel ? ((sel.value || '').trim() || null) : null);
+  });
+}
 
 // Load the digital copy for a file. When a Registry (Origin) is selected, the
 // registry folder source (SLTR / Cadastral / KANGIS / Physical Planning) is
@@ -2493,9 +2514,13 @@ async function loadFsDigital(fileNo, registry = null) {
       files = (d && d.available && Array.isArray(d.files)) ? d.files : [];
     }
     if (files.length) files = await pruneMissing(files);
+    // A new search replaced the result while this loaded: don't show this file's
+    // pages on the next file's result.
+    if (!box.isConnected) return;
     digFiles = files;
     renderFsDigital();
   } catch (e) {
+    if (!box.isConnected) return;
     digFiles = [];
     box.innerHTML = `<div class="dig-empty"><i class="fas fa-exclamation-circle"></i> Could not load the digital file.</div>`;
   }
@@ -2739,9 +2764,9 @@ function onFsRegistryChange() {
   // (KANGIS / SLTR / ST / Cadastral — same palette as Create File Tracker).
   applyFsRegistryTheme(REGISTRY_THEME[(sel.value || '').trim()] || null);
 
-  // Reload the digital copy from the selected registry's folder (falls back to
-  // the FileIndexing library when that registry has no folder for this file).
-  if (lastFileSearch && lastFileSearch.file_number) {
+  // Once the digital copies are open, reload them from the selected registry's folder
+  // (falls back to the FileIndexing library when that registry has no folder for this file).
+  if (fsDigitalRequested && lastFileSearch && lastFileSearch.file_number) {
     loadFsDigital(lastFileSearch.file_number, (sel.value || '').trim() || null);
   }
 }
@@ -2938,6 +2963,17 @@ async function sendFrFromSearch(btn) {
 function applyKangisContainer(d) {
   const ks = Array.isArray(d.kangis_files) ? d.kangis_files : [];
   d._kangisHolder = null;
+  // A KANGIS file holding land files is worded the same way as a land file inside a
+  // KANGIS file. Its own location and shelf stay as they are.
+  if (!ks.length && !d._kangisApplied && Array.isArray(d.land_files) && d.land_files.length) {
+    const ownReg = /kangis/i.test(d.registry || '') ? d.registry : 'KANGIS Registry';
+    d._kangisApplied = true;
+    d.original_registry = d.registry;
+    d.registry = ownReg;
+    d.origin_registry = ownReg;
+    if (typeof d.next_action === 'string') d.next_action = d.next_action.replace(/Original Registry/g, ownReg);
+    return null;
+  }
   if (!ks.length) return null;
   if (!d._kangisApplied) {
     d._kangisApplied = true;

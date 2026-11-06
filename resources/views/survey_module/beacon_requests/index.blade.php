@@ -1,11 +1,14 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', ($tab === 'registrations' ? 'Registrations' : 'Beacon Requests') . ' — KLAES')
+@section('page-title', (['registrations' => 'Registrations', 'maps' => 'Map Requests'][$tab] ?? 'Beacon Requests') . ' — KLAES')
 
 @php
-  // Two items of KSSGOF Admin on the sidebar (user, 2026-11-06), no tabs here.
-  $PageTitle = $tab === 'registrations' ? 'Registrations' : 'Beacon Requests';
-  $PageDescription = $tab === 'registrations' ? 'Surveyor registrations waiting for the Surveyor General.' : 'Beacon requests for the Surveyor General, from the portal and from Cadastral I to S.';
+  // Items of KSSGOF Admin on the sidebar (user, 2026-11-06), no tabs here.
+  $PageTitle = ['registrations' => 'Registrations', 'maps' => 'Map Requests'][$tab] ?? 'Beacon Requests';
+  $PageDescription = [
+      'registrations' => 'Surveyor registrations waiting for the Surveyor General.',
+      'maps' => 'Maps surveyors asked for on the portal. The Production Unit works them.',
+  ][$tab] ?? 'Beacon requests for the Surveyor General, from the portal and from Cadastral I to S.';
 @endphp
 
 @section('survey-content')
@@ -24,22 +27,29 @@
 @include('survey_module.partials._flash')
 
 <div class="kpi-grid">
+    @if ($tab === 'maps')
+        <div class="kpi-card"><div class="kpi-label">Waiting (Pending)</div><div class="kpi-value">{{ number_format((int) ($mapCounts['pending'] ?? 0)) }}</div></div>
+        <div class="kpi-card"><div class="kpi-label">In Production</div><div class="kpi-value">{{ number_format((int) ($mapCounts['in_progress'] ?? 0)) }}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Fulfilled</div><div class="kpi-value">{{ number_format((int) ($mapCounts['fulfilled'] ?? 0)) }}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Rejected</div><div class="kpi-value">{{ number_format((int) ($mapCounts['rejected'] ?? 0)) }}</div></div>
+    @else
     <div class="kpi-card"><div class="kpi-label">Requests Waiting</div><div class="kpi-value">{{ number_format($stats['waiting']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Issued, Not Yet Accepted</div><div class="kpi-value">{{ number_format($stats['issued']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Accepted</div><div class="kpi-value">{{ number_format($stats['accepted']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Registrations Waiting</div><div class="kpi-value">{{ number_format($stats['pending']) }}</div></div>
+    @endif
 </div>
 
-<div class="page-header"><div></div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.beacon-requests.export'), 'title' => $tab === 'registrations' ? 'Surveyor Registrations' : 'Beacon Requests'])</div>
+<div class="page-header"><div></div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.beacon-requests.export'), 'title' => ['registrations' => 'Surveyor Registrations', 'maps' => 'KSSGOF Map Requests'][$tab] ?? 'Beacon Requests'])</div>
 
 <form method="GET" class="table-toolbar">
-    @if ($tab === 'registrations')<input type="hidden" name="tab" value="registrations" />@endif
+    @if ($tab !== 'requests')<input type="hidden" name="tab" value="{{ $tab }}" />@endif
     <div class="left" style="flex-wrap:wrap;gap:8px;">
         @php $fs = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;'; @endphp
         <input type="text" name="q" value="{{ request('q') }}" placeholder="Name, company, number…" style="{{ $fs }}width:240px;" />
         <select name="status" style="{{ $fs }}">
             <option value="">All Status</option>
-            @foreach ($tab === 'requests' ? ['Submitted', 'Issued', 'Accepted', 'Rejected'] : ['pending' => 'Waiting', 'active' => 'Approved', 'rejected' => 'Not approved'] as $v => $l)
+            @foreach ($tab === 'maps' ? \App\Models\Sdi\SdiMapRequest::STATUS_LABELS : ($tab === 'requests' ? ['Submitted', 'Issued', 'Accepted', 'Rejected'] : ['pending' => 'Waiting', 'active' => 'Approved', 'rejected' => 'Not approved']) as $v => $l)
                 @php $val = is_int($v) ? $l : $v; @endphp
                 <option value="{{ $val }}" @selected($status === $val)>{{ $l }}</option>
             @endforeach
@@ -49,7 +59,9 @@
     </div>
 </form>
 
-@if ($tab === 'requests')
+@if ($tab === 'maps')
+@include('survey_module.beacon_requests._map_requests')
+@elseif ($tab === 'requests')
 <div class="table-wrapper">
     <div class="table-scroll">
         <table>

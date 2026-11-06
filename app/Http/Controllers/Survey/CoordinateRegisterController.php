@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
  * module holds, in one read-only list.
  *
  *   I to S       survey_its_coordinates (List of Coordinates)
+ *   Private      survey_its_coordinates on a Surveyor's Report (Private)
  *   Beacon       survey_beacon_register lines with X / Y
  *   Control pt   survey_control_point_register lines with X / Y
  *   LPKN layout  survey_lpkn_coordinates (the older layout screens)
@@ -24,6 +25,7 @@ class CoordinateRegisterController extends Controller
 
     public const SOURCES = [
         'its'     => 'I to S list',
+        'private' => "Surveyor's Report (Private)",
         'beacon'  => 'Beacon Register',
         'control' => 'Control Points',
         'lpkn'    => 'LPKN layout',
@@ -76,9 +78,9 @@ class CoordinateRegisterController extends Controller
         $db = DB::connection('sqlsrv');
 
         $its = $db->table('survey_its_coordinates')->whereNull('deleted_at')->selectRaw(
-            "'its' AS source, beacon_id AS point_id, CAST(northing AS decimal(18,4)) AS northing, CAST(easting AS decimal(18,4)) AS easting,
+            "CASE WHEN survey_change_report_id IS NOT NULL THEN 'private' ELSE 'its' END AS source, beacon_id AS point_id, CAST(northing AS decimal(18,4)) AS northing, CAST(easting AS decimal(18,4)) AS easting,
              CAST(elevation AS decimal(18,4)) AS elevation, file_number, its_number AS reference, created_at AS recorded_at,
-             CASE WHEN survey_its_id IS NOT NULL THEN CONCAT('survey-', survey_its_id) ELSE CONCAT('cadastral-', cadastral_survey_job_id) END AS link");
+             CASE WHEN survey_change_report_id IS NOT NULL THEN CONCAT('private-', survey_change_report_id) WHEN survey_its_id IS NOT NULL THEN CONCAT('survey-', survey_its_id) ELSE CONCAT('cadastral-', cadastral_survey_job_id) END AS link");
 
         $beacon = $db->table('survey_beacon_register')->whereNull('deleted_at')->whereNotNull('coord_x')->whereNotNull('coord_y')->selectRaw(
             "'beacon' AS source, beacon_from AS point_id, CAST(coord_y AS decimal(18,4)) AS northing, CAST(coord_x AS decimal(18,4)) AS easting,

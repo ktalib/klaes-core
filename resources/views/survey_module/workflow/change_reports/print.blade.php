@@ -50,7 +50,7 @@
     </div>
 
     <table class="f">
-        <tr><td class="l">File Number</td><td class="v">{{ $r->file_number }}</td><td class="l">Plan No.</td><td class="v">{{ $r->plan_no ?: '—' }}</td></tr>
+        <tr><td class="l">File Number</td><td class="v">{{ $r->file_number }}</td><td class="l">TP No.</td><td class="v">{{ $r->plan_no ?: '—' }}</td></tr>
         <tr><td class="l">File Title</td><td class="v" colspan="3">{{ $r->file_title ?: '—' }}</td></tr>
         <tr><td class="l">Plot No.</td><td class="v">{{ $r->plot_no ?: '—' }}</td><td class="l">District</td><td class="v">{{ $r->district ?: '—' }}</td></tr>
         <tr><td class="l">LGA</td><td class="v">{{ $r->lga ?: '—' }}</td><td class="l">Surveyor</td><td class="v">{{ $r->surveyor_name ?: '—' }}</td></tr>

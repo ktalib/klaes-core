@@ -41,6 +41,7 @@ class PortalController extends Controller
                 'accepted'  => $base()->where('status', BeaconRequest::ACCEPTED)->count(),
             ],
             'latest' => $base()->orderByDesc('id')->limit(5)->get(),
+            'latestMaps' => \App\Models\Sdi\SdiMapRequest::with('mapType:id,name')->where('surveyor_portal_account_id', $this->me()->id)->orderByDesc('id')->limit(5)->get(),
         ]);
     }
 

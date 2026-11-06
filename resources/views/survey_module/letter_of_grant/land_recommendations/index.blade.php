@@ -7,6 +7,10 @@
     // edit on Letter of Grant (RofO); the save route enforces the same permission.
     $recCanInlineEdit = \App\Support\InlineEdit::canEdit();
 @endphp
+<style>
+    /* Lands' batches are view only on Survey's pages (user, 2026-11-06): their expanded rows show no controls. The server refuses them too. */
+    .lg-lands-batch button, .lg-lands-batch input, .lg-lands-batch a { display: none !important; }
+</style>
 <div class="flex-1 overflow-auto bg-slate-50/60">
     @include('admin.header')
     <div class="py-12 bg-slate-50 min-h-screen">
@@ -342,6 +346,7 @@
                                                         <i data-lucide="table-2" class="h-4 w-4 shrink-0"></i>
                                                         <span class="flex-1">View records</span>
                                                     </a>
+                                                    @if($b->origin_module)
                                                     <a href="{{ route('survey-module.lg.land-recommendations.batch-edit', $b->rofo_batch_id) }}"
                                                         class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition">
                                                         <i data-lucide="pencil" class="h-4 w-4 shrink-0"></i>
@@ -517,6 +522,7 @@
                                                             <span class="flex-1 leading-tight">Print all ({{ $total }})</span>
                                                         </button>
                                                     @endif
+                                                    @endif
                                                 </div>
                                             </div>
                                         </template>
@@ -524,7 +530,7 @@
                                 </td>
                             </tr>
                             {{-- Filled on first expand from the batch-children endpoint. --}}
-                            <tr class="batch-children-row hidden" data-batch-children="{{ $b->rofo_batch_id }}">
+                            <tr class="batch-children-row hidden {{ $b->origin_module ? '' : 'lg-lands-batch' }}" data-batch-children="{{ $b->rofo_batch_id }}">
                                 <td colspan="10" class="p-0 bg-violet-50/30"></td>
                             </tr>
                             @empty
@@ -650,7 +656,7 @@
                                 @if($rec->is_existing_recommendation) data-approved-letter-pending="{{ $rec->id }}" @endif>
                                 @if(empty($isOssView))
                                 <td class="px-4 py-2 text-center whitespace-nowrap">
-                                    @if($rec->status === \App\Models\LandRecommendation::STATUS_PENDING)
+                                    @if($rec->status === \App\Models\LandRecommendation::STATUS_PENDING && $rec->origin_module)
                                         <input type="checkbox" class="row-checkbox rounded border-slate-300 text-green-600 focus:ring-green-500 cursor-pointer" value="{{ $rec->id }}">
                                     @endif
                                 </td>
@@ -814,7 +820,12 @@
                                                  class="lr-action-menu w-72 text-left rounded-xl shadow-2xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden"
                                                  style="display: none;">
                                                 <div class="py-1">
-                                                                                                        @canDo('Letter of Grant (RofO)', 'edit')
+                                                                                                        @if(! $rec->origin_module)
+                                                    {{-- Lands' record: view only here (user, 2026-11-06). --}}
+                                                    <div class="px-4 pt-1.5 pb-1 text-[10px] font-black uppercase tracking-wider text-slate-400">Lands record · view only</div>
+                                                    <a href="{{ route('survey-module.lg.land-recommendations.show', $rec->id) }}" class="flex items-center px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition gap-2"><i data-lucide="eye" class="h-4 w-4"></i> View Record</a>
+                                                @else
+@canDo('Letter of Grant (RofO)', 'edit')
 <!-- Edit Action -->
                                                     <a href="{{ route('survey-module.lg.land-recommendations.edit', $rec->id) }}" class="flex items-center px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition gap-2">
                                                         <i data-lucide="edit-3" class="h-4 w-4"></i> Edit Record
@@ -1112,6 +1123,7 @@
                                                         <i data-lucide="shield-alert" class="h-4 w-4"></i> Master Delete
                                                     </button>
                                                     @endif
+                                                @endif
                                                 </div>
                                             </div>
                                             </template>

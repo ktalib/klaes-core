@@ -18,6 +18,7 @@ class SdiMapRequest extends SurveyModel
 
     protected $casts = [
         'mda_id'         => 'integer',
+        'surveyor_portal_account_id' => 'integer',
         'map_type_id'    => 'integer',
         'requested_by'   => 'integer',
         'actioned_by'    => 'integer',
@@ -70,6 +71,12 @@ class SdiMapRequest extends SurveyModel
     public function actionedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'actioned_by');
+    }
+
+    /** The surveyor who asked from the KSSGOF portal; null when Survey staff logged the request. */
+    public function portalAccount(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Survey\SurveyorPortalAccount::class, 'surveyor_portal_account_id');
     }
 
     public function scopeOpen($q)

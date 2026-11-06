@@ -443,6 +443,18 @@
         // file's own module). Runs once per result; display only, nothing is saved.
         function applyKangisContainer(d) {
             const ks = Array.isArray(d.kangis_files) ? d.kangis_files : [];
+            // A KANGIS file holding land files is worded the same way as a land file
+            // inside a KANGIS file. Its own location and shelf stay as they are.
+            if (!ks.length && !d._kangisApplied && Array.isArray(d.land_files) && d.land_files.length) {
+                const ownReg = /kangis/i.test(d.registry || '') ? d.registry : 'KANGIS Registry';
+                d._kangisApplied = true;
+                d.original_registry = d.registry;
+                d.registry = ownReg;
+                if (typeof d.next_action === 'string') {
+                    d.next_action = d.next_action.replace(/Original Registry/g, ownReg);
+                }
+                return;
+            }
             if (!ks.length || d._kangisApplied) return;
             d._kangisApplied = true;
             const k = ks.find(x => x.is_in_transit) || ks[0];
@@ -1096,10 +1108,14 @@
         }
 
         function render(d) {
+            // Each result starts with its digital copies closed (see offerFsDigital).
+            qsDigitalRequested = false;
             applyKangisContainer(d);
             // A land file is usually kept inside its KANGIS file, so the request is
-            // worded as going to the KANGIS Registry (Next Action + Send button).
-            if (Array.isArray(d.kangis_files) && d.kangis_files.length
+            // worded as going to the KANGIS Registry (Next Action + Send button). Same
+            // when the KANGIS file itself is searched and it holds land files.
+            if (((Array.isArray(d.kangis_files) && d.kangis_files.length)
+                    || (Array.isArray(d.land_files) && d.land_files.length))
                 && d.next_action === 'Send File Search Request to SCB Monitor') {
                 d.next_action = 'Send Request to KANGIS Registry';
             }
@@ -1112,8 +1128,12 @@
             // A land file whose KANGIS file is out is in transit with that KANGIS file.
             const meta = (kh && STATUS_META.IN_TRANSIT)
                 || STATUS_META[d.status] || { label:d.status, cls:'bg-gray-100 text-gray-800 border-gray-300', icon:'file' };
-            const showsRegistry = (!kh && d.status === 'REFER_TO_ORIGINAL_REGISTRY' && d.registry);
+            // A file linked to a KANGIS file is kept in the KANGIS Registry, not the Archive
+            // (the "Registry" here is the one applyKangisContainer() set).
+            const showsRegistry = (!kh && d.registry
+                && (d.status === 'REFER_TO_ORIGINAL_REGISTRY' || (d.status === 'IN_ARCHIVE' && d._kangisApplied)));
             const metaLabel = showsRegistry ? d.registry : meta.label;
+            const metaIcon = showsRegistry ? STATUS_META.REFER_TO_ORIGINAL_REGISTRY.icon : meta.icon;
             // When the badge shows a registry name, colour it by registry
             // (KANGIS → orange, SLTR → lime, …) instead of the neutral status grey.
             const metaCls = showsRegistry ? registryBadgeClass(d.registry) : meta.cls;
@@ -1248,7 +1268,10 @@
             const relatedChips = (Array.isArray(d.related_files) ? d.related_files : [])
                 .filter(f => !linkedFiles.some(k => String(k.file_number).toUpperCase() === String(f.file_number).toUpperCase()));
             const kangisPanelHtml = linkedFiles.map((k, i) => {
-                const km = STATUS_META[k.status] || { label: k.status, cls: 'bg-gray-100 text-gray-800 border-gray-300', icon: 'file' };
+                // A land file listed under its KANGIS file is kept there, not in the Archive.
+                const km = (k._title === 'Land file' && k.status === 'IN_ARCHIVE')
+                    ? { label: 'KANGIS Registry', cls: registryBadgeClass('KANGIS Registry'), icon: STATUS_META.REFER_TO_ORIGINAL_REGISTRY.icon }
+                    : (STATUS_META[k.status] || { label: k.status, cls: 'bg-gray-100 text-gray-800 border-gray-300', icon: 'file' });
                 const where = k.is_in_transit
                     ? `Out at <strong>${esc(k.current_location || '—')}</strong>${k.receiving_officer_name ? ` — ${esc(k.receiving_officer_name)}` : ''}`
                     : `${esc(k.current_location || k.registry || '—')}${k.rack_shelf && !String(k.current_location || '').includes(k.rack_shelf) ? ` — Shelf/Rack ${esc(k.rack_shelf)}` : ''}`;
@@ -1284,7 +1307,7 @@
                         </div>
                         <div class="flex flex-col items-end gap-1.5">
                         <span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${metaCls}">
-                            <i data-lucide="${meta.icon}" class="h-3.5 w-3.5"></i> ${esc(metaLabel)}
+                            <i data-lucide="${metaIcon}" class="h-3.5 w-3.5"></i> ${esc(metaLabel)}
 </span>
                         ${requestTypeTagHtml(d.request_type)}
                         </div>
@@ -1694,9 +1717,8 @@
             });
             if (window.lucide) window.lucide.createIcons();
 
-            // Load the File Digital Library (same FileIndexing source as the DFR / mobile
-            // File Search preview) inline beneath the location details.
-            loadFsDigital(d.file_number);
+            // The digital copies open on request: nothing is fetched until the user asks.
+            offerFsDigital(d.file_number);
 
             // File already has an open request → surface the duplicate prompt immediately
             // (instead of waiting for the user to fill the form and click Send).
@@ -1953,8 +1975,8 @@
                 }
             });
 
-            // Registry (Origin): reflect the selected registry's short code live and
-            // load the digital copy from that registry's folder (if one exists).
+            // Registry (Origin): reflect the selected registry's short code live. Its
+            // digital copy only loads once the user has asked for the digital copies.
             const registrySel     = result.querySelector('[data-fr-registry]');
             const registryCode    = result.querySelector('[data-fr-registry-code]');
             const registryPreview = result.querySelector('[data-fr-registry-preview]');
@@ -1962,7 +1984,7 @@
                 registrySel.addEventListener('change', () => {
                     const opt = registrySel.selectedOptions[0];
                     registryCode.textContent = (opt && opt.dataset.code) ? opt.dataset.code : '—';
-                    loadRegistryPreview(fileData.file_number, registrySel.value, registryPreview);
+                    if (qsDigitalRequested) loadRegistryPreview(fileData.file_number, registrySel.value, registryPreview);
                 });
 
                 // When opened from a specific registry module (?url=kangis|cadastral|…),
@@ -2265,6 +2287,33 @@
         let qsViewFiles = [];
         let qsDigRotation = 0, qsPdfToken = 0;
         const qsIsImg = f => REG_IMG_EXT.includes((f.ext || '').toLowerCase());
+        // False until "View Digital Copies" is clicked on the current result.
+        let qsDigitalRequested = false;
+
+        // Show the button only. Clicking it loads the selected registry's digital copy
+        // and the File Digital Library, which used to load with the result.
+        function offerFsDigital(fileNo) {
+            const box = document.getElementById('qs-fsDigital');
+            if (!box) return;
+            box.innerHTML = `<button type="button" data-dig-request class="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
+                <i data-lucide="images" class="h-4 w-4"></i> View Digital Copies</button>`;
+            box.querySelector('[data-dig-request]').addEventListener('click', async () => {
+                qsDigitalRequested = true;
+                const sel     = result.querySelector('[data-fr-registry]');
+                const preview = result.querySelector('[data-fr-registry-preview]');
+                if (sel && preview && sel.value) loadRegistryPreview(fileNo, sel.value, preview);
+                await loadFsDigital(fileNo);
+                // With no registry preview on screen to say so, an empty library must not
+                // just make the button vanish.
+                const registryShown = sel && preview && sel.value && preview.offsetParent !== null;
+                if (box.isConnected && box.classList.contains('hidden') && !registryShown) {
+                    box.classList.remove('hidden');
+                    box.innerHTML = `<div class="flex items-center gap-2 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-[11px] text-gray-500"><i data-lucide="folder-x" class="h-3.5 w-3.5"></i> No digital copy found for this file.</div>`;
+                    if (window.lucide) window.lucide.createIcons();
+                }
+            });
+            if (window.lucide) window.lucide.createIcons();
+        }
 
         async function loadFsDigital(fileNo) {
             const box = document.getElementById('qs-fsDigital');
@@ -2280,9 +2329,13 @@
                 const json = await res.json();
                 let files = (json && json.available && Array.isArray(json.files)) ? json.files : [];
                 if (files.length) files = await qsPruneMissing(files);
+                // A new search replaced the card while this loaded: don't show this
+                // file's pages on the next file's result.
+                if (!box.isConnected) return;
                 qsDigFiles = files;
                 renderFsDigital();
             } catch (e) {
+                if (!box.isConnected) return;
                 qsDigFiles = [];
                 box.innerHTML = `<div class="flex items-center gap-2 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-[11px] text-gray-500"><i data-lucide="folder-x" class="h-3.5 w-3.5"></i> Could not load the digital file.</div>`;
                 if (window.lucide) window.lucide.createIcons();

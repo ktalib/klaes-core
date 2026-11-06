@@ -150,6 +150,9 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         // Cases — the six-step register
         Route::get('/cases', [CaseController::class, 'index'])->name('cases');
+        // Farm Assessment > Computation Sheet: the workbook as written, a sheet's lines loaded in place (user, 2026-11-06).
+        Route::get('/computation-sheet/rows', [\App\Http\Controllers\Survey\ComputationSheetController::class, 'rows'])->name('computation-sheet.rows');
+        Route::get('/computation-sheet/export', [\App\Http\Controllers\Survey\ComputationSheetController::class, 'export'])->name('computation-sheet.export');
         Route::get('/cases/register', [CaseController::class, 'create'])->name('cases.register');
         // Capture Compensation List: paper lists keyed in by hand (user, 2026-10-30)
         Route::get('/capture-list', [\App\Http\Controllers\Survey\CompensationCaptureController::class, 'create'])->name('capture-list');

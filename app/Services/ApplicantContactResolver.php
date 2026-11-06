@@ -100,8 +100,8 @@ class ApplicantContactResolver
 
         return [
             'phone' => self::cleanPhone($application->phone ?? null) ?? $fallback['phone'],
-            'address' => self::clean($application->address ?? null)
-                ?? self::clean($application->residential_address ?? null)
+            'address' => self::clean($application->residential_address ?? null)
+                ?? self::clean($application->address ?? null)
                 ?? self::clean($application->correspondence_address ?? null)
                 ?? $fallback['address'],
         ];

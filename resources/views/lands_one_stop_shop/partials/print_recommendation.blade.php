@@ -540,6 +540,16 @@
           // one.
           $isWhiteCopy = !empty($isWhiteCopy);
 
+          // The recommendation's own address, or for one saved blank, the file's. Reads only.
+          $residentialAddress = trim((string) \App\Models\LandRecommendation::query()
+              ->where('type', 'OSS')
+              ->whereRaw('UPPER(file_number) = ?', [strtoupper(trim((string) ($record->file_ref ?? '')))])
+              ->orderByDesc('id')
+              ->value('applicant_address'));
+          if ($residentialAddress === '') {
+              $residentialAddress = (string) (app(\App\Services\ApplicantContactResolver::class)->forApplication($record->file_ref ?? '')['address'] ?? '');
+          }
+
           $securityCode = null;
           $sc = null;
           if (!$isWhiteCopy) {
@@ -601,6 +611,11 @@
         <div class="field-row">
           <span class="field-label">1. Name Of Applicant:</span>
           <span class="field-value">{{ $record->applicant_name }}</span>
+        </div>
+
+        <div class="field-row" style="padding-left: 17px">
+          <span class="field-label">Residential Address:</span>
+          <span class="field-value">{{ strtoupper($residentialAddress) }}</span>
         </div>
 
         <div class="info-grid">

@@ -12,6 +12,10 @@
                 Back to List
             </a>
             <div class="flex gap-3">
+                {{-- Lands' record: view only here (user, 2026-11-06). --}}
+                @if(! $recommendation->origin_module)
+                    <span class="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-lg border border-slate-200 text-sm">Lands record · view only</span>
+                @else
                 @if($recommendation->status === \App\Models\LandRecommendation::STATUS_APPROVED)
                     @if($recommendation->print_count < 2)
                         <a href="{{ route('survey-module.lg.land-recommendations.print', $recommendation->id) }}" target="_blank" class="px-6 py-2 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 transition shadow-lg flex items-center gap-2">
@@ -41,6 +45,7 @@
                         <i data-lucide="edit" class="h-4 w-4"></i>
                         Edit (Locked)
                     </button>
+                @endif
                 @endif
             </div>
         </div>

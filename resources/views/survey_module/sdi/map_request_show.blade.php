@@ -24,7 +24,13 @@
 </style>
 
 <div class="page-header">
-    <div><a href="{{ route('survey-module.sdi.map-requests') }}" style="font-size:14px;">&larr; All map requests</a></div>
+    <div>
+        @if (request('via') === 'kssgof')
+            <a href="{{ route('survey-module.beacon-requests.index', ['tab' => 'maps']) }}" style="font-size:14px;">&larr; KSSGOF Map Requests</a>
+        @else
+            <a href="{{ route('survey-module.sdi.map-requests') }}" style="font-size:14px;">&larr; All map requests</a>
+        @endif
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         @if ($m->status === SdiMapRequest::PENDING)
             <a class="btn btn-secondary" href="{{ route('survey-module.sdi.map-requests.edit', $m) }}"><i class="fas fa-pen"></i> Edit</a>
@@ -52,7 +58,7 @@
                 {!! $row('Formats', $m->formatsLabel()) !!}
                 {!! $row('Date Received', optional($m->received_date)->format('d M Y')) !!}
                 {!! $row('Due Date', optional($m->due_date)->format('d M Y') . ($m->isOverdue() ? ' (overdue)' : '')) !!}
-                {!! $row('Logged By', $m->requester?->name) !!}
+                {!! $row('Logged By', $m->surveyor_portal_account_id ? 'KSSGOF Portal' : $m->requester?->name) !!}
             </div>
             <div style="margin-top:12px;">{!! $row('Description', $m->map_description) !!}</div>
         </div>

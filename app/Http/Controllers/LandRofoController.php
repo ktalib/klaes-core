@@ -268,7 +268,7 @@ class LandRofoController extends Controller
                 // record already holds; without it every row would look undated and
                 // ask for a date it already has.
                 'date_issued',
-                'rofo_batch_id', 'batch_mother_file_no', 'batch_seq', 'application_type',
+                'rofo_batch_id', 'batch_mother_file_no', 'batch_seq', 'application_type', 'origin_module',
             ]);
 
         if ($ossViewOnly) {
@@ -384,6 +384,7 @@ class LandRofoController extends Controller
                     . ', MAX(batch_mother_file_no) AS mother_file_no'
                     . ', MAX(old_file_number) AS old_file_number'
                     . ', MAX(application_type) AS application_type'
+                    . ', MAX(origin_module) AS origin_module'
                     . ', COUNT(*) AS total'
                     . ", SUM(CASE WHEN rofo_status = 'generated' THEN 1 ELSE 0 END) AS generated_count"
                     . ", SUM(CASE WHEN rofo_status = 'generated' AND ISNULL(rofo_print_count, 0) > 0 THEN 1 ELSE 0 END) AS printed_count"

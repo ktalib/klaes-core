@@ -69,6 +69,9 @@ class DeskController extends Controller
         }
     }
 
+    /** Rules that make a sidebar list narrower than the desk; a list with none is the whole desk. */
+    private const QUEUE_RULES = ['steps', 'tasks', 'to', 'at', 'ready', 'awaiting_head', 'dms'];
+
     public function show(Request $request, string $desk, WorkflowEngine $engine)
     {
         $def = $engine->definition();
@@ -114,29 +117,6 @@ class DeskController extends Controller
                     ->orderByDesc('created_at')->orderByDesc('id')->get();
             }
 
-            // Summary cards: the whole desk, before any sidebar list narrows it.
-            $open = $here->filter(fn ($c) => $engine->missingTasks($c->workflow, $c->current_step, $c->doneTaskKeys()) !== []);
-            $base = route('cadastral-dept.desks.show', $desk);
-            $cards = [
-                ['label' => 'At this desk', 'value' => $here->count(), 'hint' => 'open files waiting here', 'colour' => 'blue', 'url' => $base, 'active' => !$queue],
-                ['label' => 'Tasks still open', 'value' => $open->count(), 'hint' => 'finish the tasks before sending', 'colour' => 'yellow'],
-                ['label' => 'Ready to send on', 'value' => $here->count() - $open->count(), 'hint' => 'every task done', 'colour' => 'green'],
-                ['label' => 'Waiting over 7 days', 'value' => $here->filter(fn ($c) => $c->updated_at && $c->updated_at->lt(now()->subDays(7)))->count(), 'hint' => 'no movement in a week', 'colour' => 'red'],
-            ];
-            if (\App\Services\CadastralDept\CadastralFileTracking::installed() && !\App\Services\CadastralDept\CadastralFileTracking::autoAccept()) {   // sent here, not yet accepted (2026-10-27)
-                array_splice($cards, 1, 0, [['label' => 'Awaiting acceptance', 'value' => $here->filter(fn ($c) => \App\Services\CadastralDept\CadastralFileTracking::awaiting($c))->count(),
-                    'hint' => 'accept before working on it', 'colour' => 'purple']]);
-            }
-            if (($def->desk($desk)['head'] ?? null) && \App\Services\CadastralDept\HeadApproval::enabled()) {   // a unit: files its staff sent to the head
-                $heads = app(\App\Services\CadastralDept\HeadApproval::class);
-                $cards[] = ['label' => 'With the ' . $def->desk($desk)['head'], 'value' => $here->filter(fn ($c) => $heads->awaiting($c))->count(),
-                    'hint' => 'sent for approval', 'colour' => 'purple',
-                    'url' => route('cadastral-dept.desks.show', ['desk' => $desk, 'queue' => 'approval']), 'active' => $queueKey === 'approval'];
-            }
-            if ($recorded) {   // only desks that record another department's return
-                $cards[] = ['label' => 'Out with other departments', 'value' => $away->count(), 'hint' => 'record when they come back', 'colour' => 'purple'];
-            }
-
             // Open files this desk sent on (Registry: every file it registered), shown with
             // where they are now. Newest first, capped; search finds older ones.
             $sentQuery = $filter(CadastralCase::query()->open()->with(['receiver']))
@@ -145,7 +125,7 @@ class DeskController extends Controller
                 ->whereHas('movements', fn ($m) => $m->where('from_desk', $desk));
             $sentTotal = (clone $sentQuery)->count();
             $sent = $sentQuery->orderByDesc('created_at')->orderByDesc('id')->limit(self::SENT_LIMIT)->get();
-            $cards[] = ['label' => 'Sent on', 'value' => $sentTotal, 'hint' => 'still open at another desk', 'colour' => 'gray'];
+            $sentCard = ['label' => 'Sent on', 'value' => $sentTotal, 'hint' => 'still open at another desk', 'colour' => 'gray'];
 
             // Finished files this desk handled (Registry: every file), read only and view only
             // (user, 2026-10-12). Newest first, capped like the sent list.
@@ -154,7 +134,7 @@ class DeskController extends Controller
                     ->orWhereHas('movements', fn ($m) => $m->where('from_desk', $desk)));
             $closedTotal = (clone $closedQuery)->count();
             $closed = $closedQuery->orderByDesc('created_at')->orderByDesc('id')->limit(self::SENT_LIMIT)->get();
-            $cards[] = ['label' => 'Finished', 'value' => $closedTotal, 'hint' => 'completed or returned, view only', 'colour' => 'gray'];
+            $closedCard = ['label' => 'Finished', 'value' => $closedTotal, 'hint' => 'completed or returned, view only', 'colour' => 'gray'];
 
             // A sidebar list narrows the inbox to the files where its action is due.
             if ($queue) {
@@ -169,6 +149,9 @@ class DeskController extends Controller
                         ->whereNotIn('id', $here->concat($away)->pluck('id'))
                         ->whereHas('tasks', fn ($t) => $t->whereIn('task_key', (array) $queue['tasks']));
                     $sentTotal = (clone $doneQuery)->count();
+                    $doneOpen = (clone $doneQuery)->open()->count();
+                    $sentCard = ['label' => 'Done, still open', 'value' => $doneOpen, 'hint' => 'task done, file still in the department', 'colour' => 'gray'];
+                    $closedCard = ['label' => 'Done, finished', 'value' => $sentTotal - $doneOpen, 'hint' => 'completed or returned, view only', 'colour' => 'gray'];
                     $done = $doneQuery->orderByDesc('created_at')->orderByDesc('id')->limit(self::SENT_LIMIT)->get();
                     $closed = $done->filter(fn ($c) => !$c->isOpen())->values();
                     $sent = $done->filter(fn ($c) => $c->isOpen())->values();
@@ -180,14 +163,49 @@ class DeskController extends Controller
                         ->where(fn ($q) => $q->where('current_desk', '!=', $desk)->orWhere('status', '!=', CadastralCase::STATUS_IN_PROGRESS))
                         ->whereHas('movements', fn ($m) => $m->where('outcome', \App\Services\CadastralDept\HeadApproval::TO_HEAD)->where('to_desk', $desk));
                     $sentTotal = (clone $doneQuery)->count();
+                    $doneOpen = (clone $doneQuery)->open()->count();
+                    $sentCard['value'] = $doneOpen;
+                    $closedCard['value'] = $sentTotal - $doneOpen;
                     $done = $doneQuery->orderByDesc('created_at')->orderByDesc('id')->limit(self::SENT_LIMIT)->get();
                     $closed = $done->filter(fn ($c) => !$c->isOpen())->values();
                     $sent = $done->filter(fn ($c) => $c->isOpen())->values();
                 } elseif (array_intersect_key($queue, array_flip(['steps', 'to', 'at']))) {
                     $sent = $closed = collect();
+                    $sentCard = $closedCard = null;
                 }
                 // A Send ('ready') list keeps the desk's sent-on and finished files.
             }
+
+            // Summary cards: what this page lists, so a sidebar list counts its own files only
+            // and a file not yet on the list counts nowhere (user, 2026-11-06). Search and the
+            // application type filter narrow them too.
+            $narrowed = $queue && array_intersect(self::QUEUE_RULES, array_keys($queue));
+            $open = $here->filter(fn ($c) => $engine->missingTasks($c->workflow, $c->current_step, $c->doneTaskKeys()) !== []);
+            $cards = [
+                $narrowed
+                    ? ['label' => 'On this list', 'value' => $here->count(), 'hint' => 'open files waiting on this list', 'colour' => 'blue',
+                        'url' => route('cadastral-dept.desks.show', ['desk' => $desk, 'queue' => $queueKey]), 'active' => true]
+                    : ['label' => 'At this desk', 'value' => $here->count(), 'hint' => 'open files waiting here', 'colour' => 'blue',
+                        'url' => route('cadastral-dept.desks.show', $desk), 'active' => true],
+                ['label' => 'Tasks still open', 'value' => $open->count(), 'hint' => 'finish the tasks before sending', 'colour' => 'yellow'],
+                ['label' => 'Ready to send on', 'value' => $here->count() - $open->count(), 'hint' => 'every task done', 'colour' => 'green'],
+                ['label' => 'Waiting over 7 days', 'value' => $here->filter(fn ($c) => $c->updated_at && $c->updated_at->lt(now()->subDays(7)))->count(), 'hint' => 'no movement in a week', 'colour' => 'red'],
+            ];
+            if (\App\Services\CadastralDept\CadastralFileTracking::installed() && !\App\Services\CadastralDept\CadastralFileTracking::autoAccept()) {   // sent here, not yet accepted (2026-10-27)
+                array_splice($cards, 1, 0, [['label' => 'Awaiting acceptance', 'value' => $here->filter(fn ($c) => \App\Services\CadastralDept\CadastralFileTracking::awaiting($c))->count(),
+                    'hint' => 'accept before working on it', 'colour' => 'purple']]);
+            }
+            if (($def->desk($desk)['head'] ?? null) && \App\Services\CadastralDept\HeadApproval::enabled()) {   // a unit: files its staff sent to the head
+                $heads = app(\App\Services\CadastralDept\HeadApproval::class);
+                // Opens the Approval list, except from another list, whose own count would not match it.
+                $cards[] = ['label' => 'With the ' . $def->desk($desk)['head'], 'value' => $here->filter(fn ($c) => $heads->awaiting($c))->count(),
+                    'hint' => 'sent for approval', 'colour' => 'purple',
+                    'url' => $narrowed && $queueKey !== 'approval' ? null : route('cadastral-dept.desks.show', ['desk' => $desk, 'queue' => 'approval']), 'active' => $queueKey === 'approval'];
+            }
+            if ($recorded) {   // only desks that record another department's return
+                $cards[] = ['label' => 'Out with other departments', 'value' => $away->count(), 'hint' => 'record when they come back', 'colour' => 'purple'];
+            }
+            $cards = array_merge($cards, array_values(array_filter([$sentCard, $closedCard])));
         }
 
         $menus = [];
@@ -233,7 +251,7 @@ class DeskController extends Controller
     {
         $q = $def->queues()[$desk] ?? null;
         foreach ((array) ($q['entries'] ?? []) as $entry) {
-            if (!array_intersect(['steps', 'tasks', 'to', 'at', 'ready', 'awaiting_head', 'dms'], array_keys($entry))) {
+            if (!array_intersect(self::QUEUE_RULES, array_keys($entry))) {
                 return $entry['label'];
             }
         }

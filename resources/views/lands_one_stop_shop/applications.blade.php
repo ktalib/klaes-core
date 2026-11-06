@@ -6586,7 +6586,7 @@
         // Application date & address for land recommendation record
         var appDate = (data.created_at || '').toString().substring(0, 10);
         document.getElementById('rec_application_date').value   = appDate || '';
-        document.getElementById('rec_applicant_address').value  = data.address || data.residential_address || data.correspondence_address || '';
+        document.getElementById('rec_applicant_address').value  = data.residential_address || data.address || data.correspondence_address || '';
 
         // Perm Sec section auto-fill (mirrors the main fields)
         document.getElementById('rec_ps_plot').value        = data.plot_no || '';

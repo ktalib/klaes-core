@@ -28,6 +28,10 @@
     // it does not narrow the list.
     $rofoReadOnly = in_array(request('url'), ['cadastral', 'survey'], true);
 @endphp
+<style>
+    /* Lands' batches are view only on Survey's pages (user, 2026-11-06): their expanded rows show no controls. The server refuses them too. */
+    .lg-lands-batch button, .lg-lands-batch input, .lg-lands-batch a { display: none !important; }
+</style>
 <div class="flex-1 overflow-auto bg-slate-50/60">
     @include('admin.header')
     <div class="py-12 bg-slate-50 min-h-screen">
@@ -313,7 +317,7 @@
                                 </td>
                                 <td class="px-6 py-4 text-slate-500 whitespace-nowrap text-xs">{{ $b->created_at ? \Carbon\Carbon::parse($b->created_at)->format('d/m/Y H:i') : '—' }}</td>
                                 <td class="px-6 py-4 text-right whitespace-nowrap" onclick="event.stopPropagation()">
-                                    @if($generated > 0 && !$rofoReadOnly)
+                                    @if($generated > 0 && !$rofoReadOnly && $b->origin_module)
                                         {{-- Only generated RofOs can be shown here; the counts say how
                                              many either button would actually put on paper.
 
@@ -372,7 +376,7 @@
                                     @endif
                                 </td>
                             </tr>
-                            <tr class="rofo-batch-children hidden" data-batch-children="{{ $b->rofo_batch_id }}">
+                            <tr class="rofo-batch-children hidden {{ $b->origin_module ? '' : 'lg-lands-batch' }}" data-batch-children="{{ $b->rofo_batch_id }}">
                                 <td colspan="10" class="p-0 bg-violet-50/30"></td>
                             </tr>
                             @empty
@@ -620,7 +624,12 @@
                                              class="whitespace-nowrap text-left rounded-xl shadow-2xl bg-white ring-1 ring-black ring-opacity-5 overflow-hidden"
                                              style="display: none;">
                                             <div class="py-1">
-                                                {{-- The OSS view is read-only for the record itself; only serial + print actions apply there. --}}
+                                                @if(! $rec->origin_module)
+                                                    {{-- Lands' record: view only here (user, 2026-11-06). --}}
+                                                    <div class="px-4 pt-1.5 pb-1 text-[10px] font-black uppercase tracking-wider text-slate-400">Lands record · view only</div>
+                                                    <a href="{{ route('survey-module.lg.land-recommendations.show', $rec->id) }}" class="flex items-center px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition gap-2"><i data-lucide="eye" class="h-4 w-4"></i> View Record</a>
+                                                @else
+{{-- The OSS view is read-only for the record itself; only serial + print actions apply there. --}}
                                                 @if(!$ossViewOnly)
                                                                                                 @canDo('Letter of Grant (RofO)', 'edit')
 <button type="button" onclick="editRofORecord('{{ $rec->id }}', '{{ route('survey-module.lg.land-recommendations.edit', [$rec->id, 'return_to' => 'rofo', 'return_tab' => $tab]) }}')" class="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition gap-2">
@@ -822,6 +831,7 @@
                                                         class="flex w-full items-center px-4 py-2.5 text-sm text-red-700 hover:bg-red-50 transition gap-2 font-bold">
                                                     <i data-lucide="shield-alert" class="h-4 w-4"></i> Master Delete
                                                 </button>
+                                                @endif
                                                 @endif
                                             </div>
                                         </div>

@@ -311,13 +311,19 @@
             <div class="kpi-label">Completed</div>
             <div class="kpi-value">{{ number_format($stats['completed']) }}</div>
         </div>
+        @if ($tab === 'imported')
+        <div class="kpi-card" style="background:#fef3c7;">
+            <div class="kpi-label">Staged Lines</div>
+            <div class="kpi-value">{{ number_format($stagedLines) }}</div>
+        </div>
+        @endif
     </div>
 
     <form method="GET" class="table-toolbar">
         <input type="hidden" name="origin" value="{{ $tab }}" />
         @if(request('view') === 'showing')<input type="hidden" name="view" value="showing" />@endif
         <div class="left">
-            <input type="text" name="q" value="{{ request('q') }}" placeholder="Search case, project, officer…"
+            <input type="text" name="q" value="{{ request('q') }}" placeholder="Search land, TP No., project, officer…"
                    style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;width:250px;" />
             <select name="status" style="padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;">
                 <option value="">All Status</option>
@@ -347,6 +353,13 @@
 
     @include('survey_module.partials._table_ui')
 
+    @if ($tab === 'imported')
+        <div class="page-header" style="margin-bottom:10px;">
+            <div class="comp-type-note" style="margin:0;padding:8px 12px;background:#fef3c7;border-color:#fde68a;color:#78350f;"><i class="fas fa-info-circle"></i> Amber rows are Computation sheet.xlsx, staged as written. They are not lands or farmers yet.</div>
+            @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.compensation.computation-sheet.export'), 'title' => 'Computation Sheet', 'dates' => false, 'params' => ['origin' => 'imported']])
+        </div>
+    @endif
+
     <div class="table-wrapper">
         <div class="table-scroll">
             <table class="sv-dt">
@@ -358,7 +371,23 @@
                         <th>Scheme</th>
                         <th>Surveyor / Portion</th>
                         <th>Location</th>
+                        @if ($tab === 'imported')
+                            {{-- The columns of Computation sheet.xlsx (user, 2026-11-06). --}}
+                            <th>Farm ID</th>
+                            <th>First Name</th>
+                            <th>Middle Name</th>
+                            <th>Last Name</th>
+                            <th>Sheet No</th>
+                            <th class="num">Area (M²)</th>
+                        @endif
                         <th class="num">Area (Ha)</th>
+                        @if ($tab === 'imported')
+                            <th class="num">Creatable</th>
+                            <th class="num">Govt 50%</th>
+                            <th class="num">Farm 50%</th>
+                            <th>Plots</th>
+                            <th>Remarks</th>
+                        @endif
                         <th class="ctr">Beneficiaries</th>
                         <th>Status</th>
                         <th>Created By</th>
@@ -366,61 +395,14 @@
                         <th class="col-actions"></th>
                     </tr>
                 </thead>
+                @if ($tab === 'imported')
+                <tbody id="impGroups" data-rows-url="{{ route('survey-module.compensation.computation-sheet.rows') }}" data-q="{{ request('q') }}">
+                    @include('survey_module.partials.sections._imported_groups')
+                </tbody>
+                @else
                 <tbody>
                     @forelse ($cases as $c)
-                        <tr>
-                            <td class="muted">{{ $cases->firstItem() + $loop->index }}</td>
-                            {{-- No case number column (user, 2026-10-30): the scheme has its own column instead. --}}
-                            {{-- Project code dropped; the TP No. has its own column (user, 2026-10-30). --}}
-                            <td class="wide strong">{{ $c->project?->display_name ?? '—' }}</td>
-                            <td class="nowrap">{!! $c->project?->plan_no ? '<span class="tp">' . e($c->project->plan_no) . '</span>' : '<span class="muted">—</span>' !!}</td>
-                            <td>
-                                @if ($c->isMonetary())
-                                    <span class="status-badge active"><span class="dot"></span>Monetary Compensation</span>
-                                @else
-                                    <span class="status-badge completed"><span class="dot"></span>Land to Land</span>
-                                @endif
-                            </td>
-                            <td class="mid">@if ($c->allocation)
-    {{ $c->allocation->surveyor_name }}
-    <div style="font-size:11px;color:var(--gray-500);">Portion {{ $c->portion_no }} of {{ $c->allocation->portions }} · {{ rtrim(rtrim(number_format((float) $c->portion_size_ha, 4), '0'), '.') }} Ha</div>
-@else
-    <span style="color:var(--gray-500);">—</span>
-@endif</td>
-                            <td class="mid">{{ $c->property_location ?: '—' }}</td>
-                            <td class="num">@if ($c->area_ha !== null){{ number_format((float) $c->area_ha, 4) }}@else<span class="muted">—</span>@endif</td>
-                            <td class="ctr">{{ number_format($c->beneficiaries_count) }}</td>
-                            <td>
-                                <span class="status-badge {{ $badgeClass($c->status) }}">
-                                    <span class="dot"></span>{{ $statusLabel($c->status) }}
-                                </span>
-                            </td>
-                            @include('survey_module.partials._created_cells', ['row' => $c])
-                            <td class="col-actions">
-                                @php $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50'; @endphp
-                                <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
-                                    <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
-                                            @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open"
-                                            class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
-                                        <i data-lucide="more-vertical" class="w-5 h-5"></i>
-                                    </button>
-                                    <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
-                                         :style="'top:' + top + 'px; left:' + left + 'px'"
-                                         class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                                        <a href="{{ route('survey-module.compensation.cases.show', [$c] + (request('view') === 'showing' ? ['view' => 'showing'] : [])) }}" class="{{ $svItem }}"><i data-lucide="eye" class="w-4 h-4 text-gray-500"></i> View</a>
-                                        <a href="{{ route('survey-module.compensation.cases.edit', $c) }}" class="{{ $svItem }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit</a>
-                                        @unless ($c->isExistingRecord())
-                                        <a href="{{ route('survey-module.compensation.op', ['case' => $c->id]) }}" class="{{ $svItem }}"><i data-lucide="file-signature" class="w-4 h-4 text-gray-500"></i> Generate OP</a>
-                                        @endunless
-                                        <form method="POST" action="{{ route('survey-module.compensation.cases.destroy', $c) }}"
-                                              onsubmit="return confirm('Delete {{ $c->case_ref }}? This cannot be undone.');">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="{{ $svItem }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete</button>
-                                        </form>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
+                        @include('survey_module.partials.sections._compensation_case_row', ['rowSn' => $cases->firstItem() + $loop->index, 'rowOf' => null])
                     @empty
                         <tr>
                             <td colspan="12" style="text-align:center;padding:28px;color:var(--gray-500);">
@@ -439,8 +421,12 @@
                         </tr>
                     @endforelse
                 </tbody>
+                @endif
             </table>
         </div>
+        @if ($tab === 'imported')
+        <div class="table-footer"><span>{{ number_format($tpGroups->count()) }} TP No. groups, {{ number_format($tpGroups->flatten(1)->count()) }} lands · {{ number_format($staged->count()) }} staged sheets. Click a row to open it.</span></div>
+        @else
         <div class="table-footer">
             <span>
                 Showing {{ $cases->firstItem() ?? 0 }}–{{ $cases->lastItem() ?? 0 }}
@@ -448,5 +434,6 @@
             </span>
             <div class="pagination">{{ $cases->links() }}</div>
         </div>
+        @endif
     </div>
 @endif

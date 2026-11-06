@@ -124,6 +124,10 @@ class SdiMapRequestController extends Controller
         if ($mapRequest->status !== SdiMapRequest::PENDING) {
             return back()->with('error', "{$mapRequest->request_ref} is {$mapRequest->statusLabel()}; only a Pending request logged in error can be deleted.");
         }
+        // A surveyor is waiting on this one: rejecting it gives them the reason, deleting would only make it vanish.
+        if ($mapRequest->surveyor_portal_account_id) {
+            return back()->with('error', "{$mapRequest->request_ref} came from the KSSGOF portal. Reject it in the Production Unit so the surveyor sees the reason.");
+        }
 
         $ref = $mapRequest->request_ref;
         $mapRequest->delete();

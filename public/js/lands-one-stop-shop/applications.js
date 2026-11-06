@@ -2834,8 +2834,8 @@ function _ossOpenRecommendationModal(data) {
     }
     document.getElementById('rec_application_date').value = appDate || '';
     document.getElementById('rec_applicant_address').value = _ossFirstFilled(
-        data && data.address,
         data && data.residential_address,
+        data && data.address,
         data && data.correspondence_address,
         data && data.source_party_2_address
     );

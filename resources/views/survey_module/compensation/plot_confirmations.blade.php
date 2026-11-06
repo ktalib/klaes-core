@@ -9,7 +9,7 @@
   // Opened from Records > Plot Showing Register (user, 2026-11-02).
   $PageTitle = $isGkn ? 'Plot Showing Register' : 'Plot Showing Register - Resettlement';
   $PageDescription = $isGkn
-      ? 'OP plots shown to their allottees (Showing History) and ground checks of plots against their layout and the Beacon Register: recorded here or with the Plot Confirmation app. Confirmation Forms has its own button below the cards.'
+      ? 'OP plots shown to their allottees (Showing History) and ground checks of plots against their layout and the Beacon Register: recorded here or with the Plot Confirmation app. Ground Check and Confirmation Forms are the buttons below Record Plot Showing.'
       : 'Resettlement OP plots shown to their allottees, and their ground checks. View only: they are recorded under GKN > Plot Showing Register.';
   $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
   $field = 'border:1.5px solid var(--gray-300);border-radius:6px;padding:7px 8px;';
@@ -115,8 +115,8 @@
 </form>
 
 {{-- Record Plot Showing (user, 2026-11-02): the same record the Plot Confirmation app makes. Plot Showing and Ground
-     Check are one form (user, 2026-11-06): the OP block is shared and the tabs swap what is asked below it. Only the
-     open tab's fields are sent or validated, because the other tab's fieldset is disabled. --}}
+     Check are one form, each opened by its own button (user, 2026-11-06): the OP block is shared and the choice swaps
+     what is asked below it. Only the chosen part's fields are sent or validated; the other's fieldset is disabled. --}}
 @php
     $pcOpen = $errors->any() && in_array(old('_form'), ['showing', 'check'], true);
     $pcPane = $pcOpen && old('_form') === 'check' ? 'check' : 'show';
@@ -124,7 +124,7 @@
     $pcSaveCheck = route('survey-module.compensation.plot-confirmations.checks.store');
 @endphp
 <form method="POST" action="{{ $pcPane === 'check' ? $pcSaveCheck : $pcSaveShowing }}" enctype="multipart/form-data"
-      id="pcShowForm" class="farmer-entry-form {{ $pcOpen ? 'open' : '' }}" data-sv-modal="Record Plot Showing" data-sv-modal-size="lg" data-sv-modal-static
+      id="pcShowForm" class="farmer-entry-form {{ $pcOpen ? 'open' : '' }}" data-sv-modal="{{ $pcPane === 'check' ? 'Ground Check' : 'Record Plot Showing' }}" data-sv-modal-size="lg" data-sv-modal-static
       data-search="{{ route('survey-module.compensation.plot-confirmations.op-search') }}"
       data-plots="{{ route('survey-module.compensation.plot-confirmations.tp-plots') }}"
       data-save-showing="{{ $pcSaveShowing }}" data-save-check="{{ $pcSaveCheck }}">
@@ -136,11 +136,6 @@
             <i class="fas fa-exclamation-circle"></i> {{ $errors->first() }}
         </div>
     @endif
-
-    <div class="pc-tabs" id="pcFormTabs" role="tablist">
-        <button type="button" role="tab" data-pane="show" aria-selected="{{ $pcPane === 'show' ? 'true' : 'false' }}" class="{{ $pcPane === 'show' ? 'on' : '' }}" onclick="pcFormTab('show')">Plot Showing</button>
-        <button type="button" role="tab" data-pane="check" aria-selected="{{ $pcPane === 'check' ? 'true' : 'false' }}" class="{{ $pcPane === 'check' ? 'on' : '' }}" onclick="pcFormTab('check')">Ground Check</button>
-    </div>
 
     <div class="form-grid cols-3">
         <div class="sv-group"><i class="fas fa-file-signature"></i><span>OP</span></div>
@@ -346,7 +341,7 @@
 </form>
 
 <script>
-// The dropdown on Record Plot Showing (user, 2026-11-06): New or Old Register. New opens on the tab of the list behind it.
+// The buttons (user, 2026-11-06): the new form as Plot Showing or Ground Check, or the Old Register form.
 function pcEntry(kind, pane) {
     var show = document.getElementById('pcShowForm'), old = document.getElementById('pcOldForm');
     if (!show || !old) return;
@@ -354,7 +349,7 @@ function pcEntry(kind, pane) {
     show.classList.toggle('open', kind === 'new');
     old.classList.toggle('open', kind === 'old');
 }
-// Plot Showing / Ground Check on the form: one OP block, the tab sets what is asked, sent and where it saves.
+// Plot Showing / Ground Check on the form: one OP block, the choice sets the title, what is asked, what is sent and where it saves.
 function pcFormTab(pane) {
     var form = document.getElementById('pcShowForm'), check = pane === 'check';
     if (!form) return;
@@ -366,10 +361,8 @@ function pcFormTab(pane) {
     });
     document.getElementById('pcAgainst').disabled = !check;
     form.querySelectorAll('[data-pc-on]').forEach(function (el) { el.style.display = el.dataset.pcOn === pane ? '' : 'none'; });
-    document.querySelectorAll('#pcFormTabs [data-pane]').forEach(function (b) {
-        var on = b.dataset.pane === pane;
-        b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
+    var head = form.closest('.sv-modal') && form.closest('.sv-modal').querySelector('h4');
+    if (head) head.textContent = check ? 'Ground Check' : 'Record Plot Showing';
     document.getElementById('pcSaveLabel').textContent = check ? 'Save Ground Check' : 'Save Showing';
 }
 // Old register: "Requester is the allottee" copies the Allottee into Requester's Name and locks it.
@@ -605,7 +598,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </style>
 
 <div x-data="{ view: null }">
-{{-- Tabs first, so each tab brings its own counts and buttons. Confirmation Forms (its own button below the cards,
+{{-- Tabs first, so each tab brings its own counts and buttons. Confirmation Forms (the button below Record Plot Showing,
      user 2026-11-06) opens here without a page load; so does going back to the tab the page was opened on. --}}
 <div class="pc-tabs" id="pcTabs" data-server-tab="{{ $tab }}" data-confirm-url="{{ $tabUrl('confirmation') }}">
     <a href="{{ $tabUrl('showings') }}" data-tab="showings" class="{{ $tab === 'showings' ? 'on' : '' }}">Plot Showing</a>
@@ -621,7 +614,7 @@ document.addEventListener('DOMContentLoaded', function () {
     {{-- Which register this is, and how it is recorded (user, 2026-11-03). --}}
     @php
       [$regName, $regIcon, $regHow] = match ($tab) {
-          'checks' => ['Ground Check', 'fa-map-marked-alt', $isGkn ? 'Record Plot Showing > Ground Check, or the Plot Confirmation app in the field.' : 'View only: recorded under GKN.'],
+          'checks' => ['Ground Check', 'fa-map-marked-alt', $isGkn ? 'The Ground Check button, or the Plot Confirmation app in the field.' : 'View only: recorded under GKN.'],
           default  => ['Plot Showing', 'fa-street-view', $isGkn ? 'Record Plot Showing, or the Plot Confirmation app in the field.' : 'View only: recorded under GKN.'],
       };
     @endphp
@@ -630,26 +623,31 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="pc-sub">{{ $regHow }}</div></div>
 </div>
 
-{{-- Below the cards (user, 2026-11-06). Record Plot Showing's dropdown is New or Old Register; Confirmation Forms is its own button. --}}
+{{-- Below the cards. Record Plot Showing keeps its two choices, New and Old Register; Ground Check and Confirmation
+     Forms are their own buttons directly under it, not in its dropdown (user, 2026-11-06). --}}
 @if ($isGkn)
-<div class="page-header" style="margin-bottom:10px;">
-    <div></div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;">
-        <button type="button" class="btn btn-secondary" onclick="pcConfirmOpen()"><i class="fas fa-clipboard-check"></i> Confirmation Forms</button>
+<div class="page-header" style="margin-bottom:10px;align-items:flex-start;">
+    {{-- Export Records on the left (user, 2026-11-06). --}}
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route($isGkn ? 'survey-module.gkn.plot-showing.export' : 'survey-module.compensation.plot-confirmations.export'), 'title' => 'Plot Showing Register', 'dateLabel' => $tab === 'checks' ? 'Date Checked' : 'Date Shown', 'onclick' => "pcExport('" . ($tab === 'confirmation' ? 'showings' : request('tab', 'showings')) . "', 'Plot Showing Register')"])</div>
+    <div style="display:flex;flex-direction:column;align-items:stretch;gap:8px;">
         <div x-data="{ open: false }" class="relative" @keydown.escape.window="open = false">
-            <button type="button" class="btn btn-primary" aria-haspopup="true" :aria-expanded="open" @click.stop="open = !open">
+            <button type="button" class="btn btn-primary" style="width:100%;justify-content:center;" aria-haspopup="true" :aria-expanded="open" @click.stop="open = !open">
                 <i class="fas fa-plus"></i> Record Plot Showing <i class="fas fa-chevron-down" style="font-size:11px;margin-left:4px;"></i>
             </button>
             <div x-show="open" x-cloak @click.outside="open = false" role="menu" class="absolute right-0 z-50 w-48 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
-                <button type="button" role="menuitem" class="{{ $svItem }}" @click.stop="open = false; pcEntry('new', '{{ $tab === 'checks' ? 'check' : 'show' }}')"><i class="fas fa-plus" style="width:16px;color:var(--gray-500);"></i> New</button>
+                <button type="button" role="menuitem" class="{{ $svItem }}" @click.stop="open = false; pcEntry('new', 'show')"><i class="fas fa-plus" style="width:16px;color:var(--gray-500);"></i> New</button>
                 <button type="button" role="menuitem" class="{{ $svItem }}" @click.stop="open = false; pcEntry('old')"><i class="fas fa-book" style="width:16px;color:var(--gray-500);"></i> Old Register</button>
             </div>
         </div>
+        <button type="button" class="btn" style="justify-content:center;background:#b45309;border-color:#b45309;color:#fff;" onclick="pcEntry('new', 'check')"><i class="fas fa-map-marked-alt"></i> Ground Check</button>
+        <button type="button" class="btn" style="justify-content:center;background:#0f766e;border-color:#0f766e;color:#fff;" onclick="pcConfirmOpen()"><i class="fas fa-clipboard-check"></i> Confirmation Forms</button>
     </div>
 </div>
 @endif
 
-<div class="page-header" style="margin-bottom:10px;"><div></div>@include('survey_module.partials._records_export', ['endpoint' => route($isGkn ? 'survey-module.gkn.plot-showing.export' : 'survey-module.compensation.plot-confirmations.export'), 'title' => 'Plot Showing Register', 'dateLabel' => $tab === 'checks' ? 'Date Checked' : 'Date Shown', 'onclick' => "pcExport('" . ($tab === 'confirmation' ? 'showings' : request('tab', 'showings')) . "', 'Plot Showing Register')"])</div>
+@unless ($isGkn)
+<div class="page-header" style="margin-bottom:10px;"><div>@include('survey_module.partials._records_export', ['endpoint' => route($isGkn ? 'survey-module.gkn.plot-showing.export' : 'survey-module.compensation.plot-confirmations.export'), 'title' => 'Plot Showing Register', 'dateLabel' => $tab === 'checks' ? 'Date Checked' : 'Date Shown', 'onclick' => "pcExport('" . ($tab === 'confirmation' ? 'showings' : request('tab', 'showings')) . "', 'Plot Showing Register')"])</div><div></div></div>
+@endunless
 
 <div class="table-container">
     <div class="table-header">

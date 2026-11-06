@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Survey;
 
 use App\Http\Controllers\Controller;
+use App\Models\Sdi\SdiMapRequest;
 use App\Models\Survey\SurveyBeaconRequest;
 use App\Models\Survey\SurveyorPortalAccount;
 use App\Services\Survey\BeaconPool;
@@ -34,7 +35,7 @@ class BeaconRequestController extends Controller
     public function index(Request $r)
     {
         $this->authorizeSg();
-        $tab = $r->query('tab') === 'registrations' ? 'registrations' : 'requests';
+        $tab = in_array($r->query('tab'), ['registrations', 'maps'], true) ? $r->query('tab') : 'requests';
         $term = trim((string) $r->query('q', ''));
         $status = (string) $r->query('status', '');
 
@@ -44,6 +45,8 @@ class BeaconRequestController extends Controller
 
         return view('survey_module.beacon_requests.index', [
             'tab' => $tab, 'requests' => $requests, 'accounts' => $accounts, 'status' => $status,
+            'maps' => $this->mapsQuery($r)->paginate(20, ['*'], 'page')->withQueryString(),
+            'mapCounts' => SdiMapRequest::whereNotNull('surveyor_portal_account_id')->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status'),
             'companies' => SurveySettings::companies(),
             'pool' => BeaconPool::status(),
             'stats' => [
@@ -144,9 +147,37 @@ class BeaconRequestController extends Controller
             ->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")->orderByDesc('id');
     }
 
+    /** Map Requests: what surveyors asked for on the portal. The Production Unit works them; this list follows them. */
+    private function mapsQuery(Request $r)
+    {
+        $term = trim((string) $r->query('q', ''));
+        $status = $r->query('tab') === 'maps' ? (string) $r->query('status', '') : '';
+
+        return SdiMapRequest::query()->with(['mapType:id,name', 'portalAccount:id,surveyor_type,company_name,name,surveyor_id_no'])
+            ->whereNotNull('surveyor_portal_account_id')
+            ->when($term !== '', fn ($q) => $q->where(function ($w) use ($term) {
+                foreach (['request_ref', 'map_name', 'map_reference', 'requester_other', 'contact_name', 'contact_phone', 'production_officer'] as $col) {
+                    $w->orWhere($col, 'like', "%$term%");
+                }
+            }))
+            ->when($status !== '', fn ($q) => $q->where('status', $status))
+            ->orderByRaw("CASE WHEN status IN ('pending', 'in_progress') THEN 0 ELSE 1 END")->orderByDesc('id');
+    }
+
     public function export(Request $r)
     {
         $this->authorizeSg();
+
+        if ($r->query('tab') === 'maps') {
+            return $this->exportRecords($r, fn () => $this->mapsQuery($r), [
+                'request_no' => 'Request No.', 'date' => 'Date', 'type' => 'Type', 'company' => 'Company', 'surveyor' => "Surveyor's Name", 'phone' => 'Phone', 'map' => 'Map', 'map_type' => 'Map Type',
+                'reference' => 'Map Reference', 'formats' => 'Formats', 'officer' => 'Officer', 'status' => 'Status',
+            ], fn ($m) => [
+                'request_no' => $m->request_ref, 'date' => $this->exportDate($m->received_date, 'd/m/Y'), 'type' => $m->portalAccount?->type_label, 'company' => $m->portalAccount?->company_name,
+                'surveyor' => $m->contact_name, 'phone' => $m->contact_phone, 'map' => $m->map_name, 'map_type' => $m->mapType?->name, 'reference' => $m->map_reference,
+                'formats' => $m->formatsLabel(), 'officer' => $m->production_officer, 'status' => $m->statusLabel(),
+            ], 'received_date');
+        }
 
         if ($r->query('tab') === 'registrations') {
             return $this->exportRecords($r, fn () => $this->accountsQuery($r), [

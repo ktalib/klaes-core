@@ -30,6 +30,8 @@
         <a class="{{ $on('surveyor-portal.dashboard') }}" href="{{ route('surveyor-portal.dashboard') }}"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
         <a class="{{ $on('surveyor-portal.requests.create') }}" href="{{ route('surveyor-portal.requests.create') }}"><i data-lucide="plus-circle" class="w-4 h-4"></i> Request Beacons</a>
         <a class="{{ request()->routeIs('surveyor-portal.requests.index') || request()->routeIs('surveyor-portal.requests.show') ? 'on' : '' }}" href="{{ route('surveyor-portal.requests.index') }}"><i data-lucide="list" class="w-4 h-4"></i> My Requests</a>
+        <a class="{{ $on('surveyor-portal.map-requests.create') }}" href="{{ route('surveyor-portal.map-requests.create') }}"><i data-lucide="map" class="w-4 h-4"></i> Request Map</a>
+        <a class="{{ request()->routeIs('surveyor-portal.map-requests.index') || request()->routeIs('surveyor-portal.map-requests.show') ? 'on' : '' }}" href="{{ route('surveyor-portal.map-requests.index') }}"><i data-lucide="map-pinned" class="w-4 h-4"></i> My Map Requests</a>
         <a class="{{ $on('surveyor-portal.notifications') }}" href="{{ route('surveyor-portal.notifications') }}"><i data-lucide="bell" class="w-4 h-4"></i> Notifications @if ($unread)<span class="ks-badge issued">{{ $unread }}</span>@endif</a>
     </nav>
 </header>

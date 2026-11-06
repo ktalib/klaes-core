@@ -14,6 +14,16 @@
     }
     $svPick = (string) old('surveyor_choice', $svPick);
     $svOther = old('surveyor_name_other', $svOther);
+    // TP No. (was Plan No.; user, 2026-11-06): from the Public Layout Plans register, or Other. A saved number not on the list opens on Other.
+    $planPick = ''; $planOther = '';
+    if ($savedPlan = trim((string) $report->plan_no)) {
+        foreach ($plans as $p) {
+            if (\App\Http\Controllers\Survey\ChangeReportController::tpKey($p['no']) === \App\Http\Controllers\Survey\ChangeReportController::tpKey($savedPlan)) { $planPick = $p['no']; break; }
+        }
+        if ($planPick === '') { $planPick = 'other'; $planOther = $savedPlan; }
+    }
+    $planPick = (string) old('plan_choice', $planPick);
+    $planOther = old('plan_no_other', $planOther);
 @endphp
 
 @include('survey_module.partials._flash')
@@ -29,13 +39,14 @@
     @csrf
     @if ($editing) @method('PUT') @endif
     @if ($fromLine && ! $editing)<input type="hidden" name="survey_register_file_id" value="{{ $line->id }}" />@endif
+    @if (! empty($beaconLine))<input type="hidden" name="survey_beacon_register_id" value="{{ $beaconLine }}" />@endif
 
     <fieldset @disabled($locked) style="border:0;padding:0;margin:0;">
     <div class="form-container">
         <div class="form-body">
             <div class="form-grid">
                 <div class="sv-group"><i class="fas fa-folder-open"></i><span>File</span></div>
-                @if ($fromLine || $editing)
+                @if ($fromLine || $editing || ! empty($fromBeacons))
                     <div class="form-group"><label>File Number</label><input type="text" name="file_number" value="{{ $report->file_number }}" readonly style="{{ $ro }}" /></div>
                 @else
                     @include('survey_module.partials._file_picker', [
@@ -43,7 +54,7 @@
                         'fill' => ['title' => 'crTitle', 'plot' => 'crPlot', 'district' => 'crDistrict', 'lga' => 'crLga'],
                     ])
                 @endif
-                <div class="form-group full"><label>File Title</label>
+                <div class="form-group"><label>File Title</label>
                     <input type="text" name="file_title" id="crTitle" maxlength="500" value="{{ old('file_title', $report->file_title) }}" /></div>
             </div>
             <div class="form-grid cols-3">
@@ -54,7 +65,17 @@
             </div>
             <div class="form-grid">
                 <div class="sv-group"><i class="fas fa-drafting-compass"></i><span>Plan</span></div>
-                <div class="form-group"><label>Plan No.</label><input type="text" name="plan_no" maxlength="100" value="{{ old('plan_no', $report->plan_no) }}" /></div>
+                <div class="form-group"><label>TP No.</label>
+                    <select name="plan_choice" id="crPlan" class="sv-searchable" data-placeholder="Search TP no…">
+                        <option value=""></option>
+                        @foreach ($plans as $p)<option value="{{ $p['no'] }}" @selected($planPick === $p['no'])>{{ $p['no'] }}{{ $p['name'] ? ' — ' . \Illuminate\Support\Str::limit($p['name'], 60) : '' }}</option>@endforeach
+                        <option value="other" @selected($planPick === 'other')>Other (specify)</option>
+                    </select>
+                    @error('plan_choice')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
+                    <input type="text" name="plan_no_other" id="crPlanOther" maxlength="100" placeholder="Specify the TP number *"
+                           value="{{ $planOther }}" style="margin-top:6px;{{ $planPick === 'other' ? '' : 'display:none;' }}" @if ($planPick === 'other') required @endif />
+                    @error('plan_no_other')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
+                </div>
                 <div class="form-group"><label>Plan prepared by (surveyor)</label>
                     <select name="surveyor_choice" id="crSurveyor" class="sv-searchable" data-placeholder="Search surveyor…">
                         <option value=""></option>
@@ -96,16 +117,16 @@
     </fieldset>
 </form>
 <script>
-// Other under Plan prepared by reveals the required name box.
-(function () {
-    var by = document.getElementById('crSurveyor'), other = document.getElementById('crSurveyorOther');
+// Other under TP No. or Plan prepared by reveals its required box.
+[['crSurveyor', 'crSurveyorOther'], ['crPlan', 'crPlanOther']].forEach(function (ids) {
+    var by = document.getElementById(ids[0]), other = document.getElementById(ids[1]);
     if (!by || !other) return;
     by.addEventListener('change', function () {
         var on = by.value === 'other';
         other.style.display = on ? '' : 'none'; other.required = on;
         if (on) other.focus(); else other.value = '';
     });
-})();
+});
 </script>
 
 @if ($editing && isset($records))

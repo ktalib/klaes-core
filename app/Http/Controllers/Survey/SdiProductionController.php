@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Survey;
 
 use App\Http\Controllers\Controller;
 use App\Models\Sdi\SdiMapRequest;
+use App\Services\Survey\SurveyorPortalNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -54,6 +55,7 @@ class SdiProductionController extends Controller
             'production_officer' => trim(preg_replace('/\s+/', ' ', $data['production_officer'])),
             'started_at'         => now(),
         ]);
+        app(SurveyorPortalNotifier::class)->mapRequestStarted($mapRequest);
 
         return back()->with('success', "{$mapRequest->request_ref} is now In Progress with {$mapRequest->production_officer}.");
     }
@@ -87,6 +89,7 @@ class SdiProductionController extends Controller
             'actioned_by'               => Auth::id(),
             'actioned_at'               => now(),
         ]);
+        app(SurveyorPortalNotifier::class)->mapRequestFulfilled($mapRequest);
 
         return back()->with('success', "{$mapRequest->request_ref} fulfilled: map uploaded.");
     }
@@ -105,6 +108,7 @@ class SdiProductionController extends Controller
             'actioned_by'   => Auth::id(),
             'actioned_at'   => now(),
         ]);
+        app(SurveyorPortalNotifier::class)->mapRequestRejected($mapRequest);
 
         return back()->with('success', "{$mapRequest->request_ref} rejected.");
     }

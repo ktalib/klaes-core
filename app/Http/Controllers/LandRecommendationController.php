@@ -327,8 +327,8 @@ class LandRecommendationController extends Controller
             $query->select('land_recommendations.*')
                 ->selectRaw("COALESCE(
                     NULLIF(LTRIM(RTRIM(ISNULL(land_recommendations.applicant_address, ''))), ''),
-                    NULLIF(LTRIM(RTRIM(ISNULL(oa_addr.address, ''))), ''),
                     NULLIF(LTRIM(RTRIM(ISNULL(oa_addr.residential_address, ''))), ''),
+                    NULLIF(LTRIM(RTRIM(ISNULL(oa_addr.address, ''))), ''),
                     NULLIF(LTRIM(RTRIM(ISNULL(oa_addr.correspondence_address, ''))), '')
                 ) as resolved_applicant_address");
 
@@ -489,6 +489,7 @@ class LandRecommendationController extends Controller
                     // Whether the mother's Brief Recommendation has been downloaded:
                     // the batch menu opens its upload step only after that.
                     . ', MAX(brief_rec_downloaded_at) AS brief_downloaded_at'
+                    . ', MAX(origin_module) AS origin_module'
                     . ', COUNT(*) AS total'
                     . ", SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved_count"
                     . ", SUM(CASE WHEN rofo_status = 'generated' THEN 1 ELSE 0 END) AS generated_count"
@@ -1255,8 +1256,8 @@ class LandRecommendationController extends Controller
             $query->select('land_recommendations.*')
                 ->selectRaw("COALESCE(
                     NULLIF(LTRIM(RTRIM(ISNULL(land_recommendations.applicant_address, ''))), ''),
-                    NULLIF(LTRIM(RTRIM(ISNULL(oa_addr.address, ''))), ''),
                     NULLIF(LTRIM(RTRIM(ISNULL(oa_addr.residential_address, ''))), ''),
+                    NULLIF(LTRIM(RTRIM(ISNULL(oa_addr.address, ''))), ''),
                     NULLIF(LTRIM(RTRIM(ISNULL(oa_addr.correspondence_address, ''))), '')
                 ) as resolved_applicant_address");
 

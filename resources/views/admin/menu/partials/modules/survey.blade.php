@@ -515,6 +515,7 @@
         @php
           $ksOn = request()->routeIs('survey-module.beacon-requests.*');
           $ksReg = $ksOn && request('tab') === 'registrations';
+          $ksMaps = $ksOn && request('tab') === 'maps';
         @endphp
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-kssgof">
           <div class="flex items-center gap-2">
@@ -527,8 +528,11 @@
           <a href="{{ route('survey-module.beacon-requests.index', ['tab' => 'registrations']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksReg ? 'active' : '' }}">
             <i data-lucide="user-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Registrations</span>
           </a>
-          <a href="{{ route('survey-module.beacon-requests.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksOn && ! $ksReg ? 'active' : '' }}">
+          <a href="{{ route('survey-module.beacon-requests.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksOn && ! $ksReg && ! $ksMaps ? 'active' : '' }}">
             <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i><span>Beacon Requests</span>
+          </a>
+          <a href="{{ route('survey-module.beacon-requests.index', ['tab' => 'maps']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksMaps ? 'active' : '' }}">
+            <i data-lucide="map" class="h-3.5 w-3.5 text-pink-400"></i><span>Map Requests</span>
           </a>
         </div>
         @endif

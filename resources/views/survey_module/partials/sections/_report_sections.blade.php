@@ -1,9 +1,10 @@
 {{-- The three sections of the Surveyors Report table (recording, 2026-11-06), one table on GKN and on Examination.
      $part: bands (the section headings), heads (their columns), cells (a row's values), with $rec and $a, the row's
-     ReportRecords::summary and anchor; no $rec shows dashes. --}}
+     ReportRecords::summary and anchor; no $rec shows dashes. $links (optional): page => url, for counts read from
+     the registers rather than from the anchor's own pages. --}}
 @php
     $fmt = fn ($v, $d = 2) => $v === null ? '—' : number_format((float) $v, $d);
-    $open = fn ($page) => $a ? route($a['routes'] . '.' . $page . '.show', $a['key']) : null;
+    $open = fn ($page) => ($links[$page] ?? null) ?: ($a ? route($a['routes'] . '.' . $page . '.show', $a['key']) : null);
     $cnt = fn ($n, $url, $title) => $url
         ? '<a href="' . e($url) . '" title="' . e($title) . '"><strong>' . number_format((int) $n) . '</strong></a>'
         : '—';
@@ -34,5 +35,5 @@
     <td class="rs-split" style="text-align:right;">{!! $rec ? $cnt($rec['readings'], $open('observations'), 'Open Field Observations') : '—' !!}</td>
     <td style="white-space:nowrap;">{{ ! $rec || ! $rec['readings'] ? '—' : ($rec['closed'] ? 'Closed' : 'Open') }}</td>
     <td style="text-align:right;">{{ $rec ? $fmt($rec['misclosure'], 3) : '—' }}</td>
-    <td style="white-space:nowrap;">{{ $rec ? ($rec['sketch'] ? 'Uploaded' : 'Not uploaded') : '—' }}</td>
+    <td style="white-space:nowrap;">{{ $rec && $rec['sketch'] !== null ? ($rec['sketch'] ? 'Uploaded' : 'Not uploaded') : '—' }}</td>
 @endif
