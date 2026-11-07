@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'My Map Requests — KSSGOF Portal')
+@section('title', 'My Map Requests — KNSSGOF Portal')
 @section('heading', 'My Map Requests')
 
 @section('main')

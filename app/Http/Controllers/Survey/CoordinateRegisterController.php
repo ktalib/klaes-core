@@ -38,9 +38,14 @@ class CoordinateRegisterController extends Controller
         $counts = DB::connection('sqlsrv')->query()->fromSub($this->union(), 'c')
             ->selectRaw('source, COUNT(*) n')->groupBy('source')->pluck('n', 'source');
 
+        $groupCounts = (clone $q)->selectRaw('group_letter, COUNT(*) AS points')
+            ->groupBy('group_letter')->pluck('points', 'group_letter');
+        $points = $q->orderBy('group_letter')->orderBy('point_id')->orderBy('source')->orderByDesc('recorded_at')->get();
+
         return view('survey_module.workflow.coordinate_register', [
-            'points' => $q->orderByDesc('recorded_at')->orderBy('point_id')->paginate(25)->withQueryString(),
+            'points' => $points,
             'counts' => $counts,
+            'groupCounts' => $groupCounts,
         ]);
     }
 
@@ -72,29 +77,29 @@ class CoordinateRegisterController extends Controller
         return $q;
     }
 
-    /** One row per point: source, point_id, northing, easting, elevation, file_number, reference, recorded_at, link. */
+    /** One row per point, with a shared first-letter group key for every coordinate source. */
     private function union()
     {
         $db = DB::connection('sqlsrv');
 
         $its = $db->table('survey_its_coordinates')->whereNull('deleted_at')->selectRaw(
-            "CASE WHEN survey_change_report_id IS NOT NULL THEN 'private' ELSE 'its' END AS source, beacon_id AS point_id, CAST(northing AS decimal(18,4)) AS northing, CAST(easting AS decimal(18,4)) AS easting,
+            "CASE WHEN survey_change_report_id IS NOT NULL THEN 'private' ELSE 'its' END AS source, beacon_id AS point_id, CASE WHEN LEFT(LTRIM(beacon_id), 1) LIKE '[A-Za-z]' THEN UPPER(LEFT(LTRIM(beacon_id), 1)) ELSE '#' END AS group_letter, CAST(northing AS decimal(18,4)) AS northing, CAST(easting AS decimal(18,4)) AS easting,
              CAST(elevation AS decimal(18,4)) AS elevation, file_number, its_number AS reference, created_at AS recorded_at,
              CASE WHEN survey_change_report_id IS NOT NULL THEN CONCAT('private-', survey_change_report_id) WHEN survey_its_id IS NOT NULL THEN CONCAT('survey-', survey_its_id) ELSE CONCAT('cadastral-', cadastral_survey_job_id) END AS link");
 
         $beacon = $db->table('survey_beacon_register')->whereNull('deleted_at')->whereNotNull('coord_x')->whereNotNull('coord_y')->selectRaw(
-            "'beacon' AS source, beacon_from AS point_id, CAST(coord_y AS decimal(18,4)) AS northing, CAST(coord_x AS decimal(18,4)) AS easting,
+            "'beacon' AS source, beacon_from AS point_id, CASE WHEN LEFT(LTRIM(beacon_from), 1) LIKE '[A-Za-z]' THEN UPPER(LEFT(LTRIM(beacon_from), 1)) ELSE '#' END AS group_letter, CAST(coord_y AS decimal(18,4)) AS northing, CAST(coord_x AS decimal(18,4)) AS easting,
              CAST(NULL AS decimal(18,4)) AS elevation, file_number, CONCAT('Line ', id, CASE WHEN beacon_to IS NOT NULL THEN CONCAT(' (', beacon_from, ' to ', beacon_to, ')') ELSE '' END) AS reference,
              CAST(issue_date AS datetime) AS recorded_at, CAST(id AS nvarchar(40)) AS link");
 
         $control = $db->table('survey_control_point_register')->whereNull('deleted_at')->whereNotNull('coord_x')->whereNotNull('coord_y')->selectRaw(
-            "'control' AS source, beacon_from AS point_id, CAST(coord_y AS decimal(18,4)) AS northing, CAST(coord_x AS decimal(18,4)) AS easting,
+            "'control' AS source, beacon_from AS point_id, CASE WHEN LEFT(LTRIM(beacon_from), 1) LIKE '[A-Za-z]' THEN UPPER(LEFT(LTRIM(beacon_from), 1)) ELSE '#' END AS group_letter, CAST(coord_y AS decimal(18,4)) AS northing, CAST(coord_x AS decimal(18,4)) AS easting,
              CAST(NULL AS decimal(18,4)) AS elevation, file_number, CONCAT('Line ', id, CASE WHEN beacon_to IS NOT NULL THEN CONCAT(' (', beacon_from, ' to ', beacon_to, ')') ELSE '' END) AS reference,
              CAST(issue_date AS datetime) AS recorded_at, CAST(id AS nvarchar(40)) AS link");
 
         $lpkn = $db->table('survey_lpkn_coordinates as c')->join('survey_lpkn as l', 'l.id', '=', 'c.survey_lpkn_id')
             ->whereNull('c.deleted_at')->whereNull('l.deleted_at')->whereNotNull('c.northing')->whereNotNull('c.easting')->selectRaw(
-            "'lpkn' AS source, c.beacon_id AS point_id, CAST(c.northing AS decimal(18,4)) AS northing, CAST(c.easting AS decimal(18,4)) AS easting,
+            "'lpkn' AS source, c.beacon_id AS point_id, CASE WHEN LEFT(LTRIM(c.beacon_id), 1) LIKE '[A-Za-z]' THEN UPPER(LEFT(LTRIM(c.beacon_id), 1)) ELSE '#' END AS group_letter, CAST(c.northing AS decimal(18,4)) AS northing, CAST(c.easting AS decimal(18,4)) AS easting,
              CAST(c.elevation AS decimal(18,4)) AS elevation, l.lpkn_number AS file_number, l.layout_name AS reference, c.created_at AS recorded_at,
              CAST(l.id AS nvarchar(40)) AS link");
 

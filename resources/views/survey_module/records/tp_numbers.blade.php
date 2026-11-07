@@ -174,13 +174,14 @@
                         $linked = $projects->get(TPC::key($x->tp_no), collect());
                         // Larger and bold (user, 2026-11-06).
                         $tpBig = 'font-size:16px;font-weight:700;';
+                        $tpNoStyle = 'font-size:22px;font-weight:800;padding:5px 9px;letter-spacing:.02em;';
                     @endphp
                     <tr>
                         <td class="muted">{{ $tps->firstItem() + $loop->index }}</td>
                         <td class="nowrap" style="{{ $tpBig }}">{!! $x->prefix_head !== '' ? e($x->prefix_head) : '<span class="muted">—</span>' !!}</td>
                         <td class="nowrap" style="{{ $tpBig }}">{!! $x->sub_prefix !== '' ? e($x->sub_prefix) : '<span class="muted">—</span>' !!}</td>
                         <td class="nowrap" style="{{ $tpBig }}">{!! trim((string) $x->serial_no) !== '' ? e($x->serial_no) : '<span class="muted">—</span>' !!}</td>
-                        <td class="nowrap">{!! $x->tp_no !== '' ? '<span class="tp" style="' . $tpBig . '">' . e($x->tp_no) . '</span>' : '<span class="muted">—</span>' !!}</td>
+                        <td class="nowrap" style="min-width:170px;">{!! $x->tp_no !== '' ? '<span class="tp" style="' . $tpNoStyle . '">' . e($x->tp_no) . '</span>' : '<span class="muted">—</span>' !!}</td>
                         <td class="nowrap">{!! $x->drawing_date ? e($x->drawing_date) : '<span class="muted">—</span>' !!}</td>
                         <td class="wide strong">{!! $x->layout_name ? e($x->layout_name) : '<span class="muted">—</span>' !!}</td>
                         <td>{!! $x->remarks ? e($x->remarks) : '<span class="muted">—</span>' !!}</td>

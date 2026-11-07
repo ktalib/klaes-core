@@ -71,21 +71,21 @@ class BeaconRegisterController extends Controller
             $numbers = $nq->orderBy('beacon_series')->orderBy('beacon_seq')->paginate(50)->withQueryString();
         }
 
-        // "By group": every number under its series, whatever the date (CR 03112026 item 14). One group opens at a time.
+        // "By group": combine every suffix and prefix variant under its first letter.
         $groups = $groupNumbers = null;
         $openGroup = null;
         if ($view === 'groups') {
             $groups = SurveyBeaconNumber::query()
                 ->whereIn('survey_beacon_register_id', (clone $q)->select('id'))
-                ->selectRaw('beacon_series, COUNT(*) AS issued, MIN(beacon_seq) AS lowest, MAX(beacon_seq) AS highest')
-                ->groupBy('beacon_series')->get()
-                ->sortBy(fn ($g) => sprintf('%03d|%s', strlen($g->beacon_series), $g->beacon_series))->values();
+                ->selectRaw(self::GROUP_LETTER_SQL . ' AS beacon_series, COUNT(*) AS issued, MIN(beacon_seq) AS lowest, MAX(beacon_seq) AS highest')
+                ->groupByRaw(self::GROUP_LETTER_SQL)->get()
+                ->sortBy(fn ($g) => $g->beacon_series === '' ? '~' : $g->beacon_series)->values();
             $openGroup = $groups->firstWhere('beacon_series', (string) $r->query('group'))?->beacon_series;
             if ($openGroup !== null) {
                 $groupNumbers = SurveyBeaconNumber::query()
                     ->whereIn('survey_beacon_register_id', (clone $q)->select('id'))
-                    ->where('beacon_series', $openGroup)->with('register.files')
-                    ->orderBy('beacon_seq')->paginate(50, ['*'], 'gpage')->withQueryString();
+                    ->whereRaw(self::GROUP_LETTER_SQL . ' = ?', [$openGroup])->with('register.files')
+                    ->orderBy('beacon_seq')->get();
             }
         }
 
@@ -608,12 +608,13 @@ class BeaconRegisterController extends Controller
         }
     }
 
-    /** A number's leading letters: its series up to the bar, so A0875A and A1404B are both A (user, 2026-11-06). */
-    private const LETTERS_SQL = "LEFT(beacon_series, CHARINDEX('|', beacon_series + '|') - 1)";
+    /** Group every beacon series and suffix by its single leading alphabetic character. */
+    private const GROUP_LETTER_SQL = "CASE WHEN LEFT(beacon_series, 1) LIKE '[A-Z]' THEN LEFT(beacon_series, 1) ELSE '' END";
+    private const LETTERS_SQL = self::GROUP_LETTER_SQL;
 
     /**
-     * The letter groups of a selection, in alphabetical order (user, 2026-11-06): K, KA, KAA, KB; numbers with no
-     * letters last. Each carries its first entry, the lowest number, which is the group's row in the table.
+     * The leading-letter groups of a selection, in alphabetical order. Each carries its first entry,
+     * the lowest number, which is the group's row in the table.
      */
     private function letterGroups($q)
     {
@@ -641,8 +642,7 @@ class BeaconRegisterController extends Controller
     }
 
     /**
-     * The rest of a letter group for the By issue table, 20 at a time: its first entry is already the group's row.
-     * The same rows and actions as before, opened in place so a click does not reload the page. The page's filters apply.
+     * The remaining entries in a leading-letter group. The first entry is already shown in the group row.
      */
     public function groupRows(Request $r)
     {
@@ -650,14 +650,14 @@ class BeaconRegisterController extends Controller
         $letters = (string) $r->query('group');
         $first = $this->groupEntries($this->filtered($r), $letters)->value('id');
 
-        $entries = $this->groupEntries($this->filtered($r), $letters)->where('id', '!=', (int) $first)
-            ->paginate(20)->withQueryString();
+        $entries = $this->groupEntries($this->filtered($r), $letters)->where('id', '!=', (int) $first)->get();
 
         return response()->json([
-            'html'  => view('survey_module.partials.sections._beacon_issue_rows', ['entries' => $entries, 'groupNo' => (int) $r->query('sn')])->render(),
-            'next'  => $entries->nextPageUrl(),
-            'shown' => $entries->lastItem(),
-            'total' => $entries->total(),
+            'html' => view('survey_module.partials.sections._beacon_issue_rows', [
+                'entries' => $entries,
+                'groupNo' => (int) $r->query('sn'),
+                'rowStart' => 2,
+            ])->render(),
         ]);
     }
 

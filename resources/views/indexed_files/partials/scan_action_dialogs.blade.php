@@ -1,4 +1,4 @@
-{{-- The Move to NR and Reassign FileNo dialogs for the Indexed Files action menu.
+{{-- The Move to NR and Reassign FileNo dialogs for the Indexed Files scanned-file viewer.
      They were built for Doc-WARE and Page Typing, whose pages define .btn and the rest, so the
      styles they need are repeated here, scoped to the two dialogs. --}}
 <style>

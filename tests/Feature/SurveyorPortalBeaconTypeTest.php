@@ -48,7 +48,11 @@ class SurveyorPortalBeaconTypeTest extends TestCase
             ->assertDontSee('Name of Survey')
             ->assertDontSee('name="layout_type"', false)
             ->assertSee('aria-label="Portal navigation"', false)
-            ->assertSee('Request Beacons')
+            ->assertSee('Requested Beacons')
+            ->assertSee('KNSSGOF')
+            ->assertSee('assets/logo/knssgof-logo.png')
+            ->assertSee('Beacon Request')
+            ->assertSee('Beacons')
             ->assertDontSee('>My Requests<', false)
             ->assertDontSee('>Request a Map<', false)
             ->assertSee('Workspace');
@@ -67,6 +71,18 @@ class SurveyorPortalBeaconTypeTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/\bvalue="4"/', $quantityField[0]);
     }
 
+    public function test_registration_page_uses_the_corrected_knssgof_banner(): void
+    {
+        $this->get(route('surveyor-portal.register'))
+            ->assertOk()
+            ->assertSee('assets/logo/knssgof-register-banner.png');
+
+        $this->get(route('surveyor-portal.register', ['company' => 'yes']))
+            ->assertOk()
+            ->assertSee('assets/logo/knssgof-register-banner.png')
+            ->assertSee("KNSSGOF — Kano State Surveyor General's Office Portal", false);
+    }
+
     public function test_beacon_form_has_searchable_district_and_lga_based_pin(): void
     {
         $account = new SurveyorPortalAccount();
@@ -79,7 +95,23 @@ class SurveyorPortalBeaconTypeTest extends TestCase
             ->assertSee('data-url="' . route('surveyor-portal.lookup.districts') . '"', false)
             ->assertSee('district_other')
             ->assertSee('placeAtLga')
+            ->assertSee('Pin on Map')
+            ->assertSee('pinLga.addEventListener')
             ->assertSee('Search or select district');
+    }
+
+    public function test_beacons_tab_shows_only_issued_beacon_numbers_for_the_signed_in_surveyor(): void
+    {
+        $account = new SurveyorPortalAccount();
+        $account->forceFill(['id' => 871239, 'surveyor_type' => 'Private', 'name' => 'Test Surveyor']);
+        $this->actingAs($account, 'surveyor');
+
+        $this->get(route('surveyor-portal.requests.create', ['tab' => 'beacons']))
+            ->assertOk()
+            ->assertSee('Requested Beacons')
+            ->assertSee('Beacon Request')
+            ->assertSee('Beacons')
+            ->assertSee('No issued beacons yet.');
 
         $this->assertContains('Kunchi', \App\Services\Survey\CompensationListReader::LGAS);
         $this->assertNotContains('Ghari', \App\Services\Survey\CompensationListReader::LGAS);

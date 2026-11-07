@@ -117,6 +117,16 @@
       ],
   ];
 
+  // Match the create permission and destination of the page's New Recommendation button.
+  if (auth()->check() && auth()->user()->canDo('Letter of Grant (RofO)', 'create')) {
+      $tabCards['land-recommendation'][] = [
+          'New Recommendation',
+          'plus-circle',
+          route('land-recommendations.create'),
+          'green',
+      ];
+  }
+
   $tcStyle = function (string $tone) use ($tcTones) {
       [$c, $bg] = $tcTones[$tone] ?? $tcTones['slate'];
 

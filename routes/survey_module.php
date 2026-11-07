@@ -112,6 +112,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Record Plot Showing from the office (user, 2026-11-02): the OP search and the save.
         Route::get('/plot-confirmations/op-search', [PlotConfirmationController::class, 'opSearch'])->name('plot-confirmations.op-search');
         Route::get('/plot-confirmations/tp-plots', [PlotConfirmationController::class, 'tpPlots'])->name('plot-confirmations.tp-plots');
+        Route::get('/plot-confirmations/file-search', [PlotConfirmationController::class, 'indexedFileSearch'])->name('plot-confirmations.file-search');
+        Route::post('/plot-confirmations/ops', [PlotConfirmationController::class, 'storeShowingOp'])->name('plot-confirmations.ops.store');
         Route::post('/plot-confirmations/showings', [PlotConfirmationController::class, 'storeShowing'])->name('plot-confirmations.showings.store');
         // Ground Check from the office (user, 2026-11-06): a tab on Record Plot Showing.
         Route::post('/plot-confirmations/checks', [PlotConfirmationController::class, 'storeCheck'])->name('plot-confirmations.checks.store');

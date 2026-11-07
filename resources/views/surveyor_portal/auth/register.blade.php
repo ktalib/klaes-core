@@ -1,7 +1,21 @@
 @extends('surveyor_portal.layouts.guest')
 
-@section('title', 'Register — KSSGOF Portal')
+@section('title', 'Register — KNSSGOF Portal')
 @section('width', '520px')
+
+@section('guest-banner')
+    <img src="{{ asset('assets/logo/knssgof-register-banner.png') }}"
+         alt="KNSSGOF — Kano State Surveyor General's Office Portal"
+         width="1600" height="666" class="relative"
+         style="width:100%;max-width:620px;height:auto;mix-blend-mode:multiply;">
+@endsection
+
+@section('guest-mobile-banner')
+    <img src="{{ asset('assets/logo/knssgof-register-banner.png') }}"
+         alt="KNSSGOF — Kano State Surveyor General's Office Portal"
+         width="1600" height="666" class="mx-auto mb-5 lg:hidden"
+         style="width:100%;max-width:460px;height:auto;mix-blend-mode:multiply;">
+@endsection
 
 @section('card')
     <h1 class="text-lg font-bold mb-1" id="ksHeading">Register as a surveyor</h1>

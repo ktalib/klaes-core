@@ -2262,6 +2262,25 @@ class FileNumberApiController extends Controller
                     'street_name',
                 ]);
 
+            $commissionedYear = (int) $request->get('commissioned_year', 0);
+            if ($commissionedYear > 0) {
+                $indexedNumber = "COALESCE("
+                    . "NULLIF(LTRIM(RTRIM(file_number)), ''), "
+                    . "NULLIF(LTRIM(RTRIM(mls_file_no)), ''), "
+                    . "NULLIF(LTRIM(RTRIM(kangis_file_no)), ''), "
+                    . "NULLIF(LTRIM(RTRIM(new_kangis_file_no)), ''), "
+                    . "NULLIF(LTRIM(RTRIM(temp_file_no)), ''))";
+
+                $query->whereExists(function ($subquery) use ($commissionedYear, $indexedNumber) {
+                    $subquery->select(DB::raw(1))
+                        ->from('mls_file_no as commissioned_mfn')
+                        ->where('commissioned_mfn.year', $commissionedYear)
+                        ->whereRaw(
+                            "UPPER(LTRIM(RTRIM(commissioned_mfn.full_file_number))) = UPPER({$indexedNumber})"
+                        );
+                });
+            }
+
             // A row with no number in any column is unusable in the dropdown.
             $query->where(function ($q) use ($numberColumns) {
                 foreach ($numberColumns as $col) {
@@ -2614,4 +2633,3 @@ class FileNumberApiController extends Controller
         return str_replace(['-', '/', ' ', '.', '\\'], '', $value);
     }
 }
-

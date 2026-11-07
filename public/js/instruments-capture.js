@@ -5209,33 +5209,56 @@ document.addEventListener('DOMContentLoaded', function () {
         if (opcfWired) return;
         opcfWired = true;
 
-        const input = opcfEl('opcf-file-no');
-
-        // Same picker the rest of the app uses, scoped to MLS — a commissioned OP file
-        // is always an MLS number. The field is disabled, so this is the only way in, and
-        // the lookup runs straight off the selection rather than a separate confirm step.
-        const selectBtn = opcfEl('opcf-select-btn');
-        if (selectBtn) {
-            selectBtn.addEventListener('click', () => {
-                if (typeof window.GlobalFileNoModal === 'undefined' || typeof window.GlobalFileNoModal.open !== 'function') {
-                    opcfShowError('The global file selector is not loaded on this page — type the file number instead.');
-                    return;
-                }
-                window.GlobalFileNoModal.open({
-                    allowedTabs: ['mls'],
-                    commissionedYear: OPCF_YEAR,
-                    autoPopulateGenericFields: false,
-                    callback: function (fileData) {
-                        const picked = (fileData && fileData.fileNumber ? fileData.fileNumber : '')
-                            .toString().trim().replace(/-+$/, '');
-                        if (!picked) return;
-                        if (input) input.value = picked.toUpperCase();
-                        opcfResetLookup();
-                        opcfLookup();
-                    },
-                });
-            });
+        const select = opcfEl('opcf-file-no');
+        if (!select || !(window.jQuery && jQuery.fn.select2)) {
+            opcfShowError('The indexed file-number dropdown is unavailable.');
+            return;
         }
+
+        const $select = jQuery(select);
+        $select.select2({
+            width: '100%',
+            placeholder: select.dataset.placeholder || 'Search indexed commissioned files',
+            allowClear: true,
+            minimumInputLength: 0,
+            dropdownParent: jQuery('#registration-dialog').length
+                ? jQuery('#registration-dialog')
+                : jQuery(document.body),
+            ajax: {
+                url: '/api/file-numbers/indexing-search',
+                dataType: 'json',
+                delay: 250,
+                cache: true,
+                data: params => ({
+                    q: params.term || '',
+                    page: params.page || 1,
+                    per_page: 30,
+                    commissioned_year: OPCF_YEAR,
+                }),
+                processResults: data => ({
+                    results: (data && data.results) ? data.results : [],
+                    pagination: { more: !!(data && data.pagination && data.pagination.more) },
+                }),
+            },
+            templateResult: item => {
+                if (!item.id) return item.text;
+                const subtitle = item.subtitle || item.file_title || '';
+                const registry = item.registry ? ' | ' + escapeHtmlText(item.registry) : '';
+                return jQuery(
+                    '<div class="fileno-option">'
+                    + '<div class="fileno-option__no">' + escapeHtmlText(item.text) + escapeHtmlText(registry) + '</div>'
+                    + (subtitle ? '<div class="fileno-option__sub">' + escapeHtmlText(subtitle) + '</div>' : '')
+                    + '</div>'
+                );
+            },
+            templateSelection: item => item.text || item.id || '',
+        });
+
+        $select.on('select2:select', function () {
+            opcfResetLookup();
+            opcfLookup();
+        });
+        $select.on('select2:clear', opcfResetLookup);
     }
 
     function opcfLookup() {
@@ -5412,7 +5435,13 @@ document.addEventListener('DOMContentLoaded', function () {
         window._opCaptureSubmitted = false;
 
         const input = opcfEl('opcf-file-no');
-        if (input) input.value = '';
+        if (input) {
+            if (window.jQuery && jQuery(input).hasClass('select2-hidden-accessible')) {
+                jQuery(input).val(null).trigger('change');
+            } else {
+                input.value = '';
+            }
+        }
         opcfResetLookup();
 
         openRegistrationDialog('occupancy-permit');

@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'KSSGOF Portal')</title>
+    <title>@yield('title', 'KNSSGOF Portal')</title>
     <meta name="theme-color" content="#0B3A7E">
-    <link rel="icon" type="image/png" href="{{ asset('assets/logo/kssgof-favicon.png') }}">
-    <link rel="apple-touch-icon" href="{{ asset('assets/logo/kssgof-logo.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('assets/logo/knssgof-logo.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('assets/logo/knssgof-logo.png') }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@0.429.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
     <style>

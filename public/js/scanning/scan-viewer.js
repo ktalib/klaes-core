@@ -3,7 +3,7 @@
  * or the raw scans on the records server — so an indexer or legal searcher can confirm a file
  * really has been scanned. Pages come from /scan-check/pages?t=<token> (ScanCheckController).
  *
- *   window.KlaesScanViewer.open({ token, title, subtitle })
+ *   window.KlaesScanViewer.open({ token, title, subtitle, actions })
  */
 (function () {
     if (window.KlaesScanViewer) return;
@@ -11,9 +11,10 @@
     var css = ''
         + '.ksv-backdrop{position:fixed;inset:0;z-index:2100;background:rgba(15,23,42,.72);display:flex;align-items:center;justify-content:center;padding:18px}'
         + '.ksv-box{background:#fff;border-radius:14px;width:min(1180px,100%);height:min(92vh,900px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 60px rgba(0,0,0,.35)}'
-        + '.ksv-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;background:linear-gradient(120deg,#1e3a8a,#1d4ed8);color:#fff}'
+        + '.ksv-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:12px 18px;background:linear-gradient(120deg,#1e3a8a,#1d4ed8);color:#fff}'
         + '.ksv-title{font-weight:700;font-size:1rem;line-height:1.2}.ksv-sub{font-size:.75rem;opacity:.85}'
         + '.ksv-btn{background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:.8rem;font-weight:600;cursor:pointer}.ksv-btn:hover{background:rgba(255,255,255,.28)}'
+        + '.ksv-action-btn{background:#fff;color:#1e40af;border:0;border-radius:8px;padding:6px 10px;font-size:.75rem;font-weight:700;white-space:nowrap;cursor:pointer}.ksv-action-btn:hover{background:#dbeafe}'
         + '.ksv-body{flex:1;display:flex;min-height:0}'
         + '.ksv-thumbs{width:170px;flex-shrink:0;overflow-y:auto;background:#f1f5f9;border-right:1px solid #e2e8f0;padding:8px}'
         + '.ksv-thumb{display:block;width:100%;margin-bottom:8px;border:2px solid transparent;border-radius:8px;background:#fff;cursor:pointer;padding:4px;text-align:center}'
@@ -83,10 +84,19 @@
         root.addEventListener('click', function (e) { if (e.target === root) close(); });
         var box = el('div', { class: 'ksv-box' });
         var head = el('div', { class: 'ksv-head' });
-        var titles = el('div');
+        var titles = el('div', { style: 'min-width:0;flex:1 1 220px' });
         titles.appendChild(el('div', { class: 'ksv-title' }, opts.title || 'Scanned pages'));
         titles.appendChild(el('div', { class: 'ksv-sub' }, opts.subtitle || ''));
-        var actions = el('div', { style: 'display:flex;gap:8px' });
+        var actions = el('div', { style: 'display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;flex:1 1 auto' });
+        (Array.isArray(opts.actions) ? opts.actions : []).forEach(function (action) {
+            if (!action || typeof action.onClick !== 'function') return;
+            var button = el('button', { class: 'ksv-action-btn', type: 'button' }, action.label || 'Action');
+            button.onclick = function (e) {
+                e.stopPropagation();
+                action.onClick();
+            };
+            actions.appendChild(button);
+        });
         var prev = el('button', { class: 'ksv-btn', type: 'button' }, '‹ Prev'); prev.onclick = function () { show(state.index - 1); };
         var next = el('button', { class: 'ksv-btn', type: 'button' }, 'Next ›'); next.onclick = function () { show(state.index + 1); };
         var x = el('button', { class: 'ksv-btn', type: 'button', 'aria-label': 'Close' }, '✕'); x.onclick = close;

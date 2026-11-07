@@ -4421,6 +4421,57 @@ class OpResettlementApplicationController extends Controller
             $id = (int) $id;
         }
 
+        $resolveTotApplicantContacts = static function (iterable $praRows): array {
+            $totRows = collect($praRows)->filter(static function ($row): bool {
+                return stripos((string) ($row->instrument_type ?? ''), 'Transfer of Title') !== false
+                    || stripos((string) ($row->transaction_type ?? ''), 'Transfer of Title') !== false;
+            })->values();
+
+            if ($totRows->isEmpty()) {
+                return [];
+            }
+
+            $praIds = $totRows->pluck('id')->filter()->map(static fn ($rowId) => (int) $rowId)->unique()->values();
+            $commissionedFileNumbers = [];
+            if ($praIds->isNotEmpty()) {
+                foreach (DB::connection('sqlsrv')->table('mls_file_no')
+                    ->whereIn('source_pra_id', $praIds)
+                    ->where(fn ($query) => $query->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                    ->orderByDesc('id')
+                    ->get(['source_pra_id', 'full_file_number']) as $commissionedFile) {
+                    $praId = (int) $commissionedFile->source_pra_id;
+                    $fileNumber = trim((string) $commissionedFile->full_file_number);
+                    if ($fileNumber !== '' && !isset($commissionedFileNumbers[$praId])) {
+                        $commissionedFileNumbers[$praId] = $fileNumber;
+                    }
+                }
+            }
+
+            $fileNumbersByPra = [];
+            foreach ($totRows as $totRow) {
+                $praId = (int) $totRow->id;
+                $fileNumber = $commissionedFileNumbers[$praId] ?? '';
+                foreach (['mlsFNo', 'fileno', 'temp_fileno'] as $field) {
+                    if ($fileNumber !== '') {
+                        break;
+                    }
+                    $fileNumber = trim((string) ($totRow->{$field} ?? ''));
+                }
+                if ($fileNumber !== '') {
+                    $fileNumbersByPra[$praId] = $fileNumber;
+                }
+            }
+
+            $contactsByFileNumber = app(ApplicantContactResolver::class)->forFiles(array_values($fileNumbersByPra));
+            $contactsByPra = [];
+            foreach ($fileNumbersByPra as $praId => $fileNumber) {
+                $contactsByPra[$praId] = $contactsByFileNumber[ApplicantContactResolver::key($fileNumber)]
+                    ?? ['phone' => null, 'address' => null];
+            }
+
+            return $contactsByPra;
+        };
+
         // Land-use fallback from file-number prefix when source fields are empty.
         $deriveLandUseFromPrefix = static function (?string $fileNo): ?string {
             $fileNo = strtoupper(trim((string) $fileNo));
@@ -4724,6 +4775,7 @@ class OpResettlementApplicationController extends Controller
                     ->orderBy('id')
                     ->get();
             }
+            $totApplicantContacts = $resolveTotApplicantContacts($allPraRows);
 
             return view('lands_one_stop_shop.op_capture_edit', compact(
                 'PageTitle',
@@ -4736,6 +4788,7 @@ class OpResettlementApplicationController extends Controller
                 'fileNumberId',
                 'districtIsCustom',
                 'allPraRows',
+                'totApplicantContacts',
                 'passportFileNumber',
                 'passport',
             ));
@@ -4842,6 +4895,7 @@ class OpResettlementApplicationController extends Controller
                     ->orderBy('id')
                     ->get();
             }
+            $totApplicantContacts = $resolveTotApplicantContacts($allPraRows);
 
             return view('lands_one_stop_shop.op_capture_edit', compact(
                 'PageTitle',
@@ -4854,6 +4908,7 @@ class OpResettlementApplicationController extends Controller
                 'fileNumberId',
                 'districtIsCustom',
                 'allPraRows',
+                'totApplicantContacts',
                 'passportFileNumber',
                 'passport',
             ));
@@ -5041,6 +5096,7 @@ class OpResettlementApplicationController extends Controller
                 ->orderBy('id')
                 ->get();
         }
+        $totApplicantContacts = $resolveTotApplicantContacts($allPraRows);
 
         return view('lands_one_stop_shop.op_capture_edit', compact(
             'PageTitle',
@@ -5053,6 +5109,7 @@ class OpResettlementApplicationController extends Controller
             'fileNumberId',
             'districtIsCustom',
             'allPraRows',
+            'totApplicantContacts',
             'passportFileNumber',
             'passport',
         ));

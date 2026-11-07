@@ -142,16 +142,9 @@
                             <label for="opcf-file-no" class="text-xs font-semibold text-gray-800 mb-1 block">
                                 Commissioned File Number <span class="text-rose-500">*</span>
                             </label>
-                            {{-- Disabled: the number is only ever set by the Select picker, which
-                                 runs the lookup itself — there is nothing to type or confirm. --}}
-                            <div class="flex items-center gap-2">
-                                <input type="text" id="opcf-file-no" placeholder="No file selected" disabled
-                                    class="flex-1 px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700 font-mono text-sm uppercase">
-                                <button type="button" id="opcf-select-btn"
-                                    class="px-3 py-2 bg-white text-blue-600 font-medium rounded-lg border border-blue-200 hover:bg-blue-50 text-sm whitespace-nowrap">
-                                    Select
-                                </button>
-                            </div>
+                            <select id="opcf-file-no" data-placeholder="Search indexed commissioned files…"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-700 font-mono text-sm">
+                            </select>
                         </div>
                     </div>
 
@@ -1059,4 +1052,3 @@
 </div>
 
 @include('instruments.partials.pra_history_modal')
-

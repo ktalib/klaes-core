@@ -161,7 +161,7 @@
         <div class="form-group span-3"><label>Remarks</label><textarea name="remarks" maxlength="1000">{{ $v('remarks') }}</textarea></div>
     </div>
     <div class="form-actions">
-        <div class="left"><a class="btn btn-secondary" href="{{ route('survey-module.gkn.computation-files') }}"><i class="fas fa-times"></i> Close</a></div>
+        <div class="left"><button type="button" class="btn btn-secondary" onclick="document.getElementById('cfForm').classList.remove('open')"><i class="fas fa-times"></i> Close</button></div>
         <div class="right"><button class="btn btn-success" type="submit"><i class="fas fa-check"></i> {{ $e ? 'Save Changes' : 'Commission' }}</button></div>
     </div>
 </form>

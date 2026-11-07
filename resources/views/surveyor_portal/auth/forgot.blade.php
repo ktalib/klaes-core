@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.guest')
 
-@section('title', 'Forgot password — KSSGOF Portal')
+@section('title', 'Forgot password — KNSSGOF Portal')
 
 @section('card')
     <h1 class="text-lg font-bold mb-1">Forgot password</h1>

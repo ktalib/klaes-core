@@ -1,7 +1,7 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Request Beacons — KSSGOF Portal')
-@section('heading', 'Request Beacons')
+@section('title', 'Requested Beacons — KNSSGOF Portal')
+@section('heading', 'Requested Beacons')
 
 @push('styles')
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -22,7 +22,46 @@
 @endpush
 
 @section('main')
-    @php $me = auth('surveyor')->user(); @endphp
+    @php
+        $me = auth('surveyor')->user();
+        $tab = $tab ?? 'request';
+        $beaconTabUrl = route('surveyor-portal.requests.create', ['tab' => 'beacons']);
+    @endphp
+    <nav class="flex gap-2 mb-4" role="tablist" aria-label="Requested Beacons">
+        <a class="ks-btn {{ $tab === 'request' ? 'ks-btn-primary' : 'ks-btn-light' }}"
+           role="tab" aria-selected="{{ $tab === 'request' ? 'true' : 'false' }}"
+           href="{{ route('surveyor-portal.requests.create') }}">Beacon Request</a>
+        <a class="ks-btn {{ $tab === 'beacons' ? 'ks-btn-primary' : 'ks-btn-light' }}"
+           role="tab" aria-selected="{{ $tab === 'beacons' ? 'true' : 'false' }}"
+           href="{{ $beaconTabUrl }}">Beacons</a>
+    </nav>
+    @if ($tab === 'beacons')
+        <div class="ks-card overflow-x-auto">
+            <table class="ks-table">
+                <thead><tr><th>S/N</th><th>Beacon No.</th><th>Request No.</th><th>Issue Date</th><th>Plot No.</th><th>District</th><th>LGA</th></tr></thead>
+                <tbody>
+                    @forelse ($beacons as $beacon)
+                        @php
+                            $register = $beacon->register;
+                            $beaconRequest = $register?->request;
+                        @endphp
+                        <tr>
+                            <td>{{ $beacons->firstItem() + $loop->index }}</td>
+                            <td class="font-semibold">{{ \App\Models\Survey\SurveyBeaconRegister::display($beacon->beacon_no) }}</td>
+                            <td><a href="{{ route('surveyor-portal.requests.show', $beaconRequest) }}" style="color:var(--ks-blue);font-weight:600;">{{ $beaconRequest->request_no }}</a></td>
+                            <td>{{ optional($register->issue_date)->format('d/m/Y') ?: '—' }}</td>
+                            <td>{{ $beaconRequest->plot_no ?: '—' }}</td>
+                            <td>{{ $beaconRequest->district ?: '—' }}</td>
+                            <td>{{ $beaconRequest->lga ? mb_strtoupper($beaconRequest->lga) : '—' }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="7" class="ks-help" style="text-align:center;padding:24px;">No issued beacons yet.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-4">{{ $beacons->links() }}</div>
+    @else
     <form method="POST" action="{{ route('surveyor-portal.requests.store') }}" class="ks-card p-6 space-y-4" style="max-width:720px;">
         @csrf
         <div>
@@ -78,6 +117,7 @@
             <div class="flex flex-wrap items-center justify-between gap-3" style="margin-top:6px;">
                 <span class="ks-help" id="brqPinText">No pin yet.</span>
                 <span class="flex gap-2">
+                    <button type="button" class="ks-btn ks-btn-light" id="brqPinLga" style="padding:6px 12px;">Pin on Map</button>
                     <button type="button" class="ks-btn ks-btn-light" id="brqLocate" style="padding:6px 12px;">Use my location</button>
                     <button type="button" class="ks-btn ks-btn-light" id="brqClear" style="padding:6px 12px;" hidden>Remove pin</button>
                 </span>
@@ -92,6 +132,7 @@
         </div>
         <div class="flex justify-end"><button class="ks-btn ks-btn-primary">Send to the Surveyor General</button></div>
     </form>
+    @endif
 @endsection
 
 @push('scripts')
@@ -130,9 +171,10 @@
     var box = document.getElementById('brqMap');
     if (!box) return;
     var lat = document.getElementById('brqLat'), lng = document.getElementById('brqLng'), text = document.getElementById('brqPinText'),
-        clear = document.getElementById('brqClear'), locate = document.getElementById('brqLocate');
+        clear = document.getElementById('brqClear'), locate = document.getElementById('brqLocate'),
+        pinLga = document.getElementById('brqPinLga');
     // The map is optional: without it (no connection to the map server) the form still sends.
-    if (!window.L) { box.style.display = 'none'; locate.hidden = true; text.textContent = 'The map could not load. You can still send the request.'; return; }
+    if (!window.L) { box.style.display = 'none'; locate.hidden = true; pinLga.hidden = true; text.textContent = 'The map could not load. You can still send the request.'; return; }
 
     var map = L.map(box, { center: [12.0022, 8.5920], zoom: 10, minZoom: 6, maxZoom: 19 });
     var lgaCenters = @json(\App\Services\Survey\KanoLgaMapCenters::CENTERS), lga = document.getElementById('lga');
@@ -154,14 +196,24 @@
     }
     function placeAtLga(name) {
         var center = lgaCenters[name];
-        if (!center) return;
+        if (!name) {
+            text.textContent = 'Select an LGA to pin its approximate center.';
+            return false;
+        }
+        if (!center) {
+            text.textContent = 'Could not find the approximate center for ' + name + '. Click the map to place a pin.';
+            return false;
+        }
         var ll = L.latLng(center[0], center[1]);
         place(ll);
+        map.invalidateSize();
         map.setView(ll, 12);
         text.textContent = 'Pin placed near the center of ' + name + '. Drag it to the exact survey location.';
+        return true;
     }
     map.on('click', function (e) { place(e.latlng); });
     lga.addEventListener('change', function () { placeAtLga(lga.value); });
+    pinLga.addEventListener('click', function () { placeAtLga(lga.value); });
     clear.addEventListener('click', function () {
         if (pin) { map.removeLayer(pin); pin = null; }
         lat.value = ''; lng.value = '';

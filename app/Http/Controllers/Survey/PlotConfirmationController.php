@@ -12,6 +12,8 @@ use App\Models\Survey\SurveyTpNumber;
 use App\Services\Survey\BeaconNumberCheck;
 use App\Services\Survey\OpLookup;
 use App\Services\Survey\OpTpGroups;
+use App\Services\Pra\PraRecordService;
+use App\Services\OpSerialGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -86,7 +88,11 @@ class PlotConfirmationController extends Controller
                 default  => $showings->with('photos', 'groundChecks:id,survey_op_showing_id,check_ref,result')->orderByDesc('shown_on')->orderByDesc('id')->paginate(20)->withQueryString(),
             },
             'editOld'  => $gkn && $r->query('edit') ? Showing::where('op_source', Showing::SOURCE_OLD)->find((int) $r->query('edit')) : null,
-        ] + ($gkn ? app(ConfirmationFormController::class)->panelData($r) : []));
+        ] + ($gkn ? [
+            'opCaptureLandUses' => \App\Models\LandUse::orderBy('landuse')->pluck('landuse'),
+            'opCaptureDistricts' => LookupController::options('districts'),
+            'opCaptureLgas' => LookupController::options('lgas'),
+        ] + app(ConfirmationFormController::class)->panelData($r) : []));
     }
 
     /** OPs for the Record Plot Showing form: Deeds OPs by OP serial number only (user, 2026-11-03), with the next showing. */
@@ -102,6 +108,283 @@ class PlotConfirmationController extends Controller
         if ($group < 1) return response()->json([]);
 
         return response()->json($this->opRows($ops->inGroup($group, (string) $r->query('plot', ''))));
+    }
+
+    /** Search active file-indexing records for the OP capture modal. */
+    public function indexedFileSearch(Request $r)
+    {
+        $search = trim((string) $r->query('search', ''));
+        if (mb_strlen($search) < 2) {
+            return response()->json(['files' => [], 'has_more' => false]);
+        }
+
+        $page = max(1, (int) $r->query('page', 1));
+        $limit = min(50, max(1, (int) $r->query('limit', 20)));
+        $columns = ['file_number', 'temp_file_no', 'mls_file_no', 'kangis_file_no', 'new_kangis_file_no'];
+        $union = null;
+
+        foreach ($columns as $column) {
+            $query = DB::connection('sqlsrv')->table('file_indexings')
+                ->selectRaw("LTRIM(RTRIM([$column])) AS file_number")
+                ->whereNotNull($column)
+                ->whereRaw("LTRIM(RTRIM([$column])) <> ''")
+                ->whereRaw("LTRIM(RTRIM([$column])) LIKE ?", ['%' . $search . '%'])
+                ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0));
+
+            if ($union === null) {
+                $union = $query;
+            } else {
+                $union->union($query);
+            }
+        }
+
+        $matches = DB::connection('sqlsrv')->query()
+            ->fromSub($union, 'indexed_files')
+            ->select('file_number')
+            ->distinct()
+            ->orderBy('file_number')
+            ->offset(($page - 1) * $limit)
+            ->limit($limit + 1)
+            ->get();
+
+        return response()->json([
+            'files' => $matches->take($limit)->map(fn ($row) => ['file_number' => $row->file_number])->values(),
+            'has_more' => $matches->count() > $limit,
+        ]);
+    }
+
+    /** Capture a missing OP from the Plot Showing form and return it for immediate selection. */
+    public function storeShowingOp(Request $r, OpLookup $ops, PraRecordService $pra)
+    {
+        $data = $r->validate([
+            'file_number' => 'nullable|string|max:255',
+            'op_serial_number' => ['required', 'string', 'max:100'],
+            'op_type' => ['nullable', 'string', Rule::in(['Resettlement', 'Direct Allocation', 'Other'])],
+            'op_type_other' => 'nullable|string|max:100',
+            'transaction_date' => 'nullable|date',
+            'land_use' => ['nullable', 'string', Rule::in(\App\Models\LandUse::orderBy('landuse')->pluck('landuse')->all())],
+            'grantor' => ['required', 'string', Rule::in(['KANO STATE GOVERNMENT'])],
+            'grantee' => 'required|string|max:255',
+            'serialNo' => 'nullable|string|max:100',
+            'volumeNo' => 'nullable|string|max:100',
+            'deeds_date' => 'nullable|date',
+            'deeds_time' => 'nullable|string|max:20',
+            'plot_no' => 'nullable|string|max:100',
+            'tp_no' => 'nullable|string|max:255',
+            'district' => ['nullable', 'string', Rule::in(LookupController::options('districts'))],
+            'lga' => ['nullable', 'string', Rule::in(LookupController::options('lgas'))],
+            'plot_size' => 'nullable|string|max:100',
+        ], [
+            'grantor.required' => 'Enter the grantor or issuing authority.',
+            'grantee.required' => 'Enter the allottee name.',
+        ]);
+
+        $typeErrors = \App\Support\OpType::errors(
+            $data['op_type'] ?? null,
+            $data['op_type_other'] ?? null,
+            'op_type_other'
+        );
+        if ($typeErrors) {
+            throw ValidationException::withMessages($typeErrors);
+        }
+
+        $serialNumber = trim((string) $data['op_serial_number']);
+        if (! \App\Support\OpSerial::manualValid($serialNumber)) {
+            throw ValidationException::withMessages([
+                'op_serial_number' => 'Enter a positive OP serial number without leading zeros.',
+            ]);
+        }
+        if ($ops->exactSerial($serialNumber, 1)) {
+            throw ValidationException::withMessages([
+                'op_serial_number' => 'An Occupancy Permit with this serial number is already captured.',
+            ]);
+        }
+
+        $saved = DB::connection('sqlsrv')->transaction(function () use ($data, $pra, $serialNumber) {
+            $identifiers = $this->showingOpFileIdentifiers(trim((string) ($data['file_number'] ?? '')));
+            if ($identifiers === null) {
+                $sequenceId = DB::connection('sqlsrv')->table('temp_fileno_sequence')->insertGetId([
+                    'created_by' => auth()->id(),
+                    'is_used' => 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                $identifiers = ['temp_fileno' => 'TEMP-' . str_pad((string) $sequenceId, 5, '0', STR_PAD_LEFT)];
+            }
+
+            $indexed = $this->showingOpFileDetails($data['file_number'] ?? null, $identifiers);
+            $plotNo = trim((string) ($data['plot_no'] ?? '')) ?: trim((string) ($indexed->plot_number ?? ''));
+            if ($plotNo === '') {
+                throw ValidationException::withMessages([
+                    'plot_no' => 'Enter the plot number for the Occupancy Permit.',
+                ]);
+            }
+
+            $serial = app(OpSerialGenerator::class)->resolve(
+                false,
+                $serialNumber,
+                null,
+                'op_serial_number'
+            );
+            $grantor = 'KANO STATE GOVERNMENT';
+            $grantee = trim($data['grantee']);
+            $district = trim((string) ($data['district'] ?? ''));
+            $lga = trim((string) ($data['lga'] ?? ''));
+            $locationParts = array_filter([$district, $lga]);
+            $location = $locationParts ? implode(', ', array_merge($locationParts, ['Kano State'])) : null;
+            $tpNo = trim((string) ($data['tp_no'] ?? '')) ?: trim((string) ($indexed->tp_no ?? ''));
+            $registrationSerial = trim((string) ($data['serialNo'] ?? ''));
+            $regNo = implode('/', [
+                $registrationSerial ?: '0',
+                $registrationSerial ?: '0',
+                trim((string) ($data['volumeNo'] ?? '')) ?: '0',
+            ]);
+
+            return $pra->createRecord(array_merge($identifiers, $serial, [
+                'transaction_type' => 'Occupancy Permit (OP)',
+                'instrument_type' => 'Occupancy Permit (OP)',
+                'source' => 'Plot Showing Register',
+                'op_source' => 'Ministry',
+                'op_source_other' => null,
+                'op_type' => $data['op_type'] ?? null,
+                'op_type_other' => \App\Support\OpType::otherFor(
+                    $data['op_type'] ?? null,
+                    $data['op_type_other'] ?? null
+                ),
+                'transaction_date' => $data['transaction_date'] ?? null,
+                'land_use' => trim((string) ($data['land_use'] ?? '')) ?: $this->showingOpLandUse($indexed->land_use_type ?? null),
+                'Grantor' => $grantor,
+                'Grantee' => $grantee,
+                'regNo' => $regNo,
+                'serialNo' => $registrationSerial ?: null,
+                'pageNo' => $registrationSerial ?: null,
+                'volumeNo' => $data['volumeNo'] ?? null,
+                'deeds_date' => $data['deeds_date'] ?? null,
+                'deeds_time' => $data['deeds_time'] ?? null,
+                'plot_no' => $plotNo,
+                'tp_no' => $tpNo ?: null,
+                'districtName' => $district ?: null,
+                'lgsaOrCity' => $lga ?: null,
+                'location' => $location ?: null,
+                'property_description' => $location ?: null,
+                'plot_size' => trim((string) ($data['plot_size'] ?? '')) ?: ($indexed->plot_size ?? null),
+                'status' => 'Active',
+            ]), auth()->id());
+        });
+
+        $id = (int) ($saved['id'] ?? 0);
+        $op = $id > 0 ? $ops->find('pra-' . $id) : null;
+        if (! $op) {
+            throw new \RuntimeException('The Occupancy Permit was saved but could not be loaded for Plot Showing.');
+        }
+
+        return response()->json([
+            'success' => true,
+            'op' => $this->opRows([$op])[0],
+        ]);
+    }
+
+    /**
+     * Resolve a selected file number to the identifier columns PRA uses. An empty
+     * selection deliberately returns null so the caller allocates a TEMP number.
+     */
+    private function showingOpFileIdentifiers(string $fileNumber): ?array
+    {
+        if ($fileNumber === '') {
+            return null;
+        }
+
+        $file = DB::connection('sqlsrv')->table('fileNumber')
+            ->where(function ($q) use ($fileNumber) {
+                $q->where('mlsfNo', $fileNumber)
+                    ->orWhere('kangisFileNo', $fileNumber)
+                    ->orWhere('NewKANGISFileNo', $fileNumber);
+            })
+            ->first(['mlsfNo', 'kangisFileNo', 'NewKANGISFileNo']);
+
+        if ($file) {
+            return [
+                'mlsFNo' => $file->mlsfNo,
+                'kangisFileNo' => $file->kangisFileNo,
+                'NewKANGISFileno' => $file->NewKANGISFileNo,
+            ];
+        }
+
+        $application = DB::connection('sqlsrv')->table('mother_applications')
+            ->where('fileno', $fileNumber)
+            ->orWhere('np_fileno', $fileNumber)
+            ->first(['fileno', 'np_fileno']);
+
+        if ($application) {
+            return [
+                'fileno' => $application->fileno,
+                'np_fileno' => $application->np_fileno,
+            ];
+        }
+
+        $indexed = DB::connection('sqlsrv')->table('file_indexings')
+            ->where(function ($q) use ($fileNumber) {
+                $q->where('file_number', $fileNumber)
+                    ->orWhere('temp_file_no', $fileNumber)
+                    ->orWhere('mls_file_no', $fileNumber)
+                    ->orWhere('kangis_file_no', $fileNumber)
+                    ->orWhere('new_kangis_file_no', $fileNumber);
+            })
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->orderByDesc('id')
+            ->first(['file_number', 'temp_file_no', 'mls_file_no', 'kangis_file_no', 'new_kangis_file_no']);
+
+        if ($indexed) {
+            return [
+                'mlsFNo' => $indexed->mls_file_no ?: ($indexed->temp_file_no ? null : $indexed->file_number),
+                'kangisFileNo' => $indexed->kangis_file_no,
+                'NewKANGISFileno' => $indexed->new_kangis_file_no,
+                'temp_fileno' => $indexed->temp_file_no,
+            ];
+        }
+
+        throw ValidationException::withMessages([
+            'file_number' => 'Select a file number from the search results, or clear the selection to generate a temporary file number.',
+        ]);
+    }
+
+    /** Property details for a selected file number, used only to fill gaps in the modal. */
+    private function showingOpFileDetails(?string $fileNumber, array $identifiers): ?object
+    {
+        $numbers = array_values(array_filter(array_unique(array_merge(
+            [$fileNumber],
+            array_values($identifiers)
+        ))));
+        if (! $numbers) {
+            return null;
+        }
+
+        return DB::connection('sqlsrv')->table('file_indexings')
+            ->where(function ($q) use ($numbers) {
+                foreach ($numbers as $number) {
+                    $q->orWhere('file_number', $number)
+                        ->orWhere('temp_file_no', $number)
+                        ->orWhere('mls_file_no', $number)
+                        ->orWhere('kangis_file_no', $number)
+                        ->orWhere('new_kangis_file_no', $number);
+                }
+            })
+            ->orderByDesc('id')
+            ->first(['plot_number', 'tp_no', 'district', 'lga', 'location', 'property_description', 'land_use_type', 'plot_size']);
+    }
+
+    private function showingOpLandUse(?string $value): ?string
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        $normalized = strtoupper(app(\App\Services\Prs\Support\LandUseNormalizer::class)->normalize($value));
+        $options = \App\Models\LandUse::orderBy('landuse')->pluck('landuse')
+            ->map(fn ($landUse) => strtoupper(trim((string) $landUse)));
+
+        return $options->first(fn ($landUse) => $landUse === $normalized);
     }
 
     /** OPs as the form uses them, with the next showing and the register row for the layout. */

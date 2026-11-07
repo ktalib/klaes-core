@@ -38,9 +38,9 @@
 <header class="bg-white" style="border-bottom:1px solid var(--ks-line);">
     <div class="mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3" style="max-width:1120px;">
         <a href="{{ route('surveyor-portal.dashboard') }}" class="flex items-center gap-3" style="text-decoration:none;color:inherit;">
-            <img src="{{ asset('assets/logo/kssgof-logo.png') }}" alt="" width="44" height="44" style="width:44px;height:44px;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);">
+            <img src="{{ asset('assets/logo/knssgof-logo.png') }}" alt="KNSSGOF seal" width="44" height="44" style="width:44px;height:44px;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);">
             <span>
-                <span class="block font-extrabold tracking-wide" style="color:var(--ks-blue);font-size:17px;line-height:1.1;">KSSGOF</span>
+                <span class="block font-extrabold tracking-wide" style="color:var(--ks-blue);font-size:17px;line-height:1.1;">KNSSGOF</span>
                 <span class="block ks-help" style="font-size:12px;">Surveyor General's Office Portal</span>
             </span>
         </a>
@@ -70,7 +70,7 @@
             <div class="ks-sidebar-label">Workspace</div>
             <nav class="ks-sidebar-nav">
                 <a class="{{ request()->routeIs('surveyor-portal.dashboard') ? 'on' : '' }}" href="{{ route('surveyor-portal.dashboard') }}"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
-                <a class="{{ request()->routeIs('surveyor-portal.requests.*') ? 'on' : '' }}" href="{{ route('surveyor-portal.requests.create') }}"><i data-lucide="plus-circle" class="w-4 h-4"></i> Request Beacons</a>
+                <a class="{{ request()->routeIs('surveyor-portal.requests.*') ? 'on' : '' }}" href="{{ route('surveyor-portal.requests.create') }}"><i data-lucide="plus-circle" class="w-4 h-4"></i> Requested Beacons</a>
                 <a class="{{ request()->routeIs('surveyor-portal.notifications') ? 'on' : '' }}" href="{{ route('surveyor-portal.notifications') }}"><i data-lucide="bell" class="w-4 h-4"></i><span>Notifications</span> @if ($unread)<span class="ks-badge issued">{{ $unread }}</span>@endif</a>
             </nav>
         </aside>

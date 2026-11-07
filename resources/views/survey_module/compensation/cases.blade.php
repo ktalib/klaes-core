@@ -4,7 +4,7 @@
   // Opened from the sidebar's Plot Showing Register (?view=showing, user 2026-11-02): same page, that title.
   $isShowingRegister = request('view') === 'showing';
   $PageTitle = $isShowingRegister ? 'Plot Showing Register' : 'Farm Assessment';
-  $PageDescription = "Each farmer's land (formerly compensation cases). Capture Land: Capture New Farm for a land assessed now, Capture Existing Farmers List for a record kept on paper.";
+  $PageDescription = "Each farmer's land (formerly compensation cases). Capture Land: Capture New Farm for a land assessed now, Capture Existing Farm Record for a record kept on paper.";
 @endphp
 
 @section('page-title', $PageTitle . ' — KLAES')

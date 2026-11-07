@@ -57,9 +57,13 @@
                     <th></th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="coordinateRegisterRows">
+                @php $lastGroup = null; @endphp
                 @forelse ($points as $p)
                     @php
+                        $groupLetter = (string) $p->group_letter;
+                        $isGroupHead = $groupLetter !== $lastGroup;
+                        if ($isGroupHead) $lastGroup = $groupLetter;
                         $open = match ($p->source) {
                             'its'     => route('survey-module.gkn.coordinates.show', $p->link),
                             'private' => route('survey-module.workflow.private.coordinates.show', $p->link),
@@ -69,10 +73,22 @@
                             default   => null,
                         };
                     @endphp
-                    <tr>
-                        <td>{{ $points->firstItem() + $loop->index }}</td>
+                    <tr @if ($isGroupHead) class="cr-coordinate-group-head" data-group="{{ $groupLetter }}" tabindex="0" aria-expanded="false" onclick="crToggleCoordinateGroup(this, event)" onkeydown="if (event.target === this && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); crToggleCoordinateGroup(this, event); }" @else class="cr-coordinate-group-row" data-group="{{ $groupLetter }}" hidden @endif>
+                        <td>
+                            @if ($isGroupHead && (int) ($groupCounts[$groupLetter] ?? 0) > 1)
+                                <button type="button" class="cr-coordinate-group-toggle" aria-label="Expand {{ $groupLetter === '#' ? 'other' : $groupLetter }} points" aria-expanded="false" onclick="event.stopPropagation(); crToggleCoordinateGroup(this.closest('tr'), event)">
+                                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                                </button>
+                            @endif
+                            {{ $loop->iteration }}
+                        </td>
                         <td>{!! $chip(CR::SOURCES[$p->source] ?? $p->source, $colours[$p->source] ?? 'gray') !!}</td>
-                        <td><strong>{{ $p->point_id }}</strong></td>
+                        <td>
+                            <strong>{{ $p->point_id }}</strong>
+                            @if ($isGroupHead)
+                                <span class="cr-coordinate-group-label">{{ $groupLetter === '#' ? 'Other' : $groupLetter }} · {{ number_format((int) ($groupCounts[$groupLetter] ?? 0)) }} points</span>
+                            @endif
+                        </td>
                         <td style="text-align:right;font-family:monospace;">{{ $n($p->northing) }}</td>
                         <td style="text-align:right;font-family:monospace;">{{ $n($p->easting) }}</td>
                         <td style="text-align:right;font-family:monospace;">{{ $n($p->elevation) }}</td>
@@ -105,7 +121,30 @@
         </table>
     </div>
     <div class="table-footer">
-        <span>Showing {{ $points->firstItem() ?? 0 }}–{{ $points->lastItem() ?? 0 }} of {{ number_format($points->total()) }} points · read-only; edit them where they were recorded</span>
-        <div class="pagination">{{ $points->links() }}</div>
+        <span>{{ number_format($points->count()) }} points · read-only; edit them where they were recorded</span>
     </div>
 </div>
+
+<style>
+    .cr-coordinate-group-head { cursor:pointer; }
+    .cr-coordinate-group-head:hover td { background:var(--gray-50,#f9fafb); }
+    .cr-coordinate-group-head[aria-expanded="true"] td { background:#eef2ff; }
+    .cr-coordinate-group-head:focus-visible { outline:2px solid var(--primary,#2563eb); outline-offset:-2px; }
+    .cr-coordinate-group-toggle { margin-right:6px;color:var(--gray-500,#6b7280);background:transparent;border:0;padding:2px; }
+    .cr-coordinate-group-toggle i { width:14px;transition:transform .15s; }
+    .cr-coordinate-group-head[aria-expanded="true"] .cr-coordinate-group-toggle i { transform:rotate(90deg); }
+    .cr-coordinate-group-label { display:block;font-size:12px;color:var(--gray-500,#6b7280); }
+    .cr-coordinate-group-row[hidden] { display:none; }
+</style>
+<script>
+    function crToggleCoordinateGroup(row, event) {
+        if (event && event.target.closest('a, [x-data]')) return;
+        var expanded = row.getAttribute('aria-expanded') !== 'true';
+        row.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        var button = row.querySelector('.cr-coordinate-group-toggle');
+        if (button) button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        document.querySelectorAll('#coordinateRegisterRows .cr-coordinate-group-row').forEach(function (item) {
+            if (item.dataset.group === row.dataset.group) item.hidden = !expanded;
+        });
+    }
+</script>

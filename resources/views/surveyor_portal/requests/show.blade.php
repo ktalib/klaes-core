@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', $request->request_no . ' — KSSGOF Portal')
+@section('title', $request->request_no . ' — KNSSGOF Portal')
 @section('heading', 'Request ' . $request->request_no)
 
 @section('main')

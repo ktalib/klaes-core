@@ -794,7 +794,7 @@
     </div>
 </div>
 @else
-{{-- By group (CR 03112026 item 14): every number under its letters, whatever the date. Click a group to open it. --}}
+{{-- By group: every number whose beacon starts with the same letter, whatever the suffix or date. --}}
 @php
     $groupBase = \Illuminate\Support\Arr::except(request()->query(), ['group', 'gpage', 'edit', 'new']);
     $groupMax = \App\Services\Survey\BeaconPool::MAX_SEQ;
@@ -840,7 +840,7 @@
                                             @foreach ($groupNumbers as $n)
                                                 @php $line = $n->register; @endphp
                                                 <tr>
-                                                    <td>{{ $groupNumbers->firstItem() + $loop->index }}</td>
+                                                    <td>{{ $loop->iteration }}</td>
                                                     <td style="white-space:nowrap;"><strong>{{ \App\Models\Survey\SurveyBeaconRegister::display($n->beacon_no) }}</strong></td>
                                                     <td style="white-space:nowrap;">{{ optional($line?->issue_date)->format('d/m/Y') ?: '—' }}</td>
                                                     <td style="white-space:nowrap;">{{ $line?->layout_type_label ?: '—' }}</td>
@@ -857,8 +857,7 @@
                                     </table>
                                 </div>
                                 <div class="table-footer">
-                                    <span>Showing {{ $groupNumbers->firstItem() ?? 0 }}–{{ $groupNumbers->lastItem() ?? 0 }} of {{ number_format($groupNumbers->total()) }} numbers</span>
-                                    <div class="pagination">{{ $groupNumbers->links() }}</div>
+                                    <span>Showing {{ $groupNumbers->count() ? 1 : 0 }}–{{ $groupNumbers->count() }} of {{ number_format($groupNumbers->count()) }} numbers</span>
                                 </div>
                             </td>
                         </tr>

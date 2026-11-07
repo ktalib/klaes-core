@@ -413,7 +413,7 @@
                                 @elseif ($tab === 'entered')
                                     No captured lands yet.
                                     Use <strong>Capture Land</strong>: <a href="{{ route('survey-module.compensation.cases.register') }}">Capture New Farm</a> or
-                                    <a href="{{ route('survey-module.compensation.capture-list') }}">Capture Existing Farmers List (paper record)</a>.
+                                    <a href="{{ route('survey-module.compensation.capture-list') }}">Capture Existing Farm Record (paper record)</a>.
                                 @else
                                     No imported lands.
                                 @endif

@@ -144,7 +144,7 @@
             <label>TP No. <span class="required">*</span></label>
             <select id="pcTpGroup" class="sv-searchable">
                 <option value="">— Select TP No. —</option>
-                @foreach ($tpGroups as $g)<option value="{{ $g->id }}">{{ $g->label }} ({{ number_format($g->op_count) }} OPs)</option>@endforeach
+                @foreach ($tpGroups as $g)<option value="{{ $g->id }}" data-tp="{{ $g->label }}">{{ $g->label }} ({{ number_format($g->op_count) }} OPs)</option>@endforeach
             </select>
             <p class="helper-text">{{ number_format($tpGroups->count()) }} layouts, grouped from the TP numbers on the OPs.</p>
         </div>
@@ -171,6 +171,10 @@
             <input type="hidden" name="op_label" id="pcOpLabel" value="{{ old('op_label') }}">
             <div id="pcOpResults" style="display:none;position:absolute;z-index:60;left:0;right:0;top:100%;max-height:260px;overflow:auto;background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);"></div>
             <p class="helper-text">Find it by serial number.</p>
+            <label style="display:flex;align-items:center;gap:7px;margin-top:8px;font-weight:500;">
+                <input type="checkbox" id="pcNoOp" style="width:auto;">
+                OP is not captured — capture it now
+            </label>
         </div>
         {{-- Property order: Plot No., District, LGA, Location (backfilled from the OP). --}}
         <div class="form-group"><label>Allottee</label><input type="text" id="pcAllottee" readonly tabindex="-1" style="background:var(--gray-100);"></div>
@@ -340,6 +344,134 @@
     </div>
 </form>
 
+<div id="pcOpCaptureModal" class="pc-op-modal" role="dialog" aria-modal="true" aria-labelledby="pcOpCaptureTitle" style="display:none;">
+    <div class="pc-op-modal-card">
+        <div class="pc-op-modal-heading">
+            <div>
+                <h3 id="pcOpCaptureTitle">Capture Occupancy Permit</h3>
+                <p>Save the OP to PRA. The saved OP and property details will be added to Plot Showing.</p>
+            </div>
+            <button type="button" id="pcOpCaptureClose" class="pc-op-modal-close" aria-label="Close">&times;</button>
+        </div>
+        <form id="pcOpCaptureForm" data-store="{{ route('survey-module.compensation.plot-confirmations.ops.store') }}"
+              data-file-search="{{ route('survey-module.compensation.plot-confirmations.file-search') }}"
+              data-file-property="{{ url('/api/pra/v1/records/property-by-file') }}">
+            @csrf
+            <div id="pcOpCaptureErrors" class="comp-type-note" style="display:none;margin-bottom:12px;border-color:#fecaca;background:#fef2f2;color:#991b1b;"></div>
+            <div class="pc-op-modal-grid">
+                <div class="form-group pc-op-modal-full" style="position:relative;">
+                    <label for="pcOpFileSearch">File Number <span class="pc-op-optional">(optional)</span></label>
+                    <input type="search" id="pcOpFileSearch" autocomplete="off" placeholder="Search and select a file number">
+                    <input type="hidden" name="file_number" id="pcOpFileNumber">
+                    <div id="pcOpFileResults" class="pc-op-file-results" style="display:none;"></div>
+                    <div id="pcOpFileSelected" class="pc-op-file-selected" style="display:none;"></div>
+                    <p class="helper-text">If you leave this empty, a temporary file number will be generated when you save.</p>
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCaptureType">OP Type</label>
+                    <select id="pcOpCaptureType" name="op_type">
+                        <option value="">— Select type —</option>
+                        <option value="Resettlement">Resettlement</option>
+                        <option value="Direct Allocation">Direct Allocation</option>
+                        <option value="Other">Other (specify)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="pcOpCaptureTypeOtherBox" style="display:none;">
+                    <label for="pcOpCaptureTypeOther">Specify OP Type <span class="required">*</span></label>
+                    <input type="text" id="pcOpCaptureTypeOther" name="op_type_other" maxlength="100" disabled>
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCaptureSerial">OP Serial Number <span class="required">*</span></label>
+                    <input type="text" id="pcOpCaptureSerial" name="op_serial_number" inputmode="numeric" pattern="[1-9][0-9]*" maxlength="100" required>
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCaptureDate">Transaction / Commencement Date</label>
+                    <input type="date" id="pcOpCaptureDate" name="transaction_date">
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCaptureLandUse">Land Use</label>
+                    <select id="pcOpCaptureLandUse" name="land_use">
+                        <option value="">— Select land use —</option>
+                        @foreach ($opCaptureLandUses as $landUse)
+                            <option value="{{ $landUse }}">{{ $landUse }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCaptureGrantor">Grantor <span class="required">*</span></label>
+                    <input type="text" id="pcOpCaptureGrantor" name="grantor" value="KANO STATE GOVERNMENT" maxlength="255" readonly required>
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCaptureGrantee">Grantee / Allottee <span class="required">*</span></label>
+                    <input type="text" id="pcOpCaptureGrantee" name="grantee" maxlength="255" required>
+                </div>
+                <div class="pc-op-registration-row">
+                    <div class="form-group">
+                        <label for="pcOpCaptureRegSerial">Serial No.</label>
+                        <input type="text" id="pcOpCaptureRegSerial" name="serialNo" inputmode="numeric" maxlength="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="pcOpCapturePageDisplay">Page No.</label>
+                        <input type="text" id="pcOpCapturePageDisplay" disabled aria-describedby="pcOpCapturePageHelp">
+                        <input type="hidden" id="pcOpCapturePage" name="pageNo">
+                        <span id="pcOpCapturePageHelp" class="pc-op-optional">Same as Serial No.</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="pcOpCaptureVolume">Volume No.</label>
+                        <input type="text" id="pcOpCaptureVolume" name="volumeNo" inputmode="numeric" maxlength="100">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCaptureDeedsDate">Deeds Date</label>
+                    <input type="date" id="pcOpCaptureDeedsDate" name="deeds_date">
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCaptureDeedsTime">Deeds Time</label>
+                    <input type="time" id="pcOpCaptureDeedsTime" name="deeds_time">
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCapturePlotSize">Plot Size</label>
+                    <input type="text" id="pcOpCapturePlotSize" name="plot_size" maxlength="100">
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCapturePlot">Plot No. <span class="required">*</span></label>
+                    <input type="text" id="pcOpCapturePlot" name="plot_no" maxlength="100" required>
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCaptureTp">TP No. / Layout</label>
+                    <input type="text" id="pcOpCaptureTp" name="tp_no" maxlength="255">
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCaptureDistrict">District</label>
+                    <select id="pcOpCaptureDistrict" name="district" class="sv-searchable" data-placeholder="Select or search district…">
+                        <option value="">— Select district —</option>
+                        @foreach ($opCaptureDistricts as $district)
+                            <option value="{{ $district }}">{{ $district }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="pcOpCaptureLga">LGA</label>
+                    <select id="pcOpCaptureLga" name="lga" class="sv-searchable" data-placeholder="Select LGA…">
+                        <option value="">— Select LGA —</option>
+                        @foreach ($opCaptureLgas as $lga)
+                            <option value="{{ $lga }}">{{ $lga }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="form-group pc-op-modal-full">
+                    <label for="pcOpCaptureLocation">Location (auto)</label>
+                    <input type="text" id="pcOpCaptureLocation" readonly style="background:var(--gray-100);font-weight:600;color:var(--primary);" placeholder="District, LGA, Kano State">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" id="pcOpCaptureCancel" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-success" id="pcOpCaptureSave"><i class="fas fa-check"></i> Save OP and Continue</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 // The buttons (user, 2026-11-06): the new form as Plot Showing or Ground Check, or the Old Register form.
 function pcEntry(kind, pane) {
@@ -454,6 +586,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     function pick(op) {
         current = op;
+        document.getElementById('pcNoOp').checked = false;
         fillAgainst(op);
         set('pcOp', op.key); set('pcOpLabel', 'OP ' + (op.serial || '—') + ' · ' + (op.allottee || ''));
         box.value = document.getElementById('pcOpLabel').value;
@@ -468,6 +601,262 @@ document.addEventListener('DOMContentLoaded', function () {
         plotList.style.display = 'none';
         syncRequester();
     }
+
+    var noOp = document.getElementById('pcNoOp'), captureModal = document.getElementById('pcOpCaptureModal'),
+        captureForm = document.getElementById('pcOpCaptureForm'), fileSearch = document.getElementById('pcOpFileSearch'),
+        fileResults = document.getElementById('pcOpFileResults'), selectedFileBox = document.getElementById('pcOpFileSelected'),
+        fileNumberInput = document.getElementById('pcOpFileNumber'), captureErrors = document.getElementById('pcOpCaptureErrors'),
+        fileTimer = null, selectedFile = null, fileSearchPage = 1, fileSearchToken = 0;
+    function syncCaptureLocation() {
+        var district = document.getElementById('pcOpCaptureDistrict').value.trim(),
+            lga = document.getElementById('pcOpCaptureLga').value.trim(),
+            parts = [district, lga].filter(Boolean);
+        document.getElementById('pcOpCaptureLocation').value = parts.length ? parts.concat('Kano State').join(', ') : '';
+    }
+    function normalizeLandUse(value) {
+        var normalized = String(value || '').trim().toUpperCase().replace(/^CON[\s_-]+/, '').replace(/[\s_-]+RC$/, '');
+        var choices = {
+            AGRICULTURAL: 'AGRICULTURAL', AGRICULTURE: 'AGRICULTURAL', AG: 'AGRICULTURAL',
+            COMMERCIAL: 'COMMERCIAL', COMM: 'COMMERCIAL', COM: 'COMMERCIAL',
+            INDUSTRIAL: 'INDUSTRIAL', INDUSTRY: 'INDUSTRIAL', IND: 'INDUSTRIAL',
+            RESIDENTIAL: 'RESIDENTIAL', RESIDENCIAL: 'RESIDENTIAL', RES: 'RESIDENTIAL'
+        };
+        return choices[normalized] || normalized;
+    }
+    function captureField(id, value) {
+        var field = document.getElementById(id);
+        if (!field) return;
+        if (field.tagName === 'SELECT') {
+            var wanted = id === 'pcOpCaptureLandUse' ? normalizeLandUse(value) : String(value || '').trim().toUpperCase();
+            var option = Array.prototype.find.call(field.options, function (candidate) {
+                var candidateValue = id === 'pcOpCaptureLandUse' ? normalizeLandUse(candidate.value) : candidate.value.trim().toUpperCase();
+                return candidateValue === wanted;
+            });
+            field.value = option ? option.value : '';
+            if (window.jQuery && jQuery.fn && jQuery.fn.select2 && jQuery(field).data('select2')) {
+                jQuery(field).trigger('change.select2');
+            }
+        } else {
+            field.value = value || '';
+        }
+        if (id === 'pcOpCaptureDistrict' || id === 'pcOpCaptureLga') syncCaptureLocation();
+    }
+    document.getElementById('pcOpCaptureDistrict').addEventListener('change', syncCaptureLocation);
+    document.getElementById('pcOpCaptureLga').addEventListener('change', syncCaptureLocation);
+    function openCaptureModal() {
+        captureErrors.style.display = 'none';
+        captureErrors.textContent = '';
+        captureField('pcOpCapturePlot', document.getElementById('pcPlotSearch').value.trim() || document.getElementById('pcPlot').value);
+        var groupSelect = document.getElementById('pcTpGroup');
+        var groupOption = groupSelect.options[groupSelect.selectedIndex];
+        captureField('pcOpCaptureTp', groupOption ? groupOption.dataset.tp : '');
+        captureField('pcOpCaptureDistrict', document.getElementById('pcDistrict').value);
+        captureField('pcOpCaptureLga', document.getElementById('pcLga').value);
+        captureField('pcOpCaptureGrantee', document.getElementById('pcAllottee').value);
+        captureModal.style.display = 'flex';
+        document.getElementById('pcOpCapturePlot').focus();
+    }
+    function closeCaptureModal(resetChoice) {
+        captureModal.style.display = 'none';
+        if (resetChoice) noOp.checked = false;
+    }
+    noOp.addEventListener('change', function () {
+        if (noOp.checked) {
+            openCaptureModal();
+            clearPick();
+        } else {
+            closeCaptureModal(false);
+        }
+    });
+    document.getElementById('pcOpCaptureClose').addEventListener('click', function () { closeCaptureModal(true); });
+    document.getElementById('pcOpCaptureCancel').addEventListener('click', function () { closeCaptureModal(true); });
+    captureModal.addEventListener('click', function (event) {
+        if (event.target === captureModal) closeCaptureModal(true);
+    });
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && captureModal.style.display !== 'none') closeCaptureModal(true);
+    });
+
+    var captureType = document.getElementById('pcOpCaptureType'),
+        captureTypeOther = document.getElementById('pcOpCaptureTypeOther'),
+        captureTypeOtherBox = document.getElementById('pcOpCaptureTypeOtherBox');
+    captureType.addEventListener('change', function () {
+        var otherType = captureType.value === 'Other';
+        captureTypeOtherBox.style.display = otherType ? '' : 'none';
+        captureTypeOther.disabled = !otherType;
+        captureTypeOther.required = otherType;
+        if (!otherType) captureTypeOther.value = '';
+    });
+    var regSerialInput = document.getElementById('pcOpCaptureRegSerial'),
+        pageDisplay = document.getElementById('pcOpCapturePageDisplay'),
+        pageValue = document.getElementById('pcOpCapturePage');
+    function syncRegistrationPage() {
+        pageDisplay.value = regSerialInput.value;
+        pageValue.value = regSerialInput.value;
+    }
+    regSerialInput.addEventListener('input', syncRegistrationPage);
+
+    function selectCaptureFile(file) {
+        selectedFile = file;
+        fileNumberInput.value = file.file_number;
+        fileSearch.value = '';
+        fileSearch.style.display = 'none';
+        fileResults.style.display = 'none';
+        selectedFileBox.textContent = '';
+        var text = document.createElement('span');
+        text.textContent = file.file_number + (file.applicant_name ? ' · ' + file.applicant_name : '');
+        selectedFileBox.appendChild(text);
+        var clear = document.createElement('button');
+        clear.type = 'button';
+        clear.className = 'btn btn-secondary btn-sm';
+        clear.textContent = 'Clear';
+        clear.addEventListener('click', clearCaptureFile);
+        selectedFileBox.appendChild(clear);
+        selectedFileBox.style.display = 'flex';
+        if (file.land_use) captureField('pcOpCaptureLandUse', file.land_use);
+        if (file.applicant_name && !document.getElementById('pcOpCaptureGrantee').value) {
+            captureField('pcOpCaptureGrantee', file.applicant_name);
+        }
+        fetch(captureForm.dataset.fileProperty + '/' + encodeURIComponent(file.file_number), { headers: { 'Accept': 'application/json' } })
+            .then(function (response) {
+                if (!response.ok) throw new Error('Could not load property details for the selected file.');
+                return response.json();
+            })
+            .then(function (payload) {
+                var property = payload.data;
+                if (!property) return;
+                [
+                    ['pcOpCapturePlot', property.plot_no],
+                    ['pcOpCaptureTp', property.tp_no],
+                    ['pcOpCaptureDistrict', property.district],
+                    ['pcOpCaptureLga', property.lga],
+                    ['pcOpCaptureLandUse', property.land_use],
+                    ['pcOpCaptureGrantee', property.owner_name],
+                    ['pcOpCapturePlotSize', property.plot_size],
+                ].forEach(function (pair) {
+                    if (!document.getElementById(pair[0]).value && pair[1]) captureField(pair[0], pair[1]);
+                });
+            }).catch(function (error) {
+                captureErrors.textContent = error.message;
+                captureErrors.style.display = '';
+            });
+    }
+    function clearCaptureFile() {
+        selectedFile = null;
+        fileNumberInput.value = '';
+        selectedFileBox.style.display = 'none';
+        selectedFileBox.textContent = '';
+        fileSearch.style.display = '';
+        fileSearch.value = '';
+    }
+    fileSearch.addEventListener('input', function () {
+        clearTimeout(fileTimer);
+        var term = fileSearch.value.trim();
+        fileSearchToken++;
+        fileSearchPage = 1;
+        if (term.length < 2) { fileResults.style.display = 'none'; return; }
+        fileTimer = setTimeout(function () {
+            searchCaptureFiles(term, 1, false, fileSearchToken);
+        }, 250);
+    });
+    function searchCaptureFiles(term, page, append, token) {
+        fetch(captureForm.dataset.fileSearch + '?search=' + encodeURIComponent(term) + '&limit=20&page=' + page, { headers: { 'Accept': 'application/json' } })
+            .then(function (response) {
+                if (!response.ok) throw new Error('File-number search failed.');
+                return response.json();
+            })
+            .then(function (payload) {
+                if (token !== fileSearchToken || term !== fileSearch.value.trim()) return;
+                var previousLoadMore = fileResults.querySelector('.pc-op-file-load-more');
+                if (previousLoadMore) previousLoadMore.remove();
+                if (!append) fileResults.textContent = '';
+                (payload.files || []).forEach(function (file) {
+                    var option = document.createElement('button');
+                    option.type = 'button';
+                    option.className = 'pc-op-file-result';
+                    option.textContent = file.file_number;
+                    option.addEventListener('click', function () { selectCaptureFile(file); });
+                    fileResults.appendChild(option);
+                });
+                if (!append && (!payload.files || !payload.files.length)) {
+                    var empty = document.createElement('div');
+                    empty.className = 'pc-op-file-empty';
+                    empty.textContent = 'No indexed file numbers found.';
+                    fileResults.appendChild(empty);
+                }
+                if (payload.has_more) {
+                    var loadMore = document.createElement('button');
+                    loadMore.type = 'button';
+                    loadMore.className = 'pc-op-file-result pc-op-file-load-more';
+                    loadMore.textContent = 'Load more file numbers…';
+                    loadMore.addEventListener('click', function () {
+                        fileSearchPage = page + 1;
+                        searchCaptureFiles(term, fileSearchPage, true, token);
+                    });
+                    fileResults.appendChild(loadMore);
+                }
+                fileResults.style.display = '';
+            })
+            .catch(function () {
+                if (token !== fileSearchToken) return;
+                if (!append) fileResults.textContent = '';
+                var error = document.createElement('div');
+                error.className = 'pc-op-file-empty';
+                error.textContent = 'File-number search failed. Try again.';
+                fileResults.appendChild(error);
+                fileResults.style.display = '';
+            });
+    }
+    document.addEventListener('click', function (event) {
+        if (!fileResults.contains(event.target) && event.target !== fileSearch) fileResults.style.display = 'none';
+    });
+    captureForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        captureErrors.style.display = 'none';
+        captureErrors.textContent = '';
+        if (fileSearch.value.trim() && !fileNumberInput.value) {
+            captureErrors.textContent = 'Choose a file number from the search results, or clear the search to generate a temporary file number.';
+            captureErrors.style.display = '';
+            return;
+        }
+        var save = document.getElementById('pcOpCaptureSave');
+        save.disabled = true;
+        fetch(captureForm.dataset.store, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': captureForm.querySelector('[name="_token"]').value,
+            },
+            body: new FormData(captureForm),
+        }).then(function (response) {
+            return response.json().then(function (payload) {
+                if (!response.ok) {
+                    var errors = payload.errors || {};
+                    var message = Object.keys(errors).map(function (key) { return errors[key][0]; }).filter(Boolean)[0]
+                        || payload.message || 'The Occupancy Permit could not be saved.';
+                    throw new Error(message);
+                }
+                return payload;
+            });
+        }).then(function (payload) {
+            if (!payload.success || !payload.op) throw new Error('The saved OP could not be loaded into Plot Showing.');
+            closeCaptureModal(true);
+            pick(payload.op);
+            document.getElementById('pcPlotSearch').value = payload.op.plot_no || '';
+            if (selectedFile) {
+                captureErrors.textContent = 'OP saved with file number ' + (payload.op.file_number || selectedFile.file_number) + '.';
+            }
+            captureForm.reset();
+            clearCaptureFile();
+            captureType.dispatchEvent(new Event('change'));
+            syncRegistrationPage();
+        }).catch(function (error) {
+            captureErrors.textContent = error.message;
+            captureErrors.style.display = '';
+        }).finally(function () {
+            save.disabled = false;
+        });
+    });
 
     // The layout, then the plot in it (CR 03112026 item 3). Picking a plot picks its OP; several OPs on one plot are all listed.
     var grp = document.getElementById('pcTpGroup'), plotBox = document.getElementById('pcPlotSearch'),
@@ -585,6 +974,32 @@ document.addEventListener('DOMContentLoaded', function () {
 @endif
 
 <style>
+    .pc-op-modal { position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.62); }
+    .pc-op-modal-card { width:min(940px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.3);padding:22px; }
+    .pc-op-modal-heading { display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--gray-200,#e5e7eb); }
+    .pc-op-modal-heading h3 { margin:0;color:var(--gray-900,#111827);font-size:20px;font-weight:700; }
+    .pc-op-modal-heading p { margin:5px 0 0;color:var(--gray-500,#6b7280);font-size:13px; }
+    .pc-op-modal-close { border:0;background:transparent;color:var(--gray-500,#6b7280);font-size:28px;line-height:1;cursor:pointer; }
+    .pc-op-modal-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px; }
+    .pc-op-modal-full { grid-column:1/-1; }
+    .pc-op-registration-row { grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 14px; }
+    .pc-op-modal .form-group input,.pc-op-modal .form-group select { width:100%; }
+    .pc-op-modal .form-actions { display:flex;justify-content:flex-end;gap:8px;margin-top:8px; }
+    .pc-op-optional { color:var(--gray-500,#6b7280);font-size:12px;font-weight:400; }
+    .pc-op-inline-check { display:flex;align-items:center;gap:7px;margin-top:6px;color:var(--gray-600,#4b5563);font-size:12px;font-weight:400; }
+    .pc-op-inline-check input { width:auto!important; }
+    .pc-op-file-results { position:absolute;z-index:20;top:100%;left:0;right:0;max-height:220px;overflow:auto;background:#fff;border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12); }
+    .pc-op-file-result { display:block;width:100%;padding:9px 11px;text-align:left;background:#fff;border:0;border-bottom:1px solid var(--gray-100,#f3f4f6);cursor:pointer; }
+    .pc-op-file-result:hover { background:var(--gray-50,#f9fafb); }
+    .pc-op-file-empty { padding:10px 12px;color:var(--gray-500,#6b7280);font-size:13px; }
+    .pc-op-file-selected { justify-content:space-between;align-items:center;gap:10px;margin-top:7px;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;color:#166534;font-size:13px; }
+    @media(max-width:640px) {
+        .pc-op-modal { padding:8px;align-items:flex-start; }
+        .pc-op-modal-card { max-height:96vh;padding:15px; }
+        .pc-op-modal-grid { grid-template-columns:1fr; }
+        .pc-op-modal-full { grid-column:auto; }
+        .pc-op-registration-row { grid-template-columns:1fr; }
+    }
     .survey-proto .pc-tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px; }
     .survey-proto .pc-tabs a, .survey-proto .pc-tabs button { padding:8px 14px; border-radius:8px; border:1.5px solid var(--gray-300,#d1d5db); background:#fff; cursor:pointer; font-weight:600; font-size:14px; color:var(--gray-700,#374151); text-decoration:none; }
     .survey-proto .pc-tabs a.on, .survey-proto .pc-tabs button.on { background:var(--primary); border-color:var(--primary); color:#fff; }

@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Notifications — KSSGOF Portal')
+@section('title', 'Notifications — KNSSGOF Portal')
 @section('heading', 'Notifications')
 
 @section('main')

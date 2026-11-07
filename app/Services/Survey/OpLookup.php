@@ -160,8 +160,9 @@ class OpLookup
             ->where('p.instrument_type', self::OP)
             ->whereNull('p.instrument_capture_id')
             ->where(fn ($q) => $q->whereNull('p.is_deleted')->orWhere('p.is_deleted', 0))
-            ->select(['p.id', 'p.op_serial_number', 'p.op_type', 'p.Grantee', 'p.plot_no', 'p.plot_size', 'p.districtName', 'p.location',
-                      'p.property_description', 'p.lpkn_no', 'p.tp_no', 'p.layout', 'p.temp_fileno', 'p.mlsFNo', 'p.regNo']);
+            ->select(['p.id', 'p.op_serial_number', 'p.op_type', 'p.Grantee', 'p.plot_no', 'p.plot_size', 'p.districtName', 'p.lgsaOrCity', 'p.location',
+                      'p.property_description', 'p.lpkn_no', 'p.tp_no', 'p.layout', 'p.temp_fileno', 'p.mlsFNo', 'p.kangisFileNo',
+                      'p.NewKANGISFileno', 'p.fileno', 'p.np_fileno', 'p.regNo']);
     }
 
     private function fromCapture(object $r): array
@@ -182,7 +183,8 @@ class OpLookup
             'location'    => $this->s($r->property_location) ?? $this->s($r->property_description),
             'layout'      => $this->s($r->lpkn_no) ?? $this->s($r->tp_no),
             'tp_no'       => $this->s($r->tp_no),
-            'file_number' => $this->s($r->mlsFNo) ?? $this->s($r->temp_fileno),
+            'file_number' => $this->s($r->mlsFNo) ?? $this->s($r->kangisFileNo) ?? $this->s($r->NewKANGISFileno)
+                ?? $this->s($r->fileno) ?? $this->s($r->np_fileno) ?? $this->s($r->temp_fileno),
             'reg_no'      => $this->s($r->registration_number),
             'land_use'    => $this->s($r->land_use),
         ];
@@ -202,7 +204,7 @@ class OpLookup
             'plot_no'     => $this->s($r->plot_no),
             'plot_size'   => $this->s($r->plot_size),
             'district'    => $this->s($r->districtName),
-            'lga'         => null,
+            'lga'         => $this->s($r->lgsaOrCity),
             'location'    => $this->s($r->location) ?? $this->s($r->property_description),
             'layout'      => $this->s($r->lpkn_no) ?? $this->s($r->tp_no) ?? $this->s($r->layout),
             'tp_no'       => $this->s($r->tp_no),

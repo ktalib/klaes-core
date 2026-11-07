@@ -509,7 +509,7 @@
         </div>
         @endif
 
-        {{-- KSSGOF Admin (user, 2026-11-06): the portal's staff page, beacon requests and surveyor registrations. For the SG role, as the page itself is. --}}
+        {{-- KNSSGOF Admin (user, 2026-11-06): the portal's staff page, beacon requests and surveyor registrations. For the SG role, as the page itself is. --}}
         {{-- Its two lists are items here, no tabs on the page (user, 2026-11-06). The only link to them since the one under Other Departments > SG was removed. --}}
         @if($svSg)
         @php
@@ -520,7 +520,7 @@
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-kssgof">
           <div class="flex items-center gap-2">
             <i data-lucide="shield-check" class="h-4 w-4 text-pink-500"></i>
-            <span>KSSGOF Admin</span>
+            <span>KNSSGOF Admin</span>
           </div>
           <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200 {{ $ksOn ? 'rotate-90' : '' }}" data-chevron="survey-kssgof"></i>
         </div>

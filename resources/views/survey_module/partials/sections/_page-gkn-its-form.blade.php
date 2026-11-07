@@ -25,9 +25,9 @@
             {{-- Three columns so the fields are not page-wide (user, 2026-11-03: "the form fields are too long"). --}}
             <div class="form-grid cols-3">
                 <div class="sv-group"><i class="fas fa-folder-open"></i><span>File</span></div>
-                {{-- The file comes from the global file number selector only (GKN, LPKN, Misc KN); a job keeps its file. --}}
+                {{-- The file comes from the global selector or the selected Computation File; a job keeps its file. --}}
                 <div class="form-group span-2" id="itsPicker" data-lookup="{{ route('survey-module.gkn.its.lookup') }}">
-                    <label>File Number <span class="required">*</span></label>
+                    <label>File Number</label>
                     <div style="display:flex;gap:8px;align-items:stretch;">
                         <input type="text" name="file_number" id="itsFileNumber" readonly
                                value="{{ old('file_number', $its->file_number) }}"
@@ -40,7 +40,7 @@
                         @endunless
                     </div>
                     <p class="helper-text" id="itsPickStatus">
-                        {{ $editing ? 'A survey job keeps its file.' : 'Pick the GKN, LPKN or Misc KN file; its title, plot and location are filled from the records.' }}
+                        {{ $editing ? 'A survey job keeps its file.' : 'Select a Computation File to fill its file number, or use Select File Number.' }}
                     </p>
                 </div>
 
@@ -57,6 +57,7 @@
                         <option value="">— None —</option>
                         @foreach ($computationFiles ?? [] as $cf)
                             <option value="{{ $cf->id }}" @selected($cfPick === (string) $cf->id)
+                                    data-file-number="{{ $cf->file_number }}"
                                     data-title="{{ $cf->file_title }}" data-plot="{{ $cf->plot_no }}" data-district="{{ $cf->district }}"
                                     data-lga="{{ $cf->lga }}" data-surveyor="{{ $cf->surveyors_list_id }}" data-type="{{ $cf->survey_type }}" data-beacons="{{ $cf->beacon_list }}">
                                 {{ $cf->computation_no }}{{ $cf->file_number ? ' · ' . $cf->file_number : '' }}{{ $cf->file_title ? ' · ' . \Illuminate\Support\Str::limit($cf->file_title, 40) : '' }}
@@ -66,6 +67,7 @@
                             <optgroup label="Existing LPKN files (File Indexing)">
                                 @foreach ($cfIdx as $fi)
                                     <option value="idx:{{ $fi->file_number }}" @selected($cfPick === 'idx:' . $fi->file_number)
+                                            data-file-number="{{ $fi->file_number }}"
                                             data-title="{{ $fi->file_title }}" data-plot="{{ $fi->plot_number }}" data-district="{{ $fi->district }}"
                                             data-lga="{{ $fi->lga }}" data-surveyor="">
                                         {{ $fi->file_number }}{{ $fi->file_title ? ' · ' . \Illuminate\Support\Str::limit($fi->file_title, 40) : '' }}
@@ -292,13 +294,6 @@
         });
     });
 
-    document.getElementById('itsForm').addEventListener('submit', function (e) {
-        if (!number.value.trim()) {
-            e.preventDefault();
-            say('Select the file number first.', true);
-            number.scrollIntoView({ block: 'center' });
-        }
-    });
 })();
 </script>
 @endpush
@@ -334,7 +329,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 @push('scripts')
 <script>
-// Computation File No. (user, 2026-11-02): picking one fills the title, plot, district, LGA and surveyor
+// Computation File No. (user, 2026-11-02): picking one fills the file number, title, plot, district, LGA and surveyor
 // where they are still empty; nothing typed is overwritten.
 document.addEventListener('DOMContentLoaded', function () {
     var sel = document.getElementById('itsComputation');
@@ -342,6 +337,15 @@ document.addEventListener('DOMContentLoaded', function () {
     function fill() {
         var o = sel.options[sel.selectedIndex];
         if (!o || !o.value) return;
+        if (o.dataset.fileNumber) {
+            var fileNumber = document.getElementById('itsFileNumber');
+            var status = document.getElementById('itsPickStatus');
+            if (fileNumber) fileNumber.value = o.dataset.fileNumber;
+            if (status) {
+                status.textContent = 'File number filled from ' + o.textContent.trim().split(' · ')[0] + '.';
+                status.style.color = '';
+            }
+        }
         [['itsTitle', 'title'], ['itsPlot', 'plot'], ['itsDistrict', 'district'], ['itsLga', 'lga']].forEach(function (p) {
             var el = document.getElementById(p[0]);
             if (el && !el.disabled && !el.value.trim() && o.dataset[p[1]]) el.value = o.dataset[p[1]];

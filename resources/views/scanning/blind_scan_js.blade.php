@@ -730,6 +730,7 @@
   const uploadTypeRadios = Array.from(document.querySelectorAll('input[name="uploadType"]'));
   const lfFilesEl = document.getElementById('lfFilesInput');
   const ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp', 'gif', 'webp', 'pdf'];
+  const LF_IMAGE_EXT = ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp', 'gif', 'webp'];
   // A folder goes up in batches: each request stays far below the server's
   // size limit, progress is measured on real bytes sent, and a failed batch is
   // retried on its own instead of restarting the whole folder.
@@ -817,7 +818,7 @@
     const name = (file.name || '').toLowerCase();
     if (!name || name.startsWith('.') || name === 'thumbs.db' || name === 'desktop.ini') return false;
     const ext = name.includes('.') ? name.split('.').pop() : '';
-    return ALLOWED_EXT.includes(ext);
+    return (isLfOnly() ? LF_IMAGE_EXT : ALLOWED_EXT).includes(ext);
   }
 
   const isInPaperFolder = (file, paper) =>
@@ -845,15 +846,15 @@
     const typedRaw = norm(fileNoEl.value);
     const registryOk = !!(registryEl && registryEl.value);
     const skippedNote = skippedLocal.length
-      ? `<div class="mt-1 text-xs text-muted-foreground">${skippedLocal.length} non-image file(s) will be left out (e.g. ${escapeHtml(skippedLocal[0].name)}).</div>`
+      ? `<div class="mt-1 text-xs text-muted-foreground">${skippedLocal.length} ${isLfOnly() ? 'non-image file(s)' : 'unsupported file(s)'} will be left out (e.g. ${escapeHtml(skippedLocal[0].name)}).</div>`
       : '';
 
     if (!selectedFiles.length) {
       statusEl.innerHTML = skippedLocal.length
-        ? `<span class="text-red-600">The folder has no image or PDF files.</span>${skippedNote}`
+        ? `<span class="text-red-600">${isLfOnly() ? 'No LF images were selected.' : 'The folder has no image or PDF files.'}</span>${skippedNote}`
         : (uploadTypeCheckEl && !selectedUploadType()
           ? 'Tick <b>Choose upload type</b> and pick an option to continue.'
-          : 'No folder selected.');
+          : (isLfOnly() ? 'No LF images selected.' : 'No folder selected.'));
       migrateBtn.disabled = true; ready = false; return;
     }
 
@@ -861,7 +862,8 @@
     localParentName = inferred;
 
     if (!typedRaw) {
-      statusEl.innerHTML = `Folder selected${inferred ? ` ("${escapeHtml(inferred)}")` : ''}. Click <b>Select</b> to choose the file number.${skippedNote}`;
+      const sourceLabel = isLfOnly() ? 'LF images selected' : `Folder selected${inferred ? ` ("${escapeHtml(inferred)}")` : ''}`;
+      statusEl.innerHTML = `${sourceLabel}. Click <b>Select</b> to choose the file number.${skippedNote}`;
       migrateBtn.disabled = true; ready = false; return;
     }
     if (!registryOk) {
@@ -916,13 +918,13 @@
     if (!uploadTypeCheckEl.checked) uploadTypeRadios.forEach(r => { r.checked = false; });
     document.getElementById('uploadTypeOptions').classList.toggle('hidden', !uploadTypeCheckEl.checked);
     document.getElementById('lfFilesWrap').classList.toggle('hidden', !lf);
-    folderEl.disabled = !type;
+    document.getElementById('folderPickerWrap').classList.toggle('hidden', lf);
+    folderEl.disabled = !type || lf;
+    if (lfFilesEl) lfFilesEl.disabled = !lf;
     document.getElementById('uploadTypeHint').textContent = lf
       ? 'Large-format pages added to this file. They go into its A3 folder and pages already uploaded stay as they are.'
       : (type ? 'The whole file, with its A4 and A3 subfolders.' : 'Required before a folder can be picked.');
-    document.getElementById('folderHint').textContent = lf
-      ? 'Use Chrome/Edge on desktop. Pick the folder holding the LF scans; its name does not matter.'
-      : 'Use Chrome/Edge on desktop. The folder name should match the File Number.';
+    document.getElementById('folderHint').textContent = 'Use Chrome/Edge on desktop. The folder name should match the File Number.';
     folderEl.value = '';
     if (lfFilesEl) lfFilesEl.value = '';
     setSelection([]);
@@ -1111,7 +1113,7 @@
         </div>
         ${existing && existing.blind.A4 + existing.blind.A3 + existing.edms.A4 + existing.edms.A3 ? `<div class="bsp-note"><i class="fa-solid fa-shield-halved mr-1"></i>Pages already on the server are kept. Nothing is replaced: an identical file is skipped and a different one with the same name is saved beside it.</div>` : ''}
         ${mismatch ? `<div class="bsp-warn"><i class="fa-solid fa-triangle-exclamation mr-1"></i>The folder you picked is <b>${escapeHtml(localParentName)}</b> but the file number is <b>${escapeHtml(folderName)}</b>. Check these are the right scans before uploading.</div>` : ''}
-        ${skippedLocal.length ? `<div class="bsp-note">${skippedLocal.length} non-image file(s) will be left out: ${skippedLocal.slice(0, 5).map(f => escapeHtml(f.name)).join(', ')}${skippedLocal.length > 5 ? '…' : ''}</div>` : ''}
+        ${skippedLocal.length ? `<div class="bsp-note">${skippedLocal.length} ${isLfOnly() ? 'non-image file(s)' : 'unsupported file(s)'} will be left out: ${skippedLocal.slice(0, 5).map(f => escapeHtml(f.name)).join(', ')}${skippedLocal.length > 5 ? '…' : ''}</div>` : ''}
         <div class="bsp-note">Click a thumbnail to open it full size in a new tab.</div>
         <div class="bsp-scroll">
           ${section('A4', groups.A4)}${section('A3', groups.A3)}${section('Not in an A4/A3 folder', groups.other)}

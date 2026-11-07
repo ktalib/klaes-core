@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Dashboard — KSSGOF Portal')
+@section('title', 'Dashboard — KNSSGOF Portal')
 @section('heading', 'Dashboard')
 
 @section('main')
@@ -11,7 +11,7 @@
     </div>
     <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
         <h2 class="font-bold">Latest Requests</h2>
-        <a class="ks-btn ks-btn-primary" href="{{ route('surveyor-portal.requests.create') }}"><i data-lucide="plus" class="w-4 h-4"></i> Request Beacons</a>
+        <a class="ks-btn ks-btn-primary" href="{{ route('surveyor-portal.requests.create') }}"><i data-lucide="plus" class="w-4 h-4"></i> Requested Beacons</a>
     </div>
     @include('surveyor_portal.requests._table', ['rows' => $latest, 'first' => 1])
 @endsection

@@ -4,6 +4,7 @@
 @php
     $group   = $group ?? null;
     $groupNo = $groupNo ?? 0;
+    $rowStart = $rowStart ?? ($entries instanceof \Illuminate\Pagination\AbstractPaginator ? $entries->firstItem() : 1);
     $keep   = request()->only(['q', 'layout', 'year', 'quarter', 'month', 'status']);
     $brCan  = collect(['create', 'edit', 'approve', 'delete'])
         ->mapWithKeys(fn ($a) => [$a => (bool) optional(auth()->user())->canDo('Survey - Beacon Register', $a)])->all();
@@ -12,7 +13,7 @@
 @endphp
 @foreach ($entries as $row)
                     @php
-                        $rowSn = $group ? $groupNo : ($groupNo ? $groupNo . '.' : '') . ($entries->firstItem() + $loop->index);
+                        $rowSn = $group ? $groupNo : ($groupNo ? $groupNo . '.' : '') . ($rowStart + $loop->index);
                         $opens = $group && (int) $group->entries > 1;
                     @endphp
                     <tr @if ($opens) class="br-group" data-series="{{ $group->letters }}" data-sn="{{ $groupNo }}" tabindex="0" aria-expanded="false" onclick="brGroupToggle(this, event)" onkeydown="if (event.target === this && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); brGroupToggle(this); }" @endif>

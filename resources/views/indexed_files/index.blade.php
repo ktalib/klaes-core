@@ -527,7 +527,7 @@
 
     @include('components.global-fileno-modal')
 
-    {{-- Move to NR and Reassign FileNo in the action menu, the same dialogs as Doc-WARE and Page Typing. --}}
+    {{-- Move to NR and Reassign FileNo on the scanned-file viewer card. --}}
     @if($canManageScans)
         @include('indexed_files.partials.scan_action_dialogs')
     @endif

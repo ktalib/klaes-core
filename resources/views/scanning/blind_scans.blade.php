@@ -388,6 +388,17 @@
 
             <div class="space-y-4">
               <div>
+                <label class="block text-sm font-medium mb-1">Registry <span class="text-red-500">*</span></label>
+                <select id="registryType" class="w-full border rounded-md px-3 py-2 bg-white">
+                  <option value="" selected disabled>Select registry</option>
+                  @foreach($registries as $registry)
+                    <option value="{{ $registry->code ?? Str::slug($registry->name, '_') }}">{{ preg_replace('/\s+/', ' ', trim($registry->name)) }}</option>
+                  @endforeach
+                </select>
+                <p id="registryFolderHint" class="text-xs text-muted-foreground mt-1">Scans are stored in that registry's own blind-scan folder.</p>
+              </div>
+
+              <div>
                 <label class="block text-sm font-medium mb-1">File Number (target on server) <span class="text-red-500">*</span></label>
                 <div class="flex gap-2">
                   {{-- Filled only from the file number selector, never typed. --}}
@@ -401,17 +412,6 @@
                   </button>
                 </div>
                 <p class="text-xs text-muted-foreground mt-1">Choose the file with 'Select'. The field cannot be typed into.</p>
-              </div>
-
-              <div>
-                <label class="block text-sm font-medium mb-1">Registry <span class="text-red-500">*</span></label>
-                <select id="registryType" class="w-full border rounded-md px-3 py-2 bg-white">
-                  <option value="" selected disabled>Select registry</option>
-                  @foreach($registries as $registry)
-                    <option value="{{ $registry->code ?? Str::slug($registry->name, '_') }}">{{ preg_replace('/\s+/', ' ', trim($registry->name)) }}</option>
-                  @endforeach
-                </select>
-                <p id="registryFolderHint" class="text-xs text-muted-foreground mt-1">Scans are stored in that registry's own blind-scan folder.</p>
               </div>
 
               <div>
@@ -432,7 +432,7 @@
                 <p id="uploadTypeHint" class="text-xs text-muted-foreground mt-1">Required before a folder can be picked.</p>
               </div>
 
-              <div>
+              <div id="folderPickerWrap">
                 <label class="block text-sm font-medium mb-1">Pick local folder</label>
                 <input id="folderInput" type="file" webkitdirectory directory multiple
                   class="w-full border rounded-md px-3 py-2" />
@@ -442,9 +442,10 @@
               </div>
 
               <div id="lfFilesWrap" class="hidden">
-                <label class="block text-sm font-medium mb-1">Or pick the LF images</label>
-                <input id="lfFilesInput" type="file" multiple accept=".jpg,.jpeg,.png,.tif,.tiff,.bmp,.gif,.webp,.pdf"
+                <label class="block text-sm font-medium mb-1">Pick the LF images</label>
+                <input id="lfFilesInput" type="file" multiple accept=".jpg,.jpeg,.png,.tif,.tiff,.bmp,.gif,.webp"
                   class="w-full border rounded-md px-3 py-2" />
+                <p class="text-xs text-muted-foreground mt-1">Select only the large-format image files to add to the A3 folder.</p>
               </div>
 
               <div id="status" class="text-sm text-muted-foreground">No folder selected.</div>
@@ -560,6 +561,7 @@
                   <th class="text-left p-3 w-10">S/N</th>
                   <th class="text-left p-3 w-10"></th>
                   <th class="text-left p-3">File Number</th>
+                  <th class="text-left p-3">Date Uploaded</th>
                   <th class="text-left p-3">Registry</th>
                   <th class="text-left p-3">A4</th>
                   <th class="text-left p-3">A3</th>
@@ -885,6 +887,7 @@
               idx + 1,
               '<i class="fa-solid fa-chevron-right"></i>',
               `<span class="font-mono">${aggEscape(group.file_number)}</span>`,
+              `<span class="whitespace-nowrap">${aggEscape(group.when ? new Date(String(group.when).replace(' ', 'T')).toLocaleString() : 'N/A')}</span>`,
               `<span class="pill text-blue-700 bg-blue-50 border-blue-200">${aggEscape(group.registry)}</span>`,
               group.a4,
               group.a3,
@@ -927,7 +930,7 @@
                       <td class="p-2">${aggEscape(r.original_filename)}</td>
                       <td class="p-2">${aggEscape(r.paper_size)}</td>
                       <td class="p-2">${aggEscape(r.status === 'converted' ? 'In Scan Upload' : 'Awaiting')}</td>
-                      <td class="p-2">${aggEscape(uploaded)}</td>
+                      <td class="p-2 whitespace-nowrap">${aggEscape(uploaded)}</td>
                       <td class="p-2"><a href="${aggEscape(url)}" target="_blank" rel="noopener" class="text-indigo-600">Open</a></td>
                     </tr>`;
                   }).join('');
@@ -938,7 +941,7 @@
                         <table class="w-full text-xs">
                           <thead><tr class="bg-muted">
                             <th class="p-2 text-left">S/N</th><th class="p-2 text-left">Filename</th><th class="p-2 text-left">Paper</th>
-                            <th class="p-2 text-left">Status</th><th class="p-2 text-left">Uploaded</th><th class="p-2 text-left">Actions</th>
+                            <th class="p-2 text-left">Status</th><th class="p-2 text-left">Date Uploaded</th><th class="p-2 text-left">Actions</th>
                           </tr></thead>
                           <tbody>${recordsHtml}</tbody>
                         </table>
@@ -984,7 +987,7 @@
             })
             .catch(err => {
               console.error('Failed to load aggregates', err);
-              $('#aggregatesBody').html('<tr><td colspan="9" class="p-3 text-sm text-muted-foreground">Error loading data</td></tr>');
+              $('#aggregatesBody').html('<tr><td colspan="10" class="p-3 text-sm text-muted-foreground">Error loading data</td></tr>');
             });
         }
 

@@ -154,6 +154,7 @@ class PraRecordController extends Controller
             'success' => true,
             'data' => [
                 'plot_no'              => $row->plot_number ?? null,
+                'plot_size'            => $row->plot_size ?? null,
                 'tp_no'                => $row->tp_no ?? null,
                 'lpkn_no'              => $row->lpkn_no ?? null,
                 'street_name'          => $row->street_name ?? null,

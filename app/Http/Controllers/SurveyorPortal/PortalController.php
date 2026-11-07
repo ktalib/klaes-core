@@ -47,7 +47,18 @@ class PortalController extends Controller
 
     public function create()
     {
-        return view('surveyor_portal.requests.form', ['lgas' => CompensationListReader::LGAS]);
+        $tab = request()->query('tab') === 'beacons' ? 'beacons' : 'request';
+
+        return view('surveyor_portal.requests.form', [
+            'lgas' => CompensationListReader::LGAS,
+            'tab' => $tab,
+            'beacons' => $tab === 'beacons'
+                ? \App\Models\Survey\SurveyBeaconNumber::whereHas('register.request', function ($query) {
+                    $query->where('surveyor_portal_account_id', $this->me()->id)
+                        ->whereIn('status', [BeaconRequest::ISSUED, BeaconRequest::ACCEPTED]);
+                })->with('register.request')->orderBy('id')->paginate(50)
+                : null,
+        ]);
     }
 
     public function store(Request $r)

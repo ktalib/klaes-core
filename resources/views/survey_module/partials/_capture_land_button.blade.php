@@ -1,6 +1,5 @@
-{{-- Farm Assessment > Capture Land (user, 2026-11-03: "capture existing, capture new"; it's not "register").
-     Items are Capture New Farm and Capture Existing Farmers List (user, 2026-11-06; "Update" misled: it always creates a new land).
-     New opens the land form (field assessment); Old opens Capture Compensation, for lists kept on paper.
+{{-- Farm Assessment > Capture Land. Existing lists are paper records; new farms are assessed now.
+     New opens the land form (field assessment); Existing opens the paper-list capture form.
      $captureProject (optional) carries ?project= through. --}}
 @php $cpq = ! empty($captureProject) ? ['project' => $captureProject] : []; @endphp
 <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false" style="position:relative;">
@@ -17,7 +16,7 @@
         </a>
         <a href="{{ route('survey-module.compensation.capture-list', $cpq) }}" role="menuitem" class="flex items-start gap-3 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50">
             <i data-lucide="archive" class="w-4 h-4 text-gray-500" style="margin-top:2px;"></i>
-            <span><strong>Capture Existing Farmers List</strong><br><span class="text-xs text-gray-500">An existing record kept on paper: key in its compensation list.</span></span>
+            <span><strong>Capture Existing Farm Record</strong><br><span class="text-xs text-gray-500">An existing record kept on paper: key in its compensation list.</span></span>
         </a>
     </div>
 </div>

@@ -30,7 +30,7 @@
 <body>
     <div class="bar"><button type="button" onclick="window.print()">Print</button></div>
     <div class="head">
-        <img src="{{ asset('assets/logo/kssgof-wordmark.png') }}" alt="KSSGOF">
+        <img src="{{ asset('assets/logo/knssgof-wordmark.png') }}" alt="KNSSGOF">
         <h1>BEACON ISSUE SLIP</h1>
     </div>
     <table>

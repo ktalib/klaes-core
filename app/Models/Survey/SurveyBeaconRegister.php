@@ -174,6 +174,11 @@ class SurveyBeaconRegister extends SurveyModel
         return $this->hasMany(SurveyBeaconNumber::class, 'survey_beacon_register_id')->orderBy('beacon_seq');
     }
 
+    public function request()
+    {
+        return $this->belongsTo(SurveyBeaconRequest::class, 'survey_beacon_request_id');
+    }
+
     public function getIssuedRangeAttribute(): string
     {
         return $this->beacon_to && $this->beacon_to !== $this->beacon_from

@@ -203,7 +203,7 @@ class LandRecommendationController extends Controller
      * Both title_status_type spellings ("Re-grant", "regranted") are used on either
      * side of a re-grant, so only the remark tells the new file from the old one.
      *
-     * @param  string[]|null  $mothers  limit to these mother file numbers
+     * @param  string[]|null  $mothers  limit results to these mother file numbers
      * @return array<string, array<string, true>>  mother => [child => true]
      */
     private function regrantTitleStatusChildren(?array $mothers = null): array
@@ -213,18 +213,10 @@ class LandRecommendationController extends Controller
             ->where(function ($q) {
                 $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
             })
-            ->when($mothers !== null, function ($q) use ($mothers) {
-                $q->where(function ($q) use ($mothers) {
-                    foreach ($mothers as $m) {
-                        $q->orWhereRaw('CAST(title_status_remark AS NVARCHAR(MAX)) LIKE ?', ['%Re-granted from ' . $m . '%']);
-                    }
-                });
-            })
             ->get(['file_number', DB::raw('CAST(title_status_remark AS NVARCHAR(MAX)) AS remark')]);
 
         // The LIKE above is a prefilter; "from COM-1985-5" would also hit
         // "from COM-1985-55", so the mother is matched exactly here.
-        $wanted = $mothers === null ? null : array_flip(array_map('mb_strtoupper', $mothers));
         $byMother = [];
         foreach ($rows as $row) {
             if (!preg_match('/Re-granted from\s+(\S.*?)\s*\.?\s*$/i', (string) $row->remark, $m)) {
@@ -232,10 +224,101 @@ class LandRecommendationController extends Controller
             }
             $mother = trim($m[1]);
             $child  = trim((string) $row->file_number);
-            if ($mother === '' || $child === '' || ($wanted !== null && !isset($wanted[mb_strtoupper($mother)]))) {
+            if ($mother === '' || $child === '') {
                 continue;
             }
             $byMother[$mother][$child] = true;
+        }
+
+        $motherNames = [];
+        foreach (array_keys($byMother) as $mother) {
+            $motherNames[mb_strtoupper($mother)] = $mother;
+        }
+
+        // A commissioned Re-grant can name its immediate mother in the new file's
+        // "Re-granted from" remark, while that mother's own related_fileno points
+        // to the grandmother. Expose that grandmother too, but only when the old
+        // file's matching "Re-granted to" remark confirms this exact child.
+        $frontier = array_keys($byMother);
+        $visited = [];
+        while ($frontier) {
+            $current = [];
+            foreach ($frontier as $fileNo) {
+                $key = mb_strtoupper(trim((string) $fileNo));
+                if ($key !== '' && !isset($visited[$key])) {
+                    $visited[$key] = true;
+                    $current[$key] = trim((string) $fileNo);
+                }
+            }
+            $frontier = [];
+
+            foreach (array_chunk(array_values($current), 1000) as $chunk) {
+                $relatedRows = DB::connection('sqlsrv')->table('file_indexings')
+                    ->whereIn('file_number', $chunk)
+                    ->where(function ($q) {
+                        $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+                    })
+                    ->whereRaw("CAST(title_status_remark AS NVARCHAR(MAX)) LIKE '%Re-granted to %'")
+                    ->get([
+                        'file_number',
+                        'related_fileno',
+                        DB::raw('CAST(title_status_remark AS NVARCHAR(MAX)) AS remark'),
+                    ]);
+
+                foreach ($relatedRows as $relatedRow) {
+                    $mother = trim((string) $relatedRow->file_number);
+                    $motherKey = mb_strtoupper($mother);
+                    $knownMother = $motherNames[$motherKey] ?? null;
+                    $children = $knownMother === null ? [] : $byMother[$knownMother];
+                    if (!$children || !preg_match('/Re-granted to\s+(\S.*?)\s*\.?\s*$/i', (string) $relatedRow->remark, $m)) {
+                        continue;
+                    }
+
+                    $regrantChild = mb_strtoupper(trim($m[1]));
+                    $matchesChild = false;
+                    foreach (array_keys($children) as $child) {
+                        if (mb_strtoupper(trim($child)) === $regrantChild) {
+                            $matchesChild = true;
+                            break;
+                        }
+                    }
+                    if (!$matchesChild) {
+                        continue;
+                    }
+
+                    $ancestors = json_decode((string) $relatedRow->related_fileno, true);
+                    if (!is_array($ancestors)) {
+                        continue;
+                    }
+
+                    foreach ($ancestors as $ancestor) {
+                        $ancestor = trim((string) $ancestor);
+                        $ancestorKey = mb_strtoupper($ancestor);
+                        if ($ancestor === '' || $ancestorKey === $motherKey) {
+                            continue;
+                        }
+
+                        $knownKey = $motherNames[$ancestorKey] ?? $ancestor;
+                        $motherNames[$ancestorKey] = $knownKey;
+                        $byMother[$knownKey] = ($byMother[$knownKey] ?? []) + $children;
+                        if (!isset($visited[$ancestorKey])) {
+                            $frontier[] = $knownKey;
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($mothers !== null) {
+            $wanted = array_flip(array_map(
+                fn ($mother) => mb_strtoupper(trim((string) $mother)),
+                $mothers
+            ));
+            $byMother = array_filter(
+                $byMother,
+                fn ($children, $mother) => isset($wanted[mb_strtoupper($mother)]),
+                ARRAY_FILTER_USE_BOTH
+            );
         }
 
         return $byMother;

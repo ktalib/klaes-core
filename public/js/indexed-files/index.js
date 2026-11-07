@@ -502,18 +502,6 @@ function buildActionsMenu(row, viewUrl) {
           <span class="leading-snug">View Scanned File</span>
         </button>`;
 
-  // The Doc-WARE / Page Typing actions on the file's scans, next to View Scanned File
-  // (user, 2026-11-05). config.canManageScans is set only where the page loads the two
-  // dialogs, i.e. the main Files table.
-  const moveToNrButton = !config.canManageScans ? '' : `<button type="button" class="move-to-nr-btn flex items-start gap-2.5 w-full text-left px-4 py-2.5 text-sm text-blue-700 hover:bg-blue-50 transition-colors" data-file-id="${id}" data-file-number="${escapeHtml(scannedFileNumber)}">
-          <i data-lucide="folder-symlink" class="h-4 w-4 mt-0.5 shrink-0 text-blue-600"></i>
-          <span class="leading-snug">Move to NR</span>
-        </button>`;
-  const reassignFileNoButton = !config.canManageScans ? '' : `<button type="button" class="reassign-fileno-btn flex items-start gap-2.5 w-full text-left px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 transition-colors" data-file-id="${id}" data-file-number="${escapeHtml(scannedFileNumber)}">
-          <i data-lucide="unlink" class="h-4 w-4 mt-0.5 shrink-0 text-amber-600"></i>
-          <span class="leading-snug">Reassign FileNo</span>
-        </button>`;
-
   // config.canEdit / canPrint come from the blade component and mirror the module
   // permission the route middleware enforces, so the menu shows only what will work.
   const editButton = (editUrl && config.canEdit !== false)
@@ -728,8 +716,6 @@ function buildActionsMenu(row, viewUrl) {
           </div>
           ${viewButton}
           ${viewScannedButton}
-          ${moveToNrButton}
-          ${reassignFileNoButton}
           ${viewTransactionsButton}
           ${moveTransactionButton}
           ${viewRelatedFilesButton}
@@ -1008,29 +994,7 @@ function handleTableBodyClick(event) {
     event.preventDefault();
     event.stopPropagation();
     closeAllActionMenus();
-    openScannedFile(scannedBtn.getAttribute('data-file-number'));
-    return;
-  }
-
-  const moveToNrBtn = event.target.closest('.move-to-nr-btn');
-  if (moveToNrBtn) {
-    event.preventDefault();
-    event.stopPropagation();
-    closeAllActionMenus();
-    if (!window.EdmsRegistryTransfer) {
-      Swal.fire({ icon: 'error', title: 'Unavailable', text: 'The registry transfer dialog did not load on this page.' });
-      return;
-    }
-    window.EdmsRegistryTransfer.open(moveToNrBtn.getAttribute('data-file-id'), moveToNrBtn.getAttribute('data-file-number'), () => loadTable());
-    return;
-  }
-
-  const reassignFileNoBtn = event.target.closest('.reassign-fileno-btn');
-  if (reassignFileNoBtn) {
-    event.preventDefault();
-    event.stopPropagation();
-    closeAllActionMenus();
-    openReassignFileNo(reassignFileNoBtn.getAttribute('data-file-id'), reassignFileNoBtn.getAttribute('data-file-number'));
+    openScannedFile(scannedBtn.getAttribute('data-file-number'), scannedBtn.getAttribute('data-file-id'));
     return;
   }
 
@@ -1042,7 +1006,7 @@ function handleTableBodyClick(event) {
     const fileNumber = edmsViewBtn.getAttribute('data-file-number');
     // Main Files table: the link opens the Blind Scan folder (user, 2026-11-04).
     if (edmsViewBtn.hasAttribute('data-blind-scan')) {
-      openScannedFile(fileNumber);
+      openScannedFile(fileNumber, id);
       return;
     }
     const registryFolder = edmsViewBtn.getAttribute('data-registry-folder') || 'Cadastral_Registry';
@@ -1520,7 +1484,7 @@ async function openReassignFileNo(fileIndexingId, fileNumber) {
 // The table's scan counts change with the file the scans moved to or from.
 window.addEventListener('scans-reassigned', () => loadTable());
 
-function openScannedFile(fileNumber) {
+function openScannedFile(fileNumber, fileId) {
   fileNumber = String(fileNumber || '').trim();
   const notify = (icon, title, text) => (window.Swal ? Swal.fire({ icon, title, text }) : alert(title + '\n\n' + text));
   if (!fileNumber || fileNumber === '-') {
@@ -1555,10 +1519,27 @@ function openScannedFile(fileNumber) {
 
       if (window.Swal) Swal.close();
 
+      const viewerActions = !config.canManageScans || !fileId ? [] : [
+        {
+          label: 'Move to NR',
+          onClick: () => {
+            if (!window.EdmsRegistryTransfer) {
+              notify('error', 'Unavailable', 'The registry transfer dialog did not load on this page.');
+              return;
+            }
+            window.EdmsRegistryTransfer.open(fileId, fileNumber, () => loadTable());
+          },
+        },
+        {
+          label: 'Reassign FileNo',
+          onClick: () => openReassignFileNo(fileId, fileNumber),
+        },
+      ];
       const openSource = s => window.KlaesScanViewer.open({
         token: s.token,
         title: fileNumber + ' — ' + (s.label || 'Scanned'),
         subtitle: (s.folder || '') + ' · ' + (s.pages || 0) + ' page(s)',
+        actions: viewerActions,
       });
 
       const choices = blind.length ? blind : folders;

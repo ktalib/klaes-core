@@ -450,6 +450,7 @@
 
                             @php
                                 $totTransDate = $totRow->transaction_date ?? $record['transaction_date'] ?? null;
+                                $totApplicantContact = $totApplicantContacts[$totRow->id] ?? [];
                             @endphp
 
                             {{-- Transaction Details --}}
@@ -501,12 +502,12 @@
                                     <div>
                                         <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Phone</label>
                                         <input type="text" class="totParty2Phone w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-                                            value="{{ $record['party_2_phone'] ?? '' }}" placeholder="Enter phone">
+                                            value="{{ $totApplicantContact['phone'] ?? $record['party_2_phone'] ?? '' }}" placeholder="Enter phone">
                                     </div>
                                     <div>
                                         <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Address</label>
                                         <input type="text" class="totParty2Address w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-                                            value="{{ $record['party_2_address'] ?? '' }}" placeholder="Enter address">
+                                            value="{{ $totApplicantContact['address'] ?? $record['party_2_address'] ?? '' }}" placeholder="Enter address">
                                     </div>
                                 </div>
                             </div>

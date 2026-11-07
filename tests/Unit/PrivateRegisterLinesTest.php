@@ -46,6 +46,53 @@ class PrivateRegisterLinesTest extends TestCase
         $source = file_get_contents(resource_path('views/survey_module/workflow/coordinate_register.blade.php'));
         $compiled = app('blade.compiler')->compileString($source);
         $this->assertNotFalse(token_get_all($compiled, TOKEN_PARSE));
+
+        $table = file_get_contents(resource_path('views/survey_module/partials/sections/_page-coordinate-register.blade.php'));
+        $compiledTable = app('blade.compiler')->compileString($table);
+        $this->assertNotFalse(token_get_all($compiledTable, TOKEN_PARSE));
+        $this->assertStringNotContainsString('<th>Beacon Group</th>', $table);
+        $this->assertStringContainsString('class="cr-coordinate-group-toggle"', $table);
+        $this->assertStringContainsString('class="cr-coordinate-group-row" data-group="{{ $groupLetter }}" hidden', $table);
+        $this->assertStringContainsString('<strong>{{ $p->point_id }}</strong>', $table);
+
+        $coordinateController = file_get_contents(app_path('Http/Controllers/Survey/CoordinateRegisterController.php'));
+        $this->assertSame(4, substr_count($coordinateController, 'AS group_letter'));
+        $this->assertStringContainsString('beacon_from), 1', $coordinateController);
+
+        // The Beacon Register's By issue view already groups and collapses issue rows by the leading letter series.
+        $beaconRows = file_get_contents(resource_path('views/survey_module/partials/sections/_beacon_issue_rows.blade.php'));
+        $this->assertStringContainsString('class="br-group"', $beaconRows);
+        $this->assertStringContainsString('data-series="{{ $group->letters }}"', $beaconRows);
+
+        $beaconView = file_get_contents(resource_path('views/survey_module/partials/sections/_page-beacon-register.blade.php'));
+        $compiledBeaconView = app('blade.compiler')->compileString($beaconView);
+        $this->assertNotFalse(token_get_all($compiledBeaconView, TOKEN_PARSE));
+    }
+
+    public function test_coordinate_groups_include_beacons_and_control_points_by_the_leading_letter(): void
+    {
+        $points = ['A5428B', 'A5433J', 'KAA001', 'KB150', 'KN302', 'K2400', 'K2449'];
+        $groups = array_map(fn ($point) => strtoupper(substr($point, 0, 1)), $points);
+
+        $this->assertSame(['A', 'A', 'K', 'K', 'K', 'K', 'K'], $groups);
+
+        $controller = file_get_contents(app_path('Http/Controllers/Survey/CoordinateRegisterController.php'));
+        $this->assertStringContainsString('group_letter, COUNT(*) AS points', $controller);
+        $this->assertStringContainsString("orderBy('group_letter')", $controller);
+
+        $beaconController = file_get_contents(app_path('Http/Controllers/Survey/BeaconRegisterController.php'));
+        $this->assertStringContainsString('LEFT(beacon_series, 1)', $beaconController);
+    }
+
+    public function test_farm_capture_choices_use_the_requested_labels(): void
+    {
+        $menu = file_get_contents(resource_path('views/survey_module/partials/_capture_land_button.blade.php'));
+        $this->assertStringContainsString('<strong>Capture New Farm</strong>', $menu);
+        $this->assertStringContainsString('<strong>Capture Existing Farm Record</strong>', $menu);
+        $this->assertStringNotContainsString('Capture Existing Farmers List', $menu);
+
+        $page = file_get_contents(resource_path('views/survey_module/compensation/capture_list.blade.php'));
+        $this->assertStringContainsString("'Capture Existing Farm Record — KLAES'", $page);
     }
 
     public function test_the_report_form_has_the_tp_dropdown_and_title_beside_the_file(): void

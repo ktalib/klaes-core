@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.app')
 
-@section('title', 'KSSGOF Portal · Kano State Surveyor General\'s Office')
+@section('title', 'KNSSGOF Portal · Kano State Surveyor General\'s Office')
 
 @push('styles')
 <style>
@@ -100,7 +100,7 @@
 
 {{-- The hero is a slideshow (user, 2026-11-05: "add images slides"): the wordmark banner first, then the field
      photo and the seal. Every 7 s; pauses on hover or focus, and never moves by itself under reduced motion. --}}
-<section class="ks-hero" id="ksSlides" aria-roledescription="carousel" aria-label="About the KSSGOF portal">
+<section class="ks-hero" id="ksSlides" aria-roledescription="carousel" aria-label="About the KNSSGOF portal">
     <div class="ks-slide-stack">
         <div class="ks-slide is-on" role="group" aria-roledescription="slide" aria-label="1 of 3">
         {{-- A traverse between beacons, drawn behind the banner. Decoration only. --}}
@@ -128,8 +128,8 @@
         <div class="relative mx-auto px-4 text-center" style="max-width:920px;padding-top:56px;padding-bottom:64px;">
             <span class="ks-eyebrow"><i data-lucide="map-pin" class="w-4 h-4"></i> Kano State Surveyor General's Office</span>
 
-            <h1 class="sr-only">KSSGOF, the Kano State Surveyor General's Office Portal</h1>
-            <img src="{{ asset('assets/logo/kssgof-wordmark.png') }}" alt="KSSGOF, Kano State Surveyor General's Office Portal"
+            <h1 class="sr-only">KNSSGOF, the Kano State Surveyor General's Office Portal</h1>
+            <img src="{{ asset('assets/logo/knssgof-wordmark.png') }}" alt="KNSSGOF, Kano State Surveyor General's Office Portal"
                  width="900" height="300" class="mx-auto" style="width:100%;max-width:720px;height:auto;margin-top:22px;mix-blend-mode:multiply;">
 
             <p class="mx-auto" style="max-width:620px;margin-top:8px;font-size:clamp(16px,2.2vw,19px);line-height:1.6;color:var(--ks-soft);">
@@ -184,7 +184,7 @@
                         <a class="ks-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.45);padding:12px 22px;" href="#how">How it works</a>
                     </div>
                 </div>
-                <img src="{{ asset('assets/logo/kssgof-seal.jpg') }}" alt="" width="1200" height="900" loading="lazy" class="ks-seal-img">
+                <img src="{{ asset('assets/logo/knssgof-logo.png') }}" alt="KNSSGOF seal" width="1200" height="900" loading="lazy" class="ks-seal-img">
             </div>
         </div>
     </div>
@@ -273,7 +273,7 @@
             <div class="mx-auto flex flex-col md:flex-row items-center justify-between gap-5 p-8"
                  style="max-width:1120px;border-radius:16px;background:linear-gradient(120deg,var(--ks-blue-dark),var(--ks-blue) 60%,#0E4A9E);color:#fff;">
                 <div class="flex items-center gap-4">
-                    <img src="{{ asset('assets/logo/kssgof-logo.png') }}" alt="" width="64" height="64" style="width:64px;height:64px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 3px rgba(201,154,30,.55);">
+                    <img src="{{ asset('assets/logo/knssgof-logo.png') }}" alt="KNSSGOF seal" width="64" height="64" style="width:64px;height:64px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 3px rgba(201,154,30,.55);">
                     <div>
                         <h2 class="font-extrabold" style="font-size:22px;">Ready to request beacons?</h2>
                         <p style="opacity:.85;font-size:15px;margin-top:4px;">Registration takes a few minutes. Approval comes from the SG's office.</p>
@@ -291,10 +291,10 @@
 <footer style="background:#0F1720;color:#C9D1DA;">
     <div class="mx-auto px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-4" style="max-width:1120px;">
         <div class="flex items-center gap-3">
-            <img src="{{ asset('assets/logo/kssgof-logo.png') }}" alt="" width="40" height="40" style="width:40px;height:40px;border-radius:50%;">
+            <img src="{{ asset('assets/logo/knssgof-logo.png') }}" alt="KNSSGOF seal" width="40" height="40" style="width:40px;height:40px;border-radius:50%;">
             <div style="font-size:14px;">
                 <div class="font-semibold" style="color:#fff;">Kano State Surveyor General's Office</div>
-                <div style="font-size:12px;opacity:.75;">KSSGOF Portal · part of KLAES</div>
+                <div style="font-size:12px;opacity:.75;">KNSSGOF Portal · part of KLAES</div>
             </div>
         </div>
         <div class="flex items-center gap-5" style="font-size:14px;">

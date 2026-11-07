@@ -24,8 +24,8 @@ use Illuminate\Validation\Rule;
  * date, issuer) and print it. The surveyor is Survey Department staff
  * (surveyors_list), as these are Government jobs.
  *
- * The file comes from the global file number selector (GKN / LPKN / Misc KN), and
- * its title and location are filled from the records.
+ * The file can come from the global file number selector (GKN / LPKN / Misc KN)
+ * or be backfilled from a selected Computation File.
  */
 class SurveyItsController extends Controller
 {
@@ -258,7 +258,7 @@ class SurveyItsController extends Controller
         }
 
         $data = $r->validate([
-            'file_number' => $existing ? 'nullable' : 'required|string|max:100',
+            'file_number' => 'nullable|string|max:100',
             'file_title'  => 'nullable|string|max:500',
             'plot_no'     => 'nullable|string|max:100',
             'district'    => 'nullable|string|max:255',
@@ -287,7 +287,6 @@ class SurveyItsController extends Controller
             }],
         ], [
             'survey_computation_file_id.exists' => 'That Computation File no longer exists. Pick another.',
-            'file_number.required' => 'Select the file with Select File Number.',
             'surveyor_other.required_if' => 'Surveyor is Other: please specify the surveyor\'s name.',
             'survey_type_other.required_if' => 'Survey Type is Other: please specify it.',
             'beacon_other.required' => 'Beacon Numbers has Other: please type the numbers.',
@@ -301,21 +300,25 @@ class SurveyItsController extends Controller
         unset($data['surveyor_other'], $data['survey_type_other'], $data['beacon_picks'], $data['beacon_other']);
         // Keep the number as it was when picked, beside the link.
         $pick = (string) ($data['survey_computation_file_id'] ?? '');
+        $computationFileNumber = null;
         if (str_starts_with($pick, 'idx:')) {
             $data['survey_computation_file_id'] = null;
             $data['computation_no'] = substr($pick, 4);
+            $computationFileNumber = substr($pick, 4);
         } else {
             $data['survey_computation_file_id'] = $pick !== '' ? (int) $pick : null;
-            $data['computation_no'] = $pick !== ''
-                ? \App\Models\Survey\SurveyComputationFile::whereKey((int) $pick)->value('computation_no')
+            $computationFile = $pick !== ''
+                ? \App\Models\Survey\SurveyComputationFile::whereKey((int) $pick)->first(['computation_no', 'file_number'])
                 : null;
+            $data['computation_no'] = $computationFile?->computation_no;
+            $computationFileNumber = $computationFile?->file_number;
         }
 
         if ($existing) {
             unset($data['file_number']);
         } else {
-            $data['file_number'] = trim($data['file_number']);
-            $data['file_type'] = GknApplicationController::typeOf($data['file_number']);
+            $data['file_number'] = $computationFileNumber ?: trim((string) ($data['file_number'] ?? ''));
+            $data['file_type'] = $data['file_number'] !== '' ? GknApplicationController::typeOf($data['file_number']) : null;
         }
 
         // The surveyor's name and rank are kept as they were when assigned.
