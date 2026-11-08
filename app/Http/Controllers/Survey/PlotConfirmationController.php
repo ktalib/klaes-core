@@ -47,17 +47,28 @@ class PlotConfirmationController extends Controller
     /** GKN > Plot Showing Register: both OP types, with the actions. */
     public function gkn(Request $r)
     {
+        if ($r->query('tab') === 'confirmation') {
+            $query = collect($r->query())->only([
+                'cftab', 'cfq', 'cflayout', 'cfstatus', 'cfedit', 'cfserial',
+                'cfcapture', 'cfpage', 'cfspage', 'cfgpage', 'cfgedit', 'cfgform',
+            ])->all();
+
+            return redirect()->route('survey-module.compensation.confirmation-forms', $query);
+        }
+
         return $this->index($r, true);
     }
 
     /** Compensation > Plot Showing Register - Resettlement: Resettlement only, view only, unless called as gkn(). */
     public function index(Request $r, bool $gkn = false)
     {
-        // Old links: Confirmation Forms lives on the GKN entry; the Old Register tab is now a filter.
         if (! $gkn && $r->query('tab') === 'confirmation') {
-            session()->reflash();
+            $query = collect($r->query())->only([
+                'cftab', 'cfq', 'cflayout', 'cfstatus', 'cfedit', 'cfserial',
+                'cfcapture', 'cfpage', 'cfspage', 'cfgpage', 'cfgedit', 'cfgform',
+            ])->all();
 
-            return redirect()->route(self::GKN, $r->query());
+            return redirect()->route('survey-module.compensation.confirmation-forms', $query);
         }
         [$tab, $source, $resettlementOnly, $resettlementChecks, $showings, $checks] = $this->registerQueries($r, $gkn);
 
@@ -92,7 +103,7 @@ class PlotConfirmationController extends Controller
             'opCaptureLandUses' => \App\Models\LandUse::orderBy('landuse')->pluck('landuse'),
             'opCaptureDistricts' => LookupController::options('districts'),
             'opCaptureLgas' => LookupController::options('lgas'),
-        ] + app(ConfirmationFormController::class)->panelData($r) : []));
+        ] : []));
     }
 
     /** OPs for the Record Plot Showing form: Deeds OPs by OP serial number only (user, 2026-11-03), with the next showing. */
@@ -754,8 +765,7 @@ class PlotConfirmationController extends Controller
     {
         $source = $r->query('tab') === 'old' ? 'old' : (string) $r->query('source', '');
 
-        // Confirmation Forms is a tab here too (user, 2026-11-03); it switches without a page load.
-        $tab = $r->query('tab') === 'checks' ? 'checks' : ($gkn && $r->query('tab') === 'confirmation' ? 'confirmation' : 'showings');
+        $tab = $r->query('tab') === 'checks' ? 'checks' : 'showings';
         // Compensation sees Resettlement only (CR 03112026 item 1).
         $resettlementOnly = fn ($q) => $gkn ? $q : $q->where('op_type', Showing::RESETTLEMENT);
         $resettlementChecks = fn ($q) => $gkn ? $q : $q->whereIn('survey_op_showing_id', Showing::query()->where('op_type', Showing::RESETTLEMENT)->select('id'));

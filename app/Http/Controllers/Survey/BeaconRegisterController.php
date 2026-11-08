@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyBeaconNumber;
 use App\Models\Survey\SurveyBeaconRegister;
 use App\Models\Survey\SurveyBeaconRegisterFile;
+use App\Models\Survey\SurveyTpNumber;
 use App\Models\Survey\SurveyorListEntry;
 use App\Services\Survey\BeaconPool;
 use App\Services\Survey\SurveySettings;
@@ -37,7 +38,7 @@ class BeaconRegisterController extends Controller
     /** The module role for this page (user, 2026-10-23). */
     public const MODULE = 'Survey - Beacon Register';
 
-    /** Every private beacon number starts with this (user, 2026-11-05: A + serial + letters). */
+    /** Legacy fixed prefix used by older private beacon numbers and the existing request flow. */
     public const PRIVATE_PREFIX = 'A';
 
     /**
@@ -134,14 +135,31 @@ class BeaconRegisterController extends Controller
             'pageBeacons'     => (int) $entries->getCollection()->sum('total_issued'),
             'surveyors'       => $this->surveyorOptions($editing),
             'companies'       => SurveySettings::companies(),
+            'tpNumbers'       => $this->tpNumbers($editing),
             'pool'            => BeaconPool::status(),
         ]);
     }
 
+    /** TP No. options from Public Layout Plans, keeping a saved legacy value editable. */
+    private function tpNumbers(?SurveyBeaconRegister $entry = null)
+    {
+        $numbers = SurveyTpNumber::listed()->whereNotNull('tp_no')->where('tp_no', '<>', '')
+            ->serialOrder()->get(['tp_no', 'layout_name'])
+            ->map(fn ($row) => ['no' => trim((string) $row->tp_no), 'name' => trim((string) $row->layout_name)])
+            ->filter(fn ($row) => $row['no'] !== '')
+            ->unique(fn ($row) => mb_strtoupper(str_replace(' ', '', $row['no'])))
+            ->values();
+
+        if ($entry && trim((string) $entry->plan_no) !== '' && ! $numbers->contains(fn ($row) => $row['no'] === trim((string) $entry->plan_no))) {
+            $numbers->prepend(['no' => trim((string) $entry->plan_no), 'name' => 'Previously saved']);
+        }
+
+        return $numbers;
+    }
+
     /**
-     * Issue Beacon No (WhatsApp, user 2026-10-31): the next free serial for a beacon prefix and
-     * optional letter after the serial, one above the highest already issued in that series. Serials
-     * above 9999 (A46075, A13373) are not four-digit serials, so they do not set the next number.
+     * Issue Beacon No: the next free serial for a prefix and optional legacy suffix, one above the
+     * highest already issued in that series. Serials above 9999 do not set the next number.
      */
     public function nextSerial(Request $r)
     {
@@ -214,8 +232,8 @@ class BeaconRegisterController extends Controller
     }
 
     /**
-     * Issue Beacon No duplicate check (user, 2026-11-02): the numbers PREFIX<start..start+count-1><letter>
-     * already in the register, with who they were issued to. Read-only; the save checks again.
+     * Issue Beacon No duplicate check: the numbers in a prefix/serial/suffix series
+     * already in the register, with who they were issued to. Read-only; save checks again.
      */
     public function checkRange(Request $r)
     {
@@ -346,12 +364,14 @@ class BeaconRegisterController extends Controller
         return array_map(fn ($run) => ['beacon_from' => $run['from'], 'beacon_to' => $run['to'] === $run['from'] ? null : $run['to']], BeaconPool::claim($count));
     }
 
-    /** Private: A + serial + the SG's letters (user, 2026-11-05), for a named company. */
+    /** Private: selected company letters form the prefix; accept legacy A + serial + letters too. */
     private function privateRun(array $g): array
     {
         $a = SurveyBeaconRegister::parseBeacon($g['beacon_from'] ?? '');
-        if (! $a || $a['prefix'] !== self::PRIVATE_PREFIX || ! preg_match('/^[A-Z]{1,3}$/', $a['suffix'])) {
-            throw ValidationException::withMessages(['beacon_from' => 'A private beacon number is A, the serial, then one to three letters, e.g. A0001B.']);
+        $newPrefix = $a && preg_match('/^[A-Z]{1,3}$/', $a['prefix']) && $a['suffix'] === '';
+        $legacy = $a && $a['prefix'] === self::PRIVATE_PREFIX && preg_match('/^[A-Z]{1,3}$/', $a['suffix']);
+        if (! $newPrefix && ! $legacy) {
+            throw ValidationException::withMessages(['beacon_from' => 'Choose one to three prefix letters A-Z, followed by the serial, e.g. B0001 or AB0001.']);
         }
         if (trim((string) ($g['company_choice'] ?? '')) === '' || (($g['company_choice'] ?? '') === 'other' && trim((string) ($g['company_other'] ?? '')) === '')) {
             throw ValidationException::withMessages(['company_choice' => 'Choose the company.']);
@@ -559,7 +579,9 @@ class BeaconRegisterController extends Controller
         $id = $db->table('survey_companies')->whereRaw('UPPER(name) = ?', [mb_strtoupper($name)])->value('id');
         $data['company_id'] = $id ?: $db->table('survey_companies')->insertGetId([
             'name'           => $name,
-            'beacon_letters' => $range['suffix'] !== '' && strlen($range['suffix']) <= 3 ? $range['suffix'] : null,
+            'beacon_letters' => $range['suffix'] !== '' && strlen($range['suffix']) <= 3
+                ? $range['suffix']
+                : (preg_match('/^[A-Z]{1,3}$/', $range['prefix']) ? $range['prefix'] : null),
             'surveyor_name'  => $data['surveyor_name'] ?? null,
             'is_active'      => 1,
             'created_by'     => Auth::id(), 'updated_by' => Auth::id(),
@@ -815,7 +837,9 @@ class BeaconRegisterController extends Controller
             'issue_date'            => 'required|date|before_or_equal:today',
             'beacon_from'           => 'required|string|max:30',
             'beacon_to'             => 'nullable|string|max:30',
-            'plan_no'               => 'nullable|string|max:100',
+            'plan_no'               => ['nullable', 'string', 'max:100', Rule::in(
+                $this->tpNumbers($entry)->pluck('no')->all()
+            )],
             // Several file numbers, from the global selector. No format validation (user, 2026-10-23).
             'file_numbers'          => 'nullable|array|max:100',
             'file_numbers.*'        => 'nullable|string|max:100',

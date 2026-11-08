@@ -66,11 +66,12 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         Route::get('/dashboard', [DashboardController::class, 'compensation'])->name('dashboard');
 
-        // Confirmation Forms (user, 2026-11-02): serials per layout, blank form, capture. Not on the sidebar yet.
+        // Special Projects > Confirmation Forms: serials per layout, blank form and capture.
         Route::prefix('confirmation-forms')->name('confirmation-forms')->group(function () {
             Route::get('/', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'index'])->name('');
             Route::post('/generate', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'generate'])->name('.generate');
             Route::get('/print', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'print'])->name('.print');
+            Route::get('/export', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'export'])->name('.export');
             Route::post('/capture', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'capture'])->name('.capture');
             Route::post('/{form}', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'update'])->whereNumber('form')->name('.update');
             Route::post('/{form}/void', [\App\Http\Controllers\Survey\ConfirmationFormController::class, 'void'])->whereNumber('form')->name('.void');
@@ -162,6 +163,7 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::post('/cases', [CaseController::class, 'store'])->name('cases.store');
         // "Is this the existing farmer?" (CR 03112026). Before {case}, so it is not read as a case id.
         Route::get('/cases/farmer-lookup', [CaseController::class, 'farmerLookup'])->name('cases.farmer-lookup');
+        Route::get('/cases/next-section', [CaseController::class, 'nextSectionPreview'])->name('cases.next-section');
         Route::get('/cases/{case}', [CaseController::class, 'show'])->name('cases.show');
         Route::get('/cases/{case}/farm-sheet/{farm}', [CaseController::class, 'farmSheet'])->whereNumber('farm')->name('cases.farm-sheet');
         Route::get('/cases/{case}/edit', [CaseController::class, 'edit'])->name('cases.edit');

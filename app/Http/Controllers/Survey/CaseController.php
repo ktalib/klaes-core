@@ -296,6 +296,16 @@ class CaseController extends Controller
             (string) $r->query('name', ''), (string) $r->query('phone', ''), (string) $r->query('nin', '')));
     }
 
+    /** Read-only Section No. preview for the officer currently entered on the form. */
+    public function nextSectionPreview(Request $r)
+    {
+        $officer = trim((string) $r->query('officer', ''));
+
+        return response()->json([
+            'section_no' => $officer === '' ? null : app(\App\Services\Survey\FarmIds::class)->nextSectionPreview($officer),
+        ]);
+    }
+
     /** The confirmation SMS, once the assessment is submitted (item 8). Placeholder phones are skipped by the dispatcher. */
     protected function tellFarmers(SurveyCompCase $case): void
     {

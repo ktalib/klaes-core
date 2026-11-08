@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\View;
 use Laravel\Sanctum\Sanctum;
 use Symfony\Component\Mailer\Transport\Dsn;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransportFactory;
@@ -21,6 +22,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
+        $this->app->scoped(\App\Services\SurveyorPortalSettings::class);
+
         // Default In-process In-transit Tracking. Shared for the whole request so
         // the commissioning register is read once per page (the list endpoint primes
         // it) instead of once per row by every caller — the location resolver and
@@ -57,6 +60,10 @@ class AppServiceProvider extends ServiceProvider
         Sanctum::usePersonalAccessTokenModel(\App\Models\PersonalAccessToken::class);
 
         $this->registerPermissionDirectives();
+
+        View::composer('surveyor_portal.*', function ($view) {
+            $view->with('portalSettings', app(\App\Services\SurveyorPortalSettings::class)->values());
+        });
 
         // File-tracking notifications are mirrored to the KLAES FTM app as push notifications.
         \App\Models\Notification::observe(\App\Observers\NotificationPushObserver::class);

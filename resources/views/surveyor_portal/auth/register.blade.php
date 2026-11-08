@@ -4,15 +4,15 @@
 @section('width', '520px')
 
 @section('guest-banner')
-    <img src="{{ asset('assets/logo/knssgof-register-banner.png') }}"
-         alt="KNSSGOF — Kano State Surveyor General's Office Portal"
+    <img src="{{ asset($portalSettings['logo_registration_banner']) }}"
+         alt="{{ $portalSettings['brand_name'] }} — {{ $portalSettings['office_name'] }} Portal"
          width="1600" height="666" class="relative"
          style="width:100%;max-width:620px;height:auto;mix-blend-mode:multiply;">
 @endsection
 
 @section('guest-mobile-banner')
-    <img src="{{ asset('assets/logo/knssgof-register-banner.png') }}"
-         alt="KNSSGOF — Kano State Surveyor General's Office Portal"
+    <img src="{{ asset($portalSettings['logo_registration_banner']) }}"
+         alt="{{ $portalSettings['brand_name'] }} — {{ $portalSettings['office_name'] }} Portal"
          width="1600" height="666" class="mx-auto mb-5 lg:hidden"
          style="width:100%;max-width:460px;height:auto;mix-blend-mode:multiply;">
 @endsection

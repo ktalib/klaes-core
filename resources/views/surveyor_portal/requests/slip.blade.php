@@ -8,11 +8,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Beacon Slip {{ $request->request_no }}</title>
+    <title>Beacon Slip {{ $request->request_no }} — {{ $portalSettings['portal_name'] }}</title>
     <style>
         @page { size: A4; margin: 16mm; }
         body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 13px; margin: 0; }
-        .head { text-align: center; border-bottom: 2px solid #0B3A7E; padding-bottom: 10px; margin-bottom: 14px; }
+        .head { text-align: center; border-bottom: 2px solid {{ $portalSettings['primary_color'] }}; padding-bottom: 10px; margin-bottom: 14px; }
         .head img { height: 70px; width: auto; }
         .head h1 { font-size: 18px; margin: 8px 0 0; letter-spacing: .03em; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
@@ -30,7 +30,7 @@
 <body>
     <div class="bar"><button type="button" onclick="window.print()">Print</button></div>
     <div class="head">
-        <img src="{{ asset('assets/logo/knssgof-wordmark.png') }}" alt="KNSSGOF">
+        <img src="{{ asset($portalSettings['logo_wordmark']) }}" alt="{{ $portalSettings['brand_name'] }}">
         <h1>BEACON ISSUE SLIP</h1>
     </div>
     <table>

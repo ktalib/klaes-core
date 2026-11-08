@@ -3,7 +3,7 @@
      keeps them out of the staff signatory lists -- see LandOfficer::scopeDocumentSignatories. --}}
 <div class="space-y-4">
     @php
-        // 'A, B and C' rather than implode's 'A and B and C', now that there are three.
+        // Keep the list readable for any number of standard signatories.
         $standardNames = $defaultSignatories;
         $lastStandard  = array_pop($standardNames);
         $standardList  = $standardNames

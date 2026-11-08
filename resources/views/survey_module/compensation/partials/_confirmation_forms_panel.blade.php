@@ -1,7 +1,4 @@
-{{-- Confirmation Forms (user, 2026-11-02), from the new paper template: serials are issued for a layout (a Survey
-     project, or one typed under Other, e.g. BUK/Zakara Layout) with a blank printed form, and the filled paper is
-     captured against its serial. A tab of the Plot Showing Register since 2026-11-03 (user): it opens there without
-     loading a page. Its query keys carry a cf prefix so they never clash with the register's own (tab, q, page, edit). --}}
+{{-- Confirmation Forms: issue serials per layout, print the blank forms, and capture the completed paper form here. --}}
 @php
   use App\Http\Controllers\Survey\ConfirmationFormController as CF;
   use App\Models\Survey\SurveyConfirmationForm as F;
@@ -9,7 +6,7 @@
   $cfField = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;';
   $cfItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
   $cfRoute = 'survey-module.compensation.confirmation-forms';
-  $cfUrl = fn (array $p = []) => route('survey-module.gkn.plot-showing', ['tab' => 'confirmation'] + $p);
+  $cfUrl = fn (array $p = []) => route($cfRoute, $p);
   $cfBadge = [F::GENERATED => 'pending', F::PRINTED => 'pending', F::CAPTURED => 'active', F::VOIDED => 'rejected'];
 
   $e = $cfEditing;
@@ -47,7 +44,6 @@
 <div class="page-header" style="margin-bottom:10px;">
   <div style="font-size:13px;color:var(--gray-500);">Next serial: <strong style="font-family:monospace;">{{ F::formatSerial($cfNextSerial) }}</strong> · numbers are never reused.</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button type="button" class="btn btn-secondary" onclick="pcExport('confirmation', 'Confirmation Forms')"><i class="fas fa-file-export"></i> Export Records</button>
     <button type="button" class="btn btn-secondary" onclick="document.getElementById('cfIssue').classList.add('open')"><i class="fas fa-hashtag"></i> Issue Serials</button>
     <button type="button" class="btn btn-primary" onclick="document.getElementById('cfCapture').classList.add('open')"><i class="fas fa-keyboard"></i> Capture Form</button>
     <button type="button" class="btn btn-primary" onclick="document.getElementById('cfGuarantor').classList.add('open')"><i class="fas fa-user-shield"></i> Capture Guarantor Form</button>
@@ -341,8 +337,7 @@
   @endforeach
 </div>
 
-<form method="GET" action="{{ route('survey-module.gkn.plot-showing') }}" class="table-toolbar">
-  <input type="hidden" name="tab" value="confirmation" />
+<form method="GET" action="{{ route($cfRoute) }}" class="table-toolbar">
   <input type="hidden" name="cftab" value="{{ $cfTab }}" />
   <div class="left" style="flex-wrap:wrap;">
     @if ($cfTab === 'forms')

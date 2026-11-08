@@ -4,14 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'KNSSGOF Portal')</title>
-    <meta name="theme-color" content="#0B3A7E">
-    <link rel="icon" type="image/png" href="{{ asset('assets/logo/knssgof-logo.png') }}">
-    <link rel="apple-touch-icon" href="{{ asset('assets/logo/knssgof-logo.png') }}">
+    @php
+        $portalPageTitle = trim($__env->yieldContent('title', ''));
+        $portalPageTitle = str_replace(
+            ["KNSSGOF Portal", "Kano State Surveyor General's Office"],
+            [$portalSettings['portal_name'], $portalSettings['office_name']],
+            $portalPageTitle
+        );
+    @endphp
+    <title>{{ $portalPageTitle !== '' ? $portalPageTitle : $portalSettings['portal_name'] }}</title>
+    <meta name="theme-color" content="{{ $portalSettings['primary_color'] }}">
+    <link rel="icon" href="{{ asset($portalSettings['logo_favicon']) }}">
+    <link rel="apple-touch-icon" href="{{ asset($portalSettings['logo_favicon']) }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@0.429.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>
     <style>
-        :root { --ks-blue: #0B3A7E; --ks-blue-dark: #082B5E; --ks-green: #15803D; --ks-gold: #C99A1E; --ks-ink: #14171A; --ks-soft: #4B5259; --ks-line: #DBDEE2; --ks-page: #F5F6F7; --ks-danger: #9F1239; }
+        :root { --ks-blue: {{ $portalSettings['primary_color'] }}; --ks-blue-dark: {{ $portalSettings['primary_dark_color'] }}; --ks-green: {{ $portalSettings['green_color'] }}; --ks-gold: {{ $portalSettings['gold_color'] }}; --ks-ink: #14171A; --ks-soft: #4B5259; --ks-line: #DBDEE2; --ks-page: #F5F6F7; --ks-danger: #9F1239; }
         body { background: var(--ks-page); color: var(--ks-ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
         .ks-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; border: 0; cursor: pointer; text-decoration: none; }
         .ks-btn-primary { background: var(--ks-blue); color: #fff; }
@@ -49,6 +57,17 @@
 </head>
 <body>
     @yield('body')
+    @if($portalSettings['support_email'] || $portalSettings['support_phone'])
+        <footer class="ks-help" style="padding:18px 16px;text-align:center;border-top:1px solid var(--ks-line);background:#fff;">
+            <span>Portal support</span>
+            @if($portalSettings['support_email'])
+                <a href="mailto:{{ $portalSettings['support_email'] }}" style="color:var(--ks-blue);margin-left:8px;">{{ $portalSettings['support_email'] }}</a>
+            @endif
+            @if($portalSettings['support_phone'])
+                <a href="tel:{{ $portalSettings['support_phone'] }}" style="color:var(--ks-blue);margin-left:8px;">{{ $portalSettings['support_phone'] }}</a>
+            @endif
+        </footer>
+    @endif
     <script>if (window.lucide) lucide.createIcons();</script>
     @stack('scripts')
 </body>

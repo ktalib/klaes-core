@@ -7,6 +7,7 @@ use App\Models\Survey\SurveyCoFile;
 use App\Models\Survey\SurveyorListEntry;
 use App\Models\Survey\SurveyProject;
 use App\Models\Survey\SurveyProjectSurveyor;
+use App\Models\Survey\SurveyTpNumber;
 use App\Services\Survey\CompensationListCapture;
 use App\Support\AddressBuilder;
 use Illuminate\Http\Request;
@@ -20,12 +21,11 @@ use Illuminate\Validation\ValidationException;
  */
 class CompensationCaptureController extends Controller
 {
-    public function create(Request $r)
+    public function create()
     {
         return view('survey_module.compensation.capture_list', [
-            // With the CO file, purpose and sharing ratio: picking a project shows them and feeds the plot calculator (user, 2026-11-03).
-            'projects'  => SurveyProject::with('coFile:id,co_file_no,title')->orderByDesc('id')
-                ->get(['id', 'project_code', 'name', 'plan_no', 'scheme_type', 'purpose', 'farmer_share_pct', 'survey_co_file_id']),
+            // TP No. is selected from the searchable Public Layout Plans register.
+            'tpNumbers' => $this->planNumbers(),
             'rcPurposes' => \App\Services\Survey\ResettlementCalculator::purposes(),
             'rcRates'    => \App\Models\Survey\SurveyResettlementRate::query()->where('is_active', 1)->orderBy('land_use')->orderBy('sort_order')
                 ->get(['land_use', 'purpose', 'density', 'plot_size_ha'])
@@ -35,16 +35,14 @@ class CompensationCaptureController extends Controller
                 ->merge(SurveyProjectSurveyor::distinct()->pluck('surveyor_name'))
                 ->map(fn ($n) => CompensationListCapture::tidy($n))->filter()
                 ->unique(fn ($n) => mb_strtolower($n))->sort()->values(),
-            'project'   => $r->query('project'),
         ]);
     }
 
     public function store(Request $r, CompensationListCapture $capture)
     {
         $d = $r->validate($this->rules(), [
-            'survey_project_id.required_if' => 'Choose the project this list belongs to.',
-            'project_name.required_if'      => 'Enter the new project name.',
-            'scheme_type.required_if'       => 'Choose the new project\'s scheme.',
+            'project_name.required_if'      => 'Enter the project name.',
+            'scheme_type.required_if'       => 'Choose the project scheme.',
             'rows.*.area.numeric'           => 'Area must be a number (row :position).',
             'rows.*.govt50.numeric'         => 'Govt. 50% must be a number.',
             'rows.*.farmer50.numeric'       => 'Farmer 50% must be a number.',
@@ -102,9 +100,9 @@ class CompensationCaptureController extends Controller
 
         return [
             'project_mode'      => ['required', Rule::in(['existing', 'new'])],
-            'survey_project_id' => ['nullable', 'required_if:project_mode,existing', Rule::exists('sqlsrv.survey_projects', 'id')->whereNull('deleted_at')],
+            'survey_project_id' => ['nullable', Rule::exists('sqlsrv.survey_projects', 'id')->whereNull('deleted_at')],
             'project_name'      => 'nullable|required_if:project_mode,new|string|max:255',
-            'plan_no'           => 'nullable|string|max:100',
+            'plan_no'           => ['nullable', 'string', 'max:100', Rule::in($this->planNumbers()->pluck('no')->all())],
             'purpose'           => 'nullable|string|max:100',
             'scheme_type'       => ['nullable', 'required_if:project_mode,new', Rule::in([SurveyProject::SCHEME_LAND, SurveyProject::SCHEME_MONETARY])],
             'survey_co_file_id' => ['nullable', Rule::exists('sqlsrv.survey_co_files', 'id')->whereNull('deleted_at')],
@@ -127,5 +125,15 @@ class CompensationCaptureController extends Controller
             'rows.*.sign'       => 'nullable|string|max:100',
             'rows.*.remarks'    => 'nullable|string|max:500',
         ] + AddressBuilder::rules('prop_', false);
+    }
+
+    private function planNumbers()
+    {
+        return SurveyTpNumber::listed()->whereNotNull('tp_no')->where('tp_no', '<>', '')->serialOrder()
+            ->get(['tp_no', 'layout_name'])
+            ->map(fn ($row) => ['no' => trim((string) $row->tp_no), 'name' => trim((string) $row->layout_name)])
+            ->filter(fn ($row) => $row['no'] !== '')
+            ->unique(fn ($row) => mb_strtoupper(str_replace(' ', '', $row['no'])))
+            ->values();
     }
 }

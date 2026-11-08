@@ -94,6 +94,7 @@ class ConfigurableEntriesController extends Controller
         'deeds-workflow' => ['label' => 'Valuation - Consent - Registration', 'icon' => 'workflow', 'accent' => '#4d7c0f', 'tint' => '#f7fee7'],
         'land-rates' => ['label' => 'Land Rates (G.Rent & LUC)', 'icon' => 'map', 'accent' => '#0f766e', 'tint' => '#f0fdfa'],
         'logos' => ['label' => 'Logos', 'icon' => 'image', 'accent' => '#4338ca', 'tint' => '#eef2ff'],
+        'surveyor-portal' => ['label' => 'KNSSGOF Portal', 'icon' => 'globe-2', 'accent' => '#1d4ed8', 'tint' => '#eff6ff'],
         'signatories' => ['label' => 'Signatories', 'icon' => 'pen-line', 'accent' => '#9d174d', 'tint' => '#fdf2f8'],
         // The Kano State MDAs list (OP Source = Kano MDAs, File Movement External sender).
         'kano-mdas' => ['label' => 'Kano MDAs', 'icon' => 'landmark', 'accent' => '#0369a1', 'tint' => '#f0f9ff'],
@@ -141,14 +142,19 @@ class ConfigurableEntriesController extends Controller
     ];
 
     /**
-     * Document signatories the Signatories tab always offers.
+     * Document signatories the Signatories tab always offers, in display order.
      *
      * Created on first view so their name and signature fields are simply present to be
      * filled in, and refused deletion so the ones the printed documents expect cannot be
-     * removed by accident. Further signatories -- a Surveyor-General, a
-     * Director of Lands -- are added from the tab and may be removed freely.
+     * removed by accident.
      */
-    public const DEFAULT_SIGNATORIES = ['Honourable Commissioner', 'Executive Governor', 'Permanent Secretary'];
+    public const DEFAULT_SIGNATORIES = [
+        'Executive Governor',
+        'Honourable Commissioner',
+        'DG',
+        'Permanent Secretary',
+        'SG',
+    ];
 
     /**
      * The hand-offs of Valuation -> Consent -> Print -> Registration, in order.
@@ -342,6 +348,9 @@ class ConfigurableEntriesController extends Controller
             'deeds-workflow' => $this->deedsWorkflowData(),
             'land-rates' => $this->landRatesData($request),
             'logos' => $this->logosData($request),
+            'surveyor-portal' => [
+                'portalSettings' => app(\App\Services\SurveyorPortalSettings::class)->values(),
+            ],
             'signatories' => $this->signatoriesData(),
             'kano-mdas' => $this->kanoMdasData($request),
             'cadastral' => $this->cadastralData(),
@@ -491,9 +500,8 @@ class ConfigurableEntriesController extends Controller
      * separates them from the staff officers on the Land Officer Settings screen -- see
      * App\Models\LandOfficer::scopeDocumentSignatories().
      *
-     * The Commissioner, the Governor and the Permanent Secretary are created on first view
-     * so their name and signature fields are simply there to fill in; anything beyond them
-     * is added from the tab.
+     * Standard signatories are created on first view so their name and signature fields
+     * are ready to fill in; additional signatories are added from the tab.
      */
     private function signatoriesData(): array
     {
@@ -505,10 +513,21 @@ class ConfigurableEntriesController extends Controller
             }
         }
 
+        $signatories = \App\Models\LandOfficer::documentSignatories()
+            ->orderBy('id')
+            ->get(['id', 'name', 'rank', 'signature_file']);
+        $standardOrder = array_flip(self::DEFAULT_SIGNATORIES);
+
         return [
-            'signatories' => \App\Models\LandOfficer::documentSignatories()
-                ->orderBy('id')
-                ->get(['id', 'name', 'rank', 'signature_file']),
+            'signatories' => $signatories
+                ->sortBy(function ($signatory) use ($standardOrder) {
+                    if ($signatory->rank === 'SG') {
+                        return count($standardOrder);
+                    }
+
+                    return $standardOrder[$signatory->rank] ?? count($standardOrder) - 1;
+                })
+                ->values(),
             'defaultSignatories' => self::DEFAULT_SIGNATORIES,
         ];
     }
@@ -2175,6 +2194,7 @@ class ConfigurableEntriesController extends Controller
                     'missing' => $relative === '' || !is_file(public_path($relative)),
                 ];
             }
+
         }
 
         // Counts for the whole catalogue, and per area for the index cards. 250-odd
@@ -2238,6 +2258,85 @@ class ConfigurableEntriesController extends Controller
             'logoMaxKb' => (int) config('alaes_logos.max_kilobytes', 4096),
             'logoExtensions' => (array) config('alaes_logos.allowed_extensions', []),
         ];
+    }
+
+    /** Save the KNSSGOF Portal's identity, theme, support details and logo overrides. */
+    public function saveSurveyorPortalSettings(Request $request)
+    {
+        $this->authorizeAdmin();
+
+        $validated = $request->validate([
+            'brand_name' => 'required|string|max:80',
+            'portal_name' => 'required|string|max:120',
+            'office_name' => 'required|string|max:160',
+            'support_email' => 'nullable|email|max:255',
+            'support_phone' => 'nullable|string|max:50',
+            'how_title' => 'required|string|max:120',
+            'how_subtitle' => 'required|string|max:255',
+            'how_steps' => 'required|array|size:4',
+            'how_steps.*.title' => 'required|string|max:100',
+            'how_steps.*.text' => 'required|string|max:500',
+            'private_title' => 'required|string|max:120',
+            'private_description' => 'required|string|max:500',
+            'private_example' => 'required|string|max:80',
+            'ready_title' => 'required|string|max:120',
+            'ready_items' => 'required|array|size:4',
+            'ready_items.*' => 'required|string|max:200',
+            'primary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'primary_dark_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'green_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'gold_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'logos' => 'sometimes|array',
+            'logos.wordmark' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:4096',
+            'logos.seal' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:4096',
+            'logos.registration_banner' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:4096',
+            'logos.favicon' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:4096',
+            'restore_logo' => 'sometimes|array',
+            'restore_logo.*' => 'boolean',
+        ], [
+            'primary_color.regex' => 'Use a valid six-digit hex colour, for example #0B3A7E.',
+            'primary_dark_color.regex' => 'Use a valid six-digit hex colour, for example #082B5E.',
+            'green_color.regex' => 'Use a valid six-digit hex colour, for example #15803D.',
+            'gold_color.regex' => 'Use a valid six-digit hex colour, for example #C99A1E.',
+        ]);
+
+        $values = [];
+        foreach ([
+            'brand_name', 'portal_name', 'office_name', 'support_email', 'support_phone',
+            'primary_color', 'primary_dark_color', 'green_color', 'gold_color',
+            'how_title', 'how_subtitle', 'private_title', 'private_description',
+            'private_example', 'ready_title',
+        ] as $key) {
+            $value = trim((string) ($validated[$key] ?? ''));
+            $values[$key] = str_ends_with($key, '_color') ? strtoupper($value) : $value;
+        }
+        $values['how_steps'] = array_map(fn (array $step) => [
+            'title' => trim($step['title']),
+            'text' => trim($step['text']),
+        ], $validated['how_steps']);
+        $values['ready_items'] = array_map('trim', $validated['ready_items']);
+
+        $logoDefaults = \App\Services\SurveyorPortalSettings::DEFAULT_LOGO_PATHS;
+        $directory = public_path('assets/logo/surveyor-portal');
+        foreach ($logoDefaults as $key => $defaultPath) {
+            if ($request->boolean("restore_logo.{$key}")) {
+                $values["logo_{$key}"] = $defaultPath;
+            }
+
+            if ($request->hasFile("logos.{$key}")) {
+                $file = $request->file("logos.{$key}");
+                \Illuminate\Support\Facades\File::ensureDirectoryExists($directory);
+                $filename = \Illuminate\Support\Str::uuid() . '.' . $file->extension();
+                $file->move($directory, $filename);
+                $values["logo_{$key}"] = 'assets/logo/surveyor-portal/' . $filename;
+            }
+        }
+
+        app(\App\Services\SurveyorPortalSettings::class)->save($values);
+
+        return redirect()
+            ->route('configurable-entries.index', ['tab' => 'surveyor-portal'])
+            ->with('success', 'KNSSGOF Portal settings saved.');
     }
 
     /** Replace one slot's image. The upload is kept beside the shipped logos, named for its slot. */

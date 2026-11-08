@@ -38,10 +38,10 @@
 <header class="bg-white" style="border-bottom:1px solid var(--ks-line);">
     <div class="mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3" style="max-width:1120px;">
         <a href="{{ route('surveyor-portal.dashboard') }}" class="flex items-center gap-3" style="text-decoration:none;color:inherit;">
-            <img src="{{ asset('assets/logo/knssgof-logo.png') }}" alt="KNSSGOF seal" width="44" height="44" style="width:44px;height:44px;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);">
+            <img src="{{ asset($portalSettings['logo_seal']) }}" alt="{{ $portalSettings['brand_name'] }} seal" width="44" height="44" style="width:44px;height:44px;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);">
             <span>
-                <span class="block font-extrabold tracking-wide" style="color:var(--ks-blue);font-size:17px;line-height:1.1;">KNSSGOF</span>
-                <span class="block ks-help" style="font-size:12px;">Surveyor General's Office Portal</span>
+                <span class="block font-extrabold tracking-wide" style="color:var(--ks-blue);font-size:17px;line-height:1.1;">{{ $portalSettings['brand_name'] }}</span>
+                <span class="block ks-help" style="font-size:12px;">{{ $portalSettings['office_name'] }}</span>
             </span>
         </a>
         <div class="flex items-center gap-3 text-sm">

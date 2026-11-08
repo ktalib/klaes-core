@@ -9,7 +9,7 @@
         @hasSection('guest-banner')
             @yield('guest-banner')
         @else
-            <img src="{{ asset('assets/logo/knssgof-wordmark.png') }}" alt="KNSSGOF, Kano State Surveyor General's Office Portal" width="900" height="300"
+            <img src="{{ asset($portalSettings['logo_wordmark']) }}" alt="{{ $portalSettings['brand_name'] }}, {{ $portalSettings['office_name'] }} Portal" width="900" height="300"
                  class="relative" style="width:100%;max-width:520px;height:auto;mix-blend-mode:multiply;">
             <ul class="relative ks-help" style="margin-top:22px;font-size:15px;line-height:1.5;">
                 <li class="flex items-center gap-3 py-1.5"><i data-lucide="user-plus" class="w-5 h-5" style="color:var(--ks-blue);"></i> Register once, approved by the SG's office</li>
@@ -24,11 +24,11 @@
             @hasSection('guest-mobile-banner')
                 @yield('guest-mobile-banner')
             @else
-                <img src="{{ asset('assets/logo/knssgof-wordmark.png') }}" alt="KNSSGOF" width="900" height="300" class="mx-auto mb-5 lg:hidden" style="width:100%;max-width:280px;height:auto;">
+                <img src="{{ asset($portalSettings['logo_wordmark']) }}" alt="{{ $portalSettings['brand_name'] }}" width="900" height="300" class="mx-auto mb-5 lg:hidden" style="width:100%;max-width:280px;height:auto;">
             @endif
             @if (session('status'))<div class="ks-flash ok">{{ session('status') }}</div>@endif
             <div class="ks-card p-6" style="margin-top:34px;border-color:#C9CED4;box-shadow:0 10px 30px -18px rgba(11,58,126,.35);">
-                <img src="{{ asset('assets/logo/knssgof-logo.png') }}" alt="KNSSGOF seal" width="64" height="64" class="mx-auto" style="width:64px;height:64px;border-radius:50%;margin-top:-50px;margin-bottom:10px;box-shadow:0 0 0 4px #fff, 0 4px 12px rgba(0,0,0,.2);">
+                <img src="{{ asset($portalSettings['logo_seal']) }}" alt="{{ $portalSettings['brand_name'] }} seal" width="64" height="64" class="mx-auto" style="width:64px;height:64px;border-radius:50%;margin-top:-50px;margin-bottom:10px;box-shadow:0 0 0 4px #fff, 0 4px 12px rgba(0,0,0,.2);">
                 @yield('card')
             </div>
         </div>

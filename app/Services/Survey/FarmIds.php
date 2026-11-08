@@ -38,6 +38,35 @@ class FarmIds
         return (int) ($row->last_no ?? 0) + 1;
     }
 
+    /**
+     * Read-only previews for the register. These are estimates; assignment under
+     * the save transaction remains authoritative if another capture happens first.
+     */
+    public function nextSectionPreview(string $officer): int
+    {
+        $row = $this->db()->selectOne(
+            'SELECT MAX(section_no) AS last_no FROM survey_comp_cases WHERE UPPER(LTRIM(RTRIM(survey_officer))) = ?',
+            [mb_strtoupper(trim($officer))]);
+
+        return (int) ($row->last_no ?? 0) + 1;
+    }
+
+    public function nextFarmerIdPreview(): string
+    {
+        $row = $this->db()->selectOne('SELECT MAX(farmer_id_no) AS last_no FROM survey_farmers');
+        $n = (int) substr((string) ($row->last_no ?? 'FMR-0'), 4) + 1;
+
+        return sprintf('FMR-%06d', $n);
+    }
+
+    public function nextFarmIdPreview(): string
+    {
+        $row = $this->db()->selectOne('SELECT MAX(farm_id_no) AS last_no FROM survey_beneficiaries');
+        $n = (int) substr((string) ($row->last_no ?? 'FRM-0'), 4) + 1;
+
+        return sprintf('FRM-%06d', $n);
+    }
+
     /** Give a new farm row its numbers. Inside the save's transaction. */
     public function assign(SurveyCompCase $case, array $row): array
     {

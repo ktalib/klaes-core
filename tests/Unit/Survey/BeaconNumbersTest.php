@@ -62,6 +62,14 @@ class BeaconNumbersTest extends TestCase
             SurveyBeaconRegister::expand(SurveyBeaconRegister::parseRange('A0001B', 'A0004B')));
     }
 
+    public function test_private_prefix_letters_precede_the_serial(): void
+    {
+        $range = SurveyBeaconRegister::parseRange('AB0001', 'AB0003');
+
+        $this->assertSame('AB|', $range['series']);
+        $this->assertSame([1 => 'AB0001', 2 => 'AB0002', 3 => 'AB0003'], SurveyBeaconRegister::expand($range));
+    }
+
     public function test_group_names(): void
     {
         $this->assertSame('KB', SurveyBeaconRegister::seriesLabel('KB|'));

@@ -232,12 +232,27 @@
         <fieldset class="bi-sec">
             <legend>Beacon Numbers</legend>
             <p class="helper-text" id="brIssueTypeHint" style="margin:4px 0 10px;">Choose the beacon type first.</p>
-            {{-- Public: always the next prefix and the next numbers from the pool, nothing to choose.
-                 Private: A, the serial, then the SG's letters (user, 2026-11-05: A0001B, A0001AB). --}}
+            {{-- Public: numbers come from the pool. Private: the selected letters form the prefix. --}}
             <div class="bi-grid" id="brIssueNumbers" style="display:none;">
                 <div class="form-group">
                     <label>Beacon Prefix</label>
-                    <input type="text" id="brIssuePrefix" readonly tabindex="-1" style="background:var(--gray-100);font-weight:600;" />
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <div id="brIssueLettersBox" style="display:flex;gap:6px;align-items:center;">
+                            @foreach ([1, 2] as $li)
+                                <select id="brIssueL{{ $li }}" aria-label="Prefix letter {{ $li }}" onchange="brIssueLettersChanged()"
+                                        style="width:58px;">
+                                    <option value="">—</option>
+                                    @foreach (range('A', 'Z') as $letter)<option value="{{ $letter }}">{{ $letter }}</option>@endforeach
+                                </select>
+                            @endforeach
+                            <select id="brIssueL3" aria-label="Prefix letter 3" onchange="brIssueLettersChanged()" style="display:none;width:58px;">
+                                <option value="">—</option>
+                                @foreach (range('A', 'Z') as $letter)<option value="{{ $letter }}">{{ $letter }}</option>@endforeach
+                            </select>
+                            <button type="button" class="btn btn-outline btn-sm" id="brIssueLPlus" onclick="brIssueLetterAdd()" aria-label="Add a third prefix letter" title="Add a third prefix letter"><i class="fas fa-plus"></i></button>
+                        </div>
+                        <input type="text" id="brIssuePrefix" readonly tabindex="-1" style="width:82px;flex:0 0 82px;background:var(--gray-100);font-weight:600;" />
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Number of Beacons <span class="required">*</span></label>
@@ -247,17 +262,6 @@
                     <label>Start Serial</label>
                     <input type="text" id="brIssueStart" inputmode="numeric" maxlength="6" oninput="brIssueStartInput()" />
                     <p class="helper-text" id="brIssueNextNote"></p>
-                </div>
-                <div class="form-group" id="brIssueLettersBox">
-                    <label>Letters <span class="required">*</span></label>
-                    <div style="display:flex;gap:6px;align-items:center;">
-                        @foreach ([1, 2, 3] as $li)
-                            <input type="text" id="brIssueL{{ $li }}" maxlength="1" aria-label="Letter {{ $li }}" oninput="brIssueLettersChanged()"
-                                   style="width:44px;text-align:center;text-transform:uppercase;font-weight:600;{{ $li === 3 ? 'display:none;' : '' }}" />
-                        @endforeach
-                        <button type="button" class="btn btn-outline btn-sm" id="brIssueLPlus" onclick="brIssueLetterAdd()" aria-label="Add a third letter" title="Add a third letter"><i class="fas fa-plus"></i></button>
-                    </div>
-                    <input type="hidden" id="brIssueSuffix" />
                 </div>
             </div>
             {{-- Duplicate check: against the register and against the groups already in the table. --}}
@@ -411,7 +415,14 @@
             </div>
             <div>
                 <label>Plan No.</label>
-                <input type="text" name="plan_no" value="{{ $val('plan_no') }}" maxlength="100" />
+                <select name="plan_no" class="sv-searchable" data-placeholder="Search TP No.…">
+                    <option value=""></option>
+                    @foreach ($tpNumbers as $tp)
+                        <option value="{{ $tp['no'] }}" @selected((string) $val('plan_no') === $tp['no'])>
+                            {{ $tp['no'] }}{{ $tp['name'] ? ' — ' . \Illuminate\Support\Str::limit($tp['name'], 60) : '' }}
+                        </option>
+                    @endforeach
+                </select>
             </div>
         </div>
     </fieldset>
@@ -1128,7 +1139,7 @@
     var BR_PRIVATE_PREFIX = @json(\App\Http\Controllers\Survey\BeaconRegisterController::PRIVATE_PREFIX);
     var BR_TYPE_LABELS = @json($layoutTypes);
 
-    // Issue Beacon No (CR 03112026): Public takes the next numbers from the pool; Private is A + serial + letters.
+    // Issue Beacon No (CR 03112026): Public takes pool numbers; Private uses selected letters as its prefix.
     // Groups (user, 2026-11-02): each run, with its type, surveyor and location, is added to the table;
     // Save records every group as its own register entry in one go. Nothing is saved before that.
     var brIssueServerNext = null, brIssueGroups = [], brIssueGid = 0, brIssueState = 'none', brIssueEditAt = null;
@@ -1147,7 +1158,7 @@
         brIssueEl('brIssue').classList.remove('open'); document.body.style.overflow = '';
         brIssueMode();
     }
-    function brIssueSeries() { return brIssueEl('brIssuePrefix').value + '|' + brIssueEl('brIssueSuffix').value.toUpperCase(); }
+    function brIssueSeries() { return brIssueEl('brIssuePrefix').value + '|'; }
     // The highest serial of this prefix + letter already in the table (0 if none).
     function brIssuePendingMax(series) {
         return brIssueGroups.reduce(function (m, g) { return g.series === series ? Math.max(m, g.start + g.count - 1) : m; }, 0);
@@ -1170,18 +1181,18 @@
     }
     function brIssueNext() {
         if (brIssueIsPublic()) { brIssuePublicNext(); return; }
-        var prefix = brIssueEl('brIssuePrefix').value, suffix = brIssueEl('brIssueSuffix').value.toUpperCase();
+        var prefix = brIssueEl('brIssuePrefix').value;
         var note = brIssueEl('brIssueNextNote');
         brIssueServerNext = null;
-        if (!prefix || !suffix) { note.textContent = prefix ? 'Enter the letters to get the next serial.' : ''; brIssueMode(); return; }
+        if (!prefix) { note.textContent = 'Choose the prefix letters to get the next serial.'; brIssueMode(); return; }
         note.textContent = 'Checking the last serial issued…';
-        fetch(BR_ISSUE_URL.next + '?prefix=' + encodeURIComponent(prefix) + '&suffix=' + encodeURIComponent(suffix), { headers: { Accept: 'application/json' } })
+        fetch(BR_ISSUE_URL.next + '?prefix=' + encodeURIComponent(prefix), { headers: { Accept: 'application/json' } })
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 brIssueServerNext = d.next;
-                var pend = brIssuePendingMax(prefix + '|' + suffix);
-                note.textContent = (d.last ? 'Last issued: ' + prefix + brIssuePad(d.last) + suffix + '.' : 'None issued yet with ' + suffix + '.')
-                    + (pend >= d.next ? ' In the table up to ' + prefix + brIssuePad(pend) + suffix + '.' : '');
+                var pend = brIssuePendingMax(prefix + '|');
+                note.textContent = (d.last ? 'Last issued: ' + prefix + brIssuePad(d.last) + '.' : 'None issued yet with prefix ' + prefix + '.')
+                    + (pend >= d.next ? ' In the table up to ' + prefix + brIssuePad(pend) + '.' : '');
                 brIssueMode();
             })
             .catch(function () { note.textContent = 'The last serial could not be checked; type the serial.'; });
@@ -1219,9 +1230,9 @@
             if (!(count > 0) || nos.length !== count) return null;
             return { isPublic: true, prefix: brIssueEl('brIssuePrefix').value, suffix: '', series: '', start: 0, count: count, from: nos[0], to: nos[nos.length - 1], nos: nos.slice() };
         }
-        var prefix = brIssueEl('brIssuePrefix').value, suffix = brIssueEl('brIssueSuffix').value.toUpperCase();
+        var prefix = brIssueEl('brIssuePrefix').value, suffix = '';
         var start = parseInt(brIssueEl('brIssueStart').value, 10);
-        if (!prefix || !suffix || !(count > 0) || !(start > 0)) return null;
+        if (!prefix || !(count > 0) || !(start > 0)) return null;
         var list = [];
         for (var i = 0; i < Math.min(count, BR_MAX); i++) list.push(prefix + brIssuePad(start + i) + suffix);
         return { isPublic: false, prefix: prefix, suffix: suffix, series: prefix + '|' + suffix, start: start, count: count,
@@ -1303,7 +1314,7 @@
         if (!isPublic && !co) return fail('Choose the company.', coSel);
         if (!isPublic && co === 'other' && !coOther) return fail("Type the company's name.", brIssueEl('brIssueCompanyOther'));
         var r = brIssueRange();
-        if (!r) return fail(isPublic ? 'Enter the number of beacons.' : 'Enter the letters, the number of beacons and the start serial.', brIssueEl(isPublic ? 'brIssueCount' : 'brIssueL1'));
+        if (!r) return fail(isPublic ? 'Enter the number of beacons.' : 'Choose the prefix letters, number of beacons and start serial.', brIssueEl(isPublic ? 'brIssueCount' : 'brIssueL1'));
         if (brIssueState === 'checking') return fail('Still checking for duplicates; try again in a moment.');
         if (brIssueState === 'clash') return fail('Some of these numbers are taken; change the start serial or the number of beacons.', brIssueEl('brIssueCount'));
         var svSel = brIssueEl('brIssueSurveyor'), sv = svSel.value, svOther = brIssueEl('brIssueSurveyorOther').value.trim().replace(/\s+/g, ' ');
@@ -1358,23 +1369,23 @@
         brIssueEl('brIssueTypeHint').style.display = type ? 'none' : '';
         brIssueEl('brIssueNumbers').style.display = type ? '' : 'none';
         brIssueEl('brIssueCompanyBox').style.display = type === 'Private' ? '' : 'none';
-        brIssueEl('brIssueLettersBox').style.display = isPublic ? 'none' : '';
+        brIssueEl('brIssueLettersBox').style.display = isPublic ? 'none' : 'flex';
         var start = brIssueEl('brIssueStart');
         start.readOnly = isPublic;
         start.style.background = isPublic ? 'var(--gray-100)' : '';
         start.value = ''; brIssueStartTyped = false; brIssuePeek = null;
-        brIssueEl('brIssuePrefix').value = type === 'Private' ? BR_PRIVATE_PREFIX : '';
+        brIssueEl('brIssuePrefix').value = '';
+        brIssueSetLetters('');
         brIssueEl('brIssuePreview').textContent = ''; brIssueEl('brIssueDupNote').textContent = ''; brIssueEl('brIssueNextNote').textContent = '';
         brIssueState = 'none';
         if (type) brIssueNext();
     }
 
-    // Letters: two boxes, + opens a third; they read as one (user recording, 2026-11-05).
+    // Prefix letters: A-Z selectors; two show by default and + opens the third.
     function brIssueLetterBox(i) { return brIssueEl('brIssueL' + i); }
     function brIssueLettersChanged() {
-        var all = '';
-        [1, 2, 3].forEach(function (i) { var b = brIssueLetterBox(i); b.value = b.value.replace(/[^a-z]/gi, '').toUpperCase(); all += b.value; });
-        brIssueEl('brIssueSuffix').value = all;
+        var all = [1, 2, 3].map(function (i) { return brIssueLetterBox(i).value; }).join('');
+        brIssueEl('brIssuePrefix').value = all;
         brIssueStartTyped = false;
         brIssueNext();
     }
@@ -1385,7 +1396,7 @@
         var third = letters.length > 2;
         brIssueLetterBox(3).style.display = third ? '' : 'none';
         brIssueEl('brIssueLPlus').style.display = third ? 'none' : '';
-        brIssueEl('brIssueSuffix').value = letters;
+        brIssueEl('brIssuePrefix').value = letters;
     }
     // Choosing a company fills its letters and surveyor, and clears what the last one filled.
     function brIssueCompanyChanged() {
@@ -1479,7 +1490,7 @@
         brIssueEl('brIssueCount').value = g.count;
         brIssueTypeChanged();
         if (!g.isPublic) {
-            brIssueSetLetters(g.suffix);
+            brIssueSetLetters(g.prefix);
             brIssueSetSelect(brIssueEl('brIssueCompany'), g.co);
             brIssueEl('brIssueCompanyOther').value = g.coOther;
             brIssueEl('brIssueCompanyOtherWrap').style.display = g.co === 'other' ? '' : 'none';

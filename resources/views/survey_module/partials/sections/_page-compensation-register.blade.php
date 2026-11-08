@@ -75,6 +75,18 @@
             'survey_farmer_id' => $b->survey_farmer_id,
         ])->all()
         : []);
+    $farmerIdNos = \App\Models\Survey\SurveyFarmer::whereIn(
+        'id',
+        collect($benRows)->pluck('survey_farmer_id')->filter()->unique()->values()->all() ?: [0]
+    )->pluck('farmer_id_no', 'id');
+    $farmIdService = app(\App\Services\Survey\FarmIds::class);
+    $nextIdPreview = [
+        'farmer' => $farmIdService->nextFarmerIdPreview(),
+        'farm' => $farmIdService->nextFarmIdPreview(),
+        'farmNo' => (int) $case->beneficiaries()->max('farm_no') + 1,
+    ];
+    $officerForPreview = trim((string) old('survey_officer', $case->survey_officer));
+    $nextIdPreview['section'] = $case->section_no ?: ($officerForPreview !== '' ? $farmIdService->nextSectionPreview($officerForPreview) : null);
 
     $treeRows = old('trees', $editing
         ? $case->trees->map(fn ($t) => [
@@ -85,6 +97,44 @@
 
     $statusLabel = fn ($s) => $s === 'Review' ? 'Pending Review' : $s;
 @endphp
+
+<style>
+    .case-id-summary {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin: 18px 0 22px;
+    }
+    .case-id-card {
+        min-width: 0;
+        padding: 14px 16px;
+        border: 1px solid;
+        border-radius: 10px;
+        background: #fff;
+    }
+    .case-id-section { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+    .case-id-farmer { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
+    .case-id-farm { border-color: #fde68a; background: #fffbeb; color: #b45309; }
+    .case-id-farm-no { border-color: #e9d5ff; background: #faf5ff; color: #7e22ce; }
+    .case-id-label {
+        display: block;
+        margin-bottom: 7px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+    .case-id-card > strong { font-size: 18px; }
+    .case-id-values { display: flex; flex-wrap: wrap; gap: 5px; }
+    .case-id-value, .case-id-placeholder {
+        overflow-wrap: anywhere;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    @media (max-width: 767px) {
+        .case-id-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+</style>
 
 @include('survey_module.partials._flash')
 
@@ -138,6 +188,44 @@
                 <div class="step-subtitle">
                     Select a Project. The compensation scheme (Monetary Compensation or Land to Land, with its sharing ratio) is defined at
                     Project level and cannot be changed on the farm assessment.
+                </div>
+
+                <div class="case-id-summary" aria-label="Farm identifiers">
+                    <div class="case-id-card case-id-section">
+                        <span class="case-id-label">Section No.</span>
+                        <strong id="caseSectionIdValue">{{ $nextIdPreview['section'] ?? 'Enter survey officer' }}</strong>
+                    </div>
+                    <div class="case-id-card case-id-farmer">
+                        <span class="case-id-label">Farmer ID</span>
+                        <div class="case-id-values" id="caseFarmerIdValues">
+                            @forelse ($benRows as $row)
+                                @php $farmerIdNo = $farmerIdNos[$row['survey_farmer_id'] ?? 0] ?? null; @endphp
+                                <span class="case-id-value">{{ $farmerIdNo ?: 'Given on save' }}{{ ! empty($row['full_name']) ? ' · ' . $row['full_name'] : '' }}</span>
+                            @empty
+                                <span class="case-id-placeholder">{{ $nextIdPreview['farmer'] }} · next</span>
+                            @endforelse
+                        </div>
+                    </div>
+                    <div class="case-id-card case-id-farm">
+                        <span class="case-id-label">Farm ID</span>
+                        <div class="case-id-values" id="caseFarmIdValues">
+                            @forelse ($benRows as $row)
+                                <span class="case-id-value">{{ $row['farm_id_no'] ?? 'Given on save' }}{{ ! empty($row['full_name']) ? ' · ' . $row['full_name'] : '' }}</span>
+                            @empty
+                                <span class="case-id-placeholder">{{ $nextIdPreview['farm'] }} · next</span>
+                            @endforelse
+                        </div>
+                    </div>
+                    <div class="case-id-card case-id-farm-no">
+                        <span class="case-id-label">Farm No.</span>
+                        <div class="case-id-values" id="caseFarmNoValues">
+                            @forelse ($benRows as $row)
+                                <span class="case-id-value">{{ $row['farm_no'] ?? 'Given on save' }}{{ ! empty($row['full_name']) ? ' · ' . $row['full_name'] : '' }}</span>
+                            @empty
+                                <span class="case-id-placeholder">{{ $nextIdPreview['farmNo'] }} · next</span>
+                            @endforelse
+                        </div>
+                    </div>
                 </div>
 
                 <div class="form-grid">
@@ -254,12 +342,6 @@
                         <label>Survey Officer <span class="required">*</span></label>
                         <input type="text" name="survey_officer" id="caseOfficer"
                                value="{{ old('survey_officer', $case->survey_officer) }}" placeholder="e.g. Clement Joseph" />
-                    </div>
-
-                    {{-- Given by the system, the surveyor's next number (CR 03112026 item 5). --}}
-                    <div class="form-group">
-                        <label>Section No.</label>
-                        <input type="text" value="{{ $case->section_no }}" placeholder="Given on save" readonly tabindex="-1" style="background:var(--gray-100);" />
                     </div>
 
                     <div class="form-group">
@@ -386,7 +468,7 @@
 
                     <div id="caseBenRows">
                         @foreach ($benRows as $i => $row)
-                            <div class="list-item">
+                            <div class="list-item" data-farmer-id="{{ $farmerIdNos[$row['survey_farmer_id'] ?? 0] ?? '' }}" data-farm-no="{{ $row['farm_no'] ?? '' }}">
                                 <span>
                                     <input type="text" name="beneficiaries[{{ $i }}][full_name]" value="{{ $row['full_name'] ?? '' }}" />
                                     <input type="hidden" name="beneficiaries[{{ $i }}][id]" value="{{ $row['id'] ?? '' }}" />
@@ -874,6 +956,7 @@
     var TREE_PRICES = @json($treePrices);
     // Names that are only Cash Crops (priced per m²): Quantity is then the area in m² (user, 2026-11-03).
     var CASH_CROPS = @json($cashCropNames);
+    var NEXT_ID_PREVIEW = @json($nextIdPreview);
     var autoPrice = null;   // the last price filled from the catalogue
     var TOTAL_STEPS = 6;
 
@@ -1071,6 +1154,7 @@
             farm_id_no: farmer ? farm : '',
             id: ''
         });
+        row.dataset.farmerId = farmerPicked ? farmerPicked.farmer_id_no : '';
         var marker = row.querySelector('[data-role="marker"]');
         if (marker && farmer) marker.textContent = farm ? 'Existing farm' : 'Existing farmer';
 
@@ -1080,6 +1164,7 @@
         farmerClear();
         qs('caseBenForm').classList.remove('open');
         refreshCounts();
+        refreshIdSummary();
     }
 
     // Existing farmer (CR 03112026): typed details are matched against the farmers on record and offered.
@@ -1167,6 +1252,7 @@
         var row = btn.closest('.list-item');
         if (row) row.parentNode.removeChild(row);
         refreshCounts();
+        refreshIdSummary();
         refreshTotals();
     }
 
@@ -1201,6 +1287,46 @@
 
         var treeEmpty = qs('caseTreeEmpty');
         if (treeEmpty) treeEmpty.style.display = treeRows().length ? 'none' : '';
+    }
+
+    function refreshIdSummary() {
+        var rows = qs('caseBenRows') ? Array.prototype.slice.call(qs('caseBenRows').querySelectorAll('.list-item')) : [];
+        var farmerNext = Number(String(NEXT_ID_PREVIEW.farmer).replace(/\D/g, '')) || 1;
+        var farmNext = Number(String(NEXT_ID_PREVIEW.farm).replace(/\D/g, '')) || 1;
+        var farmNoNext = Number(NEXT_ID_PREVIEW.farmNo) || 1;
+        [
+            ['caseFarmerIdValues', function (row) {
+                if (row.dataset.farmerId) return row.dataset.farmerId;
+                return 'FMR-' + String(farmerNext++).padStart(6, '0') + ' · preview';
+            }, NEXT_ID_PREVIEW.farmer + ' · next'],
+            ['caseFarmIdValues', function (row) {
+                var input = row.querySelector('[name$="[farm_id_no]"]');
+                if (input && input.value) return input.value;
+                return 'FRM-' + String(farmNext++).padStart(6, '0') + ' · preview';
+            }, NEXT_ID_PREVIEW.farm + ' · next'],
+            ['caseFarmNoValues', function (row) {
+                if (row.dataset.farmNo) return row.dataset.farmNo;
+                return String(farmNoNext++) + ' · preview';
+            }, NEXT_ID_PREVIEW.farmNo + ' · next']
+        ].forEach(function (item) {
+            var container = qs(item[0]);
+            if (!container) return;
+            container.textContent = '';
+            if (!rows.length) {
+                var placeholder = document.createElement('span');
+                placeholder.className = 'case-id-placeholder';
+                placeholder.textContent = item[2];
+                container.appendChild(placeholder);
+                return;
+            }
+            rows.forEach(function (row) {
+                var value = document.createElement('span');
+                value.className = 'case-id-value';
+                var name = row.querySelector('[name$="[full_name]"]');
+                value.textContent = item[1](row) + (name && name.value.trim() ? ' · ' + name.value.trim() : '');
+                container.appendChild(value);
+            });
+        });
     }
 
     function refreshTotals() {
@@ -1353,12 +1479,39 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         applyScheme(scheme);
+        var beneficiaryRows = qs('caseBenRows');
+        if (beneficiaryRows) beneficiaryRows.addEventListener('input', refreshIdSummary);
+        var officerInput = qs('caseOfficer'), sectionPreviewTimer = null, sectionPreviewRequest = 0;
+        if (officerInput && !{{ $case->section_no ? 'true' : 'false' }}) {
+            officerInput.addEventListener('input', function () {
+                clearTimeout(sectionPreviewTimer);
+                var officer = officerInput.value.trim();
+                var requestId = ++sectionPreviewRequest;
+                var value = qs('caseSectionIdValue');
+                if (!officer) { value.textContent = 'Enter survey officer'; return; }
+                sectionPreviewTimer = setTimeout(function () {
+                    fetch(@json(route('survey-module.compensation.cases.next-section')) + '?officer=' + encodeURIComponent(officer), { headers: { Accept: 'application/json' } })
+                        .then(function (response) {
+                            if (!response.ok) throw new Error('Section number preview request failed.');
+                            return response.json();
+                        })
+                        .then(function (preview) {
+                            if (requestId === sectionPreviewRequest) value.textContent = preview.section_no;
+                        })
+                        .catch(function (error) {
+                            if (requestId === sectionPreviewRequest) value.textContent = 'Preview unavailable';
+                            console.error(error);
+                        });
+                }, 250);
+            });
+        }
         @unless ($editing)
         // A new case opened with its project already chosen gets that project's location too.
         var pre = qs('caseProject');
         if (pre && pre.value && PROJECTS[pre.value] && window.fillAddressBuilder) projectLoc = window.fillAddressBuilder('prop_', PROJECTS[pre.value].location, null);
         @endunless
         refreshCounts();
+        refreshIdSummary();
         refreshTotals();
         mirrorPlots();
         render();

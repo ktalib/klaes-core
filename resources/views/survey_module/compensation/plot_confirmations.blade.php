@@ -9,7 +9,7 @@
   // Opened from Records > Plot Showing Register (user, 2026-11-02).
   $PageTitle = $isGkn ? 'Plot Showing Register' : 'Plot Showing Register - Resettlement';
   $PageDescription = $isGkn
-      ? 'OP plots shown to their allottees (Showing History) and ground checks of plots against their layout and the Beacon Register: recorded here or with the Plot Confirmation app. Ground Check and Confirmation Forms are the buttons below Record Plot Showing.'
+      ? 'OP plots shown to their allottees (Showing History) and ground checks of plots against their layout and the Beacon Register: recorded here or with the Plot Confirmation app. Ground Check is available below Record Plot Showing.'
       : 'Resettlement OP plots shown to their allottees, and their ground checks. View only: they are recorded under GKN > Plot Showing Register.';
   $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
   $field = 'border:1.5px solid var(--gray-300);border-radius:6px;padding:7px 8px;';
@@ -1013,13 +1013,11 @@ document.addEventListener('DOMContentLoaded', function () {
 </style>
 
 <div x-data="{ view: null }">
-{{-- Tabs first, so each tab brings its own counts and buttons. Confirmation Forms (the button below Record Plot Showing,
-     user 2026-11-06) opens here without a page load; so does going back to the tab the page was opened on. --}}
-<div class="pc-tabs" id="pcTabs" data-server-tab="{{ $tab }}" data-confirm-url="{{ $tabUrl('confirmation') }}">
+<div class="pc-tabs">
     <a href="{{ $tabUrl('showings') }}" data-tab="showings" class="{{ $tab === 'showings' ? 'on' : '' }}">Plot Showing</a>
 </div>
 
-<div id="pcMain" @if ($tab === 'confirmation') hidden @endif>
+<div id="pcMain">
 <div class="kpi-grid">
     <div class="kpi-card"><div class="kpi-label">Showings</div><div class="kpi-value">{{ number_format($totals['showings']) }}</div><div class="pc-sub">{{ number_format($totals['ops']) }} OPs shown</div></div>
     <div class="kpi-card"><div class="kpi-label">Old register</div><div class="kpi-value">{{ number_format($totals['old']) }}</div><div class="pc-sub">from the old book</div></div>
@@ -1037,12 +1035,11 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="pc-sub">{{ $regHow }}</div></div>
 </div>
 
-{{-- Below the cards. Record Plot Showing keeps its two choices, New and Old Register; Ground Check and Confirmation
-     Forms are their own buttons directly under it, not in its dropdown (user, 2026-11-06). --}}
+{{-- Below the cards. Record Plot Showing keeps its two choices, New and Old Register; Ground Check is separate. --}}
 @if ($isGkn)
 <div class="page-header" style="margin-bottom:10px;align-items:flex-start;">
     {{-- Export Records on the left (user, 2026-11-06). --}}
-    <div>@include('survey_module.partials._records_export', ['endpoint' => route($isGkn ? 'survey-module.gkn.plot-showing.export' : 'survey-module.compensation.plot-confirmations.export'), 'title' => 'Plot Showing Register', 'dateLabel' => $tab === 'checks' ? 'Date Checked' : 'Date Shown', 'onclick' => "pcExport('" . ($tab === 'confirmation' ? 'showings' : request('tab', 'showings')) . "', 'Plot Showing Register')"])</div>
+    <div>@include('survey_module.partials._records_export', ['endpoint' => route($isGkn ? 'survey-module.gkn.plot-showing.export' : 'survey-module.compensation.plot-confirmations.export'), 'title' => 'Plot Showing Register', 'dateLabel' => $tab === 'checks' ? 'Date Checked' : 'Date Shown', 'onclick' => "pcExport('" . request('tab', 'showings') . "', 'Plot Showing Register')"])</div>
     <div style="display:flex;flex-direction:column;align-items:stretch;gap:8px;">
         <div x-data="{ open: false }" class="relative" @keydown.escape.window="open = false">
             <button type="button" class="btn btn-primary" style="width:100%;justify-content:center;" aria-haspopup="true" :aria-expanded="open" @click.stop="open = !open">
@@ -1054,13 +1051,12 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
         </div>
         <button type="button" class="btn" style="justify-content:center;background:#b45309;border-color:#b45309;color:#fff;" onclick="pcEntry('new', 'check')"><i class="fas fa-map-marked-alt"></i> Ground Check</button>
-        <button type="button" class="btn" style="justify-content:center;background:#0f766e;border-color:#0f766e;color:#fff;" onclick="pcConfirmOpen()"><i class="fas fa-clipboard-check"></i> Confirmation Forms</button>
     </div>
 </div>
 @endif
 
 @unless ($isGkn)
-<div class="page-header" style="margin-bottom:10px;"><div>@include('survey_module.partials._records_export', ['endpoint' => route($isGkn ? 'survey-module.gkn.plot-showing.export' : 'survey-module.compensation.plot-confirmations.export'), 'title' => 'Plot Showing Register', 'dateLabel' => $tab === 'checks' ? 'Date Checked' : 'Date Shown', 'onclick' => "pcExport('" . ($tab === 'confirmation' ? 'showings' : request('tab', 'showings')) . "', 'Plot Showing Register')"])</div><div></div></div>
+<div class="page-header" style="margin-bottom:10px;"><div>@include('survey_module.partials._records_export', ['endpoint' => route($isGkn ? 'survey-module.gkn.plot-showing.export' : 'survey-module.compensation.plot-confirmations.export'), 'title' => 'Plot Showing Register', 'dateLabel' => $tab === 'checks' ? 'Date Checked' : 'Date Shown', 'onclick' => "pcExport('" . request('tab', 'showings') . "', 'Plot Showing Register')"])</div><div></div></div>
 @endunless
 
 <div class="table-container">
@@ -1206,36 +1202,6 @@ document.addEventListener('DOMContentLoaded', function () {
     <div class="table-footer"><span>{{ number_format($rows->total()) }} {{ $tab === 'checks' ? 'ground checks' : 'showings' }}</span><div class="pagination">{{ $rows->links() }}</div></div>
 </div>
 </div>{{-- #pcMain --}}
-
-@if ($isGkn)
-<div id="pcConfirm" @unless ($tab === 'confirmation') hidden @endunless>
-    @include('survey_module.compensation.partials._confirmation_forms_panel')
-</div>
-@endif
-
-<script>
-// Confirmation Forms opens without a page load, and so does going back to the tab the page was opened on;
-// the address follows so a refresh, or a save that comes back here, lands on the same tab.
-(function () {
-    var bar = document.getElementById('pcTabs');
-    if (!bar) return;
-    var server = bar.dataset.serverTab, main = document.getElementById('pcMain'), confirm = document.getElementById('pcConfirm');
-    var serverUrl = server === 'confirmation' ? null : location.href;
-    function show(on, href, tab) {
-        main.hidden = on; confirm.hidden = !on;
-        bar.querySelectorAll('a[data-tab]').forEach(function (x) { x.classList.toggle('on', x === tab); });
-        try { history.replaceState(null, '', href); } catch (err) {}
-        if (window.lucide && lucide.createIcons) lucide.createIcons();
-    }
-    window.pcConfirmOpen = function () { show(true, bar.dataset.confirmUrl, null); };
-    bar.addEventListener('click', function (e) {
-        var a = e.target.closest('a[data-tab]');
-        if (!a || a.dataset.tab !== server || !serverUrl) return;   // another list: load it
-        e.preventDefault();
-        show(false, serverUrl, a);
-    });
-})();
-</script>
 
 {{-- Details --}}
 <template x-if="view">

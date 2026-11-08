@@ -6,7 +6,7 @@
 @section('guest-banner')
     <div style="width:100%;max-width:540px;position:relative;">
         <div class="ks-company-banner-brand">
-            <img src="{{ asset('assets/logo/knssgof-wordmark.png') }}" alt="KNSSGOF, Kano State Surveyor General's Office Portal" width="900" height="300">
+            <img src="{{ asset($portalSettings['logo_wordmark']) }}" alt="{{ $portalSettings['brand_name'] }}, {{ $portalSettings['office_name'] }} Portal" width="900" height="300">
         </div>
         <div class="ks-company-banner-eyebrow"><i data-lucide="building-2" class="w-4 h-4"></i> COMPANY REGISTRATION</div>
         <h2 class="ks-company-banner-title">Your company’s next step starts here.</h2>
@@ -21,9 +21,9 @@
 
 @section('guest-mobile-banner')
     <div class="ks-company-mobile-banner">
-        <img src="{{ asset('assets/logo/knssgof-logo.png') }}" alt="KNSSGOF seal" width="44" height="44">
+        <img src="{{ asset($portalSettings['logo_seal']) }}" alt="{{ $portalSettings['brand_name'] }} seal" width="44" height="44">
         <div>
-            <div class="ks-company-mobile-eyebrow">KNSSGOF · COMPANY REGISTRATION</div>
+            <div class="ks-company-mobile-eyebrow">{{ $portalSettings['brand_name'] }} · COMPANY REGISTRATION</div>
             <div class="ks-company-mobile-title">Register a survey company</div>
             <div class="ks-company-mobile-copy">Submit the company details for SG approval.</div>
         </div>

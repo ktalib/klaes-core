@@ -126,10 +126,10 @@
         </svg>
 
         <div class="relative mx-auto px-4 text-center" style="max-width:920px;padding-top:56px;padding-bottom:64px;">
-            <span class="ks-eyebrow"><i data-lucide="map-pin" class="w-4 h-4"></i> Kano State Surveyor General's Office</span>
+            <span class="ks-eyebrow"><i data-lucide="map-pin" class="w-4 h-4"></i> {{ $portalSettings['office_name'] }}</span>
 
-            <h1 class="sr-only">KNSSGOF, the Kano State Surveyor General's Office Portal</h1>
-            <img src="{{ asset('assets/logo/knssgof-wordmark.png') }}" alt="KNSSGOF, Kano State Surveyor General's Office Portal"
+            <h1 class="sr-only">{{ $portalSettings['brand_name'] }}, {{ $portalSettings['office_name'] }} Portal</h1>
+            <img src="{{ asset($portalSettings['logo_wordmark']) }}" alt="{{ $portalSettings['brand_name'] }}, {{ $portalSettings['office_name'] }} Portal"
                  width="900" height="300" class="mx-auto" style="width:100%;max-width:720px;height:auto;margin-top:22px;mix-blend-mode:multiply;">
 
             <p class="mx-auto" style="max-width:620px;margin-top:8px;font-size:clamp(16px,2.2vw,19px);line-height:1.6;color:var(--ks-soft);">
@@ -184,7 +184,7 @@
                         <a class="ks-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.45);padding:12px 22px;" href="#how">How it works</a>
                     </div>
                 </div>
-                <img src="{{ asset('assets/logo/knssgof-logo.png') }}" alt="KNSSGOF seal" width="1200" height="900" loading="lazy" class="ks-seal-img">
+                <img src="{{ asset($portalSettings['logo_seal']) }}" alt="{{ $portalSettings['brand_name'] }} seal" width="1200" height="900" loading="lazy" class="ks-seal-img">
             </div>
         </div>
     </div>
@@ -227,21 +227,22 @@
     {{-- How it works --}}
     <section id="how" class="mx-auto px-4" style="max-width:1120px;padding-top:56px;padding-bottom:16px;">
         <div class="text-center" style="margin-bottom:36px;">
-            <h2 class="ks-section-title">How it works</h2>
-            <p class="ks-help" style="font-size:15px;margin-top:6px;">Four steps from registration to a printed slip.</p>
+            <h2 class="ks-section-title">{{ $portalSettings['how_title'] }}</h2>
+            <p class="ks-help" style="font-size:15px;margin-top:6px;">{{ $portalSettings['how_subtitle'] }}</p>
         </div>
         <ol class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4" style="list-style:none;padding:0;">
             @foreach ([
-                ['user-plus', '#EEF3FA', 'var(--ks-blue)', 'Register', 'Confirm your company is registered, then give your name, phone, email and SURCON number. You get a Registration ID.'],
-                ['shield-check', '#ECF7EF', 'var(--ks-green)', 'Get approved', 'The Surveyor General\'s office checks your details and activates your account with a Surveyor ID. You can sign in from then on.'],
-                ['map-pin', '#FBF5E6', '#9A7414', 'Request beacons', 'Say how many beacons you need and where the survey is: plot, district and LGA.'],
-                ['printer', '#EEF3FA', 'var(--ks-blue)', 'Accept and print', 'The SG issues the next available numbers. Accept them in the portal and print your Beacon Issue Slip.'],
-            ] as $i => [$icon, $bg, $fg, $title, $text])
+                ['user-plus', '#EEF3FA', 'var(--ks-blue)'],
+                ['shield-check', '#ECF7EF', 'var(--ks-green)'],
+                ['map-pin', '#FBF5E6', '#9A7414'],
+                ['printer', '#EEF3FA', 'var(--ks-blue)'],
+            ] as $i => [$icon, $bg, $fg])
+                @php $step = $portalSettings['how_steps'][$i]; @endphp
                 <li class="ks-card ks-step">
                     <span class="ks-step-no">{{ $i + 1 }}</span>
                     <div class="ks-icon" style="background:{{ $bg }};color:{{ $fg }};"><i data-lucide="{{ $icon }}" class="w-5 h-5"></i></div>
-                    <h3 class="font-bold" style="font-size:17px;margin-top:14px;">{{ $title }}</h3>
-                    <p class="ks-help" style="font-size:14px;line-height:1.6;margin-top:6px;">{{ $text }}</p>
+                    <h3 class="font-bold" style="font-size:17px;margin-top:14px;">{{ $step['title'] }}</h3>
+                    <p class="ks-help" style="font-size:14px;line-height:1.6;margin-top:6px;">{{ $step['text'] }}</p>
                 </li>
             @endforeach
         </ol>
@@ -251,18 +252,17 @@
     <section class="mx-auto px-4 grid gap-6 lg:grid-cols-2" style="max-width:1120px;padding-top:40px;padding-bottom:56px;">
         <div class="ks-card p-6">
             <div class="ks-icon" style="background:#ECF7EF;color:var(--ks-green);"><i data-lucide="briefcase" class="w-5 h-5"></i></div>
-            <h3 class="font-bold" style="font-size:18px;margin-top:14px;">Private surveyors</h3>
-            <p class="ks-help" style="font-size:14px;line-height:1.6;margin-top:6px;">For surveys by a registered company. Numbers carry your company's letters and continue its own series.</p>
-            <p style="margin-top:12px;font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--ks-green);">e.g. A0001B</p>
+            <h3 class="font-bold" style="font-size:18px;margin-top:14px;">{{ $portalSettings['private_title'] }}</h3>
+            <p class="ks-help" style="font-size:14px;line-height:1.6;margin-top:6px;">{{ $portalSettings['private_description'] }}</p>
+            <p style="margin-top:12px;font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--ks-green);">e.g. {{ $portalSettings['private_example'] }}</p>
         </div>
         <div class="ks-card p-6" style="background:linear-gradient(180deg,#fff, #FBFCFE);">
             <div class="ks-icon" style="background:#FBF5E6;color:#9A7414;"><i data-lucide="clipboard-list" class="w-5 h-5"></i></div>
-            <h3 class="font-bold" style="font-size:18px;margin-top:14px;">Have these ready</h3>
+            <h3 class="font-bold" style="font-size:18px;margin-top:14px;">{{ $portalSettings['ready_title'] }}</h3>
             <ul class="ks-check" style="margin-top:8px;">
-                <li><i data-lucide="check-circle-2" class="w-4 h-4"></i> Your SURCON registration number</li>
-                <li><i data-lucide="check-circle-2" class="w-4 h-4"></i> A mobile number you can be reached on</li>
-                <li><i data-lucide="check-circle-2" class="w-4 h-4"></i> An email address</li>
-                <li><i data-lucide="check-circle-2" class="w-4 h-4"></i> Your company's name, if private</li>
+                @foreach($portalSettings['ready_items'] as $item)
+                    <li><i data-lucide="check-circle-2" class="w-4 h-4"></i> {{ $item }}</li>
+                @endforeach
             </ul>
         </div>
     </section>
@@ -273,7 +273,7 @@
             <div class="mx-auto flex flex-col md:flex-row items-center justify-between gap-5 p-8"
                  style="max-width:1120px;border-radius:16px;background:linear-gradient(120deg,var(--ks-blue-dark),var(--ks-blue) 60%,#0E4A9E);color:#fff;">
                 <div class="flex items-center gap-4">
-                    <img src="{{ asset('assets/logo/knssgof-logo.png') }}" alt="KNSSGOF seal" width="64" height="64" style="width:64px;height:64px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 3px rgba(201,154,30,.55);">
+                    <img src="{{ asset($portalSettings['logo_seal']) }}" alt="{{ $portalSettings['brand_name'] }} seal" width="64" height="64" style="width:64px;height:64px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 3px rgba(201,154,30,.55);">
                     <div>
                         <h2 class="font-extrabold" style="font-size:22px;">Ready to request beacons?</h2>
                         <p style="opacity:.85;font-size:15px;margin-top:4px;">Registration takes a few minutes. Approval comes from the SG's office.</p>
@@ -291,10 +291,10 @@
 <footer style="background:#0F1720;color:#C9D1DA;">
     <div class="mx-auto px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-4" style="max-width:1120px;">
         <div class="flex items-center gap-3">
-            <img src="{{ asset('assets/logo/knssgof-logo.png') }}" alt="KNSSGOF seal" width="40" height="40" style="width:40px;height:40px;border-radius:50%;">
+            <img src="{{ asset($portalSettings['logo_seal']) }}" alt="{{ $portalSettings['brand_name'] }} seal" width="40" height="40" style="width:40px;height:40px;border-radius:50%;">
             <div style="font-size:14px;">
-                <div class="font-semibold" style="color:#fff;">Kano State Surveyor General's Office</div>
-                <div style="font-size:12px;opacity:.75;">KNSSGOF Portal · part of KLAES</div>
+                <div class="font-semibold" style="color:#fff;">{{ $portalSettings['office_name'] }}</div>
+                <div style="font-size:12px;opacity:.75;">{{ $portalSettings['portal_name'] }} · part of KLAES</div>
             </div>
         </div>
         <div class="flex items-center gap-5" style="font-size:14px;">

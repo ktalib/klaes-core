@@ -51,6 +51,9 @@ Route::middleware(['auth'])->prefix('system-admin/configurable-entries')->name('
     Route::post('/logos/{slot}', [Entries::class, 'saveLogo'])->name('logos.save');
     Route::post('/logos/{slot}/reset', [Entries::class, 'resetLogo'])->name('logos.reset');
 
+    // KNSSGOF Surveyor Portal branding and contact settings.
+    Route::post('/surveyor-portal', [Entries::class, 'saveSurveyorPortalSettings'])->name('surveyor-portal.save');
+
 
     // Signatories: the office holders printed on issued documents (Commissioner,
     // Governor, and any further ones added). Rows of signing_officers with no

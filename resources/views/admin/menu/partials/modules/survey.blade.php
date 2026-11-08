@@ -82,6 +82,10 @@
               <i data-lucide="folders" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Projects</span>
             </a>
+            <a href="{{ route('survey-module.compensation.confirmation-forms') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.compensation.confirmation-forms*') ? 'active' : '' }}">
+              <i data-lucide="sparkles" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Special Projects</span>
+            </a>
           </div>
 
           {{-- b.ii Records --}}

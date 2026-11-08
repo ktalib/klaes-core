@@ -13,13 +13,14 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Survey > Compensation > Confirmation Forms (user, 2026-11-02), from the new paper template. Serials are
+ * Survey > Compensation > Project Management > Special Projects, from the new paper template. Serials are
  * issued for a layout (a Survey project, or one typed under Other, e.g. BUK/Zakara Layout) with a blank
  * printed form; the filled paper is keyed in against its serial. A serial is voided, never deleted.
- * Shown as the Confirmation Forms tab of the Plot Showing Register (user, 2026-11-03).
  */
 class ConfirmationFormController extends Controller
 {
+    use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
+
     public const TABS = ['forms' => 'Confirmation Forms', 'serials' => 'Serials & Blank Forms', 'guarantors' => 'Guarantor Forms'];
 
     /** The Guarantor's Form columns on a Confirmation Form (one guarantor per form). */
@@ -31,28 +32,70 @@ class ConfirmationFormController extends Controller
     ];
     public const MAX_BATCH = 500;
     private const ROUTE = 'survey-module.compensation.confirmation-forms';
-    /** The Plot Showing Register, whose Confirmation Forms tab lists them. */
-    private const REGISTER = 'survey-module.gkn.plot-showing';
 
     /**
-     * The forms are a tab of the Plot Showing Register (user, 2026-11-03), so this address opens that tab. The
-     * old query keys are carried over under their cf names.
+     * The former Plot Showing Register tab now has its own Special Projects page.
      */
     public function index(Request $r)
     {
         $map = ['tab' => 'cftab', 'q' => 'cfq', 'layout' => 'cflayout', 'status' => 'cfstatus', 'edit' => 'cfedit',
                 'serial' => 'cfserial', 'capture' => 'cfcapture', 'page' => 'cfpage', 'spage' => 'cfspage'];
-        $query = ['tab' => 'confirmation'];
-        foreach ($map as $old => $new) if ($r->filled($old)) $query[$new] = $r->query($old);
-        $r->session()->reflash();
+        $query = [];
+        $isLegacyUrl = false;
+        foreach ($map as $old => $new) {
+            if ($r->filled($old)) {
+                $isLegacyUrl = true;
+                $query[$new] = $old === 'tab' && $r->query($old) === 'confirmation'
+                    ? 'forms'
+                    : $r->query($old);
+            } elseif ($r->filled($new)) {
+                $query[$new] = $r->query($new);
+            }
+        }
 
-        return redirect()->route(self::REGISTER, $query);
+        if ($isLegacyUrl) {
+            $extras = $r->query();
+            foreach (array_keys($map) as $legacyKey) {
+                unset($extras[$legacyKey]);
+            }
+
+            return redirect()->route(self::ROUTE, $query + $extras);
+        }
+
+        return view('survey_module.compensation.confirmation_forms', [
+            'PageTitle' => 'Special Projects',
+            'PageDescription' => 'Confirmation Forms, serials and Guarantor Forms.',
+        ] + $this->panelData($r));
     }
 
-    /**
-     * The tab's tables, counts and lists, for PlotConfirmationController::index. Query keys carry a cf prefix
-     * so they never clash with the register's own (tab, q, page, edit).
-     */
+    /** Export captured Confirmation Forms from the Special Projects page. */
+    public function export(Request $r)
+    {
+        return $this->exportRecords(
+            $r,
+            fn () => $this->capturedForms(
+                (string) $r->query('search', $r->query('cfq', $r->query('q', ''))),
+                trim((string) $r->query('cflayout', ''))
+            ),
+            [
+                'serial_no' => 'Serial No.', 'land_owner' => 'Land Owner', 'layout' => 'Layout',
+                'section' => 'Section', 'id_number' => 'ID Number', 'location' => 'Location',
+                'nin' => 'NIN', 'gsm' => 'GSM', 'vendor' => 'Vendor / Agent',
+                'guarantor' => 'Guarantor', 'captured' => 'Captured',
+            ],
+            fn ($form) => [
+                'serial_no' => $form->serial_no, 'land_owner' => $form->land_owner_name,
+                'layout' => $form->layout_name, 'section' => $form->section,
+                'id_number' => $form->id_number, 'location' => $form->location,
+                'nin' => $form->nin, 'gsm' => $form->gsm, 'vendor' => $form->vendor_name,
+                'guarantor' => $form->guarantor_name,
+                'captured' => $form->captured_at ? $form->captured_at->format('d M Y') : '',
+            ],
+            'captured_at'
+        );
+    }
+
+    /** The forms, serials and guarantors shown on the Special Projects page. */
     public function panelData(Request $r): array
     {
         $tab = array_key_exists($r->query('cftab'), self::TABS) ? $r->query('cftab') : 'forms';
@@ -66,7 +109,7 @@ class ConfirmationFormController extends Controller
             ->when($layout !== '', fn ($w) => $w->where('layout_name', $layout))
             ->orderByDesc('serial_no')->paginate(25, ['*'], 'cfspage')->withQueryString();
 
-        // Guarantor Forms (user, 2026-11-03): their own table under the Confirmation Forms tab.
+        // Guarantor Forms: their own table alongside Confirmation Forms and serials.
         $guarantors = Form::where('status', Form::CAPTURED)->whereNotNull('guarantor_name')
             ->when($layout !== '', fn ($w) => $w->where('layout_name', $layout))
             ->when($q !== '', function ($w) use ($q) {
@@ -155,7 +198,7 @@ class ConfirmationFormController extends Controller
         $from = Form::formatSerial($first); $to = Form::formatSerial($last);
         Log::info('Confirmation form serials issued', ['layout' => $layoutName, 'from' => $from, 'to' => $to, 'by' => Auth::id()]);
 
-        return redirect()->route(self::REGISTER, ['tab' => 'confirmation', 'cftab' => 'serials'])
+        return redirect()->route(self::ROUTE, ['cftab' => 'serials'])
             ->with('success', ($count === 1 ? "Serial {$from}" : "{$count} serials, {$from} to {$to},") . " issued for {$layoutName}.")
             ->with('print_ids', $ids);
     }
@@ -189,7 +232,7 @@ class ConfirmationFormController extends Controller
 
         $form->update($data + ['status' => Form::CAPTURED, 'captured_by' => Auth::id(), 'captured_at' => now(), 'updated_by' => Auth::id()]);
 
-        return redirect()->route(self::REGISTER, ['tab' => 'confirmation'])->with('success', "Form {$form->serial} ({$form->layout_name}) captured for {$form->land_owner_name}.");
+        return redirect()->route(self::ROUTE)->with('success', "Form {$form->serial} ({$form->layout_name}) captured for {$form->land_owner_name}.");
     }
 
     public function update(Request $r, Form $form)
@@ -202,13 +245,10 @@ class ConfirmationFormController extends Controller
         $form->update($data + ['updated_by' => Auth::id()]);
         Log::info('Confirmation form edited', ['serial' => $form->serial, 'before' => $before, 'after' => $data, 'by' => Auth::id()]);
 
-        return redirect()->route(self::REGISTER, ['tab' => 'confirmation'])->with('success', "Form {$form->serial} updated.");
+        return redirect()->route(self::ROUTE)->with('success', "Form {$form->serial} updated.");
     }
 
-    /**
-     * Capture or edit the Guarantor's Form of a captured Confirmation Form (user, 2026-11-03: its own table and form
-     * under the Confirmation Forms tab, no longer a step of capturing the Confirmation Form).
-     */
+    /** Capture or edit a Guarantor Form separately from the step-one Confirmation Form capture. */
     public function saveGuarantor(Request $r)
     {
         $r->validate(['form_id' => 'required|integer'], ['form_id.required' => 'Choose the Confirmation Form this Guarantor Form is for.']);
@@ -221,7 +261,7 @@ class ConfirmationFormController extends Controller
         $data += $this->storeGuarantorFiles($r, $form);
         $form->update($data + ['updated_by' => Auth::id()]);
 
-        return redirect()->route(self::REGISTER, ['tab' => 'confirmation', 'cftab' => 'guarantors'])
+        return redirect()->route(self::ROUTE, ['cftab' => 'guarantors'])
             ->with('success', 'Guarantor Form ' . ($isNew ? 'captured' : 'updated') . " for Confirmation Form {$form->serial} ({$form->guarantor_name}).");
     }
 
@@ -233,7 +273,7 @@ class ConfirmationFormController extends Controller
         $form->update(array_fill_keys(self::GUARANTOR_COLUMNS, null) + ['guarantor_signed' => false, 'guarantor_stamped' => false, 'updated_by' => Auth::id()]);
         Log::info('Guarantor form removed', ['serial' => $form->serial, 'before' => $before, 'by' => Auth::id()]);
 
-        return redirect()->route(self::REGISTER, ['tab' => 'confirmation', 'cftab' => 'guarantors'])
+        return redirect()->route(self::ROUTE, ['cftab' => 'guarantors'])
             ->with('success', "Guarantor Form removed from Confirmation Form {$form->serial}.");
     }
 

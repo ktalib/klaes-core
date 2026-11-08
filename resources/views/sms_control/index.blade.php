@@ -88,18 +88,9 @@
       @endunless
     @endif
 
-    {{--
-      Gateway strip. This is deliberately the first thing on the page: a missing
-      credential, an empty wallet and a switched-off message all look identical
-      from the outside — nothing arrives — so the page says which one it is
-      rather than showing toggles that would silently do nothing.
-    --}}
+    {{-- Messaging summary and controls. --}}
     <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
       <div class="flex flex-wrap items-center gap-6">
-        <div>
-          <div class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Gateway</div>
-          <div class="text-sm text-slate-800 mt-1">Bulk-SMS.ng &middot; promotional route</div>
-        </div>
         <div>
           <div class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Sender ID</div>
           @if($senderId)
@@ -108,18 +99,6 @@
             <div class="text-sm text-slate-800 mt-1" x-text="state.gateway?.sender || '—'"></div>
           @endif
         </div>
-        {{--
-          Wallet only on the unfiltered page. The prepaid account is shared by
-          every sender ID, so a balance here would read as this sender's credit.
-        --}}
-        @if($showCredits)
-          <div>
-            <div class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Wallet</div>
-            <div class="text-sm mt-1"
-                 :class="state.gateway?.balance ? 'text-slate-800' : 'text-amber-700'"
-                 x-text="state.gateway?.balance || 'unknown'"></div>
-          </div>
-        @endif
         <div>
           <div class="text-xs font-semibold tracking-wide text-slate-500 uppercase">
             Today{{ $senderId ? ', as ' . $senderId : '' }}
