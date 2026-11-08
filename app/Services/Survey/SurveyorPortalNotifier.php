@@ -9,6 +9,7 @@ use App\Models\Survey\SurveyorPortalAccount;
 use App\Models\Survey\SurveyorPortalNotification;
 use App\Models\User;
 use App\Services\Sms\KlaesSmsDispatcher;
+use App\Services\SurveyorPortalSettings;
 use App\Services\UserNotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Who hears what on the surveyor portal (CR 03112026 items 18-21). The SG is every active holder of
- * the Survey - SG role (user, 2026-11-05: all three), told on the staff bell and by SMS; a surveyor is
+ * the Survey - SG role, told on the staff bell; a surveyor is
  * told in the portal and by SMS; a Cadastral officer who asked is told on the staff bell.
  *
  * Telling people must never undo the work, so everything here runs after commit and swallows failures.
@@ -26,8 +27,11 @@ class SurveyorPortalNotifier
 {
     public const SG_ROLE = 'Survey - SG';
 
-    public function __construct(private UserNotificationService $bell, private KlaesSmsDispatcher $sms)
-    {
+    public function __construct(
+        private UserNotificationService $bell,
+        private KlaesSmsDispatcher $sms,
+        private SurveyorPortalSettings $portalSettings
+    ) {
     }
 
     /** @return \Illuminate\Support\Collection<int, User> */
@@ -50,13 +54,10 @@ class SurveyorPortalNotifier
         });
     }
 
-    private function toSg(string $title, string $body, string $path, ?string $smsKey = null, array $tokens = [], ?string $dedupe = null): void
+    private function toSg(string $title, string $body, string $path): void
     {
         foreach ($this->surveyorGenerals() as $sg) {
             $this->bell->create((int) $sg->id, 'survey_beacon_request', $title, $body, ['open_path' => $path], ['module' => 'survey']);
-            if ($smsKey) {
-                $this->sms->queue($smsKey, $sg->phone_number ?? null, $tokens, ['dedupe_key' => $dedupe ? "$dedupe:{$sg->id}" : null, 'phone_confirmed' => true]);
-            }
         }
     }
 
@@ -112,8 +113,12 @@ class SurveyorPortalNotifier
         $this->afterCommit(function () use ($q) {
             $path = parse_url(route('survey-module.beacon-requests.index'), PHP_URL_PATH);
             $from = $q->company_name ?: $q->surveyor_name;
-            $this->toSg("Beacon request {$q->request_no}", "{$from} asked for {$q->quantity} beacon(s) ({$q->type_label}, {$q->source_label}).", $path,
-                SmsSetting::KEY_SURVEY_BEACON_REQUEST, ['Ref' => $q->request_no, 'Name' => $from, 'Qty' => (string) $q->quantity], 'brq:' . $q->id);
+            $this->toSg("Beacon request {$q->request_no}", "{$from} asked for {$q->quantity} beacon(s) ({$q->type_label}, {$q->source_label}).", $path);
+            $this->sms->queue(SmsSetting::KEY_SURVEY_BEACON_REQUEST, $this->portalSettings->values()['beacon_request_sms_phone'] ?? null, [
+                'Ref' => $q->request_no,
+                'Name' => $from,
+                'Qty' => (string) $q->quantity,
+            ], ['dedupe_key' => 'brq-sg:' . $q->id, 'phone_confirmed' => true]);
 
             if ($q->account) {
                 $this->toAccount($q->account, "Request {$q->request_no} submitted", "Your request for {$q->quantity} beacon(s) has gone to the Surveyor General.",

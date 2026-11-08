@@ -189,7 +189,8 @@ class SurveyItsController extends Controller
             ->orderByDesc('id')->first(['id', 'file_title', 'plot_number', 'district', 'lga', 'location']);
 
         $out = ['found' => (bool) $fi, 'file_number' => $number, 'type' => GknApplicationController::typeOf($number),
-            'title' => $fi->file_title ?? null, 'plot' => $fi->plot_number ?? null, 'district' => $fi->district ?? null, 'lga' => $fi->lga ?? null];
+            'title' => $fi->file_title ?? null, 'plot' => $fi->plot_number ?? null, 'district' => $fi->district ?? null,
+            'lga' => $fi->lga ?? null, 'location' => $fi->location ?? null];
         if (! $fi && ($fn = $db->table('fileNumber')->where(fn ($q) => $q->where('gkn_fileno', $number)->orWhere('mlsfNo', $number))
             ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))->orderByDesc('id')->first(['FileName', 'plot_no', 'lga']))) {
             $out = array_merge($out, ['found' => true, 'title' => $fn->FileName, 'plot' => $fn->plot_no, 'lga' => $fn->lga]);

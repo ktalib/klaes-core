@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Setting;
+use App\Rules\NigerianPhone;
 use Illuminate\Support\Facades\DB;
 
 class SurveyorPortalSettings
@@ -24,6 +25,7 @@ class SurveyorPortalSettings
         'gold_color' => '#C99A1E',
         'support_email' => '',
         'support_phone' => '',
+        'beacon_request_sms_phone' => '+234 803 073 3666',
         'how_title' => 'How it works',
         'how_subtitle' => 'Four steps from registration to a printed slip.',
         'how_steps' => [
@@ -86,6 +88,13 @@ class SurveyorPortalSettings
                     $values[$key] = $storedValue;
                 }
             }
+        }
+
+        $beaconSmsPhone = trim((string) $values['beacon_request_sms_phone']);
+        if (!(new NigerianPhone())->passes('beacon_request_sms_phone', NigerianPhone::normalize($beaconSmsPhone))) {
+            $values['beacon_request_sms_phone'] = self::DEFAULTS['beacon_request_sms_phone'];
+        } else {
+            $values['beacon_request_sms_phone'] = $beaconSmsPhone;
         }
 
         foreach (['primary_color', 'primary_dark_color', 'green_color', 'gold_color'] as $key) {

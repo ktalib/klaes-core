@@ -3,7 +3,10 @@
 <header class="ks-topbar">
     <div class="mx-auto px-4 flex items-center justify-between gap-3" style="max-width:1120px;height:68px;">
         <a href="{{ route('surveyor-portal.home') }}" class="flex items-center gap-3 min-w-0" style="text-decoration:none;color:inherit;">
-            <img src="{{ asset($portalSettings['logo_seal']) }}" alt="{{ $portalSettings['brand_name'] }} seal" width="44" height="44" style="width:44px;height:44px;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);">
+            <span class="flex items-center gap-2 shrink-0" aria-label="{{ $portalSettings['brand_name'] }} and Ministry seals">
+                <img src="{{ asset('assets/logo/ministry2.png') }}" alt="Kano State Ministry of Land and Physical Planning seal" width="44" height="44" style="width:44px;height:44px;border-radius:50%;object-fit:contain;box-shadow:0 1px 3px rgba(0,0,0,.18);">
+                <img src="{{ asset($portalSettings['logo_seal']) }}" alt="{{ $portalSettings['brand_name'] }} seal" width="44" height="44" style="width:44px;height:44px;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);">
+            </span>
             <span class="min-w-0">
                 <span class="block font-extrabold tracking-wide" style="color:var(--ks-blue);font-size:17px;line-height:1.1;">{{ $portalSettings['brand_name'] }}</span>
                 <span class="block ks-help truncate" style="font-size:12px;">{{ $portalSettings['office_name'] }}</span>

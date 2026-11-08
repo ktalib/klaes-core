@@ -238,6 +238,66 @@
             });
         }
 
+        var stateField = root.querySelector('.ab-state');
+        var lgaField = root.querySelector('select.ab-lga');
+        if (stateField && lgaField && root.dataset.lgasUrl) {
+            var lgaError = root.querySelector('.ab-lga-error');
+            var initialLga = lgaField.value;
+            var lgaRequest = 0;
+            var loadLgas = function (preserveSelection) {
+                var requestId = ++lgaRequest;
+                var state = stateField.value;
+                var selectedLga = preserveSelection ? lgaField.value : '';
+                lgaField.disabled = true;
+                lgaField.innerHTML = '';
+                var placeholder = new Option(state ? 'Loading LGAs…' : 'Select state first…', '');
+                placeholder.selected = true;
+                lgaField.add(placeholder);
+                if (lgaError) lgaError.hidden = true;
+                refresh(root);
+                if (!state) return;
+
+                fetch(root.dataset.lgasUrl + '?state=' + encodeURIComponent(state), {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                }).then(function (response) {
+                    if (!response.ok) throw new Error('LGA lookup failed with status ' + response.status);
+                    return response.json();
+                }).then(function (payload) {
+                    if (requestId !== lgaRequest) return;
+                    if (!payload || !Array.isArray(payload.data)) throw new Error('LGA lookup returned an invalid response');
+                    lgaField.innerHTML = '';
+                    lgaField.add(new Option('Select LGA…', ''));
+                    payload.data.forEach(function (name) {
+                        var option = new Option(name, name);
+                        option.selected = name === selectedLga;
+                        lgaField.add(option);
+                    });
+                    lgaField.disabled = payload.data.length === 0;
+                    if (lgaError && payload.data.length === 0) {
+                        lgaError.textContent = 'No LGAs are available for the selected state.';
+                        lgaError.hidden = false;
+                    }
+                    if (hasSelect2) jQuery(lgaField).trigger('change.select2');
+                    refresh(root);
+                }).catch(function (error) {
+                    if (requestId !== lgaRequest) return;
+                    console.error(error);
+                    lgaField.innerHTML = '';
+                    lgaField.add(new Option('Unable to load LGAs', ''));
+                    lgaField.disabled = true;
+                    if (lgaError) {
+                        lgaError.textContent = 'Could not load LGAs for this state. Please try again.';
+                        lgaError.hidden = false;
+                    }
+                    refresh(root);
+                });
+            };
+
+            stateField.addEventListener('change', function () { loadLgas(false); });
+            loadLgas(Boolean(initialLga));
+        }
+
         root.querySelectorAll('input').forEach(function (i) {
             i.addEventListener('input', function () { refresh(root); });
         });

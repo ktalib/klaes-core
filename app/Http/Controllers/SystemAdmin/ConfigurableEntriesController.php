@@ -2265,12 +2265,18 @@ class ConfigurableEntriesController extends Controller
     {
         $this->authorizeAdmin();
 
+        $beaconRequestSmsPhone = trim((string) $request->input('beacon_request_sms_phone', ''));
+        $request->merge([
+            'beacon_request_sms_phone' => \App\Rules\NigerianPhone::normalize($beaconRequestSmsPhone),
+        ]);
+
         $validated = $request->validate([
             'brand_name' => 'required|string|max:80',
             'portal_name' => 'required|string|max:120',
             'office_name' => 'required|string|max:160',
             'support_email' => 'nullable|email|max:255',
             'support_phone' => 'nullable|string|max:50',
+            'beacon_request_sms_phone' => ['required', 'string', 'max:50', new \App\Rules\NigerianPhone()],
             'how_title' => 'required|string|max:120',
             'how_subtitle' => 'required|string|max:255',
             'how_steps' => 'required|array|size:4',
@@ -2310,6 +2316,7 @@ class ConfigurableEntriesController extends Controller
             $value = trim((string) ($validated[$key] ?? ''));
             $values[$key] = str_ends_with($key, '_color') ? strtoupper($value) : $value;
         }
+        $values['beacon_request_sms_phone'] = $beaconRequestSmsPhone;
         $values['how_steps'] = array_map(fn (array $step) => [
             'title' => trim($step['title']),
             'text' => trim($step['text']),
@@ -2440,6 +2447,7 @@ class ConfigurableEntriesController extends Controller
      */
     public const CADASTRAL_SETTING_GROUPS = [
         'fees' => 'Fee sheet rates',
+        'workflow' => 'Workflow policy',
         'area' => 'Area fee rules',
         'transport' => 'Transport bands',
         'numbering' => 'Numbering',

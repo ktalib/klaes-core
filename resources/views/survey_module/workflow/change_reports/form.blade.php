@@ -4,9 +4,15 @@
 
 @php
   $PageTitle = $report->exists ? "Surveyor's Report (Private) {$report->report_ref}" : "Create Surveyor's Report (Private)";
-  $PageDescription = $line ? ('From Register File ' . $line->register_ref . ' · ' . $line->file_number) : 'Record what does not match the records and the changes required.';
+  $PageDescription = $line
+      ? ('From Register File ' . $line->register_ref . ' · ' . $line->file_number)
+      : 'Complete the standard Surveyor’s Report using a selected file number.';
+  $privateReport = true;
+  $key = '';
+  $choices = [];
+  $fromLine = (bool) $line;
 @endphp
 
 @section('survey-content')
-  @include('survey_module.workflow.change_reports._form')
+  @include('survey_module.partials.sections._page-gkn-report-form')
 @endsection

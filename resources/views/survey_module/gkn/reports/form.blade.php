@@ -6,7 +6,7 @@
   $PageTitle = $report->exists ? "Surveyor's Report {$report->report_ref}" : "Create Surveyor's Report";
   $PageDescription = $report->exists
       ? ($report->its_number . ' · ' . $report->file_number . ' · ' . $report->status)
-      : 'Choose the issued Instruction to Survey this report answers; the file details are taken from it.';
+      : 'Complete the report below. Select the issued Instruction to Survey to fill its file and property details.';
 @endphp
 
 @section('survey-content')

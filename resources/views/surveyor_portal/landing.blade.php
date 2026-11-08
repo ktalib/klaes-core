@@ -140,7 +140,7 @@
             <div class="flex flex-wrap justify-center gap-3" style="margin-top:28px;">
                 @if ($signedIn)
                     <a class="ks-btn ks-btn-primary" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.dashboard') }}"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Go to my dashboard</a>
-                    <a class="ks-btn ks-btn-light" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.requests.create') }}"><i data-lucide="plus-circle" class="w-4 h-4"></i> Request beacons</a>
+                    <a class="ks-btn ks-btn-light" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.requests.create', ['tab' => 'request', 'request_type_dialog' => 1]) }}"><i data-lucide="plus-circle" class="w-4 h-4"></i> Request beacons</a>
                 @else
                     <a class="ks-btn ks-btn-primary" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.register') }}" data-register-dialog-trigger><i data-lucide="user-plus" class="w-4 h-4"></i> Register as a surveyor</a>
                     <a class="ks-btn ks-btn-light" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.login') }}"><i data-lucide="log-in" class="w-4 h-4"></i> Sign in</a>
@@ -164,7 +164,7 @@
                 <p class="ks-slide-text">From your phone or computer: say how many beacons, the type of survey and where it is. The SG issues the next available numbers.</p>
                 <div class="flex flex-wrap gap-3" style="margin-top:24px;">
                     @if ($signedIn)
-                        <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ route('surveyor-portal.requests.create') }}"><i data-lucide="plus-circle" class="w-4 h-4"></i> Request beacons</a>
+                        <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ route('surveyor-portal.requests.create', ['tab' => 'request', 'request_type_dialog' => 1]) }}"><i data-lucide="plus-circle" class="w-4 h-4"></i> Request beacons</a>
                     @else
                         <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ route('surveyor-portal.register') }}" data-register-dialog-trigger><i data-lucide="user-plus" class="w-4 h-4"></i> Register as a surveyor</a>
                         <a class="ks-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);padding:12px 22px;" href="{{ route('surveyor-portal.login') }}">Sign in</a>
@@ -291,6 +291,7 @@
 <footer style="background:#0F1720;color:#C9D1DA;">
     <div class="mx-auto px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-4" style="max-width:1120px;">
         <div class="flex items-center gap-3">
+            <img src="{{ asset('assets/logo/ministry2.png') }}" alt="Kano State Ministry of Land and Physical Planning seal" width="40" height="40" style="width:40px;height:40px;border-radius:50%;object-fit:contain;">
             <img src="{{ asset($portalSettings['logo_seal']) }}" alt="{{ $portalSettings['brand_name'] }} seal" width="40" height="40" style="width:40px;height:40px;border-radius:50%;">
             <div style="font-size:14px;">
                 <div class="font-semibold" style="color:#fff;">{{ $portalSettings['office_name'] }}</div>

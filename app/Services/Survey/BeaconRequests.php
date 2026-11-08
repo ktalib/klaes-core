@@ -8,10 +8,13 @@ use App\Models\Survey\SurveyBeaconRegister;
 use App\Models\Survey\SurveyBeaconRequest;
 use App\Models\Survey\SurveyorPortalAccount;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Str;
 
 /**
  * A beacon request's life (CR 03112026 items 19-21 + the Cadastral I to S): submit, the SG reviews and
@@ -43,20 +46,41 @@ class BeaconRequests
         }
     }
 
-    /** From the portal. @param array{layout_type:string, quantity:int, job_name:?string, plot_no:?string, district:?string, lga:?string, latitude:?float, longitude:?float, remarks:?string} $data */
-    public function fromPortal(SurveyorPortalAccount $account, array $data): SurveyBeaconRequest
+    /** From the portal. @param array{layout_type:string, request_type:string, quantity:int, amount_paid:string, payment_date:string, job_name:?string, plot_no:?string, district:?string, lga:?string, latitude:?float, longitude:?float, remarks:?string} $data */
+    public function fromPortal(SurveyorPortalAccount $account, array $data, UploadedFile $paymentEvidence): SurveyBeaconRequest
     {
-        $request = $this->db()->transaction(function () use ($account, $data) {
-            return $this->create($data + [
-                'source' => SurveyBeaconRequest::SOURCE_PORTAL,
-                'surveyor_portal_account_id' => $account->id,
-                'company_id' => $account->company_id,
-                'company_name' => $account->company_name,
-                'surveyor_name' => $account->name,
-                'surveyor_phone' => $account->phone,
-                'location' => $this->location($data['district'] ?? null, $data['lga'] ?? null),
-            ]);
-        });
+        $evidencePath = null;
+        try {
+            $request = $this->db()->transaction(function () use ($account, $data, $paymentEvidence, &$evidencePath) {
+                $request = $this->create($data + [
+                    'source' => SurveyBeaconRequest::SOURCE_PORTAL,
+                    'surveyor_portal_account_id' => $account->id,
+                    'company_id' => $account->company_id,
+                    'company_name' => $account->company_name,
+                    'surveyor_name' => $account->name,
+                    'surveyor_phone' => $account->phone,
+                    'location' => $this->location($data['district'] ?? null, $data['lga'] ?? null),
+                ]);
+                $extension = $paymentEvidence->guessExtension();
+                $evidencePath = $paymentEvidence->storeAs(
+                    "surveyor_portal/beacon_requests/{$request->id}",
+                    Str::uuid() . ($extension ? ".{$extension}" : ''),
+                    'local'
+                );
+                if (! $evidencePath) {
+                    throw new \RuntimeException('The payment evidence could not be stored.');
+                }
+                $request->payment_evidence_path = $evidencePath;
+                $request->save();
+
+                return $request;
+            });
+        } catch (\Throwable $e) {
+            if ($evidencePath) {
+                Storage::disk('local')->delete($evidencePath);
+            }
+            throw $e;
+        }
         $this->notify->requestSubmitted($request);
 
         return $request;

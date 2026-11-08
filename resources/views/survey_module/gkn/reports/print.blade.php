@@ -5,10 +5,13 @@
 --}}
 @php
     use App\Models\Survey\SurveySurveyorReport as SR;
+    $privateReport = $privateReport ?? false;
     $r = $report;
     $d = fn ($v) => $v ? $v->format('d/m/Y') : '';
     $line = fn ($v) => '<span class="fill">' . e($v === null || $v === '' ? ' ' : $v) . '</span>';
     $isNot = fn ($b, $yes, $no) => $b === null ? "{$yes}/ {$no}" : ($b ? $yes : $no);
+    $isFinal = $privateReport ? $r->isIssued() : $r->isSubmitted();
+    $finalDate = $privateReport ? $r->issued_at : $r->submitted_at;
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -19,15 +22,28 @@
         @page { size: A4; margin: 18mm 20mm; }
         body { font-family: "Times New Roman", Georgia, serif; font-size: 13.5px; color: #000; margin: 0; line-height: 1.9; }
         .sheet { max-width: 175mm; margin: 0 auto; }
-        h1 { text-align: center; font-size: 17px; letter-spacing: .08em; margin: 0 0 14px; text-decoration: underline; }
+        .report-header { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+        .report-header td { padding: 0; vertical-align: middle; }
+        .report-logo { width: 22mm; }
+        .report-logo img { width: 19mm; height: 19mm; object-fit: contain; display: block; }
+        .report-logo-right { text-align: right; }
+        .report-logo-right img { margin-left: auto; }
+        .report-heading { text-align: center; }
+        .report-heading h1,
+        .report-heading h2,
+        .report-heading h3 { margin: 0; font-family: Arial, Helvetica, sans-serif; font-weight: bold; line-height: 1.3; }
+        .report-heading h1 { font-size: 15px; }
+        .report-heading h2 { font-size: 12px; margin-top: 3px; }
+        .report-heading h3 { font-size: 13px; margin-top: 8px; }
         .fill { display: inline-block; min-width: 140px; border-bottom: 1px dotted #444; padding: 0 4px; font-weight: bold; }
         .wide .fill { min-width: 70%; }
         p { margin: 2px 0; }
-        ol { margin: 4px 0 0 22px; padding: 0; }
+        .report-lines { margin: 2px 0 0 22px; padding: 0; }
+        .report-lines > li { padding-left: 3px; margin: 2px 0; }
+        .field-records { margin: 2px 0 0 22px; padding: 0; }
         li.missing { color: #888; text-decoration: line-through; }
         .sig { margin-top: 36px; margin-left: 55%; }
         .refs { font-size: 11px; color: #444; margin-bottom: 10px; display: flex; justify-content: space-between; }
-        .draft { text-align: center; color: #b91c1c; font-weight: bold; letter-spacing: .2em; }
         .no-print { margin: 10px 0; }
         @media print { .no-print { display: none; } }
     </style>
@@ -36,47 +52,65 @@
 <div class="sheet">
     <div class="no-print">
         <button onclick="window.print()">Print</button>
-        <a href="{{ route('survey-module.gkn.reports.edit', $r) }}">Back</a>
+        <a href="{{ $privateReport ? route('survey-module.workflow.change-reports.edit', $r) : route('survey-module.gkn.reports.edit', $r) }}">Back</a>
     </div>
+
+    <table class="report-header">
+        <tr>
+            <td class="report-logo">
+                <img src="{{ asset('assets/logo/ministry1.jpg') }}" alt="Kano State coat of arms">
+            </td>
+            <td class="report-heading">
+                <h1>MINISTRY OF LAND &amp; PHYSICAL PLANNING</h1>
+                <h2>DEPARTMENT OF SURVEY</h2>
+                <h3>SURVEYOR'S REPORT</h3>
+            </td>
+            <td class="report-logo report-logo-right">
+                <img src="{{ asset('assets/logo/ministry2.png') }}" alt="Kano State Ministry of Land and Physical Planning seal">
+            </td>
+        </tr>
+    </table>
 
     <div class="refs">
-        <span>{{ $r->report_ref }} · I to S {{ $r->its_number }}{{ $r->job_ref ? ' · Job ' . $r->job_ref : '' }}</span>
-        <span>{{ $r->isSubmitted() ? 'Submitted ' . $r->submitted_at->format('d M Y') : '' }}</span>
+        <span>{{ $privateReport ? 'Private · ' . $r->report_ref : $r->report_ref . ' · I to S ' . $r->its_number . ($r->job_ref ? ' · Job ' . $r->job_ref : '') }}</span>
+        <span>{{ $isFinal && $finalDate ? ($privateReport ? 'Issued ' : 'Submitted ') . $finalDate->format('d M Y') : '' }}</span>
     </div>
-    @unless ($r->isSubmitted())<p class="draft">DRAFT</p>@endunless
-
-    <h1>SURVEYOR'S REPORT</h1>
-
-    <p class="wide">File Number {!! $line($r->file_number) !!}</p>
-    <p class="wide">Name Of Grantee {!! $line($r->grantee_name) !!}</p>
-    <p class="wide">Location {!! $line(trim(($r->plot_no ? 'Plot ' . $r->plot_no . ', ' : '') . ($r->location ?? ''), ', ')) !!}</p>
-    <p class="wide">District {!! $line($r->district) !!}</p>
-
-    <p>The Survey Is Done In Accordance With Technical Instruction.</p>
-    <p>The origin of local grid for the survey is {!! $line($r->grid_origin) !!}</p>
-    <p>The three control points {!! $line($r->control_points) !!} are in situ.</p>
-    <p>The boundaries of the surveyed plot were pointed out by {!! $line($r->boundaries_pointed_by) !!} on date {!! $line($d($r->boundaries_pointed_on)) !!}</p>
-    <p>Survey commenced on date {!! $line($d($r->commenced_on)) !!} and completed on date {!! $line($d($r->completed_on)) !!}</p>
-    <p>Distance travelled {!! $line($r->distance_km !== null ? rtrim(rtrim(number_format((float) $r->distance_km, 2), '0'), '.') : null) !!} kms.</p>
-    <p>Computation were done on {!! $line($r->computed_on) !!}</p>
-    <p class="wide">Delay (if any) in completion of survey is due to {!! $line($r->delay_reason) !!}</p>
-    <p>The plot {{ $isNot($r->on_layout_plan, 'is', 'is not') }} on an approved lay-out plan No. {!! $line($r->layout_plan_no) !!}</p>
-    <p>And the corners of the plot {{ $isNot($r->corners_demarcated, 'were', 'were not') }} demarcated on ground before.</p>
-    <p class="wide">Hard by {!! $line($r->hard_by) !!}</p>
-    <p>The plot is surveyed strictly as on approved site plan in file.</p>
-    <p>{{ $r->encroachment ? 'Encroachment noticed: ' : 'There are no encroachment noticed.' }}@if ($r->encroachment) {!! $line($r->encroachment_details) !!} @endif</p>
-    <p>The plot {{ $isNot($r->developed, 'is', 'is not') }} developed with {!! $line($r->developed_with) !!}</p>
-    <p>Survey beacons {!! $line($r->beacons_not_emplaced) !!} were not emplaced on ground due to {!! $line($r->beacons_reason) !!}</p>
-    <p>The boundaries of previous KN {!! $line($r->previous_kn) !!} {{ $r->previous_kn_coincides === false ? 'do not coincide' : 'coincide' }} with the present survey.</p>
-    <p>{{ SR::ROAD_RESERVATIONS }}</p>
-    <p>Transport was provided by {{ $r->transport_by ? strtolower(SR::TRANSPORT[$r->transport_by] ?? $r->transport_by) : 'applicant/ ministry' }}.</p>
-    <p class="wide">Any other remarks:- {!! $line($r->remarks) !!}</p>
-
-    <p style="margin-top:10px;">In the field jacket, the following field records are numbered and filed in that order:</p>
-    <ol>
-        @foreach (SR::FIELD_RECORDS as $k => $label)
-            <li class="{{ in_array($k, (array) $r->field_jacket_checklist, true) ? '' : 'missing' }}">{{ $label }}.</li>
-        @endforeach
+    <ol class="report-lines">
+        <li>File Number {!! $line($r->file_number) !!}</li>
+        <li>Name Of Grantee {!! $line($r->grantee_name) !!}</li>
+        <li>Location {!! $line(trim(($r->plot_no ? 'Plot ' . $r->plot_no . ', ' : '') . ($r->location ?? ''), ', ')) !!}</li>
+        <li>District {!! $line($r->district) !!}</li>
+        <li>The Survey Is Done In Accordance With Technical Instruction.</li>
+        <li>The origin of local grid for the survey is {!! $line($r->grid_origin) !!}</li>
+        <li>The three control points {!! $line($r->control_points) !!} are in situ.</li>
+        <li>The boundaries of the surveyed plot were pointed out by {!! $line($r->boundaries_pointed_by) !!} on date {!! $line($d($r->boundaries_pointed_on)) !!}</li>
+        <li>Survey commenced on date {!! $line($d($r->commenced_on)) !!} and completed on date {!! $line($d($r->completed_on)) !!}</li>
+        <li>Distance travelled {!! $line($r->distance_km !== null ? rtrim(rtrim(number_format((float) $r->distance_km, 2), '0'), '.') : null) !!} kms.</li>
+        <li>Computation were done on {!! $line($r->computed_on) !!}</li>
+        <li>Delay (if any) in completion of survey is due to {!! $line($r->delay_reason) !!}</li>
+        <li>
+            The plot {{ $isNot($r->on_layout_plan, 'is', 'is not') }} on an approved lay-out plan No. {!! $line($r->layout_plan_no) !!}.
+            And the corners of the plot {{ $isNot($r->corners_demarcated, 'were', 'were not') }} demarcated on ground before.
+        </li>
+        <li>Hard by {!! $line($r->hard_by) !!}</li>
+        <li>The plot is surveyed strictly as on approved site plan in file.</li>
+        <li>{{ $r->encroachment ? 'Encroachment noticed: ' : 'There are no encroachment noticed.' }}@if ($r->encroachment) {!! $line($r->encroachment_details) !!} @endif</li>
+        <li>
+            The plot {{ $isNot($r->developed, 'is', 'is not') }} developed with {!! $line($r->developed_with) !!}.
+            Survey beacons {!! $line($r->beacons_not_emplaced) !!} were not emplaced on ground due to {!! $line($r->beacons_reason) !!}
+        </li>
+        <li>The boundaries of previous KN {!! $line($r->previous_kn) !!} {{ $r->previous_kn_coincides === false ? 'do not coincide' : 'coincide' }} with the present survey.</li>
+        <li>{{ SR::ROAD_RESERVATIONS }}</li>
+        <li>Transport was provided by {{ $r->transport_by ? strtolower(SR::TRANSPORT[$r->transport_by] ?? $r->transport_by) : 'applicant/ ministry' }}.</li>
+        <li>Any other remarks:- {!! $line($r->remarks) !!}</li>
+        <li>
+            In the field jacket, the following field records are numbered and filed in that order:
+            <ol class="field-records">
+                @foreach (SR::FIELD_RECORDS as $k => $label)
+                    <li class="{{ in_array($k, (array) $r->field_jacket_checklist, true) ? '' : 'missing' }}">{{ $label }}.</li>
+                @endforeach
+            </ol>
+        </li>
     </ol>
 
     <div class="sig">

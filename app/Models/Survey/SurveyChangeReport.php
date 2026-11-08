@@ -5,8 +5,7 @@ namespace App\Models\Survey;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Surveyors' Report (Changes): the printed list of changes required when a submitted
- * plan does not match the records, raised from a Register File examination line.
+ * Surveyor's Report (Private), using the standard Survey Department report fields.
  * Draft until issued; an issued report is locked.
  */
 class SurveyChangeReport extends SurveyModel

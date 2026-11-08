@@ -7,9 +7,9 @@ use Tests\TestCase;
 
 class SurveyorPortalCompanyRegistrationTest extends TestCase
 {
-    public function test_company_registration_form_is_public_and_has_typed_address_fields(): void
+    public function test_company_registration_form_has_state_dependent_lga_selection(): void
     {
-        $this->get('/kssgof/company/register')
+        $response = $this->get('/kssgof/company/register')
             ->assertOk()
             ->assertSee('Register a surveying company')
             ->assertSee('Your company’s next step starts here.')
@@ -17,10 +17,29 @@ class SurveyorPortalCompanyRegistrationTest extends TestCase
             ->assertDontSee('name="surveyor_name"', false)
             ->assertSee('name="addr_street"', false)
             ->assertSee('name="addr_district"', false)
+            ->assertSee('name="addr_state"', false)
             ->assertSee('name="addr_lga"', false)
             ->assertDontSee('<select class="ks-input ab-street"', false)
             ->assertDontSee('<select class="ks-input ab-district"', false)
-            ->assertDontSee('<select class="ks-input ab-lga"', false);
+            ->assertSee('<select class="ks-input ab-lga"', false)
+            ->assertSee('data-lgas-url="' . route('surveyor-portal.lookup.lgas') . '"', false)
+            ->assertSee('required disabled', false);
+
+        $html = $response->getContent();
+        $statePosition = strpos($html, 'for="addr_state"');
+        $lgaPosition = strpos($html, 'for="addr_lga"');
+        $this->assertNotFalse($statePosition);
+        $this->assertNotFalse($lgaPosition);
+        $this->assertLessThan($lgaPosition, $statePosition);
+    }
+
+    public function test_portal_lga_lookup_is_public_and_rate_limited(): void
+    {
+        $route = Route::getRoutes()->getByName('surveyor-portal.lookup.lgas');
+
+        $this->assertNotNull($route);
+        $this->assertContains('throttle:60,1', $route->gatherMiddleware());
+        $this->assertNotContains('auth:surveyor', $route->gatherMiddleware());
     }
 
     public function test_private_surveyor_form_has_no_free_text_company_option(): void

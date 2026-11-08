@@ -44,6 +44,20 @@ return [
         'is_placeholder' => true,
     ],
 
+    /*
+    | Workflow penalty / reminder policy. The switch is managed in System
+    | Admin -> Configurable Entries -> Cadastral so the workflow can be turned on
+    | or off without touching code.
+    */
+    'workflow' => [
+        'penalty_enabled' => false,
+        'sla_hours_per_office' => 24,
+        'reminder_percent' => 70,
+        'warning_percent' => 90,
+        'penalty_delay_hours' => 4,
+        'working_days_only' => true,
+    ],
+
     'its_number' => [
         'format'     => 'ITS/{year}/{serial}',
         'serial_pad' => 4,

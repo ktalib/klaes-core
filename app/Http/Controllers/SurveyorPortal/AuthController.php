@@ -107,6 +107,11 @@ class AuthController extends Controller
             'passport.mimes' => 'The passport photograph must be a JPG or PNG picture.',
             'passport.max' => 'The passport photograph must be 2 MB or smaller.',
         ]);
+        if (! CadastralAddress::lgaBelongsToState($data['addr_lga'] ?? null, $data['addr_state'] ?? null)) {
+            throw ValidationException::withMessages([
+                'addr_lga' => 'Choose an LGA that belongs to the selected state.',
+            ]);
+        }
 
         $phone = Account::normalizePhone($data['phone']);
         if (! $phone) {

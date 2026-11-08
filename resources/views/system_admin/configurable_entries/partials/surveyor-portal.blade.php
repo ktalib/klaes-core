@@ -100,6 +100,21 @@
 
     <section class="iw-card">
         <div class="iw-card-head">
+            <div class="iw-card-title"><i data-lucide="message-square" class="h-4 w-4"></i> Beacon request SMS recipient</div>
+            <div class="iw-card-sub">Beacon-request SMS goes to this Surveyor General's Office number, not to the phone numbers on SG user accounts. In-app notifications still go to all active Survey - SG users.</div>
+        </div>
+        <div class="iw-card-body iw-grid md:grid-cols-2">
+            <div class="iw-field">
+                <label class="iw-label" for="beacon_request_sms_phone">SG phone number</label>
+                <input class="iw-input" type="tel" id="beacon_request_sms_phone" name="beacon_request_sms_phone"
+                       maxlength="50" required value="{{ old('beacon_request_sms_phone', $portalSettings['beacon_request_sms_phone']) }}">
+                @error('beacon_request_sms_phone')<p class="text-sm text-red-600 mt-1">{{ $message }}</p>@enderror
+            </div>
+        </div>
+    </section>
+
+    <section class="iw-card">
+        <div class="iw-card-head">
             <div class="iw-card-title"><i data-lucide="life-buoy" class="h-4 w-4"></i> Support contact</div>
             <div class="iw-card-sub">Optional details shown in the portal footer when provided.</div>
         </div>

@@ -7,7 +7,7 @@
     <img src="{{ asset($portalSettings['logo_registration_banner']) }}"
          alt="{{ $portalSettings['brand_name'] }} — {{ $portalSettings['office_name'] }} Portal"
          width="1600" height="666" class="relative"
-         style="width:100%;max-width:620px;height:auto;mix-blend-mode:multiply;">
+         style="width:100%;max-width:620px;height:auto;margin-left:32px;mix-blend-mode:multiply;">
 @endsection
 
 @section('guest-mobile-banner')

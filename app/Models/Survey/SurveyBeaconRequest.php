@@ -18,8 +18,17 @@ class SurveyBeaconRequest extends SurveyModel
 
     public const SOURCE_PORTAL = 'portal';
     public const SOURCE_CADASTRAL = 'cadastral_its';
+    public const REQUEST_SINGLE = 'single';
+    public const REQUEST_BULK = 'bulk';
 
-    protected $casts = ['reviewed_at' => 'datetime', 'accepted_at' => 'datetime', 'latitude' => 'float', 'longitude' => 'float'];
+    protected $casts = [
+        'reviewed_at' => 'datetime',
+        'accepted_at' => 'datetime',
+        'latitude' => 'float',
+        'longitude' => 'float',
+        'amount_paid' => 'decimal:2',
+        'payment_date' => 'date',
+    ];
 
     public function lines()
     {

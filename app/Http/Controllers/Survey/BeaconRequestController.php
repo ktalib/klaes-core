@@ -111,6 +111,19 @@ class BeaconRequestController extends Controller
         return \Illuminate\Support\Facades\Storage::disk('local')->response($path, null, ['Cache-Control' => 'private, max-age=3600']);
     }
 
+    /** The private payment receipt submitted with a portal beacon request. */
+    public function paymentEvidence(SurveyBeaconRequest $request)
+    {
+        $this->authorizeSg();
+        $path = $request->payment_evidence_path;
+        abort_unless($path && \Illuminate\Support\Facades\Storage::disk('local')->exists($path), 404);
+
+        return \Illuminate\Support\Facades\Storage::disk('local')->response($path, null, [
+            'Cache-Control' => 'private, max-age=3600',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     public function approveAccount(SurveyorPortalAccount $account)
     {
         $this->authorizeSg();

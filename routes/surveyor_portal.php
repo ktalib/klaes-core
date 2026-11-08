@@ -27,6 +27,7 @@ Route::prefix('kssgof')->name('surveyor-portal.')->group(function () {
     Route::middleware('throttle:60,1')->prefix('lookup')->name('lookup.')->group(function () {
         Route::get('districts', [\App\Http\Controllers\Survey\LookupController::class, 'districts'])->name('districts');
         Route::get('streets', [\App\Http\Controllers\Survey\LookupController::class, 'streets'])->name('streets');
+        Route::get('lgas', [\App\Http\Controllers\Survey\LookupController::class, 'portalLgas'])->name('lgas');
     });
 
     Route::get('password/forgot', [AuthController::class, 'showForgot'])->name('password.forgot');
@@ -43,6 +44,7 @@ Route::prefix('kssgof')->name('surveyor-portal.')->group(function () {
             Route::get('/', [PortalController::class, 'index'])->name('index');
             Route::get('new', [PortalController::class, 'create'])->name('create');
             Route::post('/', [PortalController::class, 'store'])->name('store');
+            Route::post('beacons/{beacon}/details', [PortalController::class, 'updateBeaconDetails'])->whereNumber('beacon')->name('beacons.details');
             Route::get('{request}', [PortalController::class, 'show'])->whereNumber('request')->name('show');
             Route::post('{request}/accept', [PortalController::class, 'accept'])->whereNumber('request')->name('accept');
             Route::get('{request}/slip', [PortalController::class, 'slip'])->whereNumber('request')->name('slip');

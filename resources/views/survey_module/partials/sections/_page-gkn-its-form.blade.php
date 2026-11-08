@@ -25,26 +25,7 @@
             {{-- Three columns so the fields are not page-wide (user, 2026-11-03: "the form fields are too long"). --}}
             <div class="form-grid cols-3">
                 <div class="sv-group"><i class="fas fa-folder-open"></i><span>File</span></div>
-                {{-- The file comes from the global selector or the selected Computation File; a job keeps its file. --}}
-                <div class="form-group span-2" id="itsPicker" data-lookup="{{ route('survey-module.gkn.its.lookup') }}">
-                    <label>File Number</label>
-                    <div style="display:flex;gap:8px;align-items:stretch;">
-                        <input type="text" name="file_number" id="itsFileNumber" readonly
-                               value="{{ old('file_number', $its->file_number) }}"
-                               placeholder="{{ $editing ? '' : 'No file selected — use Select File Number' }}"
-                               style="flex:1;font-weight:700;{{ $ro }}cursor:not-allowed;" />
-                        @unless ($editing)
-                            <button type="button" class="btn btn-primary" id="itsPick" style="white-space:nowrap;">
-                                <i class="fas fa-folder-open"></i> Select File Number
-                            </button>
-                        @endunless
-                    </div>
-                    <p class="helper-text" id="itsPickStatus">
-                        {{ $editing ? 'A survey job keeps its file.' : 'Select a Computation File to fill its file number, or use Select File Number.' }}
-                    </p>
-                </div>
-
-                {{-- The Computation File this instruction is for (user, 2026-11-02); picking one fills any empty details below. --}}
+                {{-- Select the Computation File first; it fills the read-only File Number below. --}}
                 {{-- Also LPKN files already in File Indexing (user, 2026-11-03), posted as idx:<file number>. --}}
                 @php
                     $cfPick = (string) old('survey_computation_file_id', $its->survey_computation_file_id
@@ -53,7 +34,7 @@
                 @endphp
                 <div class="form-group">
                     <label>Computation File No.</label>
-                    <select name="survey_computation_file_id" id="itsComputation" @disabled($locked)>
+                    <select name="survey_computation_file_id" id="itsComputation" class="sv-searchable" data-placeholder="Search computation files…" @disabled($locked)>
                         <option value="">— None —</option>
                         @foreach ($computationFiles ?? [] as $cf)
                             <option value="{{ $cf->id }}" @selected($cfPick === (string) $cf->id)
@@ -83,6 +64,17 @@
                     </select>
                     @error('survey_computation_file_id')<p class="helper-text" style="color:var(--danger);">{{ $message }}</p>@enderror
                     <p class="helper-text">Optional. LPKN Computation Files commissioned by Survey, and existing LPKN files from File Indexing.</p>
+                </div>
+
+                <div class="form-group">
+                    <label>File Number</label>
+                    <input type="text" name="file_number" id="itsFileNumber" readonly
+                           value="{{ old('file_number', $its->file_number) }}"
+                           placeholder="{{ $editing ? '' : 'Select a Computation File above' }}"
+                           style="max-width:100%;font-weight:700;{{ $ro }}cursor:not-allowed;" />
+                    <p class="helper-text" id="itsFileNumberStatus">
+                        {{ $editing ? 'A survey job keeps its file.' : 'Filled from the selected Computation File.' }}
+                    </p>
                 </div>
 
                 <div class="form-group span-2">
@@ -237,68 +229,6 @@
     </form>
 @endif
 
-@unless ($editing)
-@once
-@push('scripts')
-    {{-- The shared selector, outside the .survey-proto wrapper so the prototype CSS cannot reach it. --}}
-    @include('components.global-fileno-modal')
-    <script src="{{ asset('js/global-fileno-modal.js') }}"></script>
-@endpush
-@endonce
-@push('scripts')
-<script>
-(function () {
-    'use strict';
-    var root = document.getElementById('itsPicker');
-    if (!root) return;
-    var number = document.getElementById('itsFileNumber');
-    var status = document.getElementById('itsPickStatus');
-    var fields = { title: 'itsTitle', plot: 'itsPlot', district: 'itsDistrict', lga: 'itsLga' };
-    var filled = [];   // fields this pick filled, cleared when the pick changes
-
-    function say(text, isError) { status.textContent = text; status.style.color = isError ? '#b91c1c' : ''; }
-    function clearFilled() {
-        filled.forEach(function (el) { el.value = ''; el.readOnly = false; el.style.background = ''; });
-        filled = [];
-    }
-
-    function apply(fileNumber) {
-        clearFilled();
-        number.value = fileNumber;
-        say('Looking up ' + fileNumber + '…');
-        fetch(root.dataset.lookup + '?file_number=' + encodeURIComponent(fileNumber), { headers: { 'Accept': 'application/json' } })
-            .then(function (r) { return r.json(); })
-            .then(function (d) {
-                Object.keys(fields).forEach(function (k) {
-                    var el = document.getElementById(fields[k]);
-                    if (el && d[k]) { el.value = d[k]; el.readOnly = true; el.style.background = 'var(--gray-100)'; filled.push(el); }
-                });
-                var msg = d.found
-                    ? fileNumber + ' selected. Details filled from the records; complete anything left blank.'
-                    : fileNumber + ' selected. No indexed record holds its details, so enter them below.';
-                if (d.open_jobs && d.open_jobs.length) msg += ' Note: open survey job(s) already exist for this file: ' + d.open_jobs.join(', ') + '.';
-                say(msg, false);
-            })
-            .catch(function () { say(fileNumber + ' selected. Its details could not be loaded; enter them below.', true); });
-    }
-
-    document.getElementById('itsPick').addEventListener('click', function () {
-        if (!window.GlobalFileNoModal) { say('The file number selector did not load. Refresh the page.', true); return; }
-        window.GlobalFileNoModal.open({
-            initialTab: 'gkn',
-            allowedTabs: ['gkn'],
-            callback: function (data) {
-                var no = data && data.fileNumber ? String(data.fileNumber).trim() : '';
-                if (no) apply(no);
-            }
-        });
-    });
-
-})();
-</script>
-@endpush
-@endunless
-
 @push('scripts')
 <script>
 // Surveyor: searchable (Select2, as elsewhere in the module) with "Other (specify)",
@@ -336,10 +266,14 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!sel) return;
     function fill() {
         var o = sel.options[sel.selectedIndex];
-        if (!o || !o.value) return;
+        var fileNumber = document.getElementById('itsFileNumber');
+        var status = document.getElementById('itsFileNumberStatus');
+        if (!o || !o.value) {
+            if (fileNumber) fileNumber.value = '';
+            if (status) status.textContent = 'Select a Computation File above.';
+            return;
+        }
         if (o.dataset.fileNumber) {
-            var fileNumber = document.getElementById('itsFileNumber');
-            var status = document.getElementById('itsPickStatus');
             if (fileNumber) fileNumber.value = o.dataset.fileNumber;
             if (status) {
                 status.textContent = 'File number filled from ' + o.textContent.trim().split(' · ')[0] + '.';

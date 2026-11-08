@@ -88,6 +88,31 @@ class LookupController extends Controller
         return $this->paged($r, 'lgas', 'id', 'name', fn ($q) => $q->where('is_active', 1));
     }
 
+    /** State-specific LGAs for the public surveyor-portal address builder. */
+    public function portalLgas(Request $r): JsonResponse
+    {
+        $state = trim((string) $r->query('state', ''));
+        if ($state === '') {
+            return response()->json(['data' => []]);
+        }
+
+        $stateId = $this->conn()->table('States')
+            ->where('StateName', $state)
+            ->value('StateID');
+        if ($stateId === null) {
+            return response()->json(['data' => []]);
+        }
+
+        $lgas = $this->conn()->table('StatLGAs')
+            ->where('StateID', $stateId)
+            ->orderBy('LGAName')
+            ->pluck('LGAName')
+            ->map(fn ($name) => (string) $name)
+            ->values();
+
+        return response()->json(['data' => $lgas]);
+    }
+
     public function states(Request $r): JsonResponse
     {
         return $this->paged($r, 'States', 'StateID', 'StateName');
@@ -118,5 +143,27 @@ class LookupController extends Controller
                 default     => [],
             };
         });
+    }
+
+    /** Return the canonical active lookup name for a submitted dropdown value. */
+    public static function canonicalOption(string $kind, ?string $value): ?string
+    {
+        $value = trim((string) $value);
+        if ($value === '') return null;
+
+        [$table, $column, $active] = match ($kind) {
+            'districts' => ['districts', 'name', true],
+            'lgas' => ['lgas', 'name', true],
+            default => throw new \InvalidArgumentException("Unsupported lookup kind: {$kind}"),
+        };
+
+        $query = DB::connection('sqlsrv')->table($table)
+            ->whereRaw("UPPER(LTRIM(RTRIM([$column]))) = ?", [mb_strtoupper($value)]);
+        if ($active) $query->where('is_active', 1);
+        self::excludeLiteralOther($query, $column);
+
+        $name = $query->orderBy($column)->value($column);
+
+        return $name === null ? null : trim((string) $name);
     }
 }

@@ -43,7 +43,13 @@
         var state = {};   // picker id -> inputs this pick filled
         function say(id, text, bad) { var s = document.getElementById(id + 'PickStatus'); if (s) { s.textContent = text; s.style.color = bad ? '#b91c1c' : ''; } }
         function clearFilled(id) {
-            (state[id] || []).forEach(function (el) { el.value = ''; el.readOnly = false; el.style.background = ''; });
+            (state[id] || []).forEach(function (item) {
+                item.el.value = '';
+                item.el.readOnly = false;
+                item.el.style.background = '';
+                if (item.el.tagName === 'SELECT') item.el.dispatchEvent(new Event('change', { bubbles: true }));
+                if (item.other) item.other.value = '';
+            });
             state[id] = [];
         }
         function apply(id, no) {
@@ -56,8 +62,25 @@
                 .then(function (r) { return r.json(); })
                 .then(function (d) {
                     Object.keys(fill).forEach(function (k) {
-                        var el = document.getElementById(fill[k]);
-                        if (el && d[k]) { el.value = d[k]; el.readOnly = true; el.style.background = 'var(--gray-100)'; state[id].push(el); }
+                        var target = fill[k];
+                        var el = document.getElementById(typeof target === 'string' ? target : target.id);
+                        if (!el || !d[k]) return;
+
+                        if (el.tagName === 'SELECT' && target && typeof target === 'object' && target.reportLocation && window.surveyReportSetLocationChoice) {
+                            var other = target.other ? document.getElementById(target.other) : null;
+                            window.surveyReportSetLocationChoice(el, d[k], !!target.allowOther, other);
+                            state[id].push({ el: el, other: other });
+                        } else if (el.tagName === 'SELECT') {
+                            if (!Array.prototype.some.call(el.options, function (o) { return o.value === d[k]; })) el.add(new Option(d[k], d[k]));
+                            el.value = d[k];
+                            el.dispatchEvent(new Event('change', { bubbles: true }));
+                            state[id].push({ el: el });
+                        } else {
+                            el.value = d[k];
+                            el.readOnly = true;
+                            el.style.background = 'var(--gray-100)';
+                            state[id].push({ el: el });
+                        }
                     });
                     say(id, d.found ? no + ' selected. Details filled from the records.' : no + ' selected. No indexed record holds its details; enter them.');
                 })

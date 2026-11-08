@@ -32,6 +32,11 @@ class CompanyRegistrationController extends Controller
             'name.required' => 'Enter the registered company name.',
             'company_rc_no.required' => 'Enter the company RC number.',
         ]);
+        if (! CadastralAddress::lgaBelongsToState($data['addr_lga'] ?? null, $data['addr_state'] ?? null)) {
+            throw ValidationException::withMessages([
+                'addr_lga' => 'Choose an LGA that belongs to the selected state.',
+            ]);
+        }
 
         $name = preg_replace('/\s+/', ' ', trim($data['name']));
         $rc = mb_strtoupper(preg_replace('/\s+/', ' ', trim($data['company_rc_no'])));

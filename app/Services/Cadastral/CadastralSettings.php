@@ -74,6 +74,13 @@ class CadastralSettings
         'fee_sheet.rates.office_work_per_day' => ['type' => 'money', 'group' => 'fees', 'label' => 'Office work (per day)'],
         'fee_sheet.rates.plan_print' => ['type' => 'money', 'group' => 'fees', 'label' => 'Plan prints (per file)'],
 
+        'workflow.penalty_enabled' => ['type' => 'bool', 'group' => 'workflow', 'label' => 'Penalty enforcement is ON'],
+        'workflow.sla_hours_per_office' => ['type' => 'int', 'group' => 'workflow', 'label' => '1 working day SLA (hours)'],
+        'workflow.reminder_percent' => ['type' => 'int', 'group' => 'workflow', 'label' => 'Reminder threshold (%)'],
+        'workflow.warning_percent' => ['type' => 'int', 'group' => 'workflow', 'label' => 'Warning threshold (%)'],
+        'workflow.penalty_delay_hours' => ['type' => 'int', 'group' => 'workflow', 'label' => 'Penalty delay (hours after default)'],
+        'workflow.working_days_only' => ['type' => 'bool', 'group' => 'workflow', 'label' => 'Count only working days'],
+
         'fee_sheet.area_schedule_column' => ['type' => 'choice', 'group' => 'area', 'label' => 'Schedule column bills use', 'options' => self::SCHEDULE_COLUMNS],
         'fee_sheet.between_rows_rule' => ['type' => 'choice', 'group' => 'area', 'label' => 'Area between two rows', 'options' => self::BETWEEN_ROWS_RULES],
         'fee_sheet.between_rows_confirmed' => ['type' => 'bool', 'group' => 'area', 'label' => 'Between-rows rule confirmed by the department'],
@@ -126,6 +133,37 @@ class CadastralSettings
         return $this->hasTable(self::TABLE_SETTINGS)
             && $this->hasTable(self::TABLE_SCHEDULE)
             && $this->hasTable(self::TABLE_BANDS);
+    }
+
+    /** Whether the Cadastral workflow penalty policy currently allows penalty enforcement. */
+    public function penaltyEnabled(): bool
+    {
+        return (bool) $this->get('workflow.penalty_enabled', false);
+    }
+
+    public function slaHoursPerOffice(): int
+    {
+        return (int) $this->get('workflow.sla_hours_per_office', 24);
+    }
+
+    public function reminderPercent(): int
+    {
+        return (int) $this->get('workflow.reminder_percent', 70);
+    }
+
+    public function warningPercent(): int
+    {
+        return (int) $this->get('workflow.warning_percent', 90);
+    }
+
+    public function penaltyDelayHours(): int
+    {
+        return (int) $this->get('workflow.penalty_delay_hours', 4);
+    }
+
+    public function workingDaysOnly(): bool
+    {
+        return (bool) $this->get('workflow.working_days_only', true);
     }
 
     // ---- Scalar settings ------------------------------------------------------

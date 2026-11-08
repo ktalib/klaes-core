@@ -45,6 +45,13 @@ return new class extends Migration
                 $t->string('current_desk', 40);
                 $t->string('status', 20)->default('in_progress'); // in_progress | returned | completed
                 $t->dateTime('received_at');
+                $t->dateTime('sla_deadline')->nullable();
+                $t->string('timer_status', 20)->default('on_time'); // on_time | reminder | warning | default | penalty
+                $t->text('exception_reason')->nullable();
+                $t->unsignedBigInteger('exception_approved_by')->nullable();
+                $t->dateTime('exception_until')->nullable();
+                $t->dateTime('defaulted_at')->nullable();
+                $t->dateTime('penalty_applied_at')->nullable();
                 $t->unsignedBigInteger('received_by')->nullable();
                 $t->dateTime('closed_at')->nullable();
                 $t->text('remarks')->nullable();
@@ -53,8 +60,11 @@ return new class extends Migration
                 $t->index('case_ref', 'cad_cases_ref_idx');
                 $t->index('file_number', 'cad_cases_fileno_idx');
                 $t->index(['current_desk', 'status'], 'cad_cases_desk_status_idx');
+                $t->index('timer_status', 'cad_cases_timer_status_idx');
             });
         }
+
+        $this->ensureCadastralCaseTimerColumns();
 
         if (! $s->hasTable('cadastral_case_movements')) {
             $s->create('cadastral_case_movements', function (Blueprint $t) {
@@ -86,6 +96,45 @@ return new class extends Migration
                 $t->timestamps();
 
                 $t->index(['cadastral_case_id', 'step'], 'cad_case_task_step_idx');
+            });
+        }
+    }
+
+    protected function ensureCadastralCaseTimerColumns(): void
+    {
+        $schema = Schema::connection('sqlsrv');
+        if (! $schema->hasTable('cadastral_cases')) {
+            return;
+        }
+
+        $columns = [
+            'sla_deadline' => ['type' => 'dateTime', 'nullable' => true],
+            'timer_status' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'default' => 'on_time'],
+            'exception_reason' => ['type' => 'text', 'nullable' => true],
+            'exception_approved_by' => ['type' => 'unsignedBigInteger', 'nullable' => true],
+            'exception_until' => ['type' => 'dateTime', 'nullable' => true],
+            'defaulted_at' => ['type' => 'dateTime', 'nullable' => true],
+            'penalty_applied_at' => ['type' => 'dateTime', 'nullable' => true],
+        ];
+
+        foreach ($columns as $name => $column) {
+            if ($schema->hasColumn('cadastral_cases', $name)) {
+                continue;
+            }
+
+            $schema->table('cadastral_cases', function (Blueprint $table) use ($name, $column) {
+                $type = $column['type'];
+                $nullable = $column['nullable'] ?? false;
+                $default = $column['default'] ?? null;
+
+                $field = $table->{$type}($name, $column['length'] ?? null);
+
+                if ($nullable) {
+                    $field->nullable();
+                }
+                if ($default !== null) {
+                    $field->default($default);
+                }
             });
         }
     }

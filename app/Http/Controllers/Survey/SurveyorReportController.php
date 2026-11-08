@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Survey;
 
 use App\Http\Controllers\Controller;
+use App\Support\AddressBuilder;
 use App\Models\Survey\SurveyIts;
 use App\Models\Survey\SurveySurveyorReport as SR;
+use App\Http\Controllers\Survey\LookupController;
 use App\Services\Survey\ReportRecords;
 use App\Services\SurveyItsAnchors;
 use Illuminate\Http\Request;
@@ -207,7 +209,7 @@ class SurveyorReportController extends Controller
 
         return collect(app(SurveyItsAnchors::class)->all())
             ->except($takenKeys)
-            ->map(fn ($a) => $a['label'])
+            ->map(fn ($a) => ['label' => $a['label']] + $a['prefill'])
             ->all();
     }
 
@@ -233,6 +235,9 @@ class SurveyorReportController extends Controller
         $yesNo = ['nullable', Rule::in(['1', '0'])];
         $data = $r->validate([
             'grantee_name'          => 'nullable|string|max:500',
+            'district'              => 'required|string|max:255',
+            'district_other'        => 'nullable|string|max:255|required_if:district,Other',
+            'lga'                   => 'required|string|max:255',
             'grid_origin'           => 'nullable|string|max:255',
             'control_points'        => 'nullable|string|max:500',
             'boundaries_pointed_by' => 'nullable|string|max:255',
@@ -271,6 +276,20 @@ class SurveyorReportController extends Controller
         foreach (['on_layout_plan', 'corners_demarcated', 'developed', 'previous_kn_coincides'] as $k) {
             $data[$k] = isset($data[$k]) && $data[$k] !== null ? (bool) $data[$k] : null;
         }
+        $districtChoice = trim($data['district']);
+        if (strcasecmp($districtChoice, 'Other') === 0) {
+            $district = trim(preg_replace('/\s+/u', ' ', (string) ($data['district_other'] ?? '')));
+            if ($district === '') throw ValidationException::withMessages(['district_other' => 'Specify the district.']);
+        } else {
+            $district = LookupController::canonicalOption('districts', $districtChoice);
+            if (! $district) throw ValidationException::withMessages(['district' => 'Choose a district from the searchable list, or select Other (specify).']);
+        }
+        $lga = LookupController::canonicalOption('lgas', $data['lga']);
+        if (! $lga) throw ValidationException::withMessages(['lga' => 'Choose an LGA from the searchable list.']);
+        $data['district'] = mb_substr($district, 0, 255);
+        $data['lga'] = $lga;
+        $data['location'] = AddressBuilder::propertyLocation(['district' => $district, 'lga' => $lga, 'state' => 'Kano']);
+        unset($data['district_other']);
         $data['encroachment'] = (bool) ($data['encroachment'] ?? false);
         if (! $data['encroachment']) $data['encroachment_details'] = null;
         if ($data['on_layout_plan'] === false) $data['layout_plan_no'] = null;

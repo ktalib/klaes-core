@@ -114,6 +114,30 @@
     </div>
 </form>
 
+{{-- ============ Workflow policy ============ --}}
+<form method="POST" action="{{ route('configurable-entries.cadastral.settings', 'workflow') }}" class="iw-card">
+    @csrf
+    <div class="iw-card-head" style="align-items:center;flex-wrap:wrap">
+        <div>
+            <div class="iw-card-title"><span class="iw-icon-tile amber"><i data-lucide="timer-reset" class="h-5 w-5"></i></span> Workflow Policy</div>
+            <div class="iw-card-sub">Reminder and penalty controls for the Cadastral processing timeline.</div>
+        </div>
+        <span class="ce-pill {{ ($cadFields['workflow']['workflow__penalty_enabled']['value'] ?? false) ? 'green' : 'yellow' }}">{{ ($cadFields['workflow']['workflow__penalty_enabled']['value'] ?? false) ? 'ON' : 'OFF' }}</span>
+    </div>
+    <div class="iw-card-body">
+        <div class="rounded-lg border p-3 border-amber-200 bg-amber-50 text-sm text-gray-700 mb-4">
+            Switch the penalty side of the Cadastral timeline on or off without touching code. If it is off, reminders can still be configured but no time-lapse penalty is enforced.
+        </div>
+        @foreach($cadFields['workflow'] ?? [] as $field)
+            @include('system_admin.configurable_entries.partials.cadastral-field', ['field' => $field])
+        @endforeach
+    </div>
+    <div class="iw-card-foot" style="border-radius:0 0 16px 16px">
+        <span class="ce-muted">These values apply to the Cadastral desk timeline and reminders.</span>
+        <button class="iw-btn iw-btn-success iw-btn-sm"><i data-lucide="save" class="h-4 w-4"></i> Save policy</button>
+    </div>
+</form>
+
 {{-- ============ Fee sheet rates ============ --}}
 <form method="POST" action="{{ route('configurable-entries.cadastral.settings', 'fees') }}" class="iw-card">
     @csrf

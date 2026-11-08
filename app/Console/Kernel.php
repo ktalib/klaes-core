@@ -32,6 +32,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\ExpireCaveats::class,
         \App\Console\Commands\KlaesSmsDoctor::class,
         \App\Console\Commands\PhoneVerificationStatus::class,
+        \App\Console\Commands\CadastralTimelineEvaluate::class,
     ];
 
     /**
@@ -79,6 +80,10 @@ class Kernel extends ConsoleKernel
 
         // Auto-trigger second serve notices for SPAS first-serve records 14+ days old
         $schedule->command('spa:trigger-second-service')->dailyAt('08:00')->withoutOverlapping();
+
+        // Evaluate Cadastral processing timers every 15 minutes so reminders,
+        // warnings and penalties stay current without needing live polling.
+        $schedule->command('cadastral:timeline-evaluate')->everyFifteenMinutes()->withoutOverlapping();
 
         // Warn PHS organizations whose token balance is running low (daily).
         $schedule->command('phs:low-balance-reminders')->dailyAt('07:00')->withoutOverlapping();

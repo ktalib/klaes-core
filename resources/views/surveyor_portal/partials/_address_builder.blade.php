@@ -18,7 +18,8 @@
 
 <div class="address-builder ks-address" data-prefix="{{ $prefix }}" data-mode="person"
      data-districts-url="{{ route('surveyor-portal.lookup.districts') }}"
-     data-streets-url="{{ route('surveyor-portal.lookup.streets') }}">
+     data-streets-url="{{ route('surveyor-portal.lookup.streets') }}"
+     data-lgas-url="{{ route('surveyor-portal.lookup.lgas') }}">
 
     <div class="ab-legend">Address</div>
 
@@ -46,18 +47,24 @@
             @error('addr_district')<p class="ks-error">{{ $message }}</p>@enderror
         </div>
         <div>
-            <label class="ks-label" for="addr_lga">LGA <span class="ks-req">*</span></label>
-            <input class="ks-input ab-lga" id="addr_lga" name="addr_lga" value="{{ $val('lga') }}" maxlength="255" placeholder="Type the LGA" required>
-            @error('addr_lga')<p class="ks-error">{{ $message }}</p>@enderror
-        </div>
-        <div>
             <label class="ks-label" for="addr_state">State <span class="ks-req">*</span></label>
-            <select class="ks-input ab-state" id="addr_state" name="addr_state" data-placeholder="Select state…">
+            <select class="ks-input ab-state" id="addr_state" name="addr_state" data-placeholder="Select state…" required>
                 @foreach ($states as $st)
                     <option value="{{ $st }}" @selected($val('state') === $st)>{{ $st }}</option>
                 @endforeach
             </select>
             @error('addr_state')<p class="ks-error">{{ $message }}</p>@enderror
+        </div>
+        <div>
+            <label class="ks-label" for="addr_lga">LGA <span class="ks-req">*</span></label>
+            <select class="ks-input ab-lga" id="addr_lga" name="addr_lga" data-placeholder="Select state first…" required disabled>
+                <option value="">Select state first…</option>
+                @if ($val('lga'))
+                    <option value="{{ $val('lga') }}" selected>{{ $val('lga') }}</option>
+                @endif
+            </select>
+            @error('addr_lga')<p class="ks-error">{{ $message }}</p>@enderror
+            <p class="ks-error ab-lga-error" role="alert" hidden>Could not load LGAs for this state. Please try again.</p>
         </div>
 
         <div class="sm:col-span-2">

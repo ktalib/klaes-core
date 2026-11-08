@@ -6,6 +6,7 @@ use App\Models\Survey\SurveyBeaconRequest;
 use App\Models\Survey\SurveyorPortalAccount;
 use App\Services\Survey\BeaconRequests;
 use App\Http\Controllers\Survey\LookupController;
+use Illuminate\Http\UploadedFile;
 use Mockery;
 use Tests\TestCase;
 
@@ -24,13 +25,17 @@ class SurveyorPortalBeaconTypeTest extends TestCase
         $service = Mockery::mock(BeaconRequests::class);
         $service->shouldReceive('fromPortal')
             ->once()
-            ->with($account, Mockery::on(fn (array $data) => $data['layout_type'] === 'Private' && $data['job_name'] === null))
+            ->with($account, Mockery::on(fn (array $data) => $data['layout_type'] === 'Private' && $data['request_type'] === 'bulk' && $data['job_name'] === null && $data['amount_paid'] === '12500.50' && $data['payment_date'] === '2026-11-07'), Mockery::type(UploadedFile::class))
             ->andReturn($request);
         $this->app->instance(BeaconRequests::class, $service);
 
         $this->post(route('surveyor-portal.requests.store'), [
             'layout_type' => 'Government',
+            'request_type' => 'bulk',
             'quantity' => 4,
+            'amount_paid' => '12500.50',
+            'payment_date' => '2026-11-07',
+            'payment_evidence' => UploadedFile::fake()->create('payment.pdf', 100, 'application/pdf'),
         ])->assertRedirect(route('surveyor-portal.requests.show', $request));
     }
 
@@ -40,7 +45,7 @@ class SurveyorPortalBeaconTypeTest extends TestCase
         $account->forceFill(['id' => 871235, 'surveyor_type' => 'Government', 'name' => 'Test Surveyor', 'company_name' => 'Test Surveying Ltd']);
         $this->actingAs($account, 'surveyor');
 
-        $response = $this->get(route('surveyor-portal.requests.create'))
+        $response = $this->get(route('surveyor-portal.requests.create', ['tab' => 'request']))
             ->assertOk()
             ->assertSee('Beacon Type')
             ->assertSee('Public')
@@ -52,6 +57,12 @@ class SurveyorPortalBeaconTypeTest extends TestCase
             ->assertSee('KNSSGOF')
             ->assertSee('assets/logo/knssgof-logo.png')
             ->assertSee('Beacon Request')
+            ->assertSee('SURCON Payment Evidence')
+            ->assertSee('name="payment_evidence"', false)
+            ->assertSee('name="amount_paid"', false)
+            ->assertSee('name="payment_date"', false)
+            ->assertSee('enctype="multipart/form-data"', false)
+            ->assertSee('made to the State’s surveyors body (SURCON)')
             ->assertSee('Beacons')
             ->assertDontSee('>My Requests<', false)
             ->assertDontSee('>Request a Map<', false)
@@ -64,6 +75,10 @@ class SurveyorPortalBeaconTypeTest extends TestCase
         $this->assertLessThan(
             strpos($response->getContent(), '<span class="ks-label">Surveyor</span>'),
             strpos($response->getContent(), '<span class="ks-label">Company</span>')
+        );
+        $this->assertLessThan(
+            strpos($response->getContent(), 'Request Type'),
+            strpos($response->getContent(), 'Number of Beacons')
         );
 
         preg_match('/<input[^>]*name="quantity"[^>]*>/', $response->getContent(), $quantityField);
@@ -89,7 +104,7 @@ class SurveyorPortalBeaconTypeTest extends TestCase
         $account->forceFill(['id' => 871236, 'surveyor_type' => 'Private', 'name' => 'Test Surveyor']);
         $this->actingAs($account, 'surveyor');
 
-        $this->get(route('surveyor-portal.requests.create'))
+        $this->get(route('surveyor-portal.requests.create', ['tab' => 'request']))
             ->assertOk()
             ->assertSee('id="district" name="district"', false)
             ->assertSee('data-url="' . route('surveyor-portal.lookup.districts') . '"', false)
@@ -106,11 +121,13 @@ class SurveyorPortalBeaconTypeTest extends TestCase
         $account->forceFill(['id' => 871239, 'surveyor_type' => 'Private', 'name' => 'Test Surveyor']);
         $this->actingAs($account, 'surveyor');
 
-        $this->get(route('surveyor-portal.requests.create', ['tab' => 'beacons']))
+        $this->get(route('surveyor-portal.requests.create'))
             ->assertOk()
             ->assertSee('Requested Beacons')
             ->assertSee('Beacon Request')
             ->assertSee('Beacons')
+            ->assertSee('aria-selected="true"', false)
+            ->assertDontSee('id="requestTypeDialog"', false)
             ->assertSee('No issued beacons yet.');
 
         $this->assertContains('Kunchi', \App\Services\Survey\CompensationListReader::LGAS);
@@ -128,6 +145,7 @@ class SurveyorPortalBeaconTypeTest extends TestCase
         $this->app->instance(BeaconRequests::class, $service);
 
         $this->post(route('surveyor-portal.requests.store'), [
+            'request_type' => 'bulk',
             'quantity' => 1,
             'district' => 'Other',
         ])->assertSessionHasErrors('district_other');
@@ -146,14 +164,94 @@ class SurveyorPortalBeaconTypeTest extends TestCase
         $service = \Mockery::mock(BeaconRequests::class);
         $service->shouldReceive('fromPortal')
             ->once()
-            ->with($account, \Mockery::on(fn (array $data) => $data['district'] === 'New District' && ! array_key_exists('district_other', $data)))
+            ->with($account, \Mockery::on(fn (array $data) => $data['request_type'] === 'bulk' && $data['district'] === 'New District' && ! array_key_exists('district_other', $data)), Mockery::type(UploadedFile::class))
             ->andReturn($request);
         $this->app->instance(BeaconRequests::class, $service);
 
         $this->post(route('surveyor-portal.requests.store'), [
+            'request_type' => 'bulk',
             'quantity' => 1,
             'district' => 'Other',
             'district_other' => ' New   District ',
+            'amount_paid' => '2500',
+            'payment_date' => '2026-11-07',
+            'payment_evidence' => UploadedFile::fake()->image('receipt.png'),
         ])->assertRedirect(route('surveyor-portal.requests.show', $request));
+    }
+
+    public function test_a_portal_beacon_request_requires_payment_evidence(): void
+    {
+        $account = new SurveyorPortalAccount();
+        $account->forceFill(['id' => 871240, 'surveyor_type' => 'Private', 'name' => 'Test Surveyor']);
+        $this->actingAs($account, 'surveyor');
+
+        $service = Mockery::mock(BeaconRequests::class);
+        $service->shouldNotReceive('fromPortal');
+        $this->app->instance(BeaconRequests::class, $service);
+
+        $this->post(route('surveyor-portal.requests.store'), ['request_type' => 'bulk', 'quantity' => 1])
+            ->assertSessionHasErrors('payment_evidence');
+    }
+
+    public function test_a_single_beacon_request_requires_a_district_and_lga(): void
+    {
+        $account = new SurveyorPortalAccount();
+        $account->forceFill(['id' => 871241, 'surveyor_type' => 'Private', 'name' => 'Test Surveyor']);
+        $this->actingAs($account, 'surveyor');
+
+        $service = Mockery::mock(BeaconRequests::class);
+        $service->shouldNotReceive('fromPortal');
+        $this->app->instance(BeaconRequests::class, $service);
+
+        $this->post(route('surveyor-portal.requests.store'), [
+            'request_type' => 'single',
+            'quantity' => 1,
+            'amount_paid' => '1000',
+            'payment_date' => '2026-11-07',
+            'payment_evidence' => UploadedFile::fake()->create('payment.pdf', 100, 'application/pdf'),
+        ])->assertSessionHasErrors(['district', 'lga']);
+    }
+
+    public function test_a_bulk_beacon_request_can_omit_location(): void
+    {
+        $account = new SurveyorPortalAccount();
+        $account->forceFill(['id' => 871242, 'surveyor_type' => 'Private', 'name' => 'Test Surveyor']);
+        $this->actingAs($account, 'surveyor');
+
+        $request = new SurveyBeaconRequest();
+        $request->setAttribute('id', 871242);
+        $request->setAttribute('request_no', 'PORTAL-TEST-3');
+
+        $service = Mockery::mock(BeaconRequests::class);
+        $service->shouldReceive('fromPortal')
+            ->once()
+            ->with($account, Mockery::on(fn (array $data) => $data['request_type'] === 'bulk' && ($data['district'] ?? null) === null && ($data['lga'] ?? null) === null && $data['amount_paid'] === '1000' && $data['payment_date'] === '2026-11-07'), Mockery::type(UploadedFile::class))
+            ->andReturn($request);
+        $this->app->instance(BeaconRequests::class, $service);
+
+        $this->post(route('surveyor-portal.requests.store'), [
+            'request_type' => 'bulk',
+            'quantity' => 1,
+            'amount_paid' => '1000',
+            'payment_date' => '2026-11-07',
+            'payment_evidence' => UploadedFile::fake()->create('payment.pdf', 100, 'application/pdf'),
+        ])->assertRedirect(route('surveyor-portal.requests.show', $request));
+    }
+
+    public function test_a_portal_beacon_request_requires_payment_amount_and_date(): void
+    {
+        $account = new SurveyorPortalAccount();
+        $account->forceFill(['id' => 871243, 'surveyor_type' => 'Private', 'name' => 'Test Surveyor']);
+        $this->actingAs($account, 'surveyor');
+
+        $service = Mockery::mock(BeaconRequests::class);
+        $service->shouldNotReceive('fromPortal');
+        $this->app->instance(BeaconRequests::class, $service);
+
+        $this->post(route('surveyor-portal.requests.store'), [
+            'request_type' => 'bulk',
+            'quantity' => 1,
+            'payment_evidence' => UploadedFile::fake()->create('payment.pdf', 100, 'application/pdf'),
+        ])->assertSessionHasErrors(['amount_paid', 'payment_date']);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services\Cadastral;
 
 use App\Support\AddressBuilder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
@@ -26,6 +27,20 @@ use Illuminate\Validation\Rule;
  */
 class CadastralAddress
 {
+    /** Check the authoritative SQL Server LGA-to-state relationship. */
+    public static function lgaBelongsToState(?string $lga, ?string $state): bool
+    {
+        $lga = trim((string) $lga);
+        $state = trim((string) $state);
+        if ($lga === '' || $state === '') return false;
+
+        return DB::connection('sqlsrv')->table('StatLGAs')
+            ->join('States', 'States.StateID', '=', 'StatLGAs.StateID')
+            ->where('States.StateName', $state)
+            ->where('StatLGAs.LGAName', $lga)
+            ->exists();
+    }
+
     /**
      * Validation rules for one address group.
      *

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\SurveyorPortal;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Survey\LookupController;
 use App\Models\Survey\SurveyBeaconRequest as BeaconRequest;
+use App\Models\Survey\SurveyBeaconNumber;
 use App\Models\Survey\SurveyorPortalNotification as Note;
 use App\Services\Survey\BeaconRequests;
 use App\Services\Survey\CompensationListReader;
@@ -47,36 +48,68 @@ class PortalController extends Controller
 
     public function create()
     {
-        $tab = request()->query('tab') === 'beacons' ? 'beacons' : 'request';
+        $tab = request()->query('tab') === 'request' ? 'request' : 'beacons';
+        $accountId = $this->me()->id;
+        $hasOutstandingBeacons = SurveyBeaconNumber::whereNull('used')
+            ->whereHas('register.request', function ($query) use ($accountId) {
+                $query->where('surveyor_portal_account_id', $accountId)
+                    ->whereIn('status', [BeaconRequest::ISSUED, BeaconRequest::ACCEPTED]);
+            })->exists();
 
         return view('surveyor_portal.requests.form', [
             'lgas' => CompensationListReader::LGAS,
             'tab' => $tab,
-            'beacons' => $tab === 'beacons'
-                ? \App\Models\Survey\SurveyBeaconNumber::whereHas('register.request', function ($query) {
-                    $query->where('surveyor_portal_account_id', $this->me()->id)
-                        ->whereIn('status', [BeaconRequest::ISSUED, BeaconRequest::ACCEPTED]);
-                })->with('register.request')->orderBy('id')->paginate(50)
+            'hasOutstandingBeacons' => $hasOutstandingBeacons,
+            'beaconRequests' => $tab === 'beacons'
+                ? BeaconRequest::where('surveyor_portal_account_id', $accountId)
+                    ->whereIn('status', [BeaconRequest::ISSUED, BeaconRequest::ACCEPTED])
+                    ->whereHas('lines.numbers')
+                    ->with(['lines.numbers', 'lines'])
+                    ->orderByDesc('id')
+                    ->paginate(20)
                 : null,
         ]);
     }
 
     public function store(Request $r)
     {
+        $accountId = $this->me()->id;
+        $hasOutstandingBeacons = SurveyBeaconNumber::whereNull('used')
+            ->whereHas('register.request', function ($query) use ($accountId) {
+                $query->where('surveyor_portal_account_id', $accountId)
+                    ->whereIn('status', [BeaconRequest::ISSUED, BeaconRequest::ACCEPTED]);
+            })->exists();
+        if ($hasOutstandingBeacons) {
+            return redirect()->route('surveyor-portal.requests.create')
+                ->withErrors(['request' => 'Update every beacon in your previous issued request on the Beacons tab before submitting another request. Choose Used: No for unused beacons, or enter coordinates for used beacons.'])
+                ->withInput($r->except('payment_evidence'));
+        }
+
         $data = $r->validate([
+            'request_type' => 'required|in:single,bulk',
             'job_name'    => 'nullable|string|max:255',
             'quantity'    => 'required|integer|min:1|max:' . BeaconRequests::MAX_QUANTITY,
             'plot_no'     => 'nullable|string|max:100',
-            'district'    => ['nullable', 'string', 'max:255', Rule::in(array_merge(LookupController::options('districts'), ['Other']))],
+            'district'    => ['required_if:request_type,single', 'nullable', 'string', 'max:255', Rule::in(array_merge(LookupController::options('districts'), ['Other']))],
             'district_other' => ['nullable', 'string', 'max:255', Rule::requiredIf(fn () => $r->input('district') === 'Other')],
-            'lga'         => ['nullable', Rule::in(CompensationListReader::LGAS)],
+            'lga'         => ['required_if:request_type,single', 'nullable', Rule::in(CompensationListReader::LGAS)],
             'latitude'    => 'nullable|numeric|between:-90,90|required_with:longitude',
             'longitude'   => 'nullable|numeric|between:-180,180|required_with:latitude',
             'remarks'     => 'nullable|string|max:2000',
+            'amount_paid' => 'required|numeric|gt:0|decimal:0,2|max:9999999999999.99',
+            'payment_date' => 'required|date|before_or_equal:today',
+            'payment_evidence' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ], [
             'quantity.required' => 'Enter the number of beacons.',
+            'request_type.required' => 'Choose whether this is a Single or Bulk request.',
+            'amount_paid.required' => 'Enter the amount paid to SURCON.',
+            'amount_paid.decimal' => 'Enter an amount with no more than two decimal places.',
+            'payment_date.required' => 'Enter the date the payment was made.',
+            'payment_date.before_or_equal' => 'The payment date cannot be in the future.',
             'district.in' => 'Choose a district from the list, or select Other.',
             'district_other.required' => 'Specify the district.',
+            'district.required_if' => 'Choose the district for a Single request.',
+            'lga.required_if' => 'Choose the LGA for a Single request.',
         ]);
         $data['layout_type'] = $this->me()->surveyor_type;
 
@@ -88,9 +121,58 @@ class PortalController extends Controller
             $data[$k] = trim(preg_replace('/[ \t]+/', ' ', (string) ($data[$k] ?? ''))) ?: null;
         }
 
-        $request = $this->requests->fromPortal($this->me(), $data);
+        $paymentEvidence = $data['payment_evidence'];
+        unset($data['payment_evidence']);
+        $request = $this->requests->fromPortal($this->me(), $data, $paymentEvidence);
 
         return redirect()->route('surveyor-portal.requests.show', $request)->with('status', "Request {$request->request_no} has gone to the Surveyor General.");
+    }
+
+    public function updateBeaconDetails(Request $r, SurveyBeaconNumber $beacon)
+    {
+        $beacon->loadMissing('register.request');
+        $request = $beacon->register?->request;
+        abort_unless(
+            $request
+                && (int) $request->surveyor_portal_account_id === (int) $this->me()->id
+                && in_array($request->status, [BeaconRequest::ISSUED, BeaconRequest::ACCEPTED], true),
+            404
+        );
+
+        $errorBag = 'beacon-' . $beacon->id;
+        $data = $r->validateWithBag($errorBag, [
+            'beacon_row' => ['required', 'integer', Rule::in([$beacon->id])],
+            'used' => 'nullable|boolean',
+            'coord_x' => 'nullable|required_if:used,1|required_with:coord_y|numeric|between:-99999999999999,99999999999999',
+            'coord_y' => 'nullable|required_if:used,1|required_with:coord_x|numeric|between:-99999999999999,99999999999999',
+        ], [
+            'coord_x.required_if' => 'Enter X and Y coordinates for a used beacon.',
+            'coord_y.required_if' => 'Enter X and Y coordinates for a used beacon.',
+            'coord_x.required_with' => 'Enter both coordinates, X and Y.',
+            'coord_y.required_with' => 'Enter both coordinates, X and Y.',
+        ]);
+        unset($data['beacon_row']);
+
+        $hasCoordinates = ($data['coord_x'] ?? null) !== null
+            && ($data['coord_y'] ?? null) !== null;
+        if (($beacon->used && ! $hasCoordinates) || ((bool) ($data['used'] ?? false) && ! $hasCoordinates)) {
+            return back()->withErrors(['coord_x' => 'A used beacon must have X and Y coordinates.'], $errorBag)->withInput();
+        }
+        if (! $hasCoordinates && ! isset($data['used'])) {
+            return back()->withErrors(['used' => 'Choose Yes or No, or enter X and Y coordinates to mark the beacon Used automatically.'], $errorBag)->withInput();
+        }
+
+        $data['used'] = $hasCoordinates ? true : (bool) $data['used'];
+        $beacon->update($data);
+
+        return redirect()->route('surveyor-portal.requests.create', ['tab' => 'beacons'])
+            ->with('status', SurveyBeaconNumber::whereNull('used')
+                ->whereHas('register.request', fn ($query) => $query
+                    ->where('surveyor_portal_account_id', $this->me()->id)
+                    ->whereIn('status', [BeaconRequest::ISSUED, BeaconRequest::ACCEPTED]))
+                ->exists()
+                    ? 'Beacon details saved. Continue updating the rest of the issued beacons.'
+                    : 'Beacon details complete. You may submit another request now.');
     }
 
     public function index()

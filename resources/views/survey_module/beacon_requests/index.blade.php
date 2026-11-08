@@ -90,7 +90,7 @@
         <table>
             <thead>
                 <tr>
-                    <th>S/N</th><th>Request No.</th><th>Date</th><th>From</th><th>Type</th><th>Company</th><th>Surveyor's Name</th><th>Job</th>
+                    <th>S/N</th><th>Request No.</th><th>Date</th><th>From</th><th>Beacon Type</th><th>Request Type</th><th>Amount Paid (₦)</th><th>Payment Date</th><th>Company</th><th>Surveyor's Name</th><th>Job</th>
                     <th>Beacons</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Status</th><th>Issued Numbers</th><th style="width:48px;"></th>
                 </tr>
             </thead>
@@ -102,6 +102,9 @@
                         <td style="white-space:nowrap;">{{ optional($q->created_at)->format('d/m/Y') }}</td>
                         <td style="white-space:nowrap;">{{ $q->source_label }}</td>
                         <td>{{ $q->type_label }}</td>
+                        <td>{{ $q->request_type ? ucfirst($q->request_type) : '—' }}</td>
+                        <td>{{ $q->amount_paid !== null ? number_format((float) $q->amount_paid, 2) : '—' }}</td>
+                        <td style="white-space:nowrap;">{{ optional($q->payment_date)->format('d/m/Y') ?: '—' }}</td>
                         <td>{{ $q->company_name ?: '—' }}</td>
                         <td>{{ $q->surveyor_name }}</td>
                         <td>{{ $q->job_name ?: '—' }}</td>
@@ -128,6 +131,9 @@
                                     @if ($q->latitude !== null)
                                         <a href="https://www.google.com/maps?q={{ $q->latitude }},{{ $q->longitude }}" target="_blank" rel="noopener" class="{{ $item }}" @click="open = false"><i data-lucide="map-pin" class="w-4 h-4 text-gray-500"></i> Open in Maps</a>
                                     @endif
+                                    @if ($q->payment_evidence_path)
+                                        <a href="{{ route('survey-module.beacon-requests.payment-evidence', $q) }}" target="_blank" rel="noopener" class="{{ $item }}" @click="open = false"><i data-lucide="receipt" class="w-4 h-4 text-gray-500"></i> View Payment Evidence</a>
+                                    @endif
                                     @if ($q->status === 'Submitted')
                                         <button type="button" class="{{ $item }}" @click="open = false"
                                                 data-brq-issue data-url="{{ route('survey-module.beacon-requests.issue', $q) }}"
@@ -151,7 +157,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="16" style="text-align:center;padding:28px;color:var(--gray-500);">No beacon requests{{ $filtered ? ' for this selection' : ' yet' }}.</td></tr>
+                    <tr><td colspan="19" style="text-align:center;padding:28px;color:var(--gray-500);">No beacon requests{{ $filtered ? ' for this selection' : ' yet' }}.</td></tr>
                 @endforelse
             </tbody>
         </table>

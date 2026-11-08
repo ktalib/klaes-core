@@ -72,6 +72,7 @@ class NigerianPhoneTest extends TestCase
     {
         return [
             'international spaced' => ['+234 801 234 5678', '08012345678'],
+            'SG office number'     => ['+234 803 073 3666', '08030733666'],
             'country code'         => ['2348012345678', '08012345678'],
             'hyphenated'           => ['0801-234-5678', '08012345678'],
             'missing leading zero' => ['8012345678', '08012345678'],

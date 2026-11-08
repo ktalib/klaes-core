@@ -95,24 +95,15 @@ class PrivateRegisterLinesTest extends TestCase
         $this->assertStringContainsString("'Capture Existing Farm Record — KLAES'", $page);
     }
 
-    public function test_the_report_form_has_the_tp_dropdown_and_title_beside_the_file(): void
+    public function test_the_private_report_uses_the_shared_report_form_and_file_picker(): void
     {
-        $form = file_get_contents(resource_path('views/survey_module/workflow/change_reports/_form.blade.php'));
+        $form = file_get_contents(resource_path('views/survey_module/partials/sections/_page-gkn-report-form.blade.php'));
 
-        $this->assertStringContainsString('name="plan_choice"', $form);
-        $this->assertStringContainsString('name="plan_no_other"', $form);
-        $this->assertStringNotContainsString('name="plan_no"', $form);
-        $this->assertStringContainsString('<label>TP No.</label>', $form);
-        $this->assertStringNotContainsString('<label>Plan No.</label>', $form);
-        $this->assertStringNotContainsString('<div class="form-group full"><label>File Title</label>', $form);
-    }
-
-    public function test_a_tp_number_is_the_same_whatever_its_case_or_spaces(): void
-    {
-        $key = fn ($v) => \App\Http\Controllers\Survey\ChangeReportController::tpKey($v);
-
-        $this->assertSame($key('TP/KNUPDA/338A'), $key(' tp/knupda / 338a '));
-        $this->assertNotSame($key('TP/K/338A'), $key('TP/K/338B'));
+        $this->assertStringContainsString("name=\"grid_origin\"", $form);
+        $this->assertStringContainsString("name=\"control_points\"", $form);
+        $this->assertStringContainsString("'id' => 'srPrivate'", $form);
+        $this->assertStringNotContainsString('name="plan_choice"', $form);
+        $this->assertStringNotContainsString('name="discrepancies"', $form);
     }
 
     public function test_ground_check_and_confirmation_forms_are_buttons_below_record_plot_showing(): void

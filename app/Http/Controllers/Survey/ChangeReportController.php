@@ -6,32 +6,22 @@ use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyChangeReport as CR;
 use App\Models\Survey\SurveyItsCoordinate;
 use App\Models\Survey\SurveyItsObservation;
-use App\Models\Survey\SurveyTpNumber;
 use App\Models\Survey\SurveyRegisterFile;
 use App\Services\Survey\BeaconNumberCheck;
 use App\Services\Survey\PrivateRegisterLines;
 use App\Services\Survey\SurveyDocuments;
 use App\Services\SurveyItsAnchors;
+use App\Support\AddressBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
-use App\Models\Survey\SurveyorListEntry;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 /**
- * Examination/Verification > Surveyors' Report (docs/KLAES-CORE Survey
- * Module.md 5.7): "if discrepancies are found between the submitted plan and the
- * existing records, this unit generates and prints a Surveyors Report detailing the
- * required changes." Raised from a Register File line (its file details are taken
- * from it) or on its own. Draft until issued; issuing locks and prints it.
- *
- * Surveyor's Report (Private) (change list p.2, 2026-10-29): once saved it carries the
- * same core records as the GKN report: List of Coordinates, Beacon Nos, Computation
- * Field Observations and the Sketch Plan, edited with the GKN editors anchored
- * "private-<id>" (SurveyItsAnchors) and locked with the report on issue.
+ * Examination/Verification > Surveyor's Report (Private). It uses the standard
+ * Surveyor's Report fields and print template, with its linked private survey
+ * records anchored as "private-<id>" (SurveyItsAnchors).
  */
 class ChangeReportController extends Controller
 {
@@ -124,6 +114,7 @@ class ChangeReportController extends Controller
             'survey_register_file_id' => $line?->id,
             'file_number' => $line?->file_number, 'file_title' => $line?->file_title,
             'plot_no' => $line?->plot_no, 'district' => $line?->district, 'lga' => $line?->lga,
+            'location' => $line?->location,
             'report_date' => now()->toDateString(), 'examined_by' => Auth::user()?->name,
         ]);
 
@@ -134,82 +125,16 @@ class ChangeReportController extends Controller
             $report->fill([
                 'file_number' => $group['file_number'], 'file_title' => $found['title'] ?? null, 'plan_no' => $group['plan_no'], 'surveyor_name' => $group['surveyor'],
                 'plot_no' => ($found['plot'] ?? null) ?: $group['plot_no'], 'district' => ($found['district'] ?? null) ?: $group['district'], 'lga' => ($found['lga'] ?? null) ?: $group['lga'],
+                'location' => $found['location'] ?? $group['location'],
             ]);
         }
 
-        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $line, 'surveyors' => $this->surveyorOptions(), 'plans' => $this->planOptions(),
-            'fromBeacons' => (bool) ($group['file_number'] ?? null), 'beaconLine' => $group && ! $group['file_number'] ? $group['line_id'] : null]);
-    }
-
-    /**
-     * "Plan prepared by" dropdown (user, 2026-11-03): Survey Department staff and the SURCON register,
-     * as on the Beacon Register, keyed "staff:<id>" / "surcon:<id>". "Other" is added by the view.
-     */
-    private function surveyorOptions(): array
-    {
-        $out = ['staff' => [], 'surcon' => []];
-        foreach (SurveyorListEntry::active()->orderBy('first_name')->orderBy('surname')->get() as $s) {
-            $out['staff']['staff:' . $s->id] = ['name' => $s->full_name, 'hint' => $s->rank];
-        }
-        $surcon = DB::connection('sqlsrv')->table('cadastral_surveyors')->whereNull('deleted_at')
-            ->when(\App\Services\Cadastral\SurveyStaffSync::installed(), fn ($q) => $q->whereNull('surveyors_list_id'))
-            ->orderBy('full_name')->get(['id', 'full_name', 'surcon_number']);
-        foreach ($surcon as $s) {
-            $out['surcon']['surcon:' . $s->id] = ['name' => trim($s->full_name), 'hint' => $s->surcon_number ? 'Reg. ' . $s->surcon_number : null];
-        }
-
-        return $out;
-    }
-
-    /** TP No. dropdown (user, 2026-11-06: "plan no is the same as TP no"): the Public Layout Plans register, as on Record Plot Showing. "Other" is added by the view. */
-    private function planOptions(): array
-    {
-        return SurveyTpNumber::listed()->whereNotNull('tp_no')->where('tp_no', '<>', '')->serialOrder()->get(['id', 'tp_no', 'layout_name'])
-            ->map(fn ($t) => ['no' => trim((string) $t->tp_no), 'name' => trim((string) $t->layout_name)])
-            ->filter(fn ($t) => $t['no'] !== '')->unique(fn ($t) => self::tpKey($t['no']))->values()->all();
-    }
-
-    /** The same TP number whatever its case or spaces. */
-    public static function tpKey(?string $no): string
-    {
-        return mb_strtoupper(str_replace(' ', '', (string) $no));
-    }
-
-    /** The TP No. to store (in plan_no): one from the register as it is written there, or typed under Other. */
-    private function planNo(Request $r): ?string
-    {
-        $choice = trim((string) $r->input('plan_choice'));
-        if ($choice === '') return null;
-        $typed = $choice === 'other';
-        $wanted = $typed ? trim(preg_replace('/\s+/u', ' ', (string) $r->input('plan_no_other'))) : $choice;
-        if ($typed && $wanted === '') throw ValidationException::withMessages(['plan_no_other' => 'Type the TP number.']);
-
-        // A listed number typed again under Other, in any case or spacing, is that number.
-        $listed = collect($this->planOptions())->first(fn ($p) => self::tpKey($p['no']) === self::tpKey($wanted));
-        if (! $listed && ! $typed) throw ValidationException::withMessages(['plan_choice' => 'Choose a TP number from the list, or Other.']);
-
-        return $listed['no'] ?? mb_substr($wanted, 0, 100);
-    }
-
-    /** The stored name for the dropdown choice: read from the source table, or typed under Other. */
-    private function surveyorName(Request $r): ?string
-    {
-        $choice = (string) $r->input('surveyor_choice');
-        if ($choice === '') return null;
-        if ($choice === 'other') {
-            $name = trim(preg_replace('/\s+/u', ' ', (string) $r->input('surveyor_name_other')));
-            if ($name === '') throw ValidationException::withMessages(['surveyor_name_other' => "Type the name of the surveyor who prepared the plan."]);
-            return mb_substr($name, 0, 255);
-        }
-        [$src, $id] = array_pad(explode(':', $choice, 2), 2, null);
-        $name = match ($src) {
-            'staff'  => SurveyorListEntry::find((int) $id)?->full_name,
-            'surcon' => DB::connection('sqlsrv')->table('cadastral_surveyors')->whereNull('deleted_at')->where('id', (int) $id)->value('full_name'),
-            default  => null,
-        };
-        if (! $name) throw ValidationException::withMessages(['surveyor_choice' => 'Choose the surveyor who prepared the plan.']);
-
-        return trim($name);
+        return view('survey_module.workflow.change_reports.form', [
+            'report' => $report,
+            'line' => $line,
+            'fromBeacons' => (bool) ($group['file_number'] ?? null),
+            'beaconLine' => $group && ! $group['file_number'] ? $group['line_id'] : null,
+        ]);
     }
 
     public function store(Request $r)
@@ -220,15 +145,20 @@ class ChangeReportController extends Controller
             return redirect()->route('survey-module.workflow.change-reports.edit', $existing)
                 ->with('error', "That Register File line already has {$existing->report_ref}; it is opened here.");
         }
-        $report = CR::create($data + ['report_ref' => CR::nextRef('report_ref', 'SRC'), 'status' => CR::DRAFT]);
+        $report = CR::create($data + [
+            'discrepancies' => '',
+            'required_changes' => '',
+            'report_ref' => CR::nextRef('report_ref', 'SRC'),
+            'status' => CR::DRAFT,
+        ]);
 
         return redirect()->route('survey-module.workflow.change-reports.edit', $report)
-            ->with('success', "{$report->report_ref} saved as a draft. Issue it to print and send.");
+            ->with('success', "{$report->report_ref} saved. Issue it to print when ready.");
     }
 
     public function edit(CR $report)
     {
-        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $report->registerFile, 'records' => $this->records($report), 'surveyors' => $this->surveyorOptions(), 'plans' => $this->planOptions()]);
+        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $report->registerFile, 'records' => $this->records($report)]);
     }
 
     public function update(Request $r, CR $report)
@@ -242,6 +172,24 @@ class ChangeReportController extends Controller
     public function issue(CR $report)
     {
         if ($report->isIssued()) return back()->with('error', "{$report->report_ref} is already issued.");
+        $missing = [];
+        foreach ([
+            'grid_origin' => 'origin of the local grid',
+            'control_points' => 'the control points',
+            'commenced_on' => 'the date the survey commenced',
+            'completed_on' => 'the date it was completed',
+            'transport_by' => 'who provided transport',
+            'surveyor_name' => "the surveyor's name",
+        ] as $field => $label) {
+            if (blank($report->{$field})) $missing[] = $label;
+        }
+        if (blank($report->file_number)) $missing[] = 'the file number';
+        if ($report->on_layout_plan === null) $missing[] = 'whether the plot is on an approved layout plan';
+        if ($report->corners_demarcated === null) $missing[] = 'whether the corners were demarcated';
+        if ($missing) {
+            return back()->with('error', 'Before issuing, fill in ' . implode(', ', $missing) . '.');
+        }
+
         $report->update(['status' => CR::ISSUED, 'issued_at' => now(), 'issued_by' => Auth::id()]);
 
         return redirect()->route('survey-module.workflow.change-reports.print', $report);
@@ -253,12 +201,12 @@ class ChangeReportController extends Controller
         $ref = $report->report_ref;
         $report->delete();
 
-        return redirect()->route('survey-module.workflow.change-reports.index')->with('success', "Draft {$ref} deleted.");
+        return redirect()->route('survey-module.workflow.change-reports.index')->with('success', "Report {$ref} deleted.");
     }
 
     public function print(CR $report)
     {
-        return view('survey_module.workflow.change_reports.print', ['report' => $report, 'records' => $this->records($report)]);
+        return view('survey_module.gkn.reports.print', ['report' => $report, 'privateReport' => true]);
     }
 
     /** The report's List of Coordinates, Beacon Nos, Field Observations and Sketch Plan. */
@@ -281,32 +229,81 @@ class ChangeReportController extends Controller
 
     private function validated(Request $r, ?CR $existing = null): array
     {
+        $yesNo = ['nullable', Rule::in(['1', '0'])];
         $data = $r->validate([
             'survey_register_file_id' => ['nullable', Rule::exists('sqlsrv.survey_register_files', 'id')->whereNull('deleted_at')],
             'survey_beacon_register_id' => ['nullable', Rule::exists('sqlsrv.survey_beacon_register', 'id')->where('layout_type', 'Private')->whereNull('deleted_at')],
             // From a Register File line the file is the line's; otherwise it must be picked.
             'file_number'      => ($existing?->survey_register_file_id || $r->filled('survey_register_file_id')) ? 'nullable|string|max:100' : 'required|string|max:100',
-            'file_title'       => 'nullable|string|max:500',
+            'grantee_name'     => 'nullable|string|max:500',
+            'district'         => 'required|string|max:255',
+            'district_other'   => 'nullable|string|max:255|required_if:district,Other',
             'plot_no'          => 'nullable|string|max:100',
-            'district'         => 'nullable|string|max:255',
-            'lga'              => 'nullable|string|max:255',
-            'plan_choice'      => 'nullable|string|max:100',
-            'plan_no_other'    => 'nullable|string|max:100',
-            'surveyor_choice'  => 'nullable|string|max:50',
-            'surveyor_name_other' => 'nullable|string|max:255',
-            'discrepancies'    => 'required|string|max:4000',
-            'required_changes' => 'required|string|max:4000',
+            'lga'              => 'required|string|max:255',
+            'location'          => 'nullable|string|max:500',
+            'grid_origin'       => 'nullable|string|max:255',
+            'control_points'    => 'nullable|string|max:500',
+            'boundaries_pointed_by' => 'nullable|string|max:255',
+            'boundaries_pointed_on' => 'nullable|date',
+            'commenced_on'      => 'nullable|date',
+            'completed_on'      => 'nullable|date|after_or_equal:commenced_on',
+            'distance_km'       => 'nullable|numeric|min:0|max:100000',
+            'computed_on'       => 'nullable|string|max:255',
+            'delay_reason'      => 'nullable|string|max:2000',
+            'on_layout_plan'    => $yesNo,
+            'layout_plan_no'    => 'nullable|required_if:on_layout_plan,1|string|max:100',
+            'corners_demarcated' => $yesNo,
+            'hard_by'           => 'nullable|string|max:500',
+            'encroachment'      => $yesNo,
+            'encroachment_details' => 'nullable|required_if:encroachment,1|string|max:2000',
+            'developed'         => $yesNo,
+            'developed_with'    => 'nullable|required_if:developed,1|string|max:500',
+            'beacons_not_emplaced' => 'nullable|string|max:500',
+            'beacons_reason'    => 'nullable|required_with:beacons_not_emplaced|string|max:1000',
+            'previous_kn'       => 'nullable|string|max:100',
+            'previous_kn_coincides' => $yesNo,
+            'transport_by'      => ['nullable', Rule::in(array_keys(\App\Models\Survey\SurveySurveyorReport::TRANSPORT))],
+            'remarks'           => 'nullable|string|max:4000',
+            'field_jacket_checklist' => 'nullable|array',
+            'field_jacket_checklist.*' => [Rule::in(array_keys(\App\Models\Survey\SurveySurveyorReport::FIELD_RECORDS))],
+            'surveyor_name'     => 'nullable|string|max:255',
             'report_date'      => 'nullable|date',
-            'examined_by'      => 'nullable|string|max:255',
         ], [
-            'file_number.required'      => 'Select the file with Select File Number, or raise the report from its Register File line.',
-            'discrepancies.required'    => 'Describe what does not match the records.',
-            'required_changes.required' => 'List the changes required.',
+            'file_number.required' => 'Select the file with Select File Number, or raise the report from its Register File line.',
+            'completed_on.after_or_equal' => 'The survey cannot be completed before it commenced.',
+            'layout_plan_no.required_if' => 'Give the approved layout plan number.',
+            'encroachment_details.required_if' => 'Describe the encroachment noticed.',
+            'developed_with.required_if' => 'Say what the plot is developed with.',
+            'beacons_reason.required_with' => 'Say why those beacons were not emplaced.',
         ]);
 
-        unset($data['surveyor_choice'], $data['surveyor_name_other'], $data['plan_choice'], $data['plan_no_other']);
-        $data['surveyor_name'] = $this->surveyorName($r);
-        $data['plan_no'] = $this->planNo($r);
+        $data['file_title'] = $data['grantee_name'] ?? null;
+        unset($data['grantee_name']);
+        $districtChoice = trim($data['district']);
+        if (strcasecmp($districtChoice, 'Other') === 0) {
+            $district = trim(preg_replace('/\s+/u', ' ', (string) ($data['district_other'] ?? '')));
+            if ($district === '') throw \Illuminate\Validation\ValidationException::withMessages(['district_other' => 'Specify the district.']);
+        } else {
+            $district = LookupController::canonicalOption('districts', $districtChoice);
+            if (! $district) throw \Illuminate\Validation\ValidationException::withMessages(['district' => 'Choose a district from the searchable list, or select Other (specify).']);
+        }
+        $lga = LookupController::canonicalOption('lgas', $data['lga']);
+        if (! $lga) throw \Illuminate\Validation\ValidationException::withMessages(['lga' => 'Choose an LGA from the searchable list.']);
+        $data['district'] = mb_substr($district, 0, 255);
+        $data['lga'] = $lga;
+        $data['location'] = AddressBuilder::propertyLocation(['district' => $district, 'lga' => $lga, 'state' => 'Kano']);
+        unset($data['district_other']);
+        foreach (['on_layout_plan', 'corners_demarcated', 'developed', 'previous_kn_coincides'] as $field) {
+            $data[$field] = isset($data[$field]) && $data[$field] !== null ? (bool) $data[$field] : null;
+        }
+        $data['encroachment'] = (bool) ($data['encroachment'] ?? false);
+        if (! $data['encroachment']) $data['encroachment_details'] = null;
+        if ($data['on_layout_plan'] === false) $data['layout_plan_no'] = null;
+        if ($data['developed'] === false) $data['developed_with'] = null;
+        $data['field_jacket_checklist'] = array_values(array_intersect(
+            array_keys(\App\Models\Survey\SurveySurveyorReport::FIELD_RECORDS),
+            $data['field_jacket_checklist'] ?? []
+        ));
 
         // A report raised from a Register File line keeps that line's file.
         $lineId = $existing?->survey_register_file_id ?? ($data['survey_register_file_id'] ?? null);

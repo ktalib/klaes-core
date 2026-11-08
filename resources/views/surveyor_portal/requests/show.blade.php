@@ -6,7 +6,10 @@
 @section('main')
     @php
         $rows = [
-            'Status' => null, 'Date' => optional($request->created_at)->format('d/m/Y'), 'Type' => $request->type_label,
+            'Status' => null, 'Date' => optional($request->created_at)->format('d/m/Y'), 'Beacon Type' => $request->type_label,
+            'Request Type' => $request->request_type ? ucfirst($request->request_type) : null,
+            'Amount Paid (₦)' => $request->amount_paid !== null ? number_format((float) $request->amount_paid, 2) : null,
+            'Date Paid' => optional($request->payment_date)->format('d/m/Y'),
             'Company' => $request->company_name, "Surveyor's Name" => $request->surveyor_name, 'Name of Survey' => $request->job_name,
             'Number of Beacons' => $request->quantity, 'Plot No.' => $request->plot_no, 'District' => $request->district,
             'LGA' => $request->lga ? mb_strtoupper($request->lga) : null, 'Location' => $request->location,

@@ -1,7 +1,7 @@
 <div class="ks-card overflow-x-auto">
     <table class="ks-table">
         <thead>
-            <tr><th>S/N</th><th>Request No.</th><th>Date</th><th>Survey</th><th>Beacons</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Status</th><th>Issued Numbers</th></tr>
+            <tr><th>S/N</th><th>Request No.</th><th>Date</th><th>Request Type</th><th>Survey</th><th>Beacons</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Status</th><th>Issued Numbers</th></tr>
         </thead>
         <tbody>
             @forelse ($rows as $q)
@@ -9,6 +9,7 @@
                     <td>{{ $first + $loop->index }}</td>
                     <td style="white-space:nowrap;"><a href="{{ route('surveyor-portal.requests.show', $q) }}" style="color:var(--ks-blue);font-weight:600;">{{ $q->request_no }}</a></td>
                     <td style="white-space:nowrap;">{{ optional($q->created_at)->format('d/m/Y') }}</td>
+                    <td>{{ $q->request_type ? ucfirst($q->request_type) : '—' }}</td>
                     <td>{{ $q->job_name ?: '—' }}</td>
                     <td>{{ number_format($q->quantity) }}</td>
                     <td>{{ $q->plot_no ?: '—' }}</td>
@@ -19,7 +20,7 @@
                     <td>{{ $q->issued_numbers ?: '—' }}</td>
                 </tr>
             @empty
-                <tr><td colspan="11" class="ks-help" style="text-align:center;padding:24px;">No requests yet.</td></tr>
+                <tr><td colspan="12" class="ks-help" style="text-align:center;padding:24px;">No requests yet.</td></tr>
             @endforelse
         </tbody>
     </table>
