@@ -3,6 +3,9 @@
 namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Http\Request;
+use App\Support\SurveyMobileApps;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -43,6 +46,31 @@ class Handler extends ExceptionHandler
      */
     public function register()
     {
+        $this->renderable(function (HttpExceptionInterface $e, Request $request) {
+            if (! $request->is('survey-module/mobile*')) {
+                return null;
+            }
+            if ($e->getStatusCode() !== 419) {
+                return null;
+            }
+
+            $appKey = SurveyMobileApps::fromRequest($request);
+            $loginUrl = route('survey-module.mobile.login', ['app' => $appKey]);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Your session expired. Sign in again to continue.',
+                    'session_expired' => true,
+                    'redirect' => $loginUrl,
+                ], 419)->header('Cache-Control', 'no-store');
+            }
+
+            $response = response()->view('survey_module.mobile.session_expired', [
+                'app' => SurveyMobileApps::get($appKey),
+            ], 419);
+
+            return $response->header('Cache-Control', 'no-store');
+        });
+
         $this->reportable(function (Throwable $e) {
             //
         });

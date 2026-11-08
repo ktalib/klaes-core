@@ -89,7 +89,7 @@ class MobileCaseController extends CaseController
 
     public function logout(Request $r)
     {
-        $app = SurveyMobileApps::current();
+        $app = SurveyMobileApps::fromRequest($r);
         Auth::logout();
         $r->session()->invalidate();
         $r->session()->regenerateToken();
@@ -187,14 +187,14 @@ class MobileCaseController extends CaseController
         // retried after a dropped connection finds the case it already saved.
         $uuid = mb_substr(trim((string) $r->input('client_uuid', '')), 0, 40) ?: null;
         if ($uuid && ($done = SurveyCompCase::where('client_uuid', $uuid)->first())) {
-            return $this->stored($r, $done, "Case {$done->case_ref} was already saved.", false);
+            return $this->stored($r, $done, "Farm Assessment {$done->case_ref} was already saved.", false);
         }
 
         try {
             [$case, $msg, $error] = $this->registerCase($r);
         } catch (\Illuminate\Database\QueryException $e) {
             if ($uuid && ($done = SurveyCompCase::where('client_uuid', $uuid)->first())) {
-                return $this->stored($r, $done, "Case {$done->case_ref} was already saved.", false);
+                return $this->stored($r, $done, "Farm Assessment {$done->case_ref} was already saved.", false);
             }
             throw $e;
         }
@@ -213,13 +213,13 @@ class MobileCaseController extends CaseController
                 'case_ref' => $case->case_ref,
                 'message'  => $msg,
                 'warning'  => $error,
-                'photos'   => route('survey-module.mobile.cases.photos.store', $case),
-                'redirect' => route('survey-module.mobile.index'),
+                'photos'   => route('survey-module.mobile.cases.photos.store', [$case, 'app' => SurveyMobileApps::current()]),
+                'redirect' => SurveyMobileApps::home(),
             ]);
         }
 
         return redirect()
-            ->route('survey-module.mobile.index')
+            ->route('survey-module.mobile.index', ['app' => SurveyMobileApps::current()])
             ->with($error ? 'error' : 'success', $msg)
             ->with('saved_ref', $case->case_ref)
             ->with('saved_id', $case->id);
@@ -242,10 +242,10 @@ class MobileCaseController extends CaseController
     /** Send a complete draft for review, from the case card. */
     public function submit(Request $r, SurveyCompCase $case)
     {
-        $back = redirect()->route('survey-module.mobile.cases.show', $case);
+        $back = redirect()->route('survey-module.mobile.cases.show', [$case, 'app' => SurveyMobileApps::current()]);
 
         if (! $this->owns($case)) {
-            return $back->with('error', 'Only the officer who registered this case can submit it from here.');
+            return $back->with('error', 'Only the officer who registered this Farm Assessment can submit it from here.');
         }
         if ($case->status !== self::STATUS_DRAFT) {
             return $back->with('error', "{$case->case_ref} is not a draft, so there is nothing to submit.");

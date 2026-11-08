@@ -20,7 +20,7 @@ use Illuminate\Validation\ValidationException;
  * Beacon Register (user transcript, 2026-10-25: "we already have this beacon
  * register, just copy it and call this one control points"). Kept in its own
  * tables (survey_control_point_*), so control point numbers never collide with
- * beacon numbers, and gated by Survey - Records rather than the Beacon Register role.
+ * beacon numbers, and gated by Survey - Records or the Examination/Verification role.
  *
  * Copied from BeaconRegisterController (clone per module): edit this copy, not
  * the original. Column names match the Beacon Register's; the screens say
@@ -30,7 +30,7 @@ class ControlPointRegisterController extends Controller
 {
     use \App\Http\Controllers\Survey\Concerns\ExportsRecords;
 
-    /** The module role for this page: Survey - Records, like the other Examination pages. */
+    /** Existing Records access is retained; the section role also grants access. */
     public const MODULE = 'Survey - Records';
 
     /**
@@ -39,7 +39,13 @@ class ControlPointRegisterController extends Controller
      */
     private function authorizeAction(string $action): void
     {
-        abort_unless((bool) optional(Auth::user())->canDo(self::MODULE, $action), 403,
+        $user = Auth::user();
+        $allowed = $user && (
+            $user->canDo(self::MODULE, $action)
+            || $user->canDo('Survey - Examination/Verification', $action)
+        );
+
+        abort_unless($allowed, 403,
             "You do not have the {$action} permission on " . self::MODULE . '.');
     }
 

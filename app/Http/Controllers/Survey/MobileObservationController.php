@@ -234,7 +234,7 @@ class MobileObservationController extends Controller
             return response()->json(['ok' => true, 'id' => $obs->id, 'duplicate' => $duplicate]);
         }
 
-        return redirect()->route('survey-module.mobile.observations.show', $its)
+        return redirect()->route('survey-module.mobile.observations.show', ['its' => $its, 'app' => \App\Support\SurveyMobileApps::current()])
             ->with('success', "Reading {$obs->from_station} → {$obs->to_station} saved.");
     }
 
@@ -244,7 +244,7 @@ class MobileObservationController extends Controller
             return response()->json(['ok' => true, 'id' => $coord->id, 'duplicate' => $duplicate]);
         }
 
-        return redirect()->to(route('survey-module.mobile.observations.show', $its) . '#coords')
+        return redirect()->to(route('survey-module.mobile.observations.show', ['its' => $its, 'app' => \App\Support\SurveyMobileApps::current()]) . '#coords')
             ->with('success', "Beacon {$coord->beacon_id} saved.");
     }
 }

@@ -10,16 +10,16 @@
         {{-- The tabs of the field app this phone runs (App\Support\SurveyMobileApps, 2026-10-30). --}}
         @switch(\App\Support\SurveyMobileApps::current())
             @case('cfo')
-                {!! $tab('survey-module.mobile.observations', 'readings', 'fa-compass-drafting', 'Jobs') !!}
+                {!! $tab('survey-module.mobile.observations', 'readings', 'fa-compass-drafting', 'Survey Jobs') !!}
                 @break
             @case('plot')
                 {!! $tab('survey-module.mobile.plots.index', 'plots', 'fa-house', 'Home') !!}
-                {!! $tab('survey-module.mobile.plots.ops', 'showings', 'fa-people-arrows', 'Show OP') !!}
+                {!! $tab('survey-module.mobile.plots.ops', 'showings', 'fa-people-arrows', 'Plot Showing') !!}
                 {!! $tab('survey-module.mobile.plots.checks.create', 'checks', 'fa-map-location-dot', 'Ground check') !!}
                 @break
             @default
-                {!! $tab('survey-module.mobile.register', 'register', 'fa-pen-to-square', 'Register') !!}
-                {!! $tab('survey-module.mobile.index', 'cases', 'fa-folder-open', 'Cases') !!}
+                {!! $tab('survey-module.mobile.register', 'register', 'fa-pen-to-square', 'New Farm') !!}
+                {!! $tab('survey-module.mobile.index', 'cases', 'fa-folder-open', 'Assessments') !!}
         @endswitch
         <button type="button" class="mobile-tab" onclick="ui.menu()" aria-label="Account menu">
             <i class="fas fa-circle-user" aria-hidden="true"></i><span>Profile</span>

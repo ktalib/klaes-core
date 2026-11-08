@@ -251,6 +251,15 @@ return [
     | (user, 2026-10-30) open just their own pages.
     */
     'alternatives' => [
+        'survey-module.gkn.*'                    => ['Survey - GKN'],
+        'survey-module.records.surveyors.*'      => ['Survey - GKN'],
+        'survey-module.workflow.register-file.*' => ['Survey - Examination/Verification'],
+        'survey-module.workflow.boundary-disputes.*' => ['Survey - Examination/Verification'],
+        'survey-module.workflow.old-surveys.*'    => ['Survey - Examination/Verification'],
+        'survey-module.workflow.change-reports.*' => ['Survey - Examination/Verification'],
+        'survey-module.workflow.coordinate-register.*' => ['Survey - Examination/Verification'],
+        'survey-module.workflow.control-points.*' => ['Survey - Examination/Verification'],
+        'survey-module.workflow.beacon-register.*' => ['Survey - Examination/Verification'],
         'survey-module.compensation.*'           => ['Survey - Compensation'],
         'survey-module.tools.plot-allocation*'   => ['Survey - Compensation'],
         'survey-module.lg.*'                     => ['Survey - Compensation'],

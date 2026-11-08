@@ -175,6 +175,34 @@ class ModulePermissionsTest extends TestCase
         $this->assertTrue($user->canDo(str_replace('–', '-', $module), 'view'));
     }
 
+    public function test_survey_gkn_role_is_available_to_the_menu_and_gkn_routes(): void
+    {
+        $menu = file_get_contents(resource_path('views/admin/menu/partials/modules/survey.blade.php'));
+
+        $this->assertStringContainsString("\$hasRole('Survey - GKN')", $menu);
+        $this->assertContains('Survey - GKN', ModuleRoutes::alternativesFor('survey-module.gkn.applications'));
+        $this->assertContains('Survey - GKN', ModuleRoutes::alternativesFor('survey-module.records.surveyors.index'));
+    }
+
+    public function test_survey_examination_verification_role_opens_its_sidebar_and_routes(): void
+    {
+        $menu = file_get_contents(resource_path('views/admin/menu/partials/modules/survey.blade.php'));
+
+        $this->assertStringContainsString("\$hasRole('Survey - Examination/Verification')", $menu);
+        $this->assertContains(
+            'Survey - Examination/Verification',
+            ModuleRoutes::alternativesFor('survey-module.workflow.control-points.index')
+        );
+        $this->assertContains(
+            'Survey - Examination/Verification',
+            ModuleRoutes::alternativesFor('survey-module.workflow.beacon-register.index')
+        );
+        $this->assertNotContains(
+            'Survey - Examination/Verification',
+            ModuleRoutes::alternativesFor('survey-module.workflow.private.coordinates.show')
+        );
+    }
+
     // ---- Route resolution ---------------------------------------------------------------
 
     /**

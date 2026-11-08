@@ -20,7 +20,7 @@
         <div class="icon" aria-hidden="true">📶</div>
         <h1>No signal</h1>
         <p>This screen has not been opened on this phone while online, so it is not stored yet.</p>
-        <p>The dashboard, the case register and Field Observations work offline once you have opened them with a signal. Anything you save is kept on the phone and synced later.</p>
+        <p>Farm Assessment and Field Observations work offline after you have opened them with a signal. Anything you save is kept on the phone and synced later.</p>
         <a href="{{ route('survey-module.mobile.index') }}">Go to the dashboard</a>
     </div>
 </body>

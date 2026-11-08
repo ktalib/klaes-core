@@ -60,7 +60,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#be185d">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Register Compensation Case — Survey Mobile</title>
+    <title>Farm Assessment — KLAES Survey</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     @include('survey_module.mobile._styles')
@@ -82,7 +82,7 @@
                  onerror="this.replaceWith(Object.assign(document.createElement('i'), {className: 'fas fa-compass'}))">
         </div>
         <div class="appbar-title">
-            <h1><span class="long">Register Compensation Case</span><span class="short">New Case</span></h1>
+            <h1><span class="long">Farm Assessment</span><span class="short">Farm Assessment</span></h1>
             <p>Survey Mobile · {{ $user->name }}</p>
         </div>
         <a href="{{ route('survey-module.mobile.index') }}" class="icon-btn" aria-label="Dashboard"><i class="fas fa-house"></i></a>
@@ -112,7 +112,7 @@
         <div class="flash bad" style="margin-bottom:16px;" role="alert">
             <i class="fas fa-triangle-exclamation"></i>
             <div>
-                <strong>The case was not saved. Please fix:</strong>
+                <strong>The Farm Assessment was not saved. Please fix:</strong>
                 <ul>@foreach ($errors->messages() as $key => $messages)<li><button type="button" class="error-link" data-error-field="{{ $key }}" onclick="reg.error(this.dataset.errorField)">{{ $messages[0] }}</button></li>@endforeach</ul>
             </div>
         </div>
@@ -130,7 +130,7 @@
                 <div class="step-icon"><i class="fas fa-folder-open"></i></div>
                 <div>
                     <h2>Project Setup</h2>
-                    <p>Pick the project first. Its compensation scheme applies to this case and cannot be changed here.</p>
+                    <p>Pick the project first. Its compensation scheme applies to this Farm Assessment and cannot be changed here.</p>
                 </div>
             </div>
 
@@ -145,7 +145,7 @@
                             </option>
                         @endforeach
                     </select>
-                    <div class="err">Select the project this case belongs to.</div>
+                    <div class="err">Select the project this Farm Assessment belongs to.</div>
                     @if ($projects->isEmpty())
                         <div class="hint">No active projects yet. A project must be created in the desktop module first.</div>
                     @endif
@@ -164,13 +164,13 @@
                             <label for="casePortionNo">Portion <span class="req">*</span></label>
                             <select class="input" name="portion_no" id="casePortionNo"
                                     data-value="{{ old('portion_no', $case->portion_no) }}"></select>
-                            <div class="err">Select the portion this case surveys.</div>
+                            <div class="err">Select the portion this Farm Assessment surveys.</div>
                         </div>
                         <div class="field span-2">
                             <label for="casePortionSize">Size of Portion (Ha)</label>
                             <input class="input" type="text" id="casePortionSize" readonly
                                    value="{{ $case->portion_size_ha !== null ? (float) $case->portion_size_ha : '' }}">
-                            <div class="hint">From the project's allocation. Each portion is surveyed on its own case.</div>
+                            <div class="hint">From the project's allocation. Each portion is surveyed on its own Farm Assessment.</div>
                         </div>
                     </div>
                 </div>
@@ -216,12 +216,12 @@
                 <div class="field span-2" data-key="description">
                     <label for="caseDescription">Description</label>
                     <textarea class="input" name="description" id="caseDescription" maxlength="4000"
-                              placeholder="Brief description of the case…">{{ old('description', $case->description) }}</textarea>
+                              placeholder="Brief description of this Farm Assessment…">{{ old('description', $case->description) }}</textarea>
                 </div>
             </div>
 
             {{-- Property order: House No. | Street, Plot No. | District, LGA | State, then Location. The plot number is its own field, never part of the location. --}}
-            <div class="section-title"><i class="fas fa-location-dot"></i> Case property location</div>
+            <div class="section-title"><i class="fas fa-location-dot"></i> Farm Assessment location</div>
             <div class="grid two">
                 <div class="field" data-key="prop_house">
                     <label for="propHouse">House No.</label>
@@ -312,7 +312,7 @@
                 <div class="step-icon"><i class="fas fa-users"></i></div>
                 <div>
                     <h2>Beneficiaries</h2>
-                    <p>Farmers and landowners affected. At least one is needed before the case can be submitted.</p>
+                    <p>Farmers and landowners affected. At least one is needed before the Farm Assessment can be submitted.</p>
                 </div>
             </div>
 
@@ -368,7 +368,7 @@
                     <label for="caseNumPlots">Number of Plots <span class="req" id="plotsReq" style="display:none;">*</span></label>
                     <input class="input" type="number" inputmode="numeric" min="0" step="1" name="num_plots" id="caseNumPlots"
                            value="{{ old('num_plots', $case->num_plots) }}" placeholder="e.g. 10">
-                    <div class="err">A land-to-land case needs the number of plots.</div>
+                    <div class="err">A land-to-land Farm Assessment needs the number of plots.</div>
                     <div class="hint" id="plotsHint">Drives the farmer / Government split.</div>
                 </div>
                 <div class="field span-2" data-key="boundary_file">
@@ -411,7 +411,7 @@
                     @endforeach
                 </div>
                 <div class="empty-state" id="treeEmpty" @style(['display:none' => count($treeRows)])>
-                    <i class="fas fa-tree"></i>No trees yet. A monetary case needs at least one.
+                    <i class="fas fa-tree"></i>No trees yet. A monetary Farm Assessment needs at least one.
                 </div>
                 <div class="note pink" style="margin-top:14px;justify-content:space-between;">
                     <span>Total trees value</span><strong id="treeTotal">₦0.00</strong>
@@ -438,7 +438,7 @@
                     <div class="hint">Tree type × quantity × unit price, paid to the beneficiaries</div>
                     <div class="breakdown" id="cashBreakdown"></div>
                 </div>
-                <div class="note" style="margin-top:12px;"><i class="fas fa-circle-info"></i><span>No plots are allocated on a monetary case. Totals are recalculated when saved.</span></div>
+                <div class="note" style="margin-top:12px;"><i class="fas fa-circle-info"></i><span>No plots are allocated for monetary compensation. Totals are recalculated when saved.</span></div>
             </div>
 
             <div id="compLand" style="display:none;">
@@ -452,7 +452,7 @@
                         <div><b>Government</b><small id="govtShare">50% share, odd plot</small></div>
                     </div>
                 </div>
-                <div class="note" style="margin-top:12px;"><i class="fas fa-circle-info"></i><span>The exact Farmer : Government numbers are calculated by the system when the case is saved.</span></div>
+                <div class="note" style="margin-top:12px;"><i class="fas fa-circle-info"></i><span>The exact Farmer : Government numbers are calculated by the system when the Farm Assessment is saved.</span></div>
             </div>
         </section>
 
@@ -470,7 +470,7 @@
 
             <div class="note pink" style="margin-top:16px;">
                 <i class="fas fa-route"></i>
-                <span>Submitting sets the case to <strong>Pending Review</strong> and routes it Survey → GIS → Commissioner → Deeds → Land/OSS.</span>
+                <span>Submitting sets the Farm Assessment to <strong>Pending Review</strong> and routes it Survey → GIS → Commissioner → Deeds → Land/OSS.</span>
             </div>
         </section>
     </form>
@@ -656,13 +656,13 @@
         $('treesNA').style.display = land ? '' : 'none';
         $('treesActive').style.display = land ? 'none' : '';
         $('treesSub').textContent = land
-            ? 'Not applicable: this case is compensated with plots, not cash.'
-            : 'Required for a monetary case: type × quantity × unit price.';
+            ? 'Not applicable: this Farm Assessment is compensated with plots, not cash.'
+            : 'Required for a monetary Farm Assessment: type × quantity × unit price.';
 
         var plots = $('caseNumPlots');
         plots.disabled = mon;
         $('plotsReq').style.display = land ? '' : 'none';
-        $('plotsHint').textContent = mon ? 'Not used: a monetary case allocates no plots.' : 'Drives the farmer / Government split.';
+        $('plotsHint').textContent = mon ? 'Not used: a monetary Farm Assessment allocates no plots.' : 'Drives the farmer / Government split.';
 
         $('compUnknown').style.display = scheme ? 'none' : '';
         $('compMonetary').style.display = mon ? '' : 'none';
@@ -749,7 +749,7 @@
         if (!del) return;
         var card = del.closest('.row-card');
         var label = card.closest('#benRows') ? 'this farmer' : 'this tree line';
-        if (!confirm('Remove ' + label + ' from the case?')) return;
+        if (!confirm('Remove ' + label + ' from the Farm Assessment?')) return;
         card.remove(); renumber(); refreshTotals(); dirty = true;
     });
 
@@ -955,7 +955,7 @@
             toast(message ? message.textContent : 'Please complete the highlighted field.');
             return;
         }
-        if (submitNow && !confirm('Save and submit this case for review?')) return;
+        if (submitNow && !confirm('Save and submit this Farm Assessment for review?')) return;
 
         $('submitNow').value = submitNow ? '1' : '0';
         ['btnDraft', 'btnSubmit', 'btnBack'].forEach(function (id) { $(id).disabled = true; });
@@ -966,7 +966,7 @@
 
         // Through the offline layer: saved now when there is a signal, kept on the phone when not.
         if (!window.SCF) { $('caseForm').submit(); return; }
-        var label = ($('caseProject').selectedOptions[0] || {}).text || 'Compensation case';
+        var label = ($('caseProject').selectedOptions[0] || {}).text || 'Farm Assessment';
         window.SCF.submitCase($('caseForm'), window.scfPhotos ? window.scfPhotos.all() : [], label.trim())
             .then(function (res) {
                 if (res.redirect) { location.href = res.redirect; return; }

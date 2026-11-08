@@ -47,7 +47,13 @@ class BeaconRegisterController extends Controller
      */
     private function authorizeAction(string $action): void
     {
-        abort_unless((bool) optional(Auth::user())->canDo(self::MODULE, $action), 403,
+        $user = Auth::user();
+        $allowed = $user && (
+            $user->canDo(self::MODULE, $action)
+            || $user->canDo('Survey - Examination/Verification', $action)
+        );
+
+        abort_unless($allowed, 403,
             "You do not have the {$action} permission on " . self::MODULE . '.');
     }
 

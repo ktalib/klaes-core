@@ -7,7 +7,7 @@
 <header class="appbar">
     <div class="appbar-row">
         <div class="appbar-logo"><img src="{{ asset('assets/logo/SCF.png') }}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('i'), {className: 'fas fa-map-location-dot'}))"></div>
-        <div class="appbar-title"><h1>Plot Confirmation</h1><p>{{ auth()->user()->name }}</p></div>
+        <div class="appbar-title"><h1>Plot Showing</h1><p>{{ auth()->user()->name }}</p></div>
         <button type="button" class="icon-btn" onclick="ui.menu()" aria-label="Account menu"><i class="fas fa-user"></i></button>
     </div>
 </header>
@@ -15,17 +15,17 @@
 
 <main class="wrap">
     <div class="grid2" style="margin-bottom:12px;">
-        <a class="btn btn-primary" href="{{ route('survey-module.mobile.plots.ops') }}" style="justify-content:center;"><i class="fas fa-people-arrows"></i> Show OP plot</a>
+        <a class="btn btn-primary" href="{{ route('survey-module.mobile.plots.ops') }}" style="justify-content:center;"><i class="fas fa-people-arrows"></i> Plot Showing</a>
         <a class="btn btn-success" href="{{ route('survey-module.mobile.plots.checks.create') }}" style="justify-content:center;"><i class="fas fa-map-location-dot"></i> Ground check</a>
     </div>
 
     <div class="stats">
-        <div class="card"><b>{{ $stats['showings_today'] }}</b><span>Showings today · {{ $stats['showings_month'] }} this month</span></div>
+        <div class="card"><b>{{ $stats['showings_today'] }}</b><span>Plot Showings today · {{ $stats['showings_month'] }} this month</span></div>
         <div class="card"><b>{{ $stats['checks_today'] }}</b><span>Ground checks today · {{ $stats['checks_month'] }} this month{{ $stats['discrepancies'] ? ', ' . $stats['discrepancies'] . ' with a discrepancy' : '' }}</span></div>
     </div>
 
     <div class="card card-pad" style="margin-bottom:12px;">
-        <strong>My latest showings</strong>
+        <strong>My latest Plot Showings</strong>
         @forelse ($showings as $s)
             <a class="item" href="{{ route('survey-module.mobile.plots.op', $s->op_key) }}">
                 <div><strong>OP {{ $s->op_serial ?: '—' }} · {{ $s->label }}</strong>
@@ -35,7 +35,7 @@
                 <div class="sub" style="text-align:right;">{{ $s->shown_on?->format('d M') }}<br>{{ $s->photos_count }} photo{{ $s->photos_count === 1 ? '' : 's' }}</div>
             </a>
         @empty
-            <div class="sub" style="padding:8px 0;">None yet. Find an OP to record its showing.</div>
+            <div class="sub" style="padding:8px 0;">None yet. Find an OP to record a Plot Showing.</div>
         @endforelse
     </div>
 

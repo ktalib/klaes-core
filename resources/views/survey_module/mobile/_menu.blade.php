@@ -8,12 +8,12 @@
             @break
         @case('plot')
             <a href="{{ route('survey-module.mobile.plots.index') }}"><i class="fas fa-house"></i> Home</a>
-            <a href="{{ route('survey-module.mobile.plots.ops') }}"><i class="fas fa-people-arrows"></i> Show OP plot</a>
+            <a href="{{ route('survey-module.mobile.plots.ops') }}"><i class="fas fa-people-arrows"></i> Plot Showing</a>
             <a href="{{ route('survey-module.mobile.plots.checks.create') }}"><i class="fas fa-map-location-dot"></i> Ground check</a>
             @break
         @default
-            <a href="{{ route('survey-module.mobile.index') }}"><i class="fas fa-house"></i> Dashboard</a>
-            <a href="{{ route('survey-module.mobile.register') }}"><i class="fas fa-plus"></i> Register new case</a>
+            <a href="{{ route('survey-module.mobile.index') }}"><i class="fas fa-house"></i> Farm Assessment</a>
+            <a href="{{ route('survey-module.mobile.register') }}"><i class="fas fa-plus"></i> New Farm Assessment</a>
     @endswitch
     <!-- <a href="{{ route('survey-module.compensation.cases') }}"><i class="fas fa-desktop"></i> Open desktop module</a> -->
     {{-- Signing out also clears the pages kept on the phone for offline use (they hold case details). --}}

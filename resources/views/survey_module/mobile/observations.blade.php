@@ -5,7 +5,7 @@
     <link rel="icon" type="image/png" href="{{ asset('assets/logo/SCF.png') }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#1e1b2e">
-    <title>Survey Jobs — Field Observations</title>
+    <title>Field Observations</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     @include('survey_module.mobile._styles')
@@ -21,7 +21,7 @@
 <header class="appbar">
     <div class="appbar-row">
         <div class="appbar-logo"><img src="{{ asset('assets/logo/SCF.png') }}" alt="SCF" onerror="this.replaceWith(Object.assign(document.createElement('i'), {className: 'fas fa-compass'}))"></div>
-        <div class="appbar-title"><h1>Survey Jobs</h1><p>Computation &amp; Field Observations</p></div>
+        <div class="appbar-title"><h1>Field Observations</h1><p>Computation &amp; Survey Jobs</p></div>
         <button type="button" class="icon-btn" onclick="ui.menu()" aria-label="Account menu"><i class="fas fa-user"></i></button>
     </div>
 </header>

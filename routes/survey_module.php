@@ -543,46 +543,45 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 | desktop login; RequireLoginOtp still asks for the sign-in code.
 */
 Route::prefix('survey-module/mobile')->name('survey-module.mobile.')->group(function () {
-    // Offline support (2026-10-25): open to the service worker without a session.
-    Route::get('/sw.js', [MobileOfflineController::class, 'serviceWorker'])->name('sw');
-    Route::get('/manifest.webmanifest', [MobileOfflineController::class, 'manifest'])->name('manifest');
-    Route::get('/offline', [MobileOfflineController::class, 'offline'])->name('offline');
+    Route::middleware([\App\Http\Middleware\RememberSurveyMobileApp::class])->group(function () {
+        // Offline support: keep the app-specific context for the worker and manifest.
+        Route::get('/sw.js', [MobileOfflineController::class, 'serviceWorker'])->name('sw');
+        Route::get('/manifest.webmanifest', [MobileOfflineController::class, 'manifest'])->name('manifest');
+        Route::get('/offline', [MobileOfflineController::class, 'offline'])->name('offline');
 
-    Route::get('/login', [MobileCaseController::class, 'loginForm'])->name('login');
-    Route::post('/login', [MobileCaseController::class, 'login'])->middleware('throttle:10,1')->name('login.submit');
-    Route::post('/logout', [MobileCaseController::class, 'logout'])->name('logout');
+        Route::get('/login', [MobileCaseController::class, 'loginForm'])->name('login');
+        Route::post('/login', [MobileCaseController::class, 'login'])->middleware('throttle:10,1')->name('login.submit');
+        Route::post('/logout', [MobileCaseController::class, 'logout'])->name('logout');
 
-    Route::middleware(['auth'])->group(function () {
-        Route::get('/', [MobileCaseController::class, 'index'])->name('index');           // dashboard
-        Route::get('/register', [MobileCaseController::class, 'create'])->name('register');
-        Route::post('/cases', [MobileCaseController::class, 'store'])->name('cases.store');
-        Route::get('/cases/{case}', [MobileCaseController::class, 'show'])->name('cases.show');
-        Route::post('/cases/{case}/submit', [MobileCaseController::class, 'submit'])->name('cases.submit');
+        Route::middleware(['auth'])->group(function () {
+            Route::get('/', [MobileCaseController::class, 'index'])->name('index');
+            Route::get('/register', [MobileCaseController::class, 'create'])->name('register');
+            Route::post('/cases', [MobileCaseController::class, 'store'])->name('cases.store');
+            Route::get('/cases/{case}', [MobileCaseController::class, 'show'])->name('cases.show');
+            Route::post('/cases/{case}/submit', [MobileCaseController::class, 'submit'])->name('cases.submit');
 
-        // Offline sync: session check, geo-tagged photos, and field readings (Mobile App 2).
-        Route::get('/session', [MobileOfflineController::class, 'session'])->name('session');
-        Route::post('/cases/{case}/photos', [MobileOfflineController::class, 'storePhoto'])->name('cases.photos.store');
-        Route::get('/cases/{case}/photos/{photo}', [MobileOfflineController::class, 'showPhoto'])->name('cases.photos.show');
-        Route::get('/observations', [MobileObservationController::class, 'index'])->name('observations');
-        // Computation & Field Observations app (2026-10-30): private reports too, beacons, Sketch Plan.
-        Route::get('/observations/{its}', [MobileObservationController::class, 'show'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.show');
-        Route::post('/observations/{its}', [MobileObservationController::class, 'store'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.store');
-        Route::post('/observations/{its}/coordinates', [MobileObservationController::class, 'storeCoordinate'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.coords.store');
-        Route::post('/observations/{its}/sketch-plan', [SurveySketchPlanController::class, 'store'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.sketch.store');
+            Route::get('/session', [MobileOfflineController::class, 'session'])->name('session');
+            Route::post('/cases/{case}/photos', [MobileOfflineController::class, 'storePhoto'])->name('cases.photos.store');
+            Route::get('/cases/{case}/photos/{photo}', [MobileOfflineController::class, 'showPhoto'])->name('cases.photos.show');
+            Route::get('/observations', [MobileObservationController::class, 'index'])->name('observations');
+            Route::get('/observations/{its}', [MobileObservationController::class, 'show'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.show');
+            Route::post('/observations/{its}', [MobileObservationController::class, 'store'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.store');
+            Route::post('/observations/{its}/coordinates', [MobileObservationController::class, 'storeCoordinate'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.coords.store');
+            Route::post('/observations/{its}/sketch-plan', [SurveySketchPlanController::class, 'store'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.sketch.store');
 
-        // Plot Confirmation app (2026-10-30): show OP plots to allottees, ground-check plots.
-        Route::prefix('plots')->name('plots.')->group(function () {
-            Route::get('/', [MobilePlotController::class, 'index'])->name('index');
-            Route::get('/ops', [MobilePlotController::class, 'ops'])->name('ops');
-            Route::get('/ops/{op}', [MobilePlotController::class, 'op'])->where('op', '(capture|pra)-[0-9]+')->name('op');
-            Route::post('/ops/{op}/showings', [MobilePlotController::class, 'storeShowing'])->where('op', '(capture|pra)-[0-9]+')->name('showings.store');
-            Route::post('/showings/{showing}/photos', [MobilePlotController::class, 'storeShowingPhoto'])->whereNumber('showing')->name('showings.photos.store');
-            Route::get('/showing-photos/{photo}', [MobilePlotController::class, 'showingPhoto'])->whereNumber('photo')->name('showings.photos.show');
-            Route::get('/checks/new', [MobilePlotController::class, 'createCheck'])->name('checks.create');
-            Route::post('/checks', [MobilePlotController::class, 'storeCheck'])->name('checks.store');
-            Route::get('/checks/{check}', [MobilePlotController::class, 'check'])->whereNumber('check')->name('checks.show');
-            Route::post('/checks/{check}/photos', [MobilePlotController::class, 'storeCheckPhoto'])->whereNumber('check')->name('checks.photos.store');
-            Route::get('/check-photos/{photo}', [MobilePlotController::class, 'checkPhoto'])->whereNumber('photo')->name('checks.photos.show');
+            Route::prefix('plots')->name('plots.')->group(function () {
+                Route::get('/', [MobilePlotController::class, 'index'])->name('index');
+                Route::get('/ops', [MobilePlotController::class, 'ops'])->name('ops');
+                Route::get('/ops/{op}', [MobilePlotController::class, 'op'])->where('op', '(capture|pra)-[0-9]+')->name('op');
+                Route::post('/ops/{op}/showings', [MobilePlotController::class, 'storeShowing'])->where('op', '(capture|pra)-[0-9]+')->name('showings.store');
+                Route::post('/showings/{showing}/photos', [MobilePlotController::class, 'storeShowingPhoto'])->whereNumber('showing')->name('showings.photos.store');
+                Route::get('/showing-photos/{photo}', [MobilePlotController::class, 'showingPhoto'])->whereNumber('photo')->name('showings.photos.show');
+                Route::get('/checks/new', [MobilePlotController::class, 'createCheck'])->name('checks.create');
+                Route::post('/checks', [MobilePlotController::class, 'storeCheck'])->name('checks.store');
+                Route::get('/checks/{check}', [MobilePlotController::class, 'check'])->whereNumber('check')->name('checks.show');
+                Route::post('/checks/{check}/photos', [MobilePlotController::class, 'storeCheckPhoto'])->whereNumber('check')->name('checks.photos.store');
+                Route::get('/check-photos/{photo}', [MobilePlotController::class, 'checkPhoto'])->whereNumber('photo')->name('checks.photos.show');
+            });
         });
     });
 });

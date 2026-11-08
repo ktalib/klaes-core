@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" href="{{ asset('assets/logo/SCF.png') }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#1e1b2e">
-    <title>{{ $case->case_ref }} — Survey Mobile</title>
+    <title>{{ $case->case_ref }} — Farm Assessment</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     @include('survey_module.mobile._styles')
@@ -39,7 +39,7 @@
         <a href="{{ route('survey-module.mobile.index') }}" class="icon-btn" aria-label="Back to dashboard"><i class="fas fa-arrow-left"></i></a>
         <div class="appbar-logo"><img src="{{ asset('assets/logo/SCF.png') }}" alt="SCF Survey Compensation"></div>
         <div class="appbar-title">
-            <h1>Case details</h1>
+            <h1>Farm Assessment</h1>
             <p>{{ $case->project?->project_code }} · {{ $case->project?->name }}</p>
         </div>
         <button type="button" class="icon-btn" onclick="ui.menu()" aria-label="Account menu"><i class="fas fa-user"></i></button>
@@ -107,7 +107,7 @@
     <div class="card card-pad">
         <div class="section-title" style="margin-top:0;"><i class="fas fa-users"></i> Beneficiaries ({{ $case->beneficiaries->count() }})</div>
         @if ($case->beneficiaries->isEmpty())
-            <div class="empty-state" style="margin-top:0;"><i class="fas fa-user-group"></i>No farmers on this case yet.</div>
+            <div class="empty-state" style="margin-top:0;"><i class="fas fa-user-group"></i>No farmers in this Farm Assessment yet.</div>
         @else
             <div class="list">
                 @foreach ($case->beneficiaries as $b)
@@ -145,7 +145,7 @@
         </div>
     @endunless
 
-    <p class="hint" style="text-align:center;">To change this case, open it in the desktop module.</p>
+    <p class="hint" style="text-align:center;">To change this Farm Assessment, open it in the desktop module.</p>
 </div>
 
 @if ($canSubmit)

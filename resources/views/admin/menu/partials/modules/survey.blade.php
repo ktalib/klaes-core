@@ -7,7 +7,8 @@
       $hasRole('Survey - GIS') || $hasRole('Survey - E-Registry') ||
       $hasRole('Survey Reports') || $hasRole('Survey - Beacon Register') || $hasRole('Supper Admin') ||
       $hasRole('Survey - Compensation Check') || $hasRole('Survey - DSG') || $hasRole('Survey - Examination') || $hasRole('Survey - SG') ||
-      $hasRole('Survey - Compensation') || $hasRole('Survey - Public Survey')
+      $hasRole('Survey - Compensation') || $hasRole('Survey - Public Survey') || $hasRole('Survey - GKN') ||
+      $hasRole('Survey - Examination/Verification')
     )
     @php
       $svSoon = fn (string $label, string $icon) =>
@@ -16,6 +17,8 @@
           . '<span>' . e($label) . '</span>'
           . '<span class="ml-auto text-[10px] uppercase tracking-wide text-gray-400">Soon</span></a>';
       $svRecords = $hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') || $hasRole('Supper Admin');
+      $svGkn = $hasRole('Survey - GKN');
+      $svExaminationVerification = $hasRole('Survey - Examination/Verification');
       // Beacon Register has its own role (user, 2026-10-23); it shows alone for a user who holds only that.
       $svBeacon  = $hasRole('Survey - Beacon Register');
       // Page-area roles (user, 2026-10-30); Survey - Records still sees both areas.
@@ -202,7 +205,7 @@
         @endif
 
         {{-- c. GKN --}}
-        @if($svPublic)
+        @if($svPublic || $svGkn)
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-gkn">
           <div class="flex items-center gap-2">
             <i data-lucide="building-2" class="h-4 w-4 text-pink-500"></i>
@@ -215,7 +218,7 @@
 
           {{-- c.i Applications: GKN / LPKN / LPPL / Misc KN as tabs on one page (transcript, 2026-10-25).
                The old GKN Files, LPKN and Misc KN pages keep their routes but leave the sidebar. --}}
-          @if($svRecords)
+          @if($svRecords || $svGkn)
           <a href="{{ route('survey-module.gkn.applications') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.applications') ? 'active' : '' }}">
             <i data-lucide="folders" class="h-3.5 w-3.5 text-pink-400"></i>
             <span>Applications</span>
@@ -247,7 +250,7 @@
             </a>
           </div>
           @endif
-          @if($svRecords)
+          @if($svRecords || $svGkn)
           {{-- Survey Management (CR 30102026 item 15 and the sidebar outline, 2026-10-31). --}}
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-gkn-mgmt">
             <div class="flex items-center gap-2">
@@ -325,7 +328,7 @@
         </div>
         @endif
 
-        @if($svRecords || $svBeacon)
+        @if($svRecords || $svBeacon || $svExaminationVerification)
         {{-- e. Examination/Verification --}}
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-examination">
             <div class="flex items-center gap-2">
@@ -354,7 +357,7 @@
               $bdSub = fn (string $label, string $type) => $exLink($label, route('survey-module.workflow.boundary-disputes.index', ['type' => $type]), $bdOn && $bdType === $type);
               $bdAll = $bdOn && ! in_array($bdType, \App\Models\Survey\SurveyBoundaryDispute::TYPES, true);
             @endphp
-            @if($svRecords)
+            @if($svRecords || $svExaminationVerification)
             <a href="{{ route('survey-module.workflow.register-file.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.register-file.*') ? 'active' : '' }}">
               <i data-lucide="file-input" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Register File</span>
@@ -385,13 +388,13 @@
               <span>Control Points</span>
             </a>
             @endif
-            @if($svBeacon)
+            @if($svBeacon || $svExaminationVerification)
             <a href="{{ route('survey-module.workflow.beacon-register.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.beacon-register.*') ? 'active' : '' }}">
               <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Beacon Register</span>
             </a>
             @endif
-            @if($svRecords)
+            @if($svRecords || $svExaminationVerification)
             <a href="{{ route('survey-module.workflow.coordinate-register.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.coordinate-register.*') ? 'active' : '' }}">
               <i data-lucide="grid-3x3" class="h-3.5 w-3.5 text-pink-400"></i>
               <span>Coordinate Register</span>

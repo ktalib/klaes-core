@@ -259,7 +259,7 @@ class MobilePlotController extends Controller
             $showings = Showing::where('op_source', $op['source'])->where('op_source_id', $op['id']);
             $against = ! empty($data['showing']) ? (clone $showings)->whereKey((int) $data['showing'])->first() : (clone $showings)->orderByDesc('showing_no')->first();
             if (! $against) {
-                throw ValidationException::withMessages(['op' => 'Record the OP showing first: the ground check is the response to a showing.']);
+                throw ValidationException::withMessages(['op' => 'Record the Plot Showing first: the ground check is its field response.']);
             }
             $target['survey_op_showing_id'] = $against->id;
             $target += ['op_source' => $op['source'], 'op_source_id' => $op['id'], 'op_serial' => $op['serial'], 'holder_name' => $op['allottee'],
@@ -383,21 +383,21 @@ class MobilePlotController extends Controller
     {
         if ($r->expectsJson()) {
             return response()->json(['ok' => true, 'id' => $showing->id, 'duplicate' => $duplicate, 'label' => $showing->label,
-                                      'photos' => route('survey-module.mobile.plots.showings.photos.store', $showing)]);
+                                      'photos' => route('survey-module.mobile.plots.showings.photos.store', [$showing, 'app' => \App\Support\SurveyMobileApps::current()])]);
         }
 
-        return redirect()->route('survey-module.mobile.plots.op', $op['key'])->with('success', "{$showing->label} recorded.");
+        return redirect()->route('survey-module.mobile.plots.op', ['op' => $op['key'], 'app' => \App\Support\SurveyMobileApps::current()])->with('success', "{$showing->label} recorded.");
     }
 
     private function answerCheck(Request $r, Check $check, bool $duplicate)
     {
         if ($r->expectsJson()) {
             return response()->json(['ok' => true, 'id' => $check->id, 'duplicate' => $duplicate, 'ref' => $check->check_ref,
-                                      'photos' => route('survey-module.mobile.plots.checks.photos.store', $check),
-                                      'redirect' => route('survey-module.mobile.plots.checks.show', $check)]);
+                                      'photos' => route('survey-module.mobile.plots.checks.photos.store', [$check, 'app' => \App\Support\SurveyMobileApps::current()]),
+                                      'redirect' => route('survey-module.mobile.plots.checks.show', [$check, 'app' => \App\Support\SurveyMobileApps::current()])]);
         }
 
-        return redirect()->route('survey-module.mobile.plots.checks.show', $check)->with('success', "Ground check {$check->check_ref} saved.");
+        return redirect()->route('survey-module.mobile.plots.checks.show', [$check, 'app' => \App\Support\SurveyMobileApps::current()])->with('success', "Ground check {$check->check_ref} saved.");
     }
 
     /** One geo-tagged photo; safe to resend (client_uuid). */

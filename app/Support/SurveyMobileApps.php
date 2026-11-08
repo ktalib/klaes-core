@@ -18,14 +18,15 @@ namespace App\Support;
 final class SurveyMobileApps
 {
     public const SESSION = 'survey_mobile_app';
+    public const COOKIE = 'survey_mobile_app_context';
 
     public const DEFAULT = 'scf';
 
     public const APPS = [
         'scf' => [
-            'name'    => 'SCF Mobile',
-            'title'   => 'SURVEY MOBILE',
-            'tagline' => 'Register Compensation Case',
+            'name'    => 'Farm Assessment',
+            'title'   => 'FARM ASSESSMENT',
+            'tagline' => 'Farm Assessment and Compensation Fieldwork',
             'home'    => 'survey-module.mobile.index',
             'icon'    => 'fa-compass',
         ],
@@ -37,9 +38,9 @@ final class SurveyMobileApps
             'icon'    => 'fa-compass-drafting',
         ],
         'plot' => [
-            'name'    => 'Plot Confirmation',
-            'title'   => 'PLOT CONFIRMATION',
-            'tagline' => 'Show OP plots · Ground checks',
+            'name'    => 'Plot Showing',
+            'title'   => 'PLOT SHOWING',
+            'tagline' => 'Plot Showings · Ground checks',
             'home'    => 'survey-module.mobile.plots.index',
             'icon'    => 'fa-map-location-dot',
         ],
@@ -66,6 +67,22 @@ final class SurveyMobileApps
         }
     }
 
+    public static function fromRequest(\Illuminate\Http\Request $request): string
+    {
+        foreach ([
+            $request->query('app'),
+            $request->input('app'),
+            $request->cookie(self::COOKIE),
+            session(self::SESSION),
+        ] as $key) {
+            if (self::valid(is_string($key) ? $key : null)) {
+                return $key;
+            }
+        }
+
+        return self::DEFAULT;
+    }
+
     public static function get(?string $key = null): array
     {
         $key = $key ?? self::current();
@@ -75,6 +92,8 @@ final class SurveyMobileApps
 
     public static function home(?string $key = null): string
     {
-        return route(self::get($key)['home']);
+        $key = $key ?? self::current();
+
+        return route(self::get($key)['home'], ['app' => $key]);
     }
 }

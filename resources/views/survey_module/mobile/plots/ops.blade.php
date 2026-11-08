@@ -7,7 +7,7 @@
 <header class="appbar">
     <div class="appbar-row">
         <a class="icon-btn" href="{{ $for === 'check' ? route('survey-module.mobile.plots.checks.create') : route('survey-module.mobile.plots.index') }}" aria-label="Back"><i class="fas fa-arrow-left"></i></a>
-        <div class="appbar-title"><h1>{{ $for === 'check' ? 'OP to ground-check' : 'Show OP plot' }}</h1><p>Find the Occupancy Permit</p></div>
+        <div class="appbar-title"><h1>{{ $for === 'check' ? 'OP to ground-check' : 'Plot Showing' }}</h1><p>Find the Occupancy Permit</p></div>
         <button type="button" class="icon-btn" onclick="ui.menu()" aria-label="Account menu"><i class="fas fa-user"></i></button>
     </div>
 </header>

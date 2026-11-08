@@ -42,11 +42,11 @@
                     <dt>Location</dt><dd>{{ $op['location'] ?: '—' }}</dd>
                     @if ($op['layout'])<dt>Layout</dt><dd>{{ $op['layout'] }}</dd>@endif
                 </dl>
-                {{-- The showing this check answers (user, 2026-11-03). --}}
+                {{-- The Plot Showing this check answers. --}}
                 @if ($opShowings->isEmpty())
-                    <div class="sub" style="margin-top:8px;color:#b91c1c;">This OP has not been shown yet. Record the OP showing first; the ground check is the response to it.</div>
+                    <div class="sub" style="margin-top:8px;color:#b91c1c;">This OP has not been shown yet. Record the Plot Showing first; the ground check is the response to it.</div>
                 @else
-                    <div class="field" style="margin-top:10px;"><label for="shw">Against showing</label>
+                    <div class="field" style="margin-top:10px;"><label for="shw">Against Plot Showing</label>
                         <select class="input" id="shw" name="showing">
                             @foreach ($opShowings as $s)
                                 <option value="{{ $s->id }}" @selected((int) $showingId === (int) $s->id)>{{ $s->label }} · {{ $s->shown_on?->format('d M Y') }} · {{ $s->surveyor_name }}</option>

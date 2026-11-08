@@ -12,7 +12,8 @@
 
     // Module role 'Survey - Beacon Register' (user, 2026-10-23): show only what the user may do.
     $brCan = collect(['create', 'edit', 'approve', 'delete'])
-        ->mapWithKeys(fn ($a) => [$a => (bool) optional(auth()->user())->canDo('Survey - Beacon Register', $a)])->all();
+        ->mapWithKeys(fn ($a) => [$a => (bool) (optional(auth()->user())->canDo('Survey - Beacon Register', $a)
+            || optional(auth()->user())->canDo('Survey - Examination/Verification', $a))])->all();
     $brItem   = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
     $userName = fn ($u) => $u ? trim($u->first_name . ' ' . $u->last_name) : null;
 

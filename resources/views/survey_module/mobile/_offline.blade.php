@@ -24,9 +24,9 @@
         var q = new URLSearchParams(location.search), kind = q.get('scf');
         if (!kind) return;
         var ref = q.get('ref'), text, cls = 'ok';
-        if (kind === 'saved') text = 'Case ' + (ref || '') + ' saved.';
-        else if (kind === 'photos-waiting') { text = 'Case ' + (ref || '') + ' saved. Some photos are still waiting to upload; they will go when the signal is better.'; cls = 'wait'; }
-        else if (kind === 'queued') { text = 'No signal: the case is saved on this phone and will sync when you are back online.'; cls = 'wait'; }
+        if (kind === 'saved') text = 'Farm Assessment ' + (ref || '') + ' saved.';
+        else if (kind === 'photos-waiting') { text = 'Farm Assessment ' + (ref || '') + ' saved. Some photos are still waiting to upload; they will go when the signal is better.'; cls = 'wait'; }
+        else if (kind === 'queued') { text = 'No signal: the Farm Assessment is saved on this phone and will sync when you are back online.'; cls = 'wait'; }
         else return;
         document.addEventListener('DOMContentLoaded', function () {
             var n = document.createElement('div');

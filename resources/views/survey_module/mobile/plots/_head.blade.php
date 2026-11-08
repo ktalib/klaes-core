@@ -1,10 +1,10 @@
-{{-- Plot Confirmation app pages: shared head (2026-10-30). Pass $title. --}}
+{{-- Plot Showing app pages: shared head. Pass $title. --}}
 <meta charset="UTF-8">
 <link rel="icon" type="image/png" href="{{ asset('assets/logo/SCF.png') }}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1e1b2e">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>{{ $title }} — Plot Confirmation</title>
+<title>{{ $title }} — Plot Showing</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 @include('survey_module.mobile._styles')

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\SurveyMobileApps;
 use Illuminate\Auth\Middleware\Authenticate as Middleware;
 
 class Authenticate extends Middleware
@@ -22,7 +23,16 @@ class Authenticate extends Middleware
             
             // Survey Mobile — Register Compensation Case
             if ($request->is('survey-module/mobile*') && ! $request->is('survey-module/mobile/login')) {
-                return route('survey-module.mobile.login');
+                SurveyMobileApps::remember(SurveyMobileApps::fromRequest($request));
+
+                return route('survey-module.mobile.login', ['app' => SurveyMobileApps::current()]);
+            }
+
+            // Address lookups called from the Survey field apps must return to the same app.
+            if ($request->is('survey-module/lookup/*') && SurveyMobileApps::valid($request->query('app'))) {
+                SurveyMobileApps::remember($request->query('app'));
+
+                return route('survey-module.mobile.login', ['app' => SurveyMobileApps::current()]);
             }
 
             // Check for Generic Mobile File Tracker (exclude login page itself)

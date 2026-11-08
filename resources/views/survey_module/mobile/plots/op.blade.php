@@ -43,7 +43,7 @@
 
     <form class="card card-pad" id="showForm" method="POST" action="{{ route('survey-module.mobile.plots.showings.store', $op['key']) }}" novalidate style="margin-bottom:12px;">
         @csrf
-        <strong id="nextLabel">Record the {{ Showing::ordinal($next) }} Showing</strong>
+        <strong id="nextLabel">Record the {{ Showing::ordinal($next) }} Plot Showing</strong>
         <div class="field" style="margin-top:10px;"><label for="sv">Surveyor</label>
             <select class="input" id="sv" name="surveyor" required>
                 <option value="">Choose…</option>
@@ -84,10 +84,10 @@
             <div class="field"><label for="rqp">Plot No.</label><input class="input" id="rqp" name="req_plot" maxlength="100"></div>
         </div>
         <div class="field" style="margin-top:8px;"><label for="rqs">Street</label>
-            <input class="input" id="rqs" name="req_street" maxlength="255" list="rqStreets" autocomplete="off" data-lookup="{{ route('survey-module.lookup.streets') }}">
+            <input class="input" id="rqs" name="req_street" maxlength="255" list="rqStreets" autocomplete="off" data-lookup="{{ route('survey-module.lookup.streets', ['app' => \App\Support\SurveyMobileApps::current()]) }}">
             <datalist id="rqStreets"></datalist></div>
         <div class="field" style="margin-top:8px;"><label for="rqd">District</label>
-            <input class="input" id="rqd" name="req_district" maxlength="255" list="rqDistricts" autocomplete="off" required data-lookup="{{ route('survey-module.lookup.districts') }}">
+            <input class="input" id="rqd" name="req_district" maxlength="255" list="rqDistricts" autocomplete="off" required data-lookup="{{ route('survey-module.lookup.districts', ['app' => \App\Support\SurveyMobileApps::current()]) }}">
             <datalist id="rqDistricts"></datalist></div>
         <div class="grid2" style="margin-top:8px;">
             <div class="field"><label for="rql">LGA</label>
@@ -102,22 +102,22 @@
         </div>
         <div class="field" style="margin-top:8px;"><label for="rqFull">Full address</label>
             <input class="input" id="rqFull" readonly tabindex="-1" placeholder="Street, Plot, District, LGA, State" style="background:#f3f4f6;font-weight:600;"></div>
-        <div class="field" id="reasonBox" style="margin-top:10px;" @if ($next === 1) hidden @endif><label for="rs">Reason for this showing</label>
+        <div class="field" id="reasonBox" style="margin-top:10px;" @if ($next === 1) hidden @endif><label for="rs">Reason for this Plot Showing</label>
             <select class="input" id="rs" name="reason" @disabled($next === 1)>
                 <option value="">Choose…</option>
                 @foreach (Showing::REASONS as $r)<option value="{{ $r }}">{{ $r }}</option>@endforeach
             </select>
-            <div class="sub">Required from the 2nd showing.</div></div>
+            <div class="sub">Required from the 2nd Plot Showing.</div></div>
         <div class="field" style="margin-top:10px;"><label for="nt">Notes</label>
             <textarea class="input" id="nt" name="notes" rows="2" maxlength="2000"></textarea></div>
         @include('survey_module.mobile.plots._gps')
         @include('survey_module.mobile.plots._photos')
         <div class="err-box" hidden></div>
-        <button type="submit" class="btn btn-success" style="margin-top:12px;width:100%;"><i class="fas fa-check"></i> Save showing</button>
+        <button type="submit" class="btn btn-success" style="margin-top:12px;width:100%;"><i class="fas fa-check"></i> Save Plot Showing</button>
     </form>
 
     <div class="card card-pad" style="margin-bottom:12px;">
-        <strong>Showing History</strong>
+        <strong>Plot Showing History</strong>
         <div id="history">
             @forelse ($showings as $s)
                 <div class="item">
@@ -130,7 +130,7 @@
                             <div class="thumbs">@foreach ($s->photos as $ph)<a href="{{ route('survey-module.mobile.plots.showings.photos.show', $ph) }}"><img src="{{ route('survey-module.mobile.plots.showings.photos.show', $ph) }}" alt="{{ $s->label }} photo" loading="lazy"></a>@endforeach</div>
                         @endif
                         {{-- Step 2: the field response to this showing (user, 2026-11-03). --}}
-                        <a class="btn btn-ghost btn-sm" style="margin-top:6px;" href="{{ route('survey-module.mobile.plots.checks.create', ['op' => $op['key'], 'showing' => $s->id]) }}"><i class="fas fa-map-location-dot"></i> Ground-check this showing</a>
+                        <a class="btn btn-ghost btn-sm" style="margin-top:6px;" href="{{ route('survey-module.mobile.plots.checks.create', ['op' => $op['key'], 'showing' => $s->id]) }}"><i class="fas fa-map-location-dot"></i> Ground-check this Plot Showing</a>
                     </div>
                 </div>
             @empty
@@ -199,7 +199,7 @@
         });
     });
 
-    pcSave(form, function () { return @json($title) + ' · showing'; }, function (f) {
+    pcSave(form, function () { return @json($title) + ' · Plot Showing'; }, function (f) {
         if (!f.surveyor.value) return 'Choose the surveyor who showed the plot.';
         if (f.surveyor.value === @json(PC::SURVEYOR_OTHER) && !f.surveyor_other.value.trim()) return "Type the surveyor's name.";
         if (!f.shown_on.value || !f.shown_at.value) return 'Give the date and time.';
@@ -213,19 +213,19 @@
     }, function (res) {
         var note = document.getElementById('savedNote');
         note.className = 'scf-note ' + (res.queued || res.photosWaiting ? 'wait' : 'ok');
-        note.textContent = res.queued ? 'No signal: the showing is saved on this phone and will sync when you are back online.'
-            : (res.res && res.res.label ? res.res.label : 'Showing') + ' recorded.' + (res.photosWaiting ? ' Some photos are still waiting to upload.' : '');
+        note.textContent = res.queued ? 'No signal: the Plot Showing is saved on this phone and will sync when you are back online.'
+            : (res.res && res.res.label ? res.res.label : 'Plot Showing') + ' recorded.' + (res.photosWaiting ? ' Some photos are still waiting to upload.' : '');
         note.hidden = false;
         var none = document.getElementById('noHistory'); if (none) none.remove();
         var row = document.createElement('div');
         row.className = 'item';
         row.innerHTML = '<div><strong></strong><div class="sub"></div></div>';
-        row.querySelector('strong').textContent = res.queued ? 'Showing (waiting to sync)' : (res.res.label || 'Showing');
+        row.querySelector('strong').textContent = res.queued ? 'Plot Showing (waiting to sync)' : (res.res.label || 'Plot Showing');
         row.querySelector('.sub').textContent = form.shown_on.value + ' ' + form.shown_at.value + ' · ' + (sv.value === @json(PC::SURVEYOR_OTHER) ? form.surveyor_other.value : sv.options[sv.selectedIndex].text);
         document.getElementById('history').prepend(row);
         // The next one needs a reason.
         next++;
-        document.getElementById('nextLabel').textContent = 'Record another showing';
+        document.getElementById('nextLabel').textContent = 'Record another Plot Showing';
         document.getElementById('reasonBox').hidden = false; form.reason.disabled = false;
         form.notes.value = ''; form.reason.value = ''; form.latitude.value = '';
         rqSame.checked = false; rqFilled = {}; rqn.value = ''; syncRequester();

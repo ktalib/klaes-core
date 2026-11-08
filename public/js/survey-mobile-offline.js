@@ -184,7 +184,7 @@
         submitCase: function (form, photos, label) {
             var fields = [];
             new FormData(form).forEach(function (v, k) { if (typeof v === 'string' && k !== '_token') fields.push([k, v]); });
-            var item = { id: uuid(), kind: 'case', url: form.action, fields: fields, created: Date.now(), label: label || 'Compensation case',
+            var item = { id: uuid(), kind: 'case', url: form.action, fields: fields, created: Date.now(), label: label || 'Farm Assessment',
                          photos: (photos || []).map(function (p) { return Object.assign({ uuid: uuid(), done: false }, p); }) };
             var keep = function () {
                 return put(item).then(function () { render(); return { queued: true, redirect: cfg.dashboard + '?scf=queued' }; });

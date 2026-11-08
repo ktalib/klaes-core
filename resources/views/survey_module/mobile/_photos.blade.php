@@ -58,7 +58,7 @@
                 card.append(img, meta, cap, rm);
                 box.appendChild(card);
             });
-            hint.textContent = list.length ? list.length + ' photo' + (list.length === 1 ? '' : 's') + ' · uploaded with the case' : 'Each photo records where and when it was taken.';
+            hint.textContent = list.length ? list.length + ' photo' + (list.length === 1 ? '' : 's') + ' · uploaded with the Farm Assessment' : 'Each photo records where and when it was taken.';
         }
         input.addEventListener('change', function () {
             var files = Array.prototype.slice.call(input.files || []);

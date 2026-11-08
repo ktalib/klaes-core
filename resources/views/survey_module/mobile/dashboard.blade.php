@@ -151,7 +151,7 @@
                  onerror="this.replaceWith(Object.assign(document.createElement('i'), {className: 'fas fa-compass'}))">
         </div>
         <div class="appbar-title">
-            <h1>Survey Mobile</h1>
+            <h1>Farm Assessment</h1>
             <p>Compensation field register</p>
         </div>
         <button type="button" class="icon-btn" onclick="ui.menu()" aria-label="Account menu"><i class="fas fa-user"></i></button>
@@ -162,7 +162,7 @@
             <h2>{{ $greet }}, {{ $first }}</h2>
             <p>{{ now()->format('l, j F Y') }} · {{ $stats['today'] }} registered today · {{ $stats['month'] }} this month</p>
         </div>
-        <a href="{{ route('survey-module.mobile.register') }}" class="btn btn-cta"><i class="fas fa-plus"></i> Register new case</a>
+        <a href="{{ route('survey-module.mobile.register') }}" class="btn btn-cta"><i class="fas fa-plus"></i> New Farm Assessment</a>
     </div>
 </header>
 
@@ -175,14 +175,14 @@
         <div class="flash ok" style="margin-bottom:16px;" role="status">
             <i class="fas fa-circle-check"></i>
             <div style="min-width:0;">
-                <strong>Case saved</strong>
+                <strong>Farm Assessment saved</strong>
                 @if (session('saved_ref')) <div class="ref">{{ session('saved_ref') }}</div> @endif
                 <div style="font-size:14px;margin-top:4px;">{{ session('success') }}</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
                     @if (session('saved_id'))
-                        <a class="btn btn-sm btn-ghost" href="{{ route('survey-module.mobile.cases.show', session('saved_id')) }}"><i class="fas fa-eye"></i> View case</a>
+                        <a class="btn btn-sm btn-ghost" href="{{ route('survey-module.mobile.cases.show', session('saved_id')) }}"><i class="fas fa-eye"></i> View Farm Assessment</a>
                     @endif
-                    <a class="btn btn-sm btn-primary" href="{{ route('survey-module.mobile.register') }}"><i class="fas fa-plus"></i> Register another</a>
+                    <a class="btn btn-sm btn-primary" href="{{ route('survey-module.mobile.register') }}"><i class="fas fa-plus"></i> New Farm Assessment</a>
                 </div>
             </div>
         </div>
@@ -194,7 +194,7 @@
                 @if (session('saved_ref')) <div class="ref">{{ session('saved_ref') }}</div> @endif
                 <div style="font-size:14px;">{{ session('error') }}</div>
                 @if (session('saved_id'))
-                    <a class="btn btn-sm btn-ghost" style="margin-top:10px;" href="{{ route('survey-module.mobile.cases.show', session('saved_id')) }}"><i class="fas fa-eye"></i> View case</a>
+                    <a class="btn btn-sm btn-ghost" style="margin-top:10px;" href="{{ route('survey-module.mobile.cases.show', session('saved_id')) }}"><i class="fas fa-eye"></i> View Farm Assessment</a>
                 @endif
             </div>
         </div>
@@ -222,7 +222,7 @@
                 title.innerHTML = '<strong></strong><div style="font-size:12.5px;opacity:.75;"></div>';
                 title.querySelector('strong').textContent = (it.kind === 'reading' ? 'Reading · ' : '') + (it.label || 'Item') + (it.serverRef ? ' · ' + it.serverRef : '');
                 title.querySelector('div').textContent = 'Saved ' + new Date(it.created).toLocaleString() +
-                    (photos ? ' · photos ' + sent + '/' + photos : '') + (it.serverId && photos > sent ? ' · case synced, photos waiting' : '');
+                    (photos ? ' · photos ' + sent + '/' + photos : '') + (it.serverId && photos > sent ? ' · Farm Assessment synced, photos waiting' : '');
                 row.appendChild(title);
                 if (it.blocked) {
                     var err = document.createElement('div');
@@ -252,7 +252,7 @@
     {{-- ============================== HEADLINE TILES ============================== --}}
     <div class="tiles">
         <a class="tile {{ $status === null ? 'on' : '' }}" href="{{ $tabUrl(null) }}">
-            <div class="top"><span class="lbl">My cases</span><span class="ico" style="background:var(--primary-50);color:var(--primary);"><i class="fas fa-folder-open"></i></span></div>
+            <div class="top"><span class="lbl">My Farm Assessments</span><span class="ico" style="background:var(--primary-50);color:var(--primary);"><i class="fas fa-folder-open"></i></span></div>
             <div class="val">{{ number_format($stats['total']) }}</div>
             <div class="sub">All you have registered</div>
         </a>
@@ -279,11 +279,11 @@
             {{-- ============================== STATUS MIX + IMPACT ============================== --}}
             <div class="card card-pad" style="margin-top:16px;">
                 <div class="panel-title" style="margin-top:0;">
-                    <h3><i class="fas fa-chart-simple"></i> Where my cases are</h3>
+                    <h3><i class="fas fa-chart-simple"></i> Farm Assessment status</h3>
                     <span class="hint" style="margin:0;">{{ number_format($stats['total']) }} total</span>
                 </div>
                 @if ($stats['total'])
-                    <div class="mix-bar" role="img" aria-label="Status of my cases: @foreach ($mix as $m){{ $m['label'] }} {{ $m['n'] }}{{ $loop->last ? '' : ', ' }}@endforeach">
+                    <div class="mix-bar" role="img" aria-label="Farm Assessment status: @foreach ($mix as $m){{ $m['label'] }} {{ $m['n'] }}{{ $loop->last ? '' : ', ' }}@endforeach">
                         @foreach ($mix as $m)
                             <span class="{{ $m['cls'] }}" style="flex: {{ $m['n'] }} 1 0;"
                                   data-tip="{{ $m['label'] }}: {{ $m['n'] }} ({{ round($m['n'] / $stats['total'] * 100) }}%)"></span>
@@ -295,7 +295,7 @@
                         @endforeach
                     </div>
                 @else
-                    <div class="empty-state" style="margin-top:0;"><i class="fas fa-chart-simple"></i>Your figures appear here once you register a case.</div>
+                    <div class="empty-state" style="margin-top:0;"><i class="fas fa-chart-simple"></i>Your figures appear here once you register a Farm Assessment.</div>
                 @endif
 
                 <div class="impact">
@@ -308,7 +308,7 @@
 
             {{-- ============================== MY CASES ============================== --}}
             <div class="panel-title">
-                <h3><i class="fas fa-list-check"></i> My cases</h3>
+                <h3><i class="fas fa-list-check"></i> My Farm Assessments</h3>
             </div>
 
             <nav class="tabs" aria-label="Filter by status">
@@ -320,17 +320,17 @@
             <form class="search" method="GET" action="{{ route('survey-module.mobile.index') }}" role="search">
                 @if ($status) <input type="hidden" name="status" value="{{ $status }}"> @endif
                 <i class="fas fa-magnifying-glass"></i>
-                <input class="input" type="search" name="q" value="{{ $term }}" placeholder="Search case no., project or district…" enterkeyhint="search">
+                <input class="input" type="search" name="q" value="{{ $term }}" placeholder="Search assessment ref., project or district…" enterkeyhint="search">
             </form>
 
             @if ($cases->isEmpty())
                 <div class="empty-state">
                     <i class="fas fa-inbox"></i>
                     @if ($term !== '' || $status)
-                        No cases match. <a href="{{ route('survey-module.mobile.index') }}">Clear the filter</a>
+                        No Farm Assessments match. <a href="{{ route('survey-module.mobile.index') }}">Clear the filter</a>
                     @else
-                        You have not registered a case yet.
-                        <div style="margin-top:12px;"><a class="btn btn-primary btn-sm" href="{{ route('survey-module.mobile.register') }}"><i class="fas fa-plus"></i> Register your first case</a></div>
+                        You have not registered a Farm Assessment yet.
+                        <div style="margin-top:12px;"><a class="btn btn-primary btn-sm" href="{{ route('survey-module.mobile.register') }}"><i class="fas fa-plus"></i> New Farm Assessment</a></div>
                     @endif
                 </div>
             @else
@@ -398,7 +398,7 @@
     </div>
 </div>
 
-<a href="{{ route('survey-module.mobile.register') }}" class="fab" aria-label="Register new case"><i class="fas fa-plus"></i></a>
+<a href="{{ route('survey-module.mobile.register') }}" class="fab" aria-label="New Farm Assessment"><i class="fas fa-plus"></i></a>
 <div class="tip" id="tip" role="tooltip"></div>
 
 <script>
