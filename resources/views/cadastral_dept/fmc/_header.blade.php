@@ -2,8 +2,12 @@
 <dl class="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
   <div><dt class="text-xs uppercase text-gray-500">FMC No.</dt><dd class="font-mono font-semibold">{{ $fmc->fmc_no }}</dd></div>
   <div><dt class="text-xs uppercase text-gray-500">File No.</dt><dd class="font-mono font-semibold">{{ $fmc->file_number }}</dd></div>
+  @if ($fixed['is_op'] ?? false)
+    <div><dt class="text-xs uppercase text-gray-500">OP Serial No.</dt><dd class="font-mono font-semibold">{{ ($fixed['op_no'] ?? null) ?: '—' }}</dd></div>
+  @endif
+  <div><dt class="text-xs uppercase text-gray-500">File Type</dt><dd>{{ ($fixed['file_type'] ?? null) ?: '—' }}</dd></div>
   <div class="sm:col-span-2"><dt class="text-xs uppercase text-gray-500">File Title</dt><dd>{{ $fmc->file_title ?: '—' }}</dd></div>
-  @if ($fmc->allottee_name && $fmc->allottee_name !== $fmc->file_title)
+  @if (\App\Services\CadastralDept\FileMovementCards::SHOW_ALLOTTEE && $fmc->allottee_name && $fmc->allottee_name !== $fmc->file_title)
     <div class="sm:col-span-2"><dt class="text-xs uppercase text-gray-500">Allottee</dt><dd>{{ $fmc->allottee_name }}</dd></div>
   @endif
   <div><dt class="text-xs uppercase text-gray-500">Plot No.</dt><dd>{{ $fmc->plot_no ?: '—' }}</dd></div>

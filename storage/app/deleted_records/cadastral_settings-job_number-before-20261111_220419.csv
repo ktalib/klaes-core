@@ -1,0 +1,3 @@
+id,key,value,value_type,label,group,updated_by,created_at,updated_at
+13,job_number.format,SRV-JOB-{year}-{serial},string,"Survey job number format",numbering,,"2026-10-01 23:41:51.610","2026-11-10 21:59:45.990"
+14,job_number.serial_pad,4,int,"Survey job serial digits",numbering,,"2026-10-01 23:41:51.610","2026-10-01 23:41:51.610"

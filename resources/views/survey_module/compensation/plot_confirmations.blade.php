@@ -268,6 +268,14 @@
             <input type="text" name="surveyor_other" id="pcSurveyorOther" maxlength="255" placeholder="Specify the surveyor's name *"
                    value="{{ old('surveyor_other') }}" style="margin-top:6px;{{ old('surveyor') === 'other' ? '' : 'display:none;' }}">
         </div>
+        @if (Showing::hasPaymentEvidence())
+        {{-- Survey Update 5e (user, 2026-11-10): required on a new showing. --}}
+        <div class="form-group">
+            <label>Evidence of Payment <span class="required">*</span></label>
+            <input type="file" name="payment_evidence" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required>
+            <p class="helper-text">The payment receipt. PDF, JPG or PNG, up to 5 MB.</p>
+        </div>
+        @endif
         <div class="form-group">
             <label>Photographs</label>
             <input type="file" name="photos[]" accept="image/jpeg,image/png" multiple>
@@ -355,16 +363,17 @@
         </div>
         <form id="pcOpCaptureForm" data-store="{{ route('survey-module.compensation.plot-confirmations.ops.store') }}"
               data-file-search="{{ route('survey-module.compensation.plot-confirmations.file-search') }}"
-              data-file-property="{{ url('/api/pra/v1/records/property-by-file') }}">
+              data-file-property="{{ url('/api/pra/v1/records/property-by-file') }}"
+              data-matches="{{ route('survey-module.compensation.plot-confirmations.op-matches') }}">
             @csrf
             <div id="pcOpCaptureErrors" class="comp-type-note" style="display:none;margin-bottom:12px;border-color:#fecaca;background:#fef2f2;color:#991b1b;"></div>
+            {{-- The OP may already be captured (user, 2026-11-10): found from the serial, file, allottee or plot as they are entered. --}}
+            <div id="pcOpMatches" class="pc-op-matches" role="alert" style="display:none;"></div>
             <div class="pc-op-modal-grid">
                 <div class="form-group pc-op-modal-full" style="position:relative;">
-                    <label for="pcOpFileSearch">File Number <span class="pc-op-optional">(optional)</span></label>
-                    <input type="search" id="pcOpFileSearch" autocomplete="off" placeholder="Search and select a file number">
-                    <input type="hidden" name="file_number" id="pcOpFileNumber">
-                    <div id="pcOpFileResults" class="pc-op-file-results" style="display:none;"></div>
-                    <div id="pcOpFileSelected" class="pc-op-file-selected" style="display:none;"></div>
+                    {{-- A dropdown (user, 2026-11-10), searched as you type over the indexed files. --}}
+                    <label for="pcOpFileNumber">File Number <span class="pc-op-optional">(optional)</span></label>
+                    <select id="pcOpFileNumber" name="file_number" data-no-search style="width:100%;"><option value=""></option></select>
                     <p class="helper-text">If you leave this empty, a temporary file number will be generated when you save.</p>
                 </div>
                 <div class="form-group">
@@ -603,10 +612,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     var noOp = document.getElementById('pcNoOp'), captureModal = document.getElementById('pcOpCaptureModal'),
-        captureForm = document.getElementById('pcOpCaptureForm'), fileSearch = document.getElementById('pcOpFileSearch'),
-        fileResults = document.getElementById('pcOpFileResults'), selectedFileBox = document.getElementById('pcOpFileSelected'),
-        fileNumberInput = document.getElementById('pcOpFileNumber'), captureErrors = document.getElementById('pcOpCaptureErrors'),
-        fileTimer = null, selectedFile = null, fileSearchPage = 1, fileSearchToken = 0;
+        captureForm = document.getElementById('pcOpCaptureForm'), fileSelect = document.getElementById('pcOpFileNumber'),
+        captureErrors = document.getElementById('pcOpCaptureErrors'), selectedFile = null;
     function syncCaptureLocation() {
         var district = document.getElementById('pcOpCaptureDistrict').value.trim(),
             lga = document.getElementById('pcOpCaptureLga').value.trim(),
@@ -655,6 +662,7 @@ document.addEventListener('DOMContentLoaded', function () {
         captureField('pcOpCaptureGrantee', document.getElementById('pcAllottee').value);
         captureModal.style.display = 'flex';
         document.getElementById('pcOpCapturePlot').focus();
+        checkMatches(0);
     }
     function closeCaptureModal(resetChoice) {
         captureModal.style.display = 'none';
@@ -674,6 +682,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (event.target === captureModal) closeCaptureModal(true);
     });
     document.addEventListener('keydown', function (event) {
+        if (window.Swal && Swal.isVisible()) return;   // Esc closes the prompt, not the form under it
         if (event.key === 'Escape' && captureModal.style.display !== 'none') closeCaptureModal(true);
     });
 
@@ -698,21 +707,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function selectCaptureFile(file) {
         selectedFile = file;
-        fileNumberInput.value = file.file_number;
-        fileSearch.value = '';
-        fileSearch.style.display = 'none';
-        fileResults.style.display = 'none';
-        selectedFileBox.textContent = '';
-        var text = document.createElement('span');
-        text.textContent = file.file_number + (file.applicant_name ? ' · ' + file.applicant_name : '');
-        selectedFileBox.appendChild(text);
-        var clear = document.createElement('button');
-        clear.type = 'button';
-        clear.className = 'btn btn-secondary btn-sm';
-        clear.textContent = 'Clear';
-        clear.addEventListener('click', clearCaptureFile);
-        selectedFileBox.appendChild(clear);
-        selectedFileBox.style.display = 'flex';
+        checkMatches(0);
         if (file.land_use) captureField('pcOpCaptureLandUse', file.land_use);
         if (file.applicant_name && !document.getElementById('pcOpCaptureGrantee').value) {
             captureField('pcOpCaptureGrantee', file.applicant_name);
@@ -743,82 +738,147 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     function clearCaptureFile() {
         selectedFile = null;
-        fileNumberInput.value = '';
-        selectedFileBox.style.display = 'none';
-        selectedFileBox.textContent = '';
-        fileSearch.style.display = '';
-        fileSearch.value = '';
+        if (window.jQuery && jQuery(fileSelect).data('select2')) jQuery(fileSelect).val(null).trigger('change.select2');
+        else fileSelect.value = '';
     }
-    fileSearch.addEventListener('input', function () {
-        clearTimeout(fileTimer);
-        var term = fileSearch.value.trim();
-        fileSearchToken++;
-        fileSearchPage = 1;
-        if (term.length < 2) { fileResults.style.display = 'none'; return; }
-        fileTimer = setTimeout(function () {
-            searchCaptureFiles(term, 1, false, fileSearchToken);
-        }, 250);
+    // File Number is a dropdown (user, 2026-11-10), searched over the indexed files as you type. select2 loads at the
+    // end of the page, so the box is made once the page has loaded.
+    function initFileSelect() {
+        if (!(window.jQuery && jQuery.fn && jQuery.fn.select2) || jQuery(fileSelect).data('select2')) return;
+        var $f = jQuery(fileSelect);
+        $f.select2({
+            width: '100%',
+            dropdownParent: jQuery(captureModal).find('.pc-op-modal-card'),
+            placeholder: 'Select a file number',
+            allowClear: true,
+            minimumInputLength: 2,
+            ajax: {
+                url: captureForm.dataset.fileSearch,
+                dataType: 'json',
+                delay: 250,
+                data: function (params) { return { search: params.term || '', page: params.page || 1, limit: 20 }; },
+                processResults: function (payload) {
+                    return {
+                        results: (payload.files || []).map(function (f) { return { id: f.file_number, text: f.file_number, file: f }; }),
+                        pagination: { more: !!payload.has_more }
+                    };
+                }
+            },
+            language: {
+                inputTooShort: function () { return 'Type 2 or more characters of the file number'; },
+                noResults: function () { return 'No indexed file numbers found.'; },
+                errorLoading: function () { return 'File-number search failed. Try again.'; }
+            }
+        });
+        $f.on('select2:select', function (e) { selectCaptureFile(e.params.data.file || { file_number: e.params.data.id }); });
+        $f.on('select2:clear', function () { selectedFile = null; checkMatches(0); });
+        // select2 4.1 with jQuery 3.6 opens without putting the cursor in its search box: type straight away.
+        $f.on('select2:open', function () {
+            setTimeout(function () { var box = captureModal.querySelector('.select2-container--open .select2-search__field'); if (box) box.focus(); }, 0);
+        });
+    }
+    if (document.readyState === 'complete') initFileSelect(); else window.addEventListener('load', initFileSelect);
+
+    // The OP may already be captured (user, 2026-11-10): as the serial, the allottee, the plot and place or the file
+    // is entered, OPs already in the records are looked up. A match is shown with "Use this OP", which fills the Plot
+    // Showing form from it instead of capturing it twice; the same serial or file also asks at once.
+    var matchBox = document.getElementById('pcOpMatches'), matchTimer = null, matchSeq = 0, dismissed = {}, prompted = {};
+    var WHY = { serial: 'Same OP serial number', file: 'Same file number', location: 'Same plot and place', grantee: 'Same allottee name' };
+    function captureValue(id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; }
+    function checkMatches(delay) {
+        clearTimeout(matchTimer);
+        matchTimer = setTimeout(function () {
+            var params = {
+                serial: captureValue('pcOpCaptureSerial'), file: fileSelect.value || '', grantee: captureValue('pcOpCaptureGrantee'),
+                plot: captureValue('pcOpCapturePlot'), district: captureValue('pcOpCaptureDistrict'), lga: captureValue('pcOpCaptureLga')
+            };
+            var seq = ++matchSeq;
+            if (!params.serial && !params.file && params.grantee.length < 5 && !(params.plot && (params.district || params.lga))) { showMatches([]); return; }
+            fetch(captureForm.dataset.matches + '?' + new URLSearchParams(params).toString(), { headers: { 'Accept': 'application/json' } })
+                .then(function (response) { return response.ok ? response.json() : { matches: [] }; })
+                .then(function (payload) { if (seq === matchSeq) showMatches(payload.matches || []); })
+                .catch(function () {});
+        }, delay === undefined ? 450 : delay);
+    }
+    function matchButton(label, cls, onClick) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn btn-sm ' + cls; b.textContent = label;
+        b.addEventListener('click', onClick);
+        return b;
+    }
+    function showMatches(rows) {
+        rows = rows.filter(function (m) { return !dismissed[m.why + m.key]; });   // a stronger reason asks again
+        matchBox.textContent = '';
+        if (!rows.length) { matchBox.style.display = 'none'; return; }
+        var head = document.createElement('h4');
+        head.textContent = rows.length === 1 ? 'This OP may already be captured' : 'These OPs may already be captured';
+        var note = document.createElement('div');
+        note.style.cssText = 'font-size:13px;margin-bottom:4px;';
+        note.textContent = 'Use the existing OP instead of capturing it again. Its details fill the Plot Showing form.';
+        matchBox.appendChild(head); matchBox.appendChild(note);
+        rows.forEach(function (m) {
+            var row = document.createElement('div'); row.className = 'pc-op-match';
+            var info = document.createElement('div');
+            var title = document.createElement('strong'); title.textContent = 'OP ' + (m.serial || '—') + ' · ' + (m.allottee || '—');
+            var detail = document.createElement('small');
+            detail.textContent = [WHY[m.why], m.plot_no ? 'Plot ' + m.plot_no : '', m.district, m.lga, m.file_number].filter(Boolean).join(' · ');
+            info.appendChild(title); info.appendChild(detail);
+            var acts = document.createElement('div'); acts.style.cssText = 'display:flex;gap:6px;';
+            acts.appendChild(matchButton('Use this OP', 'btn-success', function () { useExistingOp(m); }));
+            acts.appendChild(matchButton('Not this one', 'btn-secondary', function () {
+                dismissed[m.why + m.key] = true; row.remove();
+                if (!matchBox.querySelector('.pc-op-match')) matchBox.style.display = 'none';
+            }));
+            row.appendChild(info); row.appendChild(acts);
+            matchBox.appendChild(row);
+        });
+        matchBox.style.display = '';
+        var sure = rows.filter(function (m) { return (m.why === 'serial' || m.why === 'file') && !prompted[m.why + m.key]; })[0];
+        if (sure && window.Swal) {
+            prompted[sure.why + sure.key] = true;
+            Swal.fire({
+                icon: 'warning',
+                title: 'This OP is already captured',
+                html: (sure.why === 'serial' ? 'OP serial number <b>' : 'File <b>' + (sure.file_number || '') + '</b> already has OP <b>') + (sure.serial || '—') + '</b>'
+                    + (sure.why === 'serial' ? ' is already in the records' : '') + ':<br>' + [sure.allottee, sure.plot_no ? 'Plot ' + sure.plot_no : '', sure.district, sure.lga]
+                        .filter(Boolean).map(function (v) { return String(v).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }).join(' · '),
+                showCancelButton: true,
+                confirmButtonText: 'Use this OP',
+                cancelButtonText: 'Keep capturing',
+                didOpen: function () { Swal.getContainer().style.zIndex = '3000'; }
+            }).then(function (res) { if (res.isConfirmed) useExistingOp(sure); });
+        }
+    }
+    function useExistingOp(op) {
+        closeCaptureModal(true);
+        pick(op);
+        document.getElementById('pcPlotSearch').value = op.plot_no || '';
+        resetCaptureForm();
+    }
+    function resetCaptureForm() {
+        captureForm.reset();
+        clearCaptureFile();
+        captureType.dispatchEvent(new Event('change'));
+        syncRegistrationPage();
+        ['pcOpCaptureDistrict', 'pcOpCaptureLga', 'pcOpCaptureLandUse'].forEach(function (id) {
+            if (window.jQuery && jQuery('#' + id).data('select2')) jQuery('#' + id).trigger('change.select2');
+        });
+        syncCaptureLocation();
+        dismissed = {}; prompted = {};
+        matchSeq++;
+        matchBox.style.display = 'none';
+        matchBox.textContent = '';
+    }
+    ['pcOpCaptureSerial', 'pcOpCaptureGrantee', 'pcOpCapturePlot'].forEach(function (id) {
+        document.getElementById(id).addEventListener('input', function () { checkMatches(); });
     });
-    function searchCaptureFiles(term, page, append, token) {
-        fetch(captureForm.dataset.fileSearch + '?search=' + encodeURIComponent(term) + '&limit=20&page=' + page, { headers: { 'Accept': 'application/json' } })
-            .then(function (response) {
-                if (!response.ok) throw new Error('File-number search failed.');
-                return response.json();
-            })
-            .then(function (payload) {
-                if (token !== fileSearchToken || term !== fileSearch.value.trim()) return;
-                var previousLoadMore = fileResults.querySelector('.pc-op-file-load-more');
-                if (previousLoadMore) previousLoadMore.remove();
-                if (!append) fileResults.textContent = '';
-                (payload.files || []).forEach(function (file) {
-                    var option = document.createElement('button');
-                    option.type = 'button';
-                    option.className = 'pc-op-file-result';
-                    option.textContent = file.file_number;
-                    option.addEventListener('click', function () { selectCaptureFile(file); });
-                    fileResults.appendChild(option);
-                });
-                if (!append && (!payload.files || !payload.files.length)) {
-                    var empty = document.createElement('div');
-                    empty.className = 'pc-op-file-empty';
-                    empty.textContent = 'No indexed file numbers found.';
-                    fileResults.appendChild(empty);
-                }
-                if (payload.has_more) {
-                    var loadMore = document.createElement('button');
-                    loadMore.type = 'button';
-                    loadMore.className = 'pc-op-file-result pc-op-file-load-more';
-                    loadMore.textContent = 'Load more file numbers…';
-                    loadMore.addEventListener('click', function () {
-                        fileSearchPage = page + 1;
-                        searchCaptureFiles(term, fileSearchPage, true, token);
-                    });
-                    fileResults.appendChild(loadMore);
-                }
-                fileResults.style.display = '';
-            })
-            .catch(function () {
-                if (token !== fileSearchToken) return;
-                if (!append) fileResults.textContent = '';
-                var error = document.createElement('div');
-                error.className = 'pc-op-file-empty';
-                error.textContent = 'File-number search failed. Try again.';
-                fileResults.appendChild(error);
-                fileResults.style.display = '';
-            });
-    }
-    document.addEventListener('click', function (event) {
-        if (!fileResults.contains(event.target) && event.target !== fileSearch) fileResults.style.display = 'none';
+    ['pcOpCaptureDistrict', 'pcOpCaptureLga'].forEach(function (id) {
+        document.getElementById(id).addEventListener('change', function () { checkMatches(); });
     });
     captureForm.addEventListener('submit', function (event) {
         event.preventDefault();
         captureErrors.style.display = 'none';
         captureErrors.textContent = '';
-        if (fileSearch.value.trim() && !fileNumberInput.value) {
-            captureErrors.textContent = 'Choose a file number from the search results, or clear the search to generate a temporary file number.';
-            captureErrors.style.display = '';
-            return;
-        }
         var save = document.getElementById('pcOpCaptureSave');
         save.disabled = true;
         fetch(captureForm.dataset.store, {
@@ -846,10 +906,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (selectedFile) {
                 captureErrors.textContent = 'OP saved with file number ' + (payload.op.file_number || selectedFile.file_number) + '.';
             }
-            captureForm.reset();
-            clearCaptureFile();
-            captureType.dispatchEvent(new Event('change'));
-            syncRegistrationPage();
+            resetCaptureForm();
         }).catch(function (error) {
             captureErrors.textContent = error.message;
             captureErrors.style.display = '';
@@ -974,6 +1031,11 @@ document.addEventListener('DOMContentLoaded', function () {
 @endif
 
 <style>
+    .pc-op-matches { margin-bottom:14px;padding:12px 14px;border:1px solid #fcd34d;border-left:4px solid #d97706;border-radius:8px;background:#fffbeb;color:#78350f; }
+    .pc-op-matches h4 { margin:0 0 6px;font-size:14px;font-weight:700; }
+    .pc-op-match { display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid #fde68a;font-size:13px; }
+    .pc-op-match small { display:block;color:#92400e; }
+    .pc-op-modal-card .select2-container { width:100% !important; }
     .pc-op-modal { position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.62); }
     .pc-op-modal-card { width:min(940px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.3);padding:22px; }
     .pc-op-modal-heading { display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--gray-200,#e5e7eb); }
@@ -988,11 +1050,6 @@ document.addEventListener('DOMContentLoaded', function () {
     .pc-op-optional { color:var(--gray-500,#6b7280);font-size:12px;font-weight:400; }
     .pc-op-inline-check { display:flex;align-items:center;gap:7px;margin-top:6px;color:var(--gray-600,#4b5563);font-size:12px;font-weight:400; }
     .pc-op-inline-check input { width:auto!important; }
-    .pc-op-file-results { position:absolute;z-index:20;top:100%;left:0;right:0;max-height:220px;overflow:auto;background:#fff;border:1px solid var(--gray-200,#e5e7eb);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12); }
-    .pc-op-file-result { display:block;width:100%;padding:9px 11px;text-align:left;background:#fff;border:0;border-bottom:1px solid var(--gray-100,#f3f4f6);cursor:pointer; }
-    .pc-op-file-result:hover { background:var(--gray-50,#f9fafb); }
-    .pc-op-file-empty { padding:10px 12px;color:var(--gray-500,#6b7280);font-size:13px; }
-    .pc-op-file-selected { justify-content:space-between;align-items:center;gap:10px;margin-top:7px;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;color:#166534;font-size:13px; }
     @media(max-width:640px) {
         .pc-op-modal { padding:8px;align-items:flex-start; }
         .pc-op-modal-card { max-height:96vh;padding:15px; }
@@ -1181,6 +1238,9 @@ document.addEventListener('DOMContentLoaded', function () {
                                     </button>
                                     @if ($map)
                                         <a href="{{ $map }}" target="_blank" rel="noopener" class="{{ $svItem }}" @click="open = false"><i data-lucide="map-pin" class="w-4 h-4 text-gray-500"></i> Open in Maps</a>
+                                    @endif
+                                    @if ($tab !== 'checks' && $x->payment_evidence_path)
+                                        <a href="{{ route('survey-module.compensation.plot-confirmations.showings.payment-evidence', $x) }}" target="_blank" rel="noopener" class="{{ $svItem }}" @click="open = false"><i data-lucide="receipt" class="w-4 h-4 text-gray-500"></i> Evidence of Payment</a>
                                     @endif
                                     @if ($isGkn && $tab !== 'checks' && $x->op_source === Showing::SOURCE_OLD)
                                         <a href="{{ route($register, ['edit' => $x->id] + request()->only(['q', 'source', 'type', 'from', 'to', 'page'])) }}" class="{{ $svItem }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit</a>

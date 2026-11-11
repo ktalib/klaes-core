@@ -742,7 +742,9 @@
             ccLandPreview();
             return;
         }
-        var net = Math.round(area * (1 - ded / 100) * 1e6) / 1e6, exact = Math.round(net / size * 1e6) / 1e6;
+        // As ResettlementCalculator::effectiveSize: 0.1667 is 1/6 ha, so 3 ha gives 18, not 17; then 2 decimals.
+        var n1 = Math.round(1 / size), useSize = n1 >= 1 && Math.abs(size - 1 / n1) < 0.0001 ? 1 / n1 : size;
+        var net = Math.round(area * (1 - ded / 100) * 1e6) / 1e6, exact = Math.round(net / useSize * 100) / 100;
         var n = rounding === 'up' ? Math.ceil(exact - 1e-6) : (rounding === 'nearest' ? Math.round(exact) : Math.floor(exact + 1e-6));
         n = Math.max(0, n);
         out.innerHTML = area + ' ha' + (ded ? ' less ' + ded + '% = ' + net + ' ha' : '') + ' ÷ ' + size + ' ha a plot = ' + exact.toFixed(3)

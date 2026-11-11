@@ -61,9 +61,20 @@
     default: { bg: '#f1f5f9', fg: '#64748b', path: 'M12 2a5.006 5.006 0 0 0-5 5v4.586l-.707.707A1 1 0 0 0 7 14h10a1 1 0 0 0 .707-1.707L17 11.586V7a5.006 5.006 0 0 0-5-5zm-2 13a2 2 0 0 0 4 0h-4z' },
   };
 
+  // Cadastral one-working-day timer (user, 2026-11-09; Daniel's item 6 "colour red message"): an alarm clock in
+  // the stage's colour. Due soon yellow, Warning orange, Overdue and Penalty red.
+  const ALARM = 'M22 5.72 17.4 1.86l-1.29 1.53 4.6 3.86zM7.88 3.39 6.6 1.86 2 5.71l1.29 1.53zM12.5 8H11v6l4.75 2.85.75-1.23-4-2.37zM12 4a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 16a7 7 0 1 1 0-14 7 7 0 0 1 0 14z';
+  const TIMER_TONES = {
+    yellow: { bg: '#fef9c3', fg: '#a16207', path: ALARM },
+    orange: { bg: '#ffedd5', fg: '#c2410c', path: ALARM },
+    red: { bg: '#fee2e2', fg: '#dc2626', path: ALARM },
+  };
+  const timerTone = (item) => (item.data?.raw?.module === 'cadastral_dept' ? item.data?.raw?.tone : null) || null;
+
   function resolveAvatar(item) {
     const type = item.type || '';
     const module = item.data?.raw?.module || '';
+    if (TIMER_TONES[timerTone(item)]) return TIMER_TONES[timerTone(item)];
     if (type.endsWith('.accepted')) return AVATARS.accepted;
     if (type.endsWith('.rejected')) return AVATARS.rejected;
     if (type === 'digital_request' || module === 'digital_request') return AVATARS.digital;
@@ -89,19 +100,21 @@
   function buildHeadline(item) {
     const title = item.title || 'File tracker update';
     const fileNo = item.data?.fileNumber || item.data?.file_number;
+    // Overdue and Penalty read in red (Cadastral timer).
+    const red = timerTone(item) === 'red';
 
     if (fileNo) {
       const at = title.toLowerCase().indexOf(String(fileNo).toLowerCase());
       if (at !== -1) {
         const lead = title.slice(0, at + String(fileNo).length);
         const rest = title.slice(at + String(fileNo).length).trim();
-        return `<span class="font-semibold text-slate-900">${escapeHtml(lead)}</span>${
-          rest ? ` <span class="text-slate-500">${escapeHtml(rest)}</span>` : ''
+        return `<span class="font-semibold ${red ? 'text-red-700' : 'text-slate-900'}">${escapeHtml(lead)}</span>${
+          rest ? ` <span class="${red ? 'text-red-600' : 'text-slate-500'}">${escapeHtml(rest)}</span>` : ''
         }`;
       }
     }
 
-    return `<span class="font-semibold text-slate-900">${escapeHtml(title)}</span>`;
+    return `<span class="font-semibold ${red ? 'text-red-700' : 'text-slate-900'}">${escapeHtml(title)}</span>`;
   }
 
   function buildAssignmentActions(item) {

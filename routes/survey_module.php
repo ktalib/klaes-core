@@ -60,6 +60,13 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     // File Status search across every File Status list (CR 30102026 item 29, 2026-10-31).
     Route::get('/file-status', [FileStatusController::class, 'index'])->name('file-status');
+    // Survey Plan Upload (Survey Update 5g/5h, 2026-11-10): the short form, every upload, and the plan file.
+    Route::prefix('survey-plans')->name('survey-plans.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'index'])->name('index');
+        Route::get('/export', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'export'])->name('export');
+        Route::post('/', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'store'])->name('store');
+        Route::get('/{plan}/file', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'file'])->whereNumber('plan')->name('file');
+    });
 
     /* ------------------------------ Compensation ------------------------------ */
     Route::prefix('compensation')->name('compensation.')->group(function () {
@@ -114,8 +121,12 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/plot-confirmations/op-search', [PlotConfirmationController::class, 'opSearch'])->name('plot-confirmations.op-search');
         Route::get('/plot-confirmations/tp-plots', [PlotConfirmationController::class, 'tpPlots'])->name('plot-confirmations.tp-plots');
         Route::get('/plot-confirmations/file-search', [PlotConfirmationController::class, 'indexedFileSearch'])->name('plot-confirmations.file-search');
+        // Capture OP: OPs already captured that match what is being typed (user, 2026-11-10).
+        Route::get('/plot-confirmations/op-matches', [PlotConfirmationController::class, 'opMatches'])->name('plot-confirmations.op-matches');
         Route::post('/plot-confirmations/ops', [PlotConfirmationController::class, 'storeShowingOp'])->name('plot-confirmations.ops.store');
         Route::post('/plot-confirmations/showings', [PlotConfirmationController::class, 'storeShowing'])->name('plot-confirmations.showings.store');
+        // Evidence of Payment on Record Plot Showing (New), Survey Update 5e (2026-11-10).
+        Route::get('/plot-confirmations/showings/{showing}/payment-evidence', [PlotConfirmationController::class, 'paymentEvidence'])->whereNumber('showing')->name('plot-confirmations.showings.payment-evidence');
         // Ground Check from the office (user, 2026-11-06): a tab on Record Plot Showing.
         Route::post('/plot-confirmations/checks', [PlotConfirmationController::class, 'storeCheck'])->name('plot-confirmations.checks.store');
         // Old register entries (user, 2026-11-03): showings captured from the old book, no OP needed.
@@ -153,9 +164,13 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
         // Cases — the six-step register
         Route::get('/cases', [CaseController::class, 'index'])->name('cases');
+        // Farm Assessment > Imported: a block's farms, one per farmer, loaded in place (user, 2026-11-09).
+        Route::get('/cases/farms', [CaseController::class, 'farms'])->name('cases.farms');
         // Farm Assessment > Computation Sheet: the workbook as written, a sheet's lines loaded in place (user, 2026-11-06).
         Route::get('/computation-sheet/rows', [\App\Http\Controllers\Survey\ComputationSheetController::class, 'rows'])->name('computation-sheet.rows');
         Route::get('/computation-sheet/export', [\App\Http\Controllers\Survey\ComputationSheetController::class, 'export'])->name('computation-sheet.export');
+        // A staged KMC Access farm record's passport photo (user, 2026-11-11).
+        Route::get('/computation-sheet/photo/{id}', [\App\Http\Controllers\Survey\ComputationSheetController::class, 'photo'])->whereNumber('id')->name('computation-sheet.photo');
         Route::get('/cases/register', [CaseController::class, 'create'])->name('cases.register');
         // Capture Compensation List: paper lists keyed in by hand (user, 2026-10-30)
         Route::get('/capture-list', [\App\Http\Controllers\Survey\CompensationCaptureController::class, 'create'])->name('capture-list');
@@ -240,6 +255,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/passing-checks/export', [\App\Http\Controllers\Survey\PassingCheckController::class, 'export'])->name('passing-checks.export');
         Route::post('/passing-checks', [\App\Http\Controllers\Survey\PassingCheckController::class, 'store'])->name('passing-checks.store');
         Route::put('/passing-checks/{passingCheck}', [\App\Http\Controllers\Survey\PassingCheckController::class, 'update'])->whereNumber('passingCheck')->name('passing-checks.update');
+        // Checking & Passing (Survey Plan) > Uploaded Survey Plan: plans sent to GKN (Survey Update 5i, 2026-11-10).
+        Route::get('/uploaded-survey-plans', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'gkn'])->name('uploaded-plans');
         // Instruction to Survey: Survey's own jobs plus Cadastral's, read-only (2026-10-25).
         Route::prefix('instruction-to-survey')->name('its.')->group(function () {
             Route::get('/', [SurveyItsController::class, 'index'])->name('index');
@@ -254,6 +271,11 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
             Route::post('/{its}/complete', [SurveyItsController::class, 'complete'])->name('complete');
             Route::post('/{its}/cancel', [SurveyItsController::class, 'cancel'])->name('cancel');
             Route::get('/{its}/print', [SurveyItsController::class, 'print'])->name('print');
+            Route::post('/{its}/return', [SurveyItsController::class, 'saveReturn'])->name('return');
+            Route::get('/blank-print', [SurveyItsController::class, 'printBlank'])->name('print-blank');
+            // The Private (Cadastral) I to S on the Survey Department's form (user, 2026-11-10).
+            Route::get('/private/{job}/print', [SurveyItsController::class, 'printPrivate'])->whereNumber('job')->name('print-private');
+            Route::post('/private', [SurveyItsController::class, 'storePrivate'])->name('store-private');
         });
         // List of Coordinates and Field Observations, per I to S (2026-10-25). {its} = survey-<id> | cadastral-<id>.
         Route::prefix('coordinates')->name('coordinates.')->group(function () {
@@ -354,6 +376,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
 
     /* -------------------------------- Workflow -------------------------------- */
     Route::prefix('workflow')->name('workflow.')->group(function () {
+        // Checking & Passing (Survey Plan) > Uploaded Survey Plan: plans sent to Examination/Verification (Survey Update 5i).
+        Route::get('/uploaded-survey-plans', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'examination'])->name('uploaded-plans');
         // Surveyor's Report (Private): List of Coordinates, Beacon Nos, Field Observations and Sketch Plan
         // on the report (change list p.2, 2026-10-29). The GKN editors, anchored "private-<report id>".
         Route::prefix('private-report')->name('private.')->group(function () {
@@ -475,6 +499,9 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::post('/accounts/{account}/approve', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'approveAccount'])->whereNumber('account')->name('accounts.approve');
         Route::post('/accounts/{account}/reject', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'rejectAccount'])->whereNumber('account')->name('accounts.reject');
         Route::post('/companies/{company}/approve', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'approveCompany'])->whereNumber('company')->name('companies.approve');
+        // Add Company / Add Surveyor on Registrations (user, 2026-11-10): the SG's own forms, approved at once.
+        Route::post('/companies', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'storeCompany'])->name('companies.store');
+        Route::post('/accounts', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'storeSurveyor'])->name('accounts.store');
         Route::post('/companies/{company}/reject', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'rejectCompany'])->whereNumber('company')->name('companies.reject');
     });
 

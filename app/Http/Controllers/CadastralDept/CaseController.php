@@ -350,6 +350,7 @@ class CaseController extends Controller
         // The FMC: the card if it exists, else what the records would fill in.
         $fmc = FileMovementCards::installed() ? $case->fmc : null;
         $fmcBackfill = FileMovementCards::installed() && ! $fmc && $cards->dueNow($case) ? $cards->backfill($case) : null;
+        $fmcFixed = $fmcBackfill !== null ? $cards->fixedDetails($case, (string) $case->file_number) : null;
 
         $actions = [];
         if ($case->isOpen()) {
@@ -375,7 +376,8 @@ class CaseController extends Controller
         // P&D: plain field jacket and I to S; AD Cad Info: job, surveyor and the job's instruction.
         $fieldJacket = $jackets->forCase($case);
         $doneKeys = $case->doneTaskKeys();
-        $jobDue = FieldJackets::installed() && $fieldJacket && !$fieldJacket->cadastral_survey_job_id && $jackets->due($case, FieldJackets::TASK_JOB);
+        // The job may already be there (made at commissioning since Survey Update 5a); the surveyor is what is attached.
+        $jobDue = FieldJackets::installed() && $fieldJacket && !$fieldJacket->cadastral_surveyor_id && $jackets->due($case, FieldJackets::TASK_JOB);
         $pndItsDefault = $fieldJacket && $jackets->due($case, FieldJackets::TASK_ITS) && !in_array(FieldJackets::TASK_ITS, $doneKeys, true)
             ? $jackets->defaultPndInstruction($fieldJacket) : null;
         $itsDefault = $fieldJacket?->job && !$fieldJacket->job->its_number && $jackets->due($case, FieldJackets::TASK_JOB_ITS)
@@ -394,6 +396,7 @@ class CaseController extends Controller
                 $case->isOpen() ? $case->current_step : null, $case->isOpen() ? null : $case->status),
             'fmc' => $fmc,
             'fmcBackfill' => $fmcBackfill,
+            'fmcFixed' => $fmcFixed,
             'custodyInstalled' => CorrespondenceCustody::installed(),
             'custodyDue' => $custody->due($case),
             'custodyHistory' => $custody->history($case),

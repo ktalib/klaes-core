@@ -79,13 +79,13 @@ class ChartingCards
         return null;
     }
 
-    /** Why this charting task cannot be done yet, or null: 1st charting waits for the FMC (user, 2026-11-05). */
+    /**
+     * Why this charting task cannot be done yet, or null. 1st charting waited for the FMC
+     * (2026-11-05) until the order was turned round: charting now comes first and the FMC
+     * waits for it (recording 365, 2026-11-09; FileMovementCards::blocker).
+     */
     public function blocker(CadastralCase $case, string $task): ?string
     {
-        if ($task === 'chart_first' && !in_array('fmc_commissioned', $case->doneTaskKeys(), true)) {
-            return 'Commission the File Movement Card (FMC) first.';
-        }
-
         return null;
     }
 

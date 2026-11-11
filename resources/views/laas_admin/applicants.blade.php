@@ -24,6 +24,9 @@
                         Accounts on the public portal. Suspending is reversible; deleting is not.
                     </p>
                 </div>
+                {{-- Ownership transfers button hidden for now (user request 2026-11-10). Flip $showTransfersButton to true to bring it back. --}}
+                @php $showTransfersButton = false; @endphp
+                @if($showTransfersButton)
                 <a href="{{ route('laas-admin.transfers') }}"
                    class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     <i data-lucide="arrow-right-left" class="h-4 w-4"></i> Ownership transfers
@@ -31,6 +34,7 @@
                         <span class="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">{{ $pendingTransfers }}</span>
                     @endif
                 </a>
+                @endif
             </div>
 
             @if(session('status'))

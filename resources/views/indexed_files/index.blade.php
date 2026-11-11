@@ -351,6 +351,10 @@
                                                 data-sort="created_at">Indexed Date</th>
                                             <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide"
                                                 data-sort="created_at">Indexed By</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide">
+                                                Updated By</th>
+                                            <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide">
+                                                Updated Date</th>
                                             <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide"
                                                 data-sort="tp_no">TP No</th>
                                             <th class="px-4 py-3 text-left font-semibold text-gray-700 text-xs uppercase tracking-wide"
@@ -381,7 +385,7 @@
                                     </thead>
                                     <tbody class="divide-y divide-gray-100" id="indexed-files-tbody">
                                         <tr class="text-center py-8">
-                                            <td colspan="25" class="text-gray-500 py-8">
+                                            <td colspan="27" class="text-gray-500 py-8">
                                                 <i data-lucide="loader" class="h-5 w-5 animate-spin inline-block"></i>
                                                 Loading...
                                             </td>

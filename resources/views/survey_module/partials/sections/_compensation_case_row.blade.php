@@ -1,6 +1,7 @@
 {{-- One land on Farm Assessment's list. $rowSn is its S/N; $rowOf the TP No. group it folds under on the Imported tab. --}}
-    <tr @if ($rowOf ?? null) data-tp-of="{{ $rowOf }}" hidden @endif>
-        <td class="muted nowrap">{{ $rowSn }}</td>
+    {{-- Imported: a block, which opens to its farms (user, 2026-11-09). --}}
+    <tr @if ($rowOf ?? null) data-tp-of="{{ $rowOf }}" class="imp-land" data-land="{{ $c->id }}" data-sn="{{ $rowSn }}" aria-expanded="false" tabindex="0" hidden @endif>
+        <td class="muted nowrap">@if ($rowOf ?? null)<i class="fas fa-chevron-right" data-chevron></i> @endif{{ $rowSn }}</td>
         {{-- No case number column (user, 2026-10-30): the scheme has its own column instead. --}}
         {{-- Project code dropped; the TP No. has its own column (user, 2026-10-30). --}}
         <td class="wide strong">{{ $c->project?->display_name ?? '—' }}</td>
@@ -25,7 +26,13 @@
 @endif
 <td class="num">@if ($c->area_ha !== null){{ number_format((float) $c->area_ha, 4) }}@else<span class="muted">—</span>@endif</td>
         @if ($rowOf ?? null)
-    @for ($i = 0; $i < 5; $i++)<td class="muted">—</td>@endfor
+    {{-- The block's list totals (user, 2026-11-09: no blanks). --}}
+    @php $cdSum = ($lineSums ?? collect())[$c->id] ?? null; @endphp
+    <td class="num">{!! $cdSum && $cdSum->creatable !== null ? number_format((float) $cdSum->creatable, 2) : '<span class="muted">—</span>' !!}</td>
+    <td class="num">{!! $cdSum && $cdSum->govt !== null ? number_format((float) $cdSum->govt, 2) : '<span class="muted">—</span>' !!}</td>
+    <td class="num">{!! $cdSum && $cdSum->farm !== null ? number_format((float) $cdSum->farm, 2) : '<span class="muted">—</span>' !!}</td>
+    <td class="nowrap">{!! $cdSum && $cdSum->plots ? number_format($cdSum->plots) . ' plots' : '<span class="muted">—</span>' !!}</td>
+    <td class="muted">—</td>
 @endif
 <td class="ctr">{{ number_format($c->beneficiaries_count) }}</td>
         <td>

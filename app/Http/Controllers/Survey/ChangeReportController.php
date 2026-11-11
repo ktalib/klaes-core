@@ -134,7 +134,27 @@ class ChangeReportController extends Controller
             'line' => $line,
             'fromBeacons' => (bool) ($group['file_number'] ?? null),
             'beaconLine' => $group && ! $group['file_number'] ? $group['line_id'] : null,
+            'choices' => $this->openInstructions(),
+            'key' => (string) old('its_key', $r->query('its', '')),
         ]);
+    }
+
+    /**
+     * Issued I to S no report answers yet (user, 2026-11-09: the Private report selects its Instruction to Survey,
+     * as the GKN report does): Survey's own and Cadastral's, less those a GKN report or another live Private report holds.
+     */
+    private function openInstructions(?CR $except = null): array
+    {
+        $gkn = \App\Models\Survey\SurveySurveyorReport::query()->get(['survey_its_id', 'cadastral_survey_job_id']);
+        $taken = $gkn->pluck('survey_its_id')->filter()->map(fn ($id) => 'survey-' . $id)
+            ->merge($gkn->pluck('cadastral_survey_job_id')->filter()->map(fn ($id) => 'cadastral-' . $id))
+            ->merge(CR::query()->whereNotNull('its_key')->when($except, fn ($q) => $q->where('id', '!=', $except->id))->pluck('its_key'))
+            ->all();
+
+        return collect(app(SurveyItsAnchors::class)->all())
+            ->except($taken)
+            ->map(fn ($a) => ['label' => $a['label']] + $a['prefill'])
+            ->all();
     }
 
     public function store(Request $r)
@@ -158,7 +178,11 @@ class ChangeReportController extends Controller
 
     public function edit(CR $report)
     {
-        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $report->registerFile, 'records' => $this->records($report)]);
+        // A report saved before the I to S was asked for can still choose one while it is a draft.
+        $choose = ! $report->its_key && ! $report->isIssued();
+
+        return view('survey_module.workflow.change_reports.form', ['report' => $report, 'line' => $report->registerFile, 'records' => $this->records($report),
+            'choices' => $choose ? $this->openInstructions($report) : [], 'key' => $choose ? (string) old('its_key', '') : '']);
     }
 
     public function update(Request $r, CR $report)
@@ -234,7 +258,8 @@ class ChangeReportController extends Controller
             'survey_register_file_id' => ['nullable', Rule::exists('sqlsrv.survey_register_files', 'id')->whereNull('deleted_at')],
             'survey_beacon_register_id' => ['nullable', Rule::exists('sqlsrv.survey_beacon_register', 'id')->where('layout_type', 'Private')->whereNull('deleted_at')],
             // From a Register File line the file is the line's; otherwise it must be picked.
-            'file_number'      => ($existing?->survey_register_file_id || $r->filled('survey_register_file_id')) ? 'nullable|string|max:100' : 'required|string|max:100',
+            // An I to S with a file number brings the file too (withInstruction).
+            'file_number'      => ($existing?->survey_register_file_id || $r->filled('survey_register_file_id') || $r->filled('its_key')) ? 'nullable|string|max:100' : 'required|string|max:100',
             'grantee_name'     => 'nullable|string|max:500',
             'district'         => 'required|string|max:255',
             'district_other'   => 'nullable|string|max:255|required_if:district,Other',
@@ -311,6 +336,40 @@ class ChangeReportController extends Controller
             $data['survey_register_file_id'] = $line->id;
             $data['file_number'] = $line->file_number;
         }
+
+        return $this->withInstruction($r, $data, $existing);
+    }
+
+    /**
+     * The Instruction to Survey the report answers (user, 2026-11-09): required on a new report, chosen once.
+     * It must be issued and not answered by another report; a report with a fixed file needs an I to S for that file.
+     */
+    private function withInstruction(Request $r, array $data, ?CR $existing): array
+    {
+        if ($existing?->its_key) return $data;   // chosen when the report was made; kept
+
+        $key = trim((string) $r->input('its_key', ''));
+        if ($key === '') {
+            // An older draft may stay without one; so may a new report whose answer to "Is there an I to S?" was No.
+            if ($existing || $r->input('its_choice') === 'no') return $data;
+            throw \Illuminate\Validation\ValidationException::withMessages(['its_key' => 'Choose the Instruction to Survey this report answers, or answer No to "Is there an I to S?".']);
+        }
+        $open = $this->openInstructions($existing);
+        if (! isset($open[$key])) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['its_key' => 'That Instruction to Survey is not issued, or another report already answers it.']);
+        }
+        $its = $open[$key];
+        $itsFile = trim((string) ($its['file_number'] ?? ''));
+        $file = trim((string) ($data['file_number'] ?? ''));
+        if ($itsFile !== '' && $file !== '' && strcasecmp($itsFile, $file) !== 0) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['its_key' => "{$its['its_number']} is for {$itsFile}, not {$file}."]);
+        }
+        if ($file === '' && $itsFile !== '') $data['file_number'] = $itsFile;
+        if (trim((string) ($data['file_number'] ?? '')) === '' && ! $existing?->file_number) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['file_number' => "{$its['its_number']} has no file number: select the file with Select File Number."]);
+        }
+        $data['its_key'] = $key;
+        $data['its_number'] = $its['its_number'] ?? null;
 
         return $data;
     }

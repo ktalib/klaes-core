@@ -17,6 +17,10 @@ class SurveyChangeReport extends SurveyModel
         'issued_at'               => 'datetime',
         'survey_register_file_id' => 'integer',
         'issued_by'               => 'integer',
+        // Ticked boxes arrive as a list; without the cast a ticked box could not be saved (2026-11-09).
+        'field_jacket_checklist'  => 'array',
+        'surveyor_portal_account_id' => 'integer',
+        'submitted_at'            => 'datetime',
     ];
 
     public const DRAFT = 'Draft';

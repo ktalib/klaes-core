@@ -19,6 +19,14 @@ class SurveyOpShowing extends SurveyModel
 
     protected $table = 'survey_op_showings';
 
+    /** Whether the Evidence of Payment columns exist yet (migration 2026_11_10_140000; Survey Update 5e). */
+    public static function hasPaymentEvidence(): bool
+    {
+        static $has;
+
+        return $has ??= \Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasColumn('survey_op_showings', 'payment_evidence_path');
+    }
+
     protected $casts = [
         'survey_op_record_id' => 'integer',
         'surveyors_list_id'   => 'integer',

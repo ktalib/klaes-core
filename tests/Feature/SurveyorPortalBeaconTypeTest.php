@@ -27,11 +27,13 @@ class SurveyorPortalBeaconTypeTest extends TestCase
             ->once()
             ->with($account, Mockery::on(fn (array $data) => $data['layout_type'] === 'Private' && $data['request_type'] === 'bulk' && $data['job_name'] === null && $data['amount_paid'] === '12500.50' && $data['payment_date'] === '2026-11-07'), Mockery::type(UploadedFile::class))
             ->andReturn($request);
+        $service->shouldReceive('jobChoices')->andReturn(['GKN-JOB-2026-0001' => ['kind' => 'Public', 'label' => 'GKN-JOB-2026-0001', 'plot_no' => null, 'district' => null, 'lga' => null]]);
         $this->app->instance(BeaconRequests::class, $service);
 
         $this->post(route('surveyor-portal.requests.store'), [
             'layout_type' => 'Government',
             'request_type' => 'bulk',
+            'job_no' => 'GKN-JOB-2026-0001',
             'quantity' => 4,
             'amount_paid' => '12500.50',
             'payment_date' => '2026-11-07',
@@ -54,8 +56,8 @@ class SurveyorPortalBeaconTypeTest extends TestCase
             ->assertDontSee('name="layout_type"', false)
             ->assertSee('aria-label="Portal navigation"', false)
             ->assertSee('Requested Beacons')
-            ->assertSee('KNSSGOF')
-            ->assertSee('assets/logo/knssgof-logo.png')
+            ->assertSee('MLPP-SG')
+            ->assertSee('assets/logo/mlppsg-logo.png')
             ->assertSee('Beacon Request')
             ->assertSee('SURCON Payment Evidence')
             ->assertSee('name="payment_evidence"', false)
@@ -90,12 +92,12 @@ class SurveyorPortalBeaconTypeTest extends TestCase
     {
         $this->get(route('surveyor-portal.register'))
             ->assertOk()
-            ->assertSee('assets/logo/knssgof-register-banner.png');
+            ->assertSee('assets/logo/mlppsg-register-banner.jpg');
 
         $this->get(route('surveyor-portal.register', ['company' => 'yes']))
             ->assertOk()
-            ->assertSee('assets/logo/knssgof-register-banner.png')
-            ->assertSee("KNSSGOF — Kano State Surveyor General's Office Portal", false);
+            ->assertSee('assets/logo/mlppsg-register-banner.jpg')
+            ->assertSee("MLPP-SG — Ministry of Land and Physical Planning – Surveyor General&#039;s Office Portal", false);
     }
 
     public function test_beacon_form_has_searchable_district_and_lga_based_pin(): void
@@ -142,10 +144,12 @@ class SurveyorPortalBeaconTypeTest extends TestCase
 
         $service = \Mockery::mock(BeaconRequests::class);
         $service->shouldNotReceive('fromPortal');
+        $service->shouldReceive('jobChoices')->andReturn(['GKN-JOB-2026-0001' => ['kind' => 'Public', 'label' => 'GKN-JOB-2026-0001', 'plot_no' => null, 'district' => null, 'lga' => null]]);
         $this->app->instance(BeaconRequests::class, $service);
 
         $this->post(route('surveyor-portal.requests.store'), [
             'request_type' => 'bulk',
+            'job_no' => 'GKN-JOB-2026-0001',
             'quantity' => 1,
             'district' => 'Other',
         ])->assertSessionHasErrors('district_other');
@@ -166,10 +170,12 @@ class SurveyorPortalBeaconTypeTest extends TestCase
             ->once()
             ->with($account, \Mockery::on(fn (array $data) => $data['request_type'] === 'bulk' && $data['district'] === 'New District' && ! array_key_exists('district_other', $data)), Mockery::type(UploadedFile::class))
             ->andReturn($request);
+        $service->shouldReceive('jobChoices')->andReturn(['GKN-JOB-2026-0001' => ['kind' => 'Public', 'label' => 'GKN-JOB-2026-0001', 'plot_no' => null, 'district' => null, 'lga' => null]]);
         $this->app->instance(BeaconRequests::class, $service);
 
         $this->post(route('surveyor-portal.requests.store'), [
             'request_type' => 'bulk',
+            'job_no' => 'GKN-JOB-2026-0001',
             'quantity' => 1,
             'district' => 'Other',
             'district_other' => ' New   District ',
@@ -187,9 +193,10 @@ class SurveyorPortalBeaconTypeTest extends TestCase
 
         $service = Mockery::mock(BeaconRequests::class);
         $service->shouldNotReceive('fromPortal');
+        $service->shouldReceive('jobChoices')->andReturn(['GKN-JOB-2026-0001' => ['kind' => 'Public', 'label' => 'GKN-JOB-2026-0001', 'plot_no' => null, 'district' => null, 'lga' => null]]);
         $this->app->instance(BeaconRequests::class, $service);
 
-        $this->post(route('surveyor-portal.requests.store'), ['request_type' => 'bulk', 'quantity' => 1])
+        $this->post(route('surveyor-portal.requests.store'), ['request_type' => 'bulk', 'job_no' => 'GKN-JOB-2026-0001', 'quantity' => 1])
             ->assertSessionHasErrors('payment_evidence');
     }
 
@@ -201,10 +208,12 @@ class SurveyorPortalBeaconTypeTest extends TestCase
 
         $service = Mockery::mock(BeaconRequests::class);
         $service->shouldNotReceive('fromPortal');
+        $service->shouldReceive('jobChoices')->andReturn(['GKN-JOB-2026-0001' => ['kind' => 'Public', 'label' => 'GKN-JOB-2026-0001', 'plot_no' => null, 'district' => null, 'lga' => null]]);
         $this->app->instance(BeaconRequests::class, $service);
 
         $this->post(route('surveyor-portal.requests.store'), [
             'request_type' => 'single',
+            'job_no' => 'GKN-JOB-2026-0001',
             'quantity' => 1,
             'amount_paid' => '1000',
             'payment_date' => '2026-11-07',
@@ -227,10 +236,12 @@ class SurveyorPortalBeaconTypeTest extends TestCase
             ->once()
             ->with($account, Mockery::on(fn (array $data) => $data['request_type'] === 'bulk' && ($data['district'] ?? null) === null && ($data['lga'] ?? null) === null && $data['amount_paid'] === '1000' && $data['payment_date'] === '2026-11-07'), Mockery::type(UploadedFile::class))
             ->andReturn($request);
+        $service->shouldReceive('jobChoices')->andReturn(['GKN-JOB-2026-0001' => ['kind' => 'Public', 'label' => 'GKN-JOB-2026-0001', 'plot_no' => null, 'district' => null, 'lga' => null]]);
         $this->app->instance(BeaconRequests::class, $service);
 
         $this->post(route('surveyor-portal.requests.store'), [
             'request_type' => 'bulk',
+            'job_no' => 'GKN-JOB-2026-0001',
             'quantity' => 1,
             'amount_paid' => '1000',
             'payment_date' => '2026-11-07',
@@ -246,12 +257,38 @@ class SurveyorPortalBeaconTypeTest extends TestCase
 
         $service = Mockery::mock(BeaconRequests::class);
         $service->shouldNotReceive('fromPortal');
+        $service->shouldReceive('jobChoices')->andReturn(['GKN-JOB-2026-0001' => ['kind' => 'Public', 'label' => 'GKN-JOB-2026-0001', 'plot_no' => null, 'district' => null, 'lga' => null]]);
         $this->app->instance(BeaconRequests::class, $service);
 
         $this->post(route('surveyor-portal.requests.store'), [
             'request_type' => 'bulk',
+            'job_no' => 'GKN-JOB-2026-0001',
             'quantity' => 1,
             'payment_evidence' => UploadedFile::fake()->create('payment.pdf', 100, 'application/pdf'),
         ])->assertSessionHasErrors(['amount_paid', 'payment_date']);
+    }
+
+    /** Survey Update 5b (user, 2026-11-10): a request quotes a Job No given to this surveyor, nothing else. */
+    public function test_a_request_must_quote_a_job_no_given_to_the_surveyor(): void
+    {
+        $account = new SurveyorPortalAccount();
+        $account->forceFill(['id' => 871240, 'surveyor_type' => 'Government', 'name' => 'Test Surveyor']);
+        $this->actingAs($account, 'surveyor');
+
+        $service = Mockery::mock(BeaconRequests::class);
+        $service->shouldReceive('jobChoices')->andReturn(['GKN-JOB-2026-0001' => ['kind' => 'Public', 'label' => 'GKN-JOB-2026-0001', 'plot_no' => null, 'district' => null, 'lga' => null]]);
+        $service->shouldNotReceive('fromPortal');
+        $this->app->instance(BeaconRequests::class, $service);
+
+        $post = fn (array $extra) => $this->post(route('surveyor-portal.requests.store'), $extra + [
+            'request_type' => 'bulk',
+            'quantity' => 1,
+            'amount_paid' => '100',
+            'payment_date' => '2026-11-07',
+            'payment_evidence' => UploadedFile::fake()->create('payment.pdf', 100, 'application/pdf'),
+        ]);
+
+        $post([])->assertSessionHasErrors(['job_no' => 'Choose the Job No for this survey.']);
+        $post(['job_no' => 'GKN-JOB-2026-0099'])->assertSessionHasErrors(['job_no' => 'Choose a Job No given to you.']);
     }
 }

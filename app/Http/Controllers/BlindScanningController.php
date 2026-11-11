@@ -33,6 +33,17 @@ class BlindScanningController extends Controller
     /** Upload type for large-format pages added to a file: everything goes to its A3 folder. */
     private const UPLOAD_TYPE_LF = 'lf';
 
+    /** Upload type for scanned property index cards: everything goes to the file's INDEX_CARDS folder (user, 2026-11-11). */
+    private const UPLOAD_TYPE_IC = 'ic';
+    public const INDEX_CARD_FOLDER = 'INDEX_CARDS';
+    public const INDEX_CARD_DOCUMENT_TYPE = 'Property Index Card';
+
+    /** True when a page sits in the file's index-card folder, however it was written locally ("Index Cards"). */
+    public static function isIndexCardPath(?string $relativePath): bool
+    {
+        return (bool) preg_match('#(^|/)INDEX[ _-]?CARDS?/#i', str_replace('\\', '/', (string) $relativePath));
+    }
+
     /**
      * Administrators see every user's uploads. Same rule the rest of KLAES
      * uses: "Supper Admin" (the app's spelling) in users.assign_role.
@@ -528,8 +539,9 @@ class BlindScanningController extends Controller
 
             $uploadMethod = $request->input('uploadMethod', 'direct');
             $lfOnly = $request->input('uploadType') === self::UPLOAD_TYPE_LF;
-            if ($lfOnly && $uploadMethod !== 'direct') {
-                return response()->json(['ok' => false, 'error' => 'An LF scan upload cannot be sent as a ZIP.'], 422);
+            $icOnly = $request->input('uploadType') === self::UPLOAD_TYPE_IC;
+            if (($lfOnly || $icOnly) && $uploadMethod !== 'direct') {
+                return response()->json(['ok' => false, 'error' => ($icOnly ? 'An index card' : 'An LF scan') . ' upload cannot be sent as a ZIP.'], 422);
             }
             $registryInput = $request->input('registry', $request->input('registry_type'));
             if (trim((string) $registryInput) === '') {
@@ -553,7 +565,7 @@ class BlindScanningController extends Controller
             $localPcPath = $registrySubfolder . '/' . $folderName;
 
             if ($uploadMethod === 'direct') {
-                $result = $this->handleDirectUpload($request, $targetPath, $lfOnly);
+                $result = $this->handleDirectUpload($request, $targetPath, $lfOnly, $icOnly);
                 if (!$result['saved'] && !$result['skipped']) {
                     return response()->json([
                         'ok' => false,
@@ -665,27 +677,28 @@ class BlindScanningController extends Controller
         [$registrySubfolder] = $this->resolveBlindRegistry($request->query('registry'));
         $folder = file_storage_path('app/public/EDMS/BLIND_SCAN/' . $registrySubfolder . '/' . $folderName);
 
-        $blind = ['A4' => 0, 'A3' => 0];
+        // Index cards (INDEX_CARDS folder / Property Index Card) are counted apart from the A4 and A3 pages.
+        $blind = ['A4' => 0, 'A3' => 0, 'IC' => 0];
         foreach ($this->relativeFilesIn($folder) as $relative) {
             $extension = strtolower(pathinfo($relative, PATHINFO_EXTENSION));
             if (str_contains(strtolower($relative), '_pdf_originals/') || !in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
                 continue;
             }
-            $blind[$this->detectPaperSizeFromPath($relative) === 'A3' ? 'A3' : 'A4']++;
+            $blind[self::isIndexCardPath($relative) ? 'IC' : ($this->detectPaperSizeFromPath($relative) === 'A3' ? 'A3' : 'A4')]++;
         }
 
-        $edms = ['A4' => 0, 'A3' => 0];
+        $edms = ['A4' => 0, 'A3' => 0, 'IC' => 0];
         $indexingIds = DB::connection('sqlsrv')->table('file_indexings')
             ->where(fn ($q) => $q->where('file_number', $rawFileNumber)->orWhere('temp_file_no', $rawFileNumber))
             ->pluck('id');
         if ($indexingIds->isNotEmpty()) {
             $sizes = DB::connection('sqlsrv')->table('scannings')
                 ->whereIn('file_indexing_id', $indexingIds)
-                ->select('paper_size', DB::raw('COUNT(*) AS pages'))
-                ->groupBy('paper_size')
+                ->select('paper_size', 'document_type', DB::raw('COUNT(*) AS pages'))
+                ->groupBy('paper_size', 'document_type')
                 ->get();
             foreach ($sizes as $row) {
-                $edms[strtoupper(trim((string) $row->paper_size)) === 'A3' ? 'A3' : 'A4'] += (int) $row->pages;
+                $edms[$row->document_type === self::INDEX_CARD_DOCUMENT_TYPE ? 'IC' : (strtoupper(trim((string) $row->paper_size)) === 'A3' ? 'A3' : 'A4')] += (int) $row->pages;
             }
         }
 
@@ -807,7 +820,7 @@ class BlindScanningController extends Controller
                 $documentPath = 'EDMS/BLIND_SCAN/' . $registrySubfolder . '/' . $folderName . '/' . $relativePath;
 
                 $paperSize = $this->detectPaperSizeFromPath($relativePath);
-                $documentType = $this->detectDocumentType($file->getFilename());
+                $documentType = self::isIndexCardPath($relativePath) ? self::INDEX_CARD_DOCUMENT_TYPE : $this->detectDocumentType($file->getFilename());
 
                 $pageCount = $this->getPageCountFromFile($file);
                 $a4Count = 0;
@@ -899,7 +912,7 @@ class BlindScanningController extends Controller
         $relativePath = str_replace($targetPath . DIRECTORY_SEPARATOR, '', $file->getPathname());
         $relativePath = str_replace('\\', '/', $relativePath);
         $paperSize = $this->detectPaperSizeFromPath($relativePath);
-        $documentType = $this->detectDocumentType($file->getFilename());
+        $documentType = self::isIndexCardPath($relativePath) ? self::INDEX_CARD_DOCUMENT_TYPE : $this->detectDocumentType($file->getFilename());
 
         $outputDir = $file->getPath() . DIRECTORY_SEPARATOR . pathinfo($file->getFilename(), PATHINFO_FILENAME);
         $conversion = $this->pdfToImageService->convert($file->getPathname(), $outputDir);
@@ -1704,7 +1717,7 @@ class BlindScanningController extends Controller
      *   rejected not an image/PDF (Thumbs.db, desktop.ini, shortcuts)
      *   failed   could not be written
      */
-    private function handleDirectUpload(Request $request, $targetPath, bool $lfOnly = false): array
+    private function handleDirectUpload(Request $request, $targetPath, bool $lfOnly = false, bool $icOnly = false): array
     {
         $result = ['saved' => [], 'skipped' => [], 'renamed' => [], 'rejected' => [], 'failed' => []];
         $paths = $request->input('paths', []);
@@ -1715,12 +1728,15 @@ class BlindScanningController extends Controller
 
         foreach ($files as $index => $file) {
             $path = $paths[$index] ?? null;
-            if ($lfOnly) {
-                $path = $this->largeFormatPath($path, $file);
+            if ($lfOnly || $icOnly) {
+                $path = $icOnly ? $this->indexCardPath($path, $file) : $this->largeFormatPath($path, $file);
                 if ($path === null) {
                     $result['rejected'][] = (string) ($paths[$index] ?? '');
                     continue;
                 }
+            } else {
+                // A full file's own index-card folder ("Index Cards", "index_card") is stored as INDEX_CARDS.
+                $path = preg_replace('#(^|/)INDEX[ _-]?CARDS?/#i', '$1' . self::INDEX_CARD_FOLDER . '/', str_replace('\\', '/', (string) $path));
             }
 
             $outcome = $this->processUploadedFile($file, $path, $targetPath);
@@ -1764,6 +1780,28 @@ class BlindScanningController extends Controller
         }
 
         return 'A3/' . $name;
+    }
+
+    /**
+     * Where a scanned index card goes: the file's INDEX_CARDS folder, whatever its local folder was called. Null for
+     * a page from an A4 or A3 folder, which is a page of the file, not an index card.
+     */
+    private function indexCardPath($relativePath, $file): ?string
+    {
+        $path = str_replace('\\', '/', (string) ($relativePath ?: ($file ? $file->getClientOriginalName() : '')));
+        $segments = array_values(array_filter(explode('/', $path), fn ($s) => $s !== ''));
+        if (!$segments) {
+            return null;
+        }
+
+        $name = array_pop($segments);
+        foreach ($segments as $segment) {
+            if (strcasecmp($segment, 'A4') === 0 || strcasecmp($segment, 'A3') === 0) {
+                return null;
+            }
+        }
+
+        return self::INDEX_CARD_FOLDER . '/' . $name;
     }
 
     /** True when the upload is byte-for-byte the file already at $path. */

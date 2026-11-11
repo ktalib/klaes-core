@@ -43,6 +43,7 @@ class SmsSetting extends Model
     public const KEY_ROFO_GENERATED = 'rofo_generated';
     public const KEY_FILE_REQUEST_RECEIVED = 'file_request_received';
     public const KEY_FILE_REQUEST_LOGGED = 'file_request_logged';
+    public const KEY_FILE_RETURNED = 'file_returned';
     public const KEY_DEED_REGISTERED = 'deed_registered';
     public const KEY_CAVEAT_PLACED = 'caveat_placed';
     public const KEY_CAVEAT_LIFTED = 'caveat_lifted';
@@ -94,6 +95,9 @@ class SmsSetting extends Model
     public const KEY_SURVEY_BEACON_READY = 'survey_beacon_ready';
     public const KEY_SURVEY_BEACON_DECLINED = 'survey_beacon_declined';
     public const KEY_SURVEY_FARM_CAPTURED = 'survey_farm_captured';
+    // To the SG phone (Configurable Entries > Surveyor Portal) when someone registers (user, 2026-11-09).
+    public const KEY_SURVEY_PORTAL_REGISTERED_SG = 'survey_portal_registered_sg';
+    public const KEY_SURVEY_COMPANY_REGISTERED_SG = 'survey_company_registered_sg';
 
     private const CACHE_KEY = 'klaes_sms.settings';
 

@@ -105,8 +105,10 @@
     </style>
 </head>
 <body>
+    @php $portal = rescue(fn () => \App\Support\PortalContext::fromRequest(), null, false); @endphp
     <main class="card">
         <span class="code">Error 419</span>
+        @if ($portal)<span class="code" style="margin-left:6px;background:#eef2f7;color:#334155;">{{ $portal['name'] }}</span>@endif
         <h1>Your session has expired</h1>
         <p>
             For your security, this page expired after being open for a while. Please go back and try again.
@@ -115,9 +117,20 @@
 
         <div class="actions">
             <button class="btn btn-primary" onclick="window.location.reload()">Refresh Page</button>
-            <a class="btn btn-secondary" href="{{ url()->previous() }}">Go Back</a>
-            <a class="btn btn-secondary" href="{{ url('/login') }}">Sign In</a>
-            <a class="btn btn-secondary" href="{{ url('/') }}">Home</a>
+            @if (request()->is('survey-module/mobile*'))
+                {{-- The field apps (user, 2026-11-09): no Home; sign in again inside the app, never on the main web. --}}
+                <button class="btn btn-secondary" type="button" onclick="history.length > 1 ? history.back() : window.location.reload()">Go Back</button>
+                <a class="btn btn-secondary" href="{{ route('survey-module.mobile.login', ['app' => \App\Support\SurveyMobileApps::fromRequest(request())]) }}">Sign In</a>
+            @elseif ($portal)
+                {{-- A public portal (user, 2026-11-11): every link stays inside the portal, never the main site. --}}
+                <a class="btn btn-secondary" href="{{ $portal['back'] }}">Go Back</a>
+                @if ($portal['login'])<a class="btn btn-secondary" href="{{ $portal['login'] }}">Sign In</a>@endif
+                <a class="btn btn-secondary" href="{{ $portal['home'] }}">{{ $portal['name'] }} Home</a>
+            @else
+                <a class="btn btn-secondary" href="{{ url()->previous() }}">Go Back</a>
+                <a class="btn btn-secondary" href="{{ url('/login') }}">Sign In</a>
+                <a class="btn btn-secondary" href="{{ url('/') }}">Home</a>
+            @endif
         </div>
     </main>
 </body>

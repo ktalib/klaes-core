@@ -153,7 +153,7 @@ class SdiProductionController extends Controller
             'ref' => 'Request No', 'mda' => 'Requesting MDA', 'map' => 'Map', 'map_type' => 'Map Type', 'formats' => 'Formats', 'priority' => 'Priority', 'due' => 'Due',
             'completed' => 'Completed', 'officer' => 'Officer', 'status' => 'Status',
         ], fn ($m) => [
-            'ref' => $m->request_ref, 'mda' => $m->requesterName(), 'map' => $m->map_name, 'map_type' => $m->mapType?->name, 'formats' => $m->formatsLabel(),
+            'ref' => $m->request_ref, 'mda' => $m->requesterName(), 'map' => $m->map_name, 'map_type' => $m->mapTypeLabel(), 'formats' => $m->formatsLabel(),
             'priority' => $m->priorityLabel(), 'due' => $this->exportDate($m->due_date), 'completed' => $this->exportDate($m->actioned_at), 'officer' => $m->production_officer,
             'status' => $m->statusLabel(),
         ]);

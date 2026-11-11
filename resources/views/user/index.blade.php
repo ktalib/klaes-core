@@ -238,6 +238,14 @@
                                 {{ __('Create User') }}
                             </a>
                             @endcanDo
+
+                            @if ($activeTab === 'mlpp')
+                                <button type="button" onclick="openRecordsExportModal()"
+                                   class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
+                                    <i data-lucide="download" class="h-4 w-4"></i>
+                                    {{ __('Export') }}
+                                </button>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -343,6 +351,30 @@
                 </div>
             </div>
         </div>
+
+        @if ($activeTab === 'mlpp')
+            {{-- MLPP users by department, then unit, with date onboarded and first / last login. --}}
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.1/jspdf.plugin.autotable.min.js"></script>
+            @include('exports.records_export_modal', ['exportConfig' => [
+                'title'         => 'Export MLPP Users',
+                'subtitle'      => 'Users by department and unit, with first and last login',
+                'endpoint'      => route('users.mlpp-report'),
+                'filename'      => 'MLPP_Users_by_Department_Unit',
+                'reportTitle'   => 'MLPP Users by Department and Unit',
+                'department'    => 'User Accounts',
+                'search'        => $search,
+                'statusLabel'   => 'Department',
+                'statusOptions' => ['' => 'All Departments']
+                    + $departments->pluck('name', 'name')->all()
+                    + ['No department' => 'No department'],
+                'status'        => optional($departments->firstWhere('id', $departmentId))->name ?? '',
+                'dateLabel'     => 'Date Onboarded',
+                'dateNote'      => 'date onboarded',
+                'preserveCase'  => true,
+            ]])
+            {{-- The layout upper-cases every table cell; show names as normalised, emails as stored. --}}
+            <style>#recordsExportTable tbody td, #recordsExportTable tbody td * { text-transform: none; }</style>
+        @endif
 
         <!-- Footer -->
         @include('admin.footer')

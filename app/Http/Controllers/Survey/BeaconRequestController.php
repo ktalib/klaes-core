@@ -62,7 +62,7 @@ class BeaconRequestController extends Controller
                 'waiting'  => SurveyBeaconRequest::where('status', SurveyBeaconRequest::SUBMITTED)->count(),
                 'issued'   => SurveyBeaconRequest::where('status', SurveyBeaconRequest::ISSUED)->count(),
                 'accepted' => SurveyBeaconRequest::where('status', SurveyBeaconRequest::ACCEPTED)->count(),
-                'pending'  => SurveyorPortalAccount::where('status', SurveyorPortalAccount::PENDING)->count(),
+                'pending'  => SurveyorPortalAccount::surveyors()->where('status', SurveyorPortalAccount::PENDING)->count(),
                 'pendingCompanies' => DB::connection('sqlsrv')->table('survey_companies')->where('status', SurveyCompanyRegistry::PENDING)->count(),
             ],
         ]);
@@ -145,11 +145,110 @@ class BeaconRequestController extends Controller
     public function approveCompany(int $company)
     {
         $this->authorizeSg();
-        $done = $this->companies->approve($company);
-        $this->portalNotifier->companyApproved($done);
+        [$done, $loginLine] = $this->approveCompanyWithLogin($company);
 
         return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations'])
-            ->with('success', "{$done->name} approved. Its system-assigned beacon prefix is {$done->beacon_letters}.");
+            ->with('success', "{$done->name} approved. Its system-assigned beacon prefix is {$done->beacon_letters}.{$loginLine}");
+    }
+
+    /**
+     * Add Company on Registrations (user, 2026-11-10): the portal's company form, filled in by the SG. The SG is the
+     * approver, so the company is registered and approved at once, with its prefix and its login sent once.
+     */
+    public function storeCompany(Request $r)
+    {
+        $this->authorizeSg();
+        $data = \App\Http\Controllers\SurveyorPortal\CompanyRegistrationController::input($r);
+        $company = DB::connection('sqlsrv')->transaction(fn () => $this->companies->register($data));
+        [$done, $loginLine] = $this->approveCompanyWithLogin((int) $company->id);
+
+        return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations', 'registration_tab' => 'companies'])
+            ->with('success', "{$done->name} added and approved. Its system-assigned beacon prefix is {$done->beacon_letters}.{$loginLine}");
+    }
+
+    /**
+     * Add Surveyor on Registrations (user, 2026-11-10): the Cadastral "Add a Surveyor" form, with the company picked
+     * from the approved list instead of Firm / RC No. typed, plus the portal username. Approved at once; the login
+     * (temporary password) is sent once by SMS and email.
+     */
+    public function storeSurveyor(Request $r)
+    {
+        $this->authorizeSg();
+        $data = $r->validate([
+            'company_id' => 'required|integer',
+            'full_name' => 'required|string|max:255',
+            'surcon_number' => 'nullable|string|max:50',
+            'phone' => 'required|string|max:30',
+            // Email optional and Licence Expires / Firm RC No. dropped from this form (user, 2026-11-10).
+            'email' => 'nullable|email|max:150',
+            'username' => ['required', 'string', 'min:3', 'max:150', 'regex:/^[A-Za-z0-9._@-]+$/'],
+            'licence_status' => ['required', \Illuminate\Validation\Rule::in(\App\Models\Cadastral\CadastralSurveyor::LICENCE_STATUSES)],
+            'is_active' => 'nullable|boolean',
+            // As on the portal: District is optional; State comes first and the LGA must be one of its LGAs.
+            'addr_district' => 'nullable|string|max:255',
+        ] + \App\Services\Cadastral\CadastralAddress::rules('addr_'), \App\Services\Cadastral\CadastralAddress::messages('addr_') + [
+            'company_id.required' => 'Choose the surveyor\'s company.',
+            'full_name.required' => 'Enter the surveyor\'s full name.',
+            'username.required' => 'Choose a username for the portal sign-in.',
+            'username.regex' => 'Use only letters, numbers and . _ - @ in the username (no spaces).',
+        ]);
+        $fail = fn (string $field, string $message) => throw \Illuminate\Validation\ValidationException::withMessages([$field => $message]);
+
+        $company = SurveySettings::companies()->firstWhere('id', (int) $data['company_id']) ?? $fail('company_id', 'Choose an approved company from the list.');
+        if (! \App\Services\Cadastral\CadastralAddress::lgaBelongsToState($data['addr_lga'] ?? null, $data['addr_state'] ?? null)) {
+            $fail('addr_lga', 'Choose an LGA that belongs to the selected state.');
+        }
+        $phone = SurveyorPortalAccount::normalizePhone($data['phone']) ?? $fail('phone', 'Enter a valid Nigerian phone number, e.g. 08031234567.');
+        $email = mb_strtolower(trim((string) ($data['email'] ?? ''))) ?: null;
+        $username = trim($data['username']);
+        if (SurveyorPortalAccount::surveyors()->where('phone', $phone)->exists()) $fail('phone', 'A surveyor account already uses this phone number.');
+        if ($email && SurveyorPortalAccount::surveyors()->where('email', $email)->exists()) $fail('email', 'A surveyor account already uses this email address.');
+        if (SurveyorPortalAccount::whereRaw('LOWER(username) = ?', [mb_strtolower($username)])->exists()) $fail('username', 'That username is taken. Choose another.');
+
+        $address = array_intersect_key(\App\Services\Cadastral\CadastralAddress::normalise($data, 'addr_'), array_flip(SurveyorPortalAccount::addressColumns('addr_')));
+        $made = $this->accounts->createByAdmin($address + [
+            'surveyor_type' => 'Private',
+            'company_id' => $company->id,
+            'company_name' => $company->name,
+            'company_rc_no' => $company->company_rc_no ?? null,
+            'name' => preg_replace('/\s+/', ' ', trim($data['full_name'])),
+            'phone' => $phone,
+            'email' => $email,
+            'surcon_number' => ($s = mb_strtoupper(trim((string) ($data['surcon_number'] ?? '')))) !== '' ? $s : null,
+            'username' => $username,
+        ], [
+            'licence_status' => $data['licence_status'],
+            'is_active' => $r->boolean('is_active'),
+        ]);
+        $a = $made['account'];
+        $sent = app(\App\Services\Survey\SurveyCompanyLogins::class)->send($a, $made['password']);
+
+        return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations', 'registration_tab' => 'surveyors'])
+            ->with('success', "{$a->name} added under {$a->company_name}, Surveyor ID {$a->surveyor_id_no}." . $this->loginLine($a->username, $sent));
+    }
+
+    /** Approve a company, make its portal login in the same transaction, send the login after commit. */
+    private function approveCompanyWithLogin(int $company): array
+    {
+        // The company's own portal login is made with the approval (user, 2026-11-10) and its details sent once, after commit.
+        $logins = app(\App\Services\Survey\SurveyCompanyLogins::class);
+        [$done, $login] = DB::connection('sqlsrv')->transaction(function () use ($company, $logins) {
+            $done = $this->companies->approve($company);
+
+            return [$done, $logins->create($done)];
+        });
+        $this->portalNotifier->companyApproved($done);
+        $sent = $login ? $logins->send($login['account'], $login['password']) : null;
+
+        return [$done, $login ? $this->loginLine($login['account']->username, $sent, 'Its') : ''];
+    }
+
+    private function loginLine(string $username, ?array $sent, string $whose = 'The'): string
+    {
+        $how = $sent ? implode(' and ', array_keys(array_filter(['SMS' => $sent['sms'], 'email' => $sent['email']]))) : '';
+
+        return $how !== '' ? " {$whose} portal login ({$username}) was sent by {$how}."
+            : " {$whose} portal login ({$username}) was made, but neither the SMS nor the email went through.";
     }
 
     public function rejectCompany(Request $r, int $company)
@@ -171,7 +270,7 @@ class BeaconRequestController extends Controller
 
         return SurveyBeaconRequest::query()->with('lines:id,survey_beacon_request_id')
             ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('request_no', 'like', "%$term%")->orWhere('company_name', 'like', "%$term%")
-                ->orWhere('surveyor_name', 'like', "%$term%")->orWhere('job_name', 'like', "%$term%")->orWhere('issued_numbers', 'like', "%$term%")))
+                ->orWhere('surveyor_name', 'like', "%$term%")->orWhere('job_name', 'like', "%$term%")->orWhere('job_no', 'like', "%$term%")->orWhere('issued_numbers', 'like', "%$term%")))
             ->when($tab === 'requests' && $status !== '', fn ($q) => $q->where('status', $status))
             ->orderByRaw("CASE WHEN status = 'Submitted' THEN 0 ELSE 1 END")->orderByDesc('id');
     }
@@ -183,7 +282,7 @@ class BeaconRequestController extends Controller
         $term = trim((string) $r->query('q', ''));
         $status = (string) $r->query('status', '');
 
-        return SurveyorPortalAccount::query()
+        return SurveyorPortalAccount::query()->surveyors()
             ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('name', 'like', "%$term%")->orWhere('company_name', 'like', "%$term%")
                 ->orWhere('registration_id', 'like', "%$term%")->orWhere('surveyor_id_no', 'like', "%$term%")->orWhere('phone', 'like', "%$term%")))
             ->when($tab === 'registrations' && $status !== '', fn ($q) => $q->where('status', $status === SurveyCompanyRegistry::APPROVED ? SurveyorPortalAccount::ACTIVE : $status))
@@ -234,7 +333,7 @@ class BeaconRequestController extends Controller
                 'reference' => 'Map Reference', 'formats' => 'Formats', 'officer' => 'Officer', 'status' => 'Status',
             ], fn ($m) => [
                 'request_no' => $m->request_ref, 'date' => $this->exportDate($m->received_date, 'd/m/Y'), 'type' => $m->portalAccount?->type_label, 'company' => $m->portalAccount?->company_name,
-                'surveyor' => $m->contact_name, 'phone' => $m->contact_phone, 'map' => $m->map_name, 'map_type' => $m->mapType?->name, 'reference' => $m->map_reference,
+                'surveyor' => $m->contact_name, 'phone' => $m->contact_phone, 'map' => $m->map_name, 'map_type' => $m->mapTypeLabel(), 'reference' => $m->map_reference,
                 'formats' => $m->formatsLabel(), 'officer' => $m->production_officer, 'status' => $m->statusLabel(),
             ], 'received_date');
         }
@@ -251,11 +350,11 @@ class BeaconRequestController extends Controller
         }
 
         return $this->exportRecords($r, fn () => $this->requestsQuery($r), [
-            'request_no' => 'Request No.', 'date' => 'Date', 'from' => 'From', 'type' => 'Type', 'company' => 'Company', 'surveyor' => "Surveyor's Name", 'job' => 'Job', 'beacons' => 'Beacons',
+            'request_no' => 'Request No.', 'date' => 'Date', 'from' => 'From', 'type' => 'Type', 'company' => 'Company', 'surveyor' => "Surveyor's Name", 'job_no' => 'Job No.', 'job' => 'Job', 'beacons' => 'Beacons',
             'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'location' => 'Location', 'latitude' => 'Latitude', 'longitude' => 'Longitude', 'status' => 'Status', 'issued' => 'Issued Numbers',
         ], fn ($q) => [
             'request_no' => $q->request_no, 'date' => $this->exportDate($q->created_at, 'd/m/Y'), 'from' => $q->source_label, 'type' => $q->type_label, 'company' => $q->company_name,
-            'surveyor' => $q->surveyor_name, 'job' => $q->job_name, 'beacons' => $q->quantity, 'plot_no' => $q->plot_no, 'district' => $q->district,
+            'surveyor' => $q->surveyor_name, 'job_no' => $q->job_no, 'job' => $q->job_name, 'beacons' => $q->quantity, 'plot_no' => $q->plot_no, 'district' => $q->district,
             'lga' => $q->lga ? mb_strtoupper($q->lga) : null, 'location' => $q->location, 'latitude' => $q->latitude, 'longitude' => $q->longitude, 'status' => $q->status, 'issued' => $q->issued_numbers,
         ]);
     }

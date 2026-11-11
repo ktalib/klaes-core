@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     @php
-        $portalPageTitle = trim($__env->yieldContent('title', ''));
+        // A title given as a section string arrives escaped already; decode it so the title tag escapes it once.
+        $portalPageTitle = html_entity_decode(trim($__env->yieldContent('title', '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $portalPageTitle = str_replace(
-            ["KNSSGOF Portal", "Kano State Surveyor General's Office"],
+            ["MLPP-SG Portal", "Ministry of Land and Physical Planning – Surveyor General's Office"],
             [$portalSettings['portal_name'], $portalSettings['office_name']],
             $portalPageTitle
         );
@@ -66,6 +67,7 @@
             @if($portalSettings['support_phone'])
                 <a href="tel:{{ $portalSettings['support_phone'] }}" style="color:var(--ks-blue);margin-left:8px;">{{ $portalSettings['support_phone'] }}</a>
             @endif
+            @include('partials.vmal_credit', ['dark' => false])
         </footer>
     @endif
     <script>if (window.lucide) lucide.createIcons();</script>

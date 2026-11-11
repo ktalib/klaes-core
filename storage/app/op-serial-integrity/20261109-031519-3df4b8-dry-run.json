@@ -1,0 +1,6829 @@
+{
+    "run_id": "20261109-031519-3df4b8",
+    "mode": "dry-run",
+    "summary": {
+        "pra": {
+            "valid_unlinked": 46269,
+            "no_source": 399,
+            "consistent": 2269,
+            "conflict": 7,
+            "merger_requires_review": 14,
+            "source_missing_or_invalid": 2,
+            "ambiguous": 9,
+            "safe": 1
+        },
+        "instrument_capture": {
+            "valid_unlinked": 19433,
+            "consistent": 210,
+            "no_source": 18,
+            "ambiguous": 17
+        },
+        "oss_applications": {
+            "no_source": 24,
+            "consistent": 1323,
+            "ambiguous": 10,
+            "safe": 43,
+            "valid_unlinked": 21,
+            "conflict": 4,
+            "source_missing_or_invalid": 1
+        }
+    },
+    "repairs": [
+        {
+            "table": "pra",
+            "id": "47430",
+            "files": [
+                "RES-2001-5301"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "55068",
+            "files": [
+                "RES-1998-131"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "55285",
+            "files": [
+                "COM-1998-160"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "70572",
+            "files": [
+                "TEMP-05224"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "70574",
+            "files": [
+                "TEMP-05226"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "70578",
+            "files": [
+                "TEMP-05227"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "70580",
+            "files": [
+                "TEMP-05229"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "70734",
+            "files": [
+                "TEMP-05283"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "70781",
+            "files": [
+                "TEMP-05313"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "72013",
+            "files": [
+                "RES-2024-2293",
+                "TEMP-05873"
+            ],
+            "before": "22",
+            "proposed": "000819",
+            "source": {
+                "table": "pra",
+                "id": "120206"
+            },
+            "basis": "exact_file_and_particulars",
+            "status": "conflict"
+        },
+        {
+            "table": "pra",
+            "id": "74717",
+            "files": [
+                "TEMP-08865"
+            ],
+            "before": "`764",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "74737",
+            "files": [
+                "TEMP-08885"
+            ],
+            "before": "1O63",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "76552",
+            "files": [
+                "TEMP-10700"
+            ],
+            "before": "R12658",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "76590",
+            "files": [
+                "TEMP-10738"
+            ],
+            "before": "R12695",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "77244",
+            "files": [
+                "TEMP-11392"
+            ],
+            "before": "587B",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "78436",
+            "files": [
+                "TEMP-12181"
+            ],
+            "before": "4104R",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "115948",
+            "files": [
+                "TEMP-13201"
+            ],
+            "before": "6202A",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "115951",
+            "files": [
+                "RES-2026-1741"
+            ],
+            "before": "6202A",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "116047",
+            "files": [
+                "TEMP-13246"
+            ],
+            "before": "4132R",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "118266",
+            "files": [
+                "TEMP-14381"
+            ],
+            "before": "O15",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "119278",
+            "files": [
+                "RES-2021-2767"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "119279",
+            "files": [
+                "RES-2021-2765"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "119974",
+            "files": [
+                "RES-2025-4851",
+                "TEMP-34839"
+            ],
+            "before": "28912",
+            "proposed": "28812",
+            "source": {
+                "table": "pra",
+                "id": "186730"
+            },
+            "basis": "exact_file_and_particulars",
+            "status": "conflict"
+        },
+        {
+            "table": "pra",
+            "id": "120180",
+            "files": [
+                "RES-2022-3152",
+                "TEMP-153163"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "124439",
+            "files": [
+                "RES-2025-4855",
+                "TEMP-16494"
+            ],
+            "before": "19318",
+            "proposed": "000472",
+            "source": {
+                "table": "pra",
+                "id": "119802"
+            },
+            "basis": "exact_file_and_particulars",
+            "status": "conflict"
+        },
+        {
+            "table": "pra",
+            "id": "124864",
+            "files": [
+                "TEMP-16649"
+            ],
+            "before": "530-",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "124885",
+            "files": [
+                "TEMP-16657"
+            ],
+            "before": "OO29798",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "136118",
+            "files": [
+                "RES-2026-2046",
+                "TEMP-32580"
+            ],
+            "before": "66936694",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "136606",
+            "files": [
+                "IND-2026-17",
+                "TEMP-33761"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "139733",
+            "files": [
+                "RES-2026-2110",
+                "TEMP-36836"
+            ],
+            "before": "3210",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "140761",
+            "files": [
+                "RES-2026-2145",
+                "TEMP-38329"
+            ],
+            "before": "1860",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "141018",
+            "files": [
+                "RES-2026-2153",
+                "TEMP-38539"
+            ],
+            "before": "3223",
+            "proposed": null,
+            "source": {
+                "table": "pra",
+                "id": "141211"
+            },
+            "basis": "explicit_source_link",
+            "status": "source_missing_or_invalid"
+        },
+        {
+            "table": "pra",
+            "id": "141211",
+            "files": [
+                "RES-2026-2153",
+                "TEMP-38539"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "141214",
+            "files": [
+                "TEMP-1044A"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "143303",
+            "files": [
+                "RES-2026-2171",
+                "TEMP-41370"
+            ],
+            "before": "27716",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "151625",
+            "files": [
+                "RES-2026-2274",
+                "TEMP-52717"
+            ],
+            "before": "2",
+            "proposed": "5211",
+            "source": {
+                "table": "pra",
+                "id": "192481"
+            },
+            "basis": "exact_file_and_particulars",
+            "status": "conflict"
+        },
+        {
+            "table": "pra",
+            "id": "155742",
+            "files": [
+                "TEMP-56415"
+            ],
+            "before": "29825",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "pra",
+            "id": "155749",
+            "files": [
+                "TEMP-56415"
+            ],
+            "before": "29825",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "pra",
+            "id": "155750",
+            "files": [
+                "TEMP-56415"
+            ],
+            "before": "29825",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "pra",
+            "id": "155883",
+            "files": [
+                "RES-2025-2593",
+                "TEMP-31891"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "158288",
+            "files": [
+                "RES-2026-2385"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "158289",
+            "files": [
+                "RES-2026-2386"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "158290",
+            "files": [
+                "RES-2026-2387"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "158291",
+            "files": [
+                "RES-2026-2388"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "158292",
+            "files": [
+                "RES-2026-2389"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "158293",
+            "files": [
+                "RES-2026-2390"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "158294",
+            "files": [
+                "RES-2026-2391"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "158295",
+            "files": [
+                "RES-2026-2392"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159260",
+            "files": [
+                "RES-2026-2415"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159261",
+            "files": [
+                "RES-2026-2416"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159306",
+            "files": [
+                "RES-2026-2417"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159307",
+            "files": [
+                "RES-2026-2418"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159308",
+            "files": [
+                "RES-2026-2419"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159309",
+            "files": [
+                "RES-2026-2420"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159356",
+            "files": [
+                "COM-2026-230"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159357",
+            "files": [
+                "COM-2026-231"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159375",
+            "files": [
+                "RES-2026-2423"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159376",
+            "files": [
+                "RES-2026-2424"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159377",
+            "files": [
+                "RES-2026-2425"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159378",
+            "files": [
+                "RES-2026-2426"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159379",
+            "files": [
+                "RES-2026-2427"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159381",
+            "files": [
+                "RES-2026-2428"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159382",
+            "files": [
+                "RES-2026-2429"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159401",
+            "files": [
+                "RES-2026-2431"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159402",
+            "files": [
+                "RES-2026-2432"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159414",
+            "files": [
+                "IND-2026-30"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159415",
+            "files": [
+                "IND-2026-31"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159416",
+            "files": [
+                "IND-2026-32"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159417",
+            "files": [
+                "IND-2026-33"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159418",
+            "files": [
+                "IND-2026-34"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159886",
+            "files": [
+                "RES-2026-2444"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159887",
+            "files": [
+                "RES-2026-2445"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159889",
+            "files": [
+                "IND-2026-35"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159890",
+            "files": [
+                "IND-2026-36"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159891",
+            "files": [
+                "IND-2026-37"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159892",
+            "files": [
+                "IND-2026-38"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159893",
+            "files": [
+                "IND-2026-39"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159894",
+            "files": [
+                "IND-2026-40"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159895",
+            "files": [
+                "IND-2026-41"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159896",
+            "files": [
+                "IND-2026-42"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159897",
+            "files": [
+                "IND-2026-43"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159898",
+            "files": [
+                "IND-2026-44"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159899",
+            "files": [
+                "IND-2026-45"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "159900",
+            "files": [
+                "IND-2026-46"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160342",
+            "files": [
+                "RES-2026-2446"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160343",
+            "files": [
+                "RES-2026-2447"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160344",
+            "files": [
+                "RES-2026-2448"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160356",
+            "files": [
+                "RES-2026-2449"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160357",
+            "files": [
+                "RES-2026-2450"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160368",
+            "files": [
+                "RES-2026-2451"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160369",
+            "files": [
+                "RES-2026-2452"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160386",
+            "files": [
+                "RES-2026-2453"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160387",
+            "files": [
+                "RES-2026-2454"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160644",
+            "files": [
+                "RES-2026-2460"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160645",
+            "files": [
+                "RES-2026-2461"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160646",
+            "files": [
+                "RES-2026-2462"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160647",
+            "files": [
+                "RES-2026-2463"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160662",
+            "files": [
+                "RES-2026-2464"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160663",
+            "files": [
+                "RES-2026-2465"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160664",
+            "files": [
+                "RES-2026-2466"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160665",
+            "files": [
+                "RES-2026-2467"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160672",
+            "files": [
+                "RES-2026-2468"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160673",
+            "files": [
+                "RES-2026-2469"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160680",
+            "files": [
+                "RES-2026-2470"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160681",
+            "files": [
+                "RES-2026-2471"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160976",
+            "files": [
+                "RES-2026-2473"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160977",
+            "files": [
+                "RES-2026-2474"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160995",
+            "files": [
+                "IND-2026-48"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160996",
+            "files": [
+                "IND-2026-49"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160997",
+            "files": [
+                "IND-2026-50"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160998",
+            "files": [
+                "IND-2026-51"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "160999",
+            "files": [
+                "IND-2026-52"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "161000",
+            "files": [
+                "IND-2026-53"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "161297",
+            "files": [
+                "COM-2026-232"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "161298",
+            "files": [
+                "COM-2026-233"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "161299",
+            "files": [
+                "COM-2026-234"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "161300",
+            "files": [
+                "COM-2026-235"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "161301",
+            "files": [
+                "COM-2026-236"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "161302",
+            "files": [
+                "COM-2026-237"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "161303",
+            "files": [
+                "COM-2026-238"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "161320",
+            "files": [
+                "RES-2024-1776",
+                "TEMP-60729"
+            ],
+            "before": "2455",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "161916",
+            "files": [
+                "RES-2026-2476"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "161917",
+            "files": [
+                "RES-2026-2477"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "161918",
+            "files": [
+                "RES-2026-2478"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "161919",
+            "files": [
+                "RES-2026-2479"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "163413",
+            "files": [
+                "RES-2026-2486"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "163414",
+            "files": [
+                "RES-2026-2487"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "163415",
+            "files": [
+                "RES-2026-2488"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "163416",
+            "files": [
+                "RES-2026-2489"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "166192",
+            "files": [
+                "RES-2026-2506",
+                "TEMP-64450"
+            ],
+            "before": "1035",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "167330",
+            "files": [
+                "TEMP-42337",
+                "TEMP-74479"
+            ],
+            "before": "1399",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "167337",
+            "files": [
+                "RES-2026-2509"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "167338",
+            "files": [
+                "RES-2026-2510"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "167339",
+            "files": [
+                "RES-2026-2511"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "167340",
+            "files": [
+                "RES-2026-2512"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "167341",
+            "files": [
+                "RES-2026-2513"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "167343",
+            "files": [
+                "IND-2026-54"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "167344",
+            "files": [
+                "IND-2026-55"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "168342",
+            "files": [
+                "RES-2026-2523"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "168343",
+            "files": [
+                "RES-2026-2524"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "168417",
+            "files": [
+                "RES-2026-2527"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "168418",
+            "files": [
+                "RES-2026-2528"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "168481",
+            "files": [
+                "RES-2026-2529"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "168482",
+            "files": [
+                "RES-2026-2530"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "168509",
+            "files": [
+                "RES-2026-2531"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "168510",
+            "files": [
+                "RES-2026-2532"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "169995",
+            "files": [
+                "RES-2026-2535"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "169996",
+            "files": [
+                "RES-2026-2536"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "169997",
+            "files": [
+                "RES-2026-2537"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "169998",
+            "files": [
+                "RES-2026-2538"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "169999",
+            "files": [
+                "RES-2026-2539"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "170446",
+            "files": [
+                "RES-2026-2555"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "170447",
+            "files": [
+                "RES-2026-2556"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "170448",
+            "files": [
+                "RES-2026-2557"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "170449",
+            "files": [
+                "RES-2026-2558"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "171463",
+            "files": [
+                "RES-2026-2578"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "171464",
+            "files": [
+                "RES-2026-2579"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "171465",
+            "files": [
+                "RES-2026-2580"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "171863",
+            "files": [
+                "RES-2026-2588"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "171864",
+            "files": [
+                "RES-2026-2589"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "171867",
+            "files": [
+                "IND-2026-58"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "171868",
+            "files": [
+                "IND-2026-59"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "171869",
+            "files": [
+                "IND-2026-60"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "171870",
+            "files": [
+                "IND-2026-61"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "171871",
+            "files": [
+                "IND-2026-62"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "171872",
+            "files": [
+                "IND-2026-63"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172328",
+            "files": [
+                "IND-2026-64"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172329",
+            "files": [
+                "IND-2026-65"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172330",
+            "files": [
+                "IND-2026-66"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172331",
+            "files": [
+                "IND-2026-67"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172348",
+            "files": [
+                "IND-2026-68"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172349",
+            "files": [
+                "IND-2026-69"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172350",
+            "files": [
+                "IND-2026-70"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172351",
+            "files": [
+                "IND-2026-71"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172921",
+            "files": [
+                "RES-2026-2625"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172922",
+            "files": [
+                "RES-2026-2626"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172924",
+            "files": [
+                "RES-2026-2627"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172925",
+            "files": [
+                "RES-2026-2628"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172927",
+            "files": [
+                "RES-2026-2629"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172928",
+            "files": [
+                "RES-2026-2630"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172930",
+            "files": [
+                "RES-2026-2631"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172931",
+            "files": [
+                "RES-2026-2632"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172932",
+            "files": [
+                "RES-2026-2633"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172933",
+            "files": [
+                "RES-2026-2634"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172935",
+            "files": [
+                "IND-2026-75"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172936",
+            "files": [
+                "IND-2026-76"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172937",
+            "files": [
+                "IND-2026-77"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172938",
+            "files": [
+                "IND-2026-78"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172939",
+            "files": [
+                "IND-2026-79"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172940",
+            "files": [
+                "IND-2026-80"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172941",
+            "files": [
+                "IND-2026-81"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172942",
+            "files": [
+                "IND-2026-82"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172943",
+            "files": [
+                "IND-2026-83"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "172944",
+            "files": [
+                "IND-2026-84"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173582",
+            "files": [
+                "RES-2026-2657"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173583",
+            "files": [
+                "RES-2026-2658"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173584",
+            "files": [
+                "RES-2026-2659"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173585",
+            "files": [
+                "RES-2026-2660"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173586",
+            "files": [
+                "RES-2026-2661"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173594",
+            "files": [
+                "RES-2026-2664"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173595",
+            "files": [
+                "RES-2026-2665"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173596",
+            "files": [
+                "RES-2026-2666"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173597",
+            "files": [
+                "RES-2026-2667"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173598",
+            "files": [
+                "RES-2026-2668"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173599",
+            "files": [
+                "RES-2026-2669"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173600",
+            "files": [
+                "RES-2026-2670"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173601",
+            "files": [
+                "RES-2026-2671"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173602",
+            "files": [
+                "RES-2026-2672"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173603",
+            "files": [
+                "RES-2026-2673"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173604",
+            "files": [
+                "RES-2026-2674"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173606",
+            "files": [
+                "RES-2026-2676"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173607",
+            "files": [
+                "RES-2026-2677"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173608",
+            "files": [
+                "RES-2026-2678"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173609",
+            "files": [
+                "RES-2026-2679"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173610",
+            "files": [
+                "RES-2026-2680"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "173611",
+            "files": [
+                "RES-2026-2681"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174080",
+            "files": [
+                "IND-2026-87"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174081",
+            "files": [
+                "IND-2026-88"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174082",
+            "files": [
+                "IND-2026-89"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174083",
+            "files": [
+                "IND-2026-90"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174084",
+            "files": [
+                "IND-2026-91"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174085",
+            "files": [
+                "IND-2026-92"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174086",
+            "files": [
+                "IND-2026-93"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174087",
+            "files": [
+                "IND-2026-94"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174088",
+            "files": [
+                "IND-2026-95"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174089",
+            "files": [
+                "IND-2026-96"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174090",
+            "files": [
+                "IND-2026-97"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174091",
+            "files": [
+                "IND-2026-98"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174093",
+            "files": [
+                "IND-2026-99"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174094",
+            "files": [
+                "IND-2026-100"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174095",
+            "files": [
+                "IND-2026-101"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174096",
+            "files": [
+                "IND-2026-102"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174097",
+            "files": [
+                "IND-2026-103"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174098",
+            "files": [
+                "IND-2026-104"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174099",
+            "files": [
+                "IND-2026-105"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174100",
+            "files": [
+                "IND-2026-106"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174102",
+            "files": [
+                "IND-2026-107"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174103",
+            "files": [
+                "IND-2026-108"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174775",
+            "files": [
+                "IND-2026-110"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174776",
+            "files": [
+                "IND-2026-111"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174777",
+            "files": [
+                "IND-2026-112"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174778",
+            "files": [
+                "IND-2026-113"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174779",
+            "files": [
+                "IND-2026-114"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174780",
+            "files": [
+                "IND-2026-115"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174781",
+            "files": [
+                "IND-2026-116"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174782",
+            "files": [
+                "IND-2026-117"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174783",
+            "files": [
+                "IND-2026-118"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174784",
+            "files": [
+                "IND-2026-119"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174785",
+            "files": [
+                "IND-2026-120"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174786",
+            "files": [
+                "IND-2026-121"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174787",
+            "files": [
+                "IND-2026-122"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174788",
+            "files": [
+                "IND-2026-123"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174794",
+            "files": [
+                "RES-2026-2808"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174795",
+            "files": [
+                "RES-2026-2809"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174797",
+            "files": [
+                "RES-2026-2810"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174798",
+            "files": [
+                "RES-2026-2811"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174804",
+            "files": [
+                "RES-2026-2812",
+                "TEMP-89742"
+            ],
+            "before": "11045",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "174806",
+            "files": [
+                "RES-2026-2813"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "174807",
+            "files": [
+                "RES-2026-2814"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "175480",
+            "files": [
+                "IND-2026-125"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "175481",
+            "files": [
+                "IND-2026-126"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "175482",
+            "files": [
+                "IND-2026-127"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "175483",
+            "files": [
+                "IND-2026-128"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "175484",
+            "files": [
+                "IND-2026-129"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "175485",
+            "files": [
+                "IND-2026-130"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176177",
+            "files": [
+                "RES-2026-2846"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176178",
+            "files": [
+                "RES-2026-2847"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176180",
+            "files": [
+                "RES-2026-2848"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176181",
+            "files": [
+                "RES-2026-2849"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176182",
+            "files": [
+                "RES-2026-2850"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176183",
+            "files": [
+                "RES-2026-2851"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176184",
+            "files": [
+                "RES-2026-2852"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176185",
+            "files": [
+                "RES-2026-2853"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176187",
+            "files": [
+                "RES-2026-2854"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176188",
+            "files": [
+                "RES-2026-2855"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176189",
+            "files": [
+                "RES-2026-2856"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176190",
+            "files": [
+                "RES-2026-2857"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176191",
+            "files": [
+                "RES-2026-2858"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176192",
+            "files": [
+                "RES-2026-2859"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176193",
+            "files": [
+                "RES-2026-2860"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176780",
+            "files": [
+                "RES-2026-2866"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176783",
+            "files": [
+                "RES-2026-2869"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176784",
+            "files": [
+                "RES-2026-2870"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176785",
+            "files": [
+                "RES-2026-2871"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176786",
+            "files": [
+                "RES-2026-2872"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "176787",
+            "files": [
+                "RES-2026-2873"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177493",
+            "files": [
+                "RES-2026-2886"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177494",
+            "files": [
+                "RES-2026-2887"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177495",
+            "files": [
+                "RES-2026-2888"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177496",
+            "files": [
+                "RES-2026-2889"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177497",
+            "files": [
+                "RES-2026-2890"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177498",
+            "files": [
+                "RES-2026-2891"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177499",
+            "files": [
+                "RES-2026-2892"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177500",
+            "files": [
+                "RES-2026-2893"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177501",
+            "files": [
+                "RES-2026-2894"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177502",
+            "files": [
+                "RES-2026-2895"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177503",
+            "files": [
+                "RES-2026-2896"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177504",
+            "files": [
+                "RES-2026-2897"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177505",
+            "files": [
+                "RES-2026-2898"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177507",
+            "files": [
+                "IND-2026-131"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177508",
+            "files": [
+                "IND-2026-132"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177512",
+            "files": [
+                "RES-2026-2899"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177513",
+            "files": [
+                "RES-2026-2900"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177514",
+            "files": [
+                "RES-2026-2901"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177515",
+            "files": [
+                "RES-2026-2902"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177516",
+            "files": [
+                "RES-2026-2903"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177517",
+            "files": [
+                "RES-2026-2904"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "177938",
+            "files": [
+                "RES-2026-2905",
+                "TEMP-61365"
+            ],
+            "before": "345",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "pra",
+            "id": "178409",
+            "files": [
+                "RES-2023-5085"
+            ],
+            "before": "TP-KN-UC-DTF-15",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179175",
+            "files": [
+                "RES-2026-2916"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179176",
+            "files": [
+                "RES-2026-2917"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179177",
+            "files": [
+                "RES-2026-2918"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179178",
+            "files": [
+                "RES-2026-2919"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179179",
+            "files": [
+                "RES-2026-2920"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179180",
+            "files": [
+                "RES-2026-2921"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179181",
+            "files": [
+                "RES-2026-2922"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179182",
+            "files": [
+                "RES-2026-2923"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179183",
+            "files": [
+                "RES-2026-2924"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179184",
+            "files": [
+                "RES-2026-2925"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179185",
+            "files": [
+                "RES-2026-2926"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179186",
+            "files": [
+                "RES-2026-2927"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179187",
+            "files": [
+                "RES-2026-2928"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179188",
+            "files": [
+                "RES-2026-2929"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179189",
+            "files": [
+                "RES-2026-2930"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179190",
+            "files": [
+                "RES-2026-2931"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179191",
+            "files": [
+                "RES-2026-2932"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179192",
+            "files": [
+                "RES-2026-2933"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179193",
+            "files": [
+                "RES-2026-2934"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179194",
+            "files": [
+                "RES-2026-2935"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "179195",
+            "files": [
+                "RES-2026-2936"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180230",
+            "files": [
+                "RES-2026-2947"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180231",
+            "files": [
+                "RES-2026-2948"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180232",
+            "files": [
+                "RES-2026-2949"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180233",
+            "files": [
+                "RES-2026-2950"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180917",
+            "files": [
+                "RES-2026-2958"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180918",
+            "files": [
+                "RES-2026-2959"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180962",
+            "files": [
+                "RES-2026-2960"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180963",
+            "files": [
+                "RES-2026-2961"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180964",
+            "files": [
+                "RES-2026-2962"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180965",
+            "files": [
+                "RES-2026-2963"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180966",
+            "files": [
+                "RES-2026-2964"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180967",
+            "files": [
+                "RES-2026-2965"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180968",
+            "files": [
+                "RES-2026-2966"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180969",
+            "files": [
+                "RES-2026-2967"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180970",
+            "files": [
+                "RES-2026-2968"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180971",
+            "files": [
+                "RES-2026-2969"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180972",
+            "files": [
+                "RES-2026-2970"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180973",
+            "files": [
+                "RES-2026-2971"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180974",
+            "files": [
+                "RES-2026-2972"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180976",
+            "files": [
+                "IND-2026-134"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180977",
+            "files": [
+                "IND-2026-135"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180978",
+            "files": [
+                "IND-2026-136"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180979",
+            "files": [
+                "IND-2026-137"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180980",
+            "files": [
+                "IND-2026-138"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180981",
+            "files": [
+                "IND-2026-139"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180982",
+            "files": [
+                "IND-2026-140"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180983",
+            "files": [
+                "IND-2026-141"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180984",
+            "files": [
+                "IND-2026-142"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180985",
+            "files": [
+                "IND-2026-143"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180986",
+            "files": [
+                "IND-2026-144"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180987",
+            "files": [
+                "IND-2026-145"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180988",
+            "files": [
+                "IND-2026-146"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180989",
+            "files": [
+                "IND-2026-147"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180990",
+            "files": [
+                "IND-2026-148"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180994",
+            "files": [
+                "COM-2026-283"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "180995",
+            "files": [
+                "COM-2026-284"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181154",
+            "files": [
+                "COM-2026-285"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181587",
+            "files": [
+                "RES-2026-2977"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181588",
+            "files": [
+                "RES-2026-2978"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181589",
+            "files": [
+                "RES-2026-2979"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181590",
+            "files": [
+                "RES-2026-2980"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181591",
+            "files": [
+                "RES-2026-2981"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181592",
+            "files": [
+                "RES-2026-2982"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181593",
+            "files": [
+                "RES-2026-2983"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181594",
+            "files": [
+                "RES-2026-2984"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181595",
+            "files": [
+                "RES-2026-2985"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181596",
+            "files": [
+                "RES-2026-2986"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181597",
+            "files": [
+                "RES-2026-2987"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181598",
+            "files": [
+                "RES-2026-2988"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181599",
+            "files": [
+                "RES-2026-2989"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181600",
+            "files": [
+                "RES-2026-2990"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181601",
+            "files": [
+                "RES-2026-2991"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181602",
+            "files": [
+                "RES-2026-2992"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181603",
+            "files": [
+                "RES-2026-2993"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181604",
+            "files": [
+                "RES-2026-2994"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181605",
+            "files": [
+                "RES-2026-2995"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181606",
+            "files": [
+                "RES-2026-2996"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181607",
+            "files": [
+                "RES-2026-2997"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181608",
+            "files": [
+                "RES-2026-2998"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181609",
+            "files": [
+                "RES-2026-2999"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181610",
+            "files": [
+                "RES-2026-3000"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181611",
+            "files": [
+                "RES-2026-3001"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181612",
+            "files": [
+                "RES-2026-3002"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181613",
+            "files": [
+                "RES-2026-3003"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181614",
+            "files": [
+                "RES-2026-3004"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181615",
+            "files": [
+                "RES-2026-3006"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181616",
+            "files": [
+                "RES-2026-3007"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181617",
+            "files": [
+                "RES-2026-3008"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181618",
+            "files": [
+                "RES-2026-3009"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181619",
+            "files": [
+                "RES-2026-3010"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181620",
+            "files": [
+                "RES-2026-3011"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181621",
+            "files": [
+                "RES-2026-3012"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181622",
+            "files": [
+                "RES-2026-3013"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181623",
+            "files": [
+                "RES-2026-3014"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181624",
+            "files": [
+                "RES-2026-3015"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181625",
+            "files": [
+                "RES-2026-3016"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181626",
+            "files": [
+                "RES-2026-3017"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181627",
+            "files": [
+                "RES-2026-3018"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "181628",
+            "files": [
+                "RES-2026-3019"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "186730",
+            "files": [
+                "RES-2025-4851"
+            ],
+            "before": "28812",
+            "proposed": "28912",
+            "source": {
+                "table": "pra",
+                "id": "119974"
+            },
+            "basis": "exact_file_and_particulars",
+            "status": "conflict"
+        },
+        {
+            "table": "pra",
+            "id": "186926",
+            "files": [
+                "RES-2003-4244"
+            ],
+            "before": "NO. 02",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "187046",
+            "files": [
+                "RES-2026-3240",
+                "TEMP-107218"
+            ],
+            "before": "16412",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "189837",
+            "files": [
+                "RES-2026-3311",
+                "TEMP-110006"
+            ],
+            "before": "12971",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "192102",
+            "files": [
+                "RES-2005-1784"
+            ],
+            "before": "002773 AND 002776",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "199392",
+            "files": [
+                "RES-2026-3377",
+                "TEMP-123194"
+            ],
+            "before": "22155",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "202310",
+            "files": [
+                "RES-2026-3417",
+                "TEMP-126747"
+            ],
+            "before": "2156",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "203929",
+            "files": [
+                "RES-2008-95"
+            ],
+            "before": "MUSA DAN GARBA",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "205908",
+            "files": [
+                "RES-2002-5855"
+            ],
+            "before": "SULE NABABA",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "207549",
+            "files": [
+                "RES-2023-6854"
+            ],
+            "before": "989, 990",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "212906",
+            "files": [
+                "RES-2009-4557"
+            ],
+            "before": "ALHAJI IBRAHIM MIKO",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "214475",
+            "files": [
+                "RES-2026-3555",
+                "TEMP-145945"
+            ],
+            "before": "564",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "merger_requires_review"
+        },
+        {
+            "table": "pra",
+            "id": "219312",
+            "files": [
+                "RES-2009-1155"
+            ],
+            "before": "O13534",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "219810",
+            "files": [
+                "TEMP-150279"
+            ],
+            "before": "23920",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "pra",
+            "id": "219811",
+            "files": [
+                "TEMP-150279"
+            ],
+            "before": "23920",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "pra",
+            "id": "219813",
+            "files": [
+                "TEMP-150279"
+            ],
+            "before": "23920",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "pra",
+            "id": "219814",
+            "files": [
+                "TEMP-150279"
+            ],
+            "before": "23920",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "pra",
+            "id": "219816",
+            "files": [
+                "TEMP-150279"
+            ],
+            "before": "23920",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "pra",
+            "id": "221875",
+            "files": [
+                "RES-2022-3152",
+                "TEMP-153164"
+            ],
+            "before": "7055",
+            "proposed": null,
+            "source": {
+                "table": "pra",
+                "id": "120180"
+            },
+            "basis": "explicit_source_link",
+            "status": "source_missing_or_invalid"
+        },
+        {
+            "table": "pra",
+            "id": "224604",
+            "files": [
+                "RES-2021-1292"
+            ],
+            "before": null,
+            "proposed": "8724",
+            "source": {
+                "table": "pra",
+                "id": "224605"
+            },
+            "basis": "exact_file_and_particulars",
+            "status": "safe"
+        },
+        {
+            "table": "pra",
+            "id": "225581",
+            "files": [
+                "RES-2021-3538"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "pra",
+            "id": "237547",
+            "files": [
+                "RES-2025-120"
+            ],
+            "before": "22381",
+            "proposed": "228381",
+            "source": {
+                "table": "pra",
+                "id": "237549"
+            },
+            "basis": "exact_file_and_particulars",
+            "status": "conflict"
+        },
+        {
+            "table": "pra",
+            "id": "237549",
+            "files": [
+                "RES-2025-120"
+            ],
+            "before": "228381",
+            "proposed": "22381",
+            "source": {
+                "table": "pra",
+                "id": "237547"
+            },
+            "basis": "exact_file_and_particulars",
+            "status": "conflict"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "724",
+            "files": [
+                "TEMP-00717"
+            ],
+            "before": "C490",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "726",
+            "files": [
+                "TEMP-00719"
+            ],
+            "before": "C491",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "728",
+            "files": [
+                "TEMP-00721"
+            ],
+            "before": "C867B",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "733",
+            "files": [
+                "TEMP-00726"
+            ],
+            "before": "862A",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "1354",
+            "files": [
+                "TEMP-01109"
+            ],
+            "before": "R 12684",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "1992",
+            "files": [
+                "TEMP-04143"
+            ],
+            "before": "R12618",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "2127",
+            "files": [
+                "TEMP-04333"
+            ],
+            "before": "686",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "3207",
+            "files": [
+                "TEMP-11991"
+            ],
+            "before": "R12625",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "17302",
+            "files": [
+                "TEMP-47589"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "17303",
+            "files": [
+                "TEMP-47590"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "17304",
+            "files": [
+                "TEMP-47591"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "17667",
+            "files": [
+                "RES-2026-2220",
+                "TEMP-50177"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "17668",
+            "files": [
+                "RES-2026-2219",
+                "TEMP-50114"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "17727",
+            "files": [
+                "RES-2026-2242",
+                "TEMP-51466"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "17728",
+            "files": [
+                "RES-2026-2239",
+                "TEMP-51420"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "17729",
+            "files": [
+                "RES-2026-2237",
+                "TEMP-51348"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "17730",
+            "files": [
+                "RES-2026-2229",
+                "TEMP-51090"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "17731",
+            "files": [
+                "RES-2023-5071",
+                "TEMP-50940"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "17732",
+            "files": [
+                "RES-2026-2228",
+                "TEMP-51071"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "20075",
+            "files": [
+                "TEMP-91645"
+            ],
+            "before": "580",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "22563",
+            "files": [
+                "TEMP-121444"
+            ],
+            "before": "1331",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "22999",
+            "files": [
+                "TEMP-123100"
+            ],
+            "before": "1307",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "23889",
+            "files": [
+                "TEMP-126120"
+            ],
+            "before": "4485",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "23894",
+            "files": [
+                "RES-2026-3741",
+                "TEMP-126135"
+            ],
+            "before": "3859",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "23968",
+            "files": [
+                "TEMP-126353"
+            ],
+            "before": "3981",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "23971",
+            "files": [
+                "TEMP-126362"
+            ],
+            "before": "3980",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "23994",
+            "files": [
+                "RES-2026-3735",
+                "TEMP-126431"
+            ],
+            "before": "3966",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "24005",
+            "files": [
+                "TEMP-126464"
+            ],
+            "before": "3844",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "34727",
+            "files": [
+                "TEMP-139103"
+            ],
+            "before": "6257",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "34749",
+            "files": [
+                "TEMP-139169"
+            ],
+            "before": "6260",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "34812",
+            "files": [
+                "TEMP-139500"
+            ],
+            "before": "6292",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "35156",
+            "files": [
+                "TEMP-140603"
+            ],
+            "before": "878",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "36408",
+            "files": [
+                "TEMP-144655"
+            ],
+            "before": "5844",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "37778",
+            "files": [
+                "TEMP-149851"
+            ],
+            "before": "962",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "instrument_capture",
+            "id": "39334",
+            "files": [
+                "TEMP-156165"
+            ],
+            "before": "1501",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "oss_applications",
+            "id": "7",
+            "files": [
+                "RES-2025-3176"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "10",
+            "files": [
+                "RES-2025-3175"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "13",
+            "files": [
+                "RES-2018-4519"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "18",
+            "files": [
+                "RES-2024-3798"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "19",
+            "files": [
+                "RES-2025-6085"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "oss_applications",
+            "id": "22",
+            "files": [
+                "RES-2024-3799"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "23",
+            "files": [
+                "RES-2024-6383"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "24",
+            "files": [
+                "RES-2025-4855"
+            ],
+            "before": null,
+            "proposed": "000472",
+            "source": {
+                "table": "pra",
+                "id": "119802"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "47",
+            "files": [
+                "COM-2026-193"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "48",
+            "files": [
+                "RES-2026-1976"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "49",
+            "files": [
+                "RES-2026-1975"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "50",
+            "files": [
+                "RES-2025-2593"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "51",
+            "files": [
+                "RES-2025-4851"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "oss_applications",
+            "id": "64",
+            "files": [
+                "COM-2025-756"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "71",
+            "files": [
+                "RES-2025-3197"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "86",
+            "files": [
+                "RES-2023-5071"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "88",
+            "files": [
+                "RES-2024-2293"
+            ],
+            "before": null,
+            "proposed": "000819",
+            "source": {
+                "table": "pra",
+                "id": "120206"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "94",
+            "files": [
+                "RES-2024-531"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "149",
+            "files": [
+                "RES-2025-3909"
+            ],
+            "before": null,
+            "proposed": "000357",
+            "source": {
+                "table": "pra",
+                "id": "119666"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "159",
+            "files": [
+                "COM-2021-213"
+            ],
+            "before": null,
+            "proposed": "001053",
+            "source": {
+                "table": "pra",
+                "id": "146650"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "192",
+            "files": [
+                "RES-2025-1727"
+            ],
+            "before": null,
+            "proposed": "000624",
+            "source": {
+                "table": "pra",
+                "id": "119985"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "194",
+            "files": [
+                "RES-2025-1987"
+            ],
+            "before": null,
+            "proposed": "000665",
+            "source": {
+                "table": "pra",
+                "id": "120030"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "195",
+            "files": [
+                "RES-2025-2153"
+            ],
+            "before": null,
+            "proposed": "000669",
+            "source": {
+                "table": "pra",
+                "id": "120034"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "196",
+            "files": [
+                "RES-2025-2260"
+            ],
+            "before": null,
+            "proposed": "000806",
+            "source": {
+                "table": "pra",
+                "id": "120191"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "197",
+            "files": [
+                "RES-2025-113"
+            ],
+            "before": null,
+            "proposed": "000661",
+            "source": {
+                "table": "pra",
+                "id": "120026"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "198",
+            "files": [
+                "RES-2024-1776"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "oss_applications",
+            "id": "199",
+            "files": [
+                "RES-2025-1985"
+            ],
+            "before": null,
+            "proposed": "000656",
+            "source": {
+                "table": "pra",
+                "id": "120021"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "203",
+            "files": [
+                "RES-2025-968"
+            ],
+            "before": null,
+            "proposed": "000633",
+            "source": {
+                "table": "pra",
+                "id": "119995"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "204",
+            "files": [
+                "RES-2024-2396"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "oss_applications",
+            "id": "208",
+            "files": [
+                "RES-2025-1153"
+            ],
+            "before": null,
+            "proposed": "000742",
+            "source": {
+                "table": "pra",
+                "id": "120115"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "209",
+            "files": [
+                "RES-2025-1991"
+            ],
+            "before": null,
+            "proposed": "000734",
+            "source": {
+                "table": "pra",
+                "id": "120105"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "210",
+            "files": [
+                "RES-2025-1146"
+            ],
+            "before": null,
+            "proposed": "000621",
+            "source": {
+                "table": "pra",
+                "id": "119981"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "227",
+            "files": [
+                "RES-2025-1982"
+            ],
+            "before": null,
+            "proposed": "000736",
+            "source": {
+                "table": "pra",
+                "id": "120107"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "235",
+            "files": [
+                "RES-2025-1973"
+            ],
+            "before": null,
+            "proposed": "000663",
+            "source": {
+                "table": "pra",
+                "id": "120028"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "237",
+            "files": [
+                "RES-2025-852"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "241",
+            "files": [
+                "RES-2026-1960"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "242",
+            "files": [
+                "RES-2026-1961"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "10248",
+            "files": [
+                "RES-2025-664"
+            ],
+            "before": null,
+            "proposed": "000801",
+            "source": {
+                "table": "pra",
+                "id": "120185"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "10250",
+            "files": [
+                "RES-2025-679"
+            ],
+            "before": null,
+            "proposed": "000375",
+            "source": {
+                "table": "pra",
+                "id": "119689"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "10258",
+            "files": [
+                "RES-2026-1640"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20271",
+            "files": [
+                "RES-2023-6111"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20283",
+            "files": [
+                "RES-2025-680"
+            ],
+            "before": null,
+            "proposed": "000587",
+            "source": {
+                "table": "pra",
+                "id": "119945"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20284",
+            "files": [
+                "RES-2025-2279"
+            ],
+            "before": null,
+            "proposed": "000738",
+            "source": {
+                "table": "pra",
+                "id": "120109"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20285",
+            "files": [
+                "RES-2025-63"
+            ],
+            "before": null,
+            "proposed": "000809",
+            "source": {
+                "table": "pra",
+                "id": "120195"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20286",
+            "files": [
+                "RES-2025-702"
+            ],
+            "before": null,
+            "proposed": "000810",
+            "source": {
+                "table": "pra",
+                "id": "120196"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20287",
+            "files": [
+                "RES-2025-798"
+            ],
+            "before": null,
+            "proposed": "000319",
+            "source": {
+                "table": "pra",
+                "id": "119621"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20290",
+            "files": [
+                "RES-2025-885"
+            ],
+            "before": null,
+            "proposed": "000097",
+            "source": {
+                "table": "pra",
+                "id": "119367"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20295",
+            "files": [
+                "RES-2025-194"
+            ],
+            "before": null,
+            "proposed": "000816",
+            "source": {
+                "table": "pra",
+                "id": "120203"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20297",
+            "files": [
+                "RES-2025-804"
+            ],
+            "before": null,
+            "proposed": "000646",
+            "source": {
+                "table": "pra",
+                "id": "120009"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20300",
+            "files": [
+                "RES-2025-580"
+            ],
+            "before": "1387",
+            "proposed": "000746",
+            "source": {
+                "table": "pra",
+                "id": "120119"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "conflict"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20303",
+            "files": [
+                "RES-2025-193"
+            ],
+            "before": null,
+            "proposed": "000748",
+            "source": {
+                "table": "pra",
+                "id": "120121"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20304",
+            "files": [
+                "RES-2025-683"
+            ],
+            "before": null,
+            "proposed": "000752",
+            "source": {
+                "table": "pra",
+                "id": "120126"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20306",
+            "files": [
+                "RES-2025-1777"
+            ],
+            "before": "1536",
+            "proposed": "000584",
+            "source": {
+                "table": "pra",
+                "id": "119940"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "conflict"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20307",
+            "files": [
+                "RES-2025-1780"
+            ],
+            "before": "1535",
+            "proposed": "000580",
+            "source": {
+                "table": "pra",
+                "id": "119934"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "conflict"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20321",
+            "files": [
+                "RES-2025-3092"
+            ],
+            "before": "0",
+            "proposed": "000421",
+            "source": {
+                "table": "pra",
+                "id": "119743"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20326",
+            "files": [
+                "RES-2024-890"
+            ],
+            "before": "0",
+            "proposed": "000477",
+            "source": {
+                "table": "pra",
+                "id": "119808"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20327",
+            "files": [
+                "RES-2024-891"
+            ],
+            "before": "0",
+            "proposed": "000346",
+            "source": {
+                "table": "pra",
+                "id": "119652"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20328",
+            "files": [
+                "RES-2024-892"
+            ],
+            "before": "0",
+            "proposed": "000340",
+            "source": {
+                "table": "pra",
+                "id": "119645"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20334",
+            "files": [
+                "RES-2025-5427"
+            ],
+            "before": "0",
+            "proposed": "000527",
+            "source": {
+                "table": "pra",
+                "id": "119870"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "20337",
+            "files": [
+                "RES-2025-1807"
+            ],
+            "before": "0",
+            "proposed": "000349",
+            "source": {
+                "table": "pra",
+                "id": "119655"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "30351",
+            "files": [
+                "RES-2026-2834"
+            ],
+            "before": "2037",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "oss_applications",
+            "id": "31265",
+            "files": [
+                "RES-2026-1303"
+            ],
+            "before": null,
+            "proposed": "1221",
+            "source": {
+                "table": "pra",
+                "id": "228721"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "31313",
+            "files": [
+                "RES-2026-1327"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "31544",
+            "files": [
+                "RES-2026-1372"
+            ],
+            "before": null,
+            "proposed": "793",
+            "source": {
+                "table": "pra",
+                "id": "225687"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "32473",
+            "files": [
+                "IND-2026-11"
+            ],
+            "before": "35",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "oss_applications",
+            "id": "32681",
+            "files": [
+                "RES-2026-1895"
+            ],
+            "before": null,
+            "proposed": "57",
+            "source": {
+                "table": "pra",
+                "id": "224869"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "34293",
+            "files": [
+                "RES-2026-2611"
+            ],
+            "before": "18118",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "oss_applications",
+            "id": "36025",
+            "files": [
+                "RES-2026-3383"
+            ],
+            "before": null,
+            "proposed": "1099",
+            "source": {
+                "table": "pra",
+                "id": "227271"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "36623",
+            "files": [
+                "RES-2026-3416"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "36903",
+            "files": [
+                "COM-2026-286"
+            ],
+            "before": "572",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "oss_applications",
+            "id": "36935",
+            "files": [
+                "RES-2026-3540"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "37100",
+            "files": [
+                "RES-2026-3645"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "37374",
+            "files": [
+                "IND-2026-209"
+            ],
+            "before": null,
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "no_source"
+        },
+        {
+            "table": "oss_applications",
+            "id": "37548",
+            "files": [
+                "RES-2022-2316"
+            ],
+            "before": null,
+            "proposed": "000503",
+            "source": {
+                "table": "pra",
+                "id": "119841"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "37549",
+            "files": [
+                "RES-2022-2320"
+            ],
+            "before": null,
+            "proposed": "000500",
+            "source": {
+                "table": "pra",
+                "id": "119837"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "37561",
+            "files": [
+                "RES-2025-1097"
+            ],
+            "before": null,
+            "proposed": "436",
+            "source": {
+                "table": "pra",
+                "id": "119766"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "37562",
+            "files": [
+                "RES-2022-3152"
+            ],
+            "before": "7055",
+            "proposed": null,
+            "source": {
+                "table": "pra",
+                "id": "120180"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "source_missing_or_invalid"
+        },
+        {
+            "table": "oss_applications",
+            "id": "37594",
+            "files": [
+                "RES-2025-6064"
+            ],
+            "before": null,
+            "proposed": "917",
+            "source": {
+                "table": "pra",
+                "id": "119796"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "39532",
+            "files": [
+                "RES-2026-3496"
+            ],
+            "before": null,
+            "proposed": "4825",
+            "source": {
+                "table": "pra",
+                "id": "222585"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "safe"
+        },
+        {
+            "table": "oss_applications",
+            "id": "40567",
+            "files": [
+                "RES-2024-6316"
+            ],
+            "before": "3605",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        },
+        {
+            "table": "oss_applications",
+            "id": "40704",
+            "files": [
+                "RES-2025-513"
+            ],
+            "before": "000789",
+            "proposed": "14094",
+            "source": {
+                "table": "pra",
+                "id": "120169"
+            },
+            "basis": "unique_pra_op_for_exact_file",
+            "status": "conflict"
+        },
+        {
+            "table": "oss_applications",
+            "id": "50872",
+            "files": [
+                "RES-2025-189"
+            ],
+            "before": "000384",
+            "proposed": null,
+            "source": null,
+            "basis": null,
+            "status": "ambiguous"
+        }
+    ]
+}

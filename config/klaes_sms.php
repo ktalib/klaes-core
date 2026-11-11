@@ -332,6 +332,25 @@ return [
             'fallback' => 'KLAES: File [FileNo(s)] was logged to [Requester Office] on [DateTime] for [Purpose], duration [Timeline].',
         ],
 
+        SmsSetting::KEY_FILE_RETURNED => [
+            // To a member of staff -- goes out as KLAES. CR 11112026-2, item 2.
+            'sender' => 'staff',
+            'group' => 'File Requests',
+            'label' => 'File returned (logged back in to the registry)',
+            'audience' => 'officer',
+            'recipient' => 'The officer the file was logged out to, on users.phone_number.',
+            // Asked for by the Ministry, so on unless switched off here.
+            'default_enabled' => true,
+            'tokens' => ['FileNo', 'Registry', 'DateTime'],
+            'sample' => [
+                'FileNo' => 'RES-2016-3546',
+                'Registry' => 'Registry 1 - Land',
+                'DateTime' => '11/11/2026 10:24 AM',
+            ],
+            'template' => 'File [FileNo] logged out to you has been returned to [Registry] @ [DateTime] & your file movement is now completed. Thank you',
+            'fallback' => 'KLAES: File [FileNo] has been returned to [Registry] on [DateTime].',
+        ],
+
         /* ---------------------------------------------------------------- */
         /* Deeds                                                            */
         /* ---------------------------------------------------------------- */
@@ -625,9 +644,9 @@ return [
             'recipient' => 'The surveyor, when they register on the portal.',
             'default_enabled' => false,
             'tokens' => ['Name', 'Ref'],
-            'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'KSSGOF-REG-2026-00001'],
-            'template' => 'Dear [Name], your KSSGOF registration [Ref] has been received. You can sign in once the Surveyor General confirms it.',
-            'fallback' => 'Dear [Name], we have your KSSGOF registration [Ref]. We will text you when you can sign in.',
+            'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'MLPPSG-REG-2026-00001'],
+            'template' => 'Dear [Name], your MLPP-SG registration [Ref] has been received. You can sign in once the Surveyor General confirms it.',
+            'fallback' => 'Dear [Name], we have your MLPP-SG registration [Ref]. We will text you when you can sign in.',
         ],
 
         SmsSetting::KEY_SURVEY_PORTAL_ACTIVE => [
@@ -639,9 +658,9 @@ return [
             'recipient' => 'The surveyor, when the SG confirms the account.',
             'default_enabled' => false,
             'tokens' => ['Name', 'Ref'],
-            'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'KSSGOF-SV-2026-0001'],
-            'template' => 'Dear [Name], your KSSGOF account is active. Your Surveyor ID is [Ref]. You can now sign in to the portal.',
-            'fallback' => 'Dear [Name], you can now sign in to the KSSGOF portal. Your Surveyor ID is [Ref].',
+            'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'MLPPSG-SV-2026-0001'],
+            'template' => 'Dear [Name], your MLPP-SG account is active. Your Surveyor ID is [Ref]. You can now sign in to the portal.',
+            'fallback' => 'Dear [Name], you can now sign in to the MLPP-SG portal. Your Surveyor ID is [Ref].',
         ],
 
         SmsSetting::KEY_SURVEY_PORTAL_DECLINED => [
@@ -653,8 +672,8 @@ return [
             'recipient' => 'The surveyor, when the SG does not confirm the account.',
             'default_enabled' => false,
             'tokens' => ['Name', 'Ref'],
-            'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'KSSGOF-REG-2026-00001'],
-            'template' => 'Dear [Name], your KSSGOF registration [Ref] was not confirmed. Please contact the Office of the Surveyor General.',
+            'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'MLPPSG-REG-2026-00001'],
+            'template' => 'Dear [Name], your MLPP-SG registration [Ref] was not confirmed. Please contact the Office of the Surveyor General.',
             'fallback' => 'Dear [Name], please contact the Office of the Surveyor General about your registration [Ref].',
         ],
 
@@ -667,8 +686,8 @@ return [
             'default_enabled' => false,
             'tokens' => ['Company', 'Prefix'],
             'sample' => ['Company' => 'Peak Profile Surveys', 'Prefix' => 'E'],
-            'template' => 'KSSGOF: [Company] can now register surveyors. Company beacon prefix: [Prefix].',
-            'fallback' => 'KSSGOF: [Company] is ready for surveyor registration. Prefix [Prefix].',
+            'template' => 'MLPP-SG: [Company] can now register surveyors. Company beacon prefix: [Prefix].',
+            'fallback' => 'MLPP-SG: [Company] is ready for surveyor registration. Prefix [Prefix].',
         ],
 
         SmsSetting::KEY_SURVEY_BEACON_REQUEST => [
@@ -683,6 +702,33 @@ return [
             'sample' => ['Ref' => 'BRQ-2026-0001', 'Name' => 'Peak Profile', 'Qty' => '4'],
             'template' => 'Beacon request [Ref]: [Name] asked for [Qty] beacons. Please review it in KLAES.',
             'fallback' => 'New beacon request [Ref] from [Name] for [Qty] beacons in KLAES.',
+        ],
+
+        SmsSetting::KEY_SURVEY_PORTAL_REGISTERED_SG => [
+            // User, 2026-11-09: the SG is texted when a surveyor or a company registers. Same phone as beacon requests.
+            'sender' => 'staff',
+            'group' => 'Surveyor Portal',
+            'label' => 'New surveyor registration (to the SG)',
+            'audience' => 'officer',
+            'recipient' => 'The SG phone number in Configurable Entries > Surveyor Portal, when a surveyor registers.',
+            'default_enabled' => false,
+            'tokens' => ['Name', 'Ref'],
+            'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'MLPPSG-REG-2026-00001'],
+            'template' => 'MLPP-SG: [Name] registered on the portal ([Ref]) and is waiting for your approval in KLAES.',
+            'fallback' => 'MLPP-SG: new surveyor registration [Ref] from [Name] in KLAES.',
+        ],
+
+        SmsSetting::KEY_SURVEY_COMPANY_REGISTERED_SG => [
+            'sender' => 'staff',
+            'group' => 'Surveyor Portal',
+            'label' => 'New company registration (to the SG)',
+            'audience' => 'officer',
+            'recipient' => 'The SG phone number in Configurable Entries > Surveyor Portal, when a survey company registers.',
+            'default_enabled' => false,
+            'tokens' => ['Company', 'Rc'],
+            'sample' => ['Company' => 'Peak Profile Surveys', 'Rc' => 'RC 123456'],
+            'template' => 'MLPP-SG: [Company] ([Rc]) registered as a survey company and is waiting for your approval in KLAES.',
+            'fallback' => 'MLPP-SG: new survey company registration from [Company] ([Rc]) in KLAES.',
         ],
 
         SmsSetting::KEY_SURVEY_BEACON_RECEIVED => [
@@ -709,8 +755,8 @@ return [
             'default_enabled' => false,
             'tokens' => ['Ref'],
             'sample' => ['Ref' => 'BRQ-2026-0001'],
-            'template' => 'Your beacons for request [Ref] are ready. Please sign in to the KSSGOF portal to accept them.',
-            'fallback' => 'Please sign in to the KSSGOF portal about your request [Ref].',
+            'template' => 'Your beacons for request [Ref] are ready. Please sign in to the MLPP-SG portal to accept them.',
+            'fallback' => 'Please sign in to the MLPP-SG portal about your request [Ref].',
         ],
 
         SmsSetting::KEY_SURVEY_BEACON_DECLINED => [
@@ -723,8 +769,8 @@ return [
             'default_enabled' => false,
             'tokens' => ['Ref'],
             'sample' => ['Ref' => 'BRQ-2026-0001'],
-            'template' => 'Your beacon request [Ref] was not issued. Please check the KSSGOF portal for the reason.',
-            'fallback' => 'Please check the KSSGOF portal about your request [Ref].',
+            'template' => 'Your beacon request [Ref] was not issued. Please check the MLPP-SG portal for the reason.',
+            'fallback' => 'Please check the MLPP-SG portal about your request [Ref].',
         ],
 
         SmsSetting::KEY_SURVEY_FARM_CAPTURED => [

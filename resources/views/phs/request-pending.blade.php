@@ -154,5 +154,6 @@
             <p>&copy; {{ date('Y') }} Kano State Ministry of Land and Physical Planning. All rights reserved.</p>
         </div>
     </div>
+    @include('partials.vmal_credit', ['dark' => true])
 </footer>
 @endsection

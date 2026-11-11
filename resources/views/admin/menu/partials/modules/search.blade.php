@@ -16,6 +16,13 @@
       
 
       <div class="pl-4 mt-1 space-y-0.5 hidden" data-content="search">
+        {{-- Dashboard (KLAES sidebar outline, 2026-11-10): App\Services\ModuleDashboards. Commented out for now (user, 2026-11-10). --}}
+        {{--
+        <a href="{{ route('module-dashboard.show', 'legal_search') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('module-dashboard.show') && request()->route('module') === 'legal_search' ? 'active' : '' }}">
+          <i data-lucide="layout-dashboard" class="h-4 w-4 text-cyan-500"></i>
+          <span>Dashboard</span>
+        </a>
+        --}}
 
       <!-- a. Property Records -->
       <a href="{{ route('property-search.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('property-search.*') ? 'active' : '' }}">

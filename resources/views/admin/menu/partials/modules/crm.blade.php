@@ -11,6 +11,13 @@
       <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="customer"></i>
       </div>
       <div class="pl-4 mt-1 space-y-0.5 hidden" data-content="customer">
+        {{-- Dashboard (KLAES sidebar outline, 2026-11-10): App\Services\ModuleDashboards. Commented out for now (user, 2026-11-10). --}}
+        {{--
+        <a href="{{ route('module-dashboard.show', 'crm') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('module-dashboard.show') && request()->route('module') === 'crm' ? 'active' : '' }}">
+          <i data-lucide="layout-dashboard" class="h-4 w-4 text-green-500"></i>
+          <span>Dashboard</span>
+        </a>
+        --}}
       @if($hasRole('CRM - Person'))
       <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="person">
         <div class="flex items-center gap-2">

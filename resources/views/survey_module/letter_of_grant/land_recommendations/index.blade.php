@@ -195,6 +195,21 @@
                     <span class="px-2 py-0.5 rounded-full text-[10px] font-black {{ $tab === 'batches' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500' }}">{{ number_format($stats['batches']) }}</span>
                 </a>
                 @endif
+                {{-- CR item 13 (2026-11-09): by approval status, printed or not. Batched records stay on Batch Recommendations. --}}
+                @if($pageType !== 'OSS' && isset($stats['tab_awaiting_approval']))
+                <a href="{{ route('survey-module.lg.land-recommendations.index', array_filter(['type' => $pageType, 'tab' => 'awaiting_approval', 'search' => request('search')])) }}"
+                   class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition {{ $tab === 'awaiting_approval' ? 'bg-yellow-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100' }}">
+                    <i data-lucide="clock" class="h-4 w-4"></i>
+                    Awaiting Approval
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black {{ $tab === 'awaiting_approval' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500' }}">{{ number_format($stats['tab_awaiting_approval']) }}</span>
+                </a>
+                <a href="{{ route('survey-module.lg.land-recommendations.index', array_filter(['type' => $pageType, 'tab' => 'approved', 'search' => request('search')])) }}"
+                   class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition {{ $tab === 'approved' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100' }}">
+                    <i data-lucide="check-circle" class="h-4 w-4"></i>
+                    Approved
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black {{ $tab === 'approved' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500' }}">{{ number_format($stats['tab_approved']) }}</span>
+                </a>
+                @endif
             </div>
 
             @if($tab === 'batches')
@@ -563,6 +578,8 @@
                                 'printed' => 'Printed',
                                 'extant'  => 'Mother Recommendations',
                                 'batches' => 'Batch Recommendations',
+                                'awaiting_approval' => 'Awaiting Approval',
+                                'approved' => 'Approved',
                                 default   => 'Not Printed',
                             };
                         @endphp

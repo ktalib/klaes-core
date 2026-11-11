@@ -795,6 +795,14 @@
     : '');
   // LF Scan only: every page goes to the file's A3 folder, whatever its local folder is called.
   const isLfOnly = () => selectedUploadType() === 'lf';
+  // Index Cards (user, 2026-11-11): scanned property index cards, picked like LF images, into the file's
+  // INDEX_CARDS folder. Both are a flat pick of images into one folder of the file.
+  const isIndexCards = () => selectedUploadType() === 'ic';
+  const isFlatPick = () => isLfOnly() || isIndexCards();
+  const flatFolder = () => (isIndexCards() ? 'INDEX_CARDS' : 'A3');
+  const flatLabel = () => (isIndexCards() ? 'index card' : 'LF');
+  // A full file's own index-card folder, however it is written locally ("Index Cards", "index_card").
+  const isInIndexFolder = file => /\/INDEX[ _-]?CARDS?\//.test(('/' + (file.webkitRelativePath || file.name || '')).replace(/\\/g, '/').toUpperCase());
 
   function detectSelectedRoot(files) {
     const segs = [];
@@ -818,17 +826,19 @@
     const name = (file.name || '').toLowerCase();
     if (!name || name.startsWith('.') || name === 'thumbs.db' || name === 'desktop.ini') return false;
     const ext = name.includes('.') ? name.split('.').pop() : '';
-    return (isLfOnly() ? LF_IMAGE_EXT : ALLOWED_EXT).includes(ext);
+    return (isFlatPick() ? LF_IMAGE_EXT : ALLOWED_EXT).includes(ext);
   }
 
   const isInPaperFolder = (file, paper) =>
     ('/' + (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').toUpperCase()).includes(`/${paper}/`);
 
   function paperCounts(files) {
-    if (isLfOnly()) return { A4: 0, A3: files.length, other: 0 };
-    const counts = { A4: 0, A3: 0, other: 0 };
+    if (isLfOnly()) return { A4: 0, A3: files.length, other: 0, IC: 0 };
+    if (isIndexCards()) return { A4: 0, A3: 0, other: 0, IC: files.length };
+    const counts = { A4: 0, A3: 0, other: 0, IC: 0 };
     for (const f of files) {
-      if (isInPaperFolder(f, 'A3')) counts.A3++;
+      if (isInIndexFolder(f)) counts.IC++;
+      else if (isInPaperFolder(f, 'A3')) counts.A3++;
       else if (isInPaperFolder(f, 'A4')) counts.A4++;
       else counts.other++;
     }
@@ -839,22 +849,22 @@
   // "LF Scan" says nothing about the file, so it is only checked when it has a number.
   function mismatchedFolder(fileNumber) {
     if (!localParentName || localParentName === fileNumber.toLowerCase()) return null;
-    return isLfOnly() && !/\d/.test(localParentName) ? null : localParentName;
+    return isFlatPick() && !/\d/.test(localParentName) ? null : localParentName;
   }
 
   function validateUploadSection() {
     const typedRaw = norm(fileNoEl.value);
     const registryOk = !!(registryEl && registryEl.value);
     const skippedNote = skippedLocal.length
-      ? `<div class="mt-1 text-xs text-muted-foreground">${skippedLocal.length} ${isLfOnly() ? 'non-image file(s)' : 'unsupported file(s)'} will be left out (e.g. ${escapeHtml(skippedLocal[0].name)}).</div>`
+      ? `<div class="mt-1 text-xs text-muted-foreground">${skippedLocal.length} ${isFlatPick() ? 'non-image file(s)' : 'unsupported file(s)'} will be left out (e.g. ${escapeHtml(skippedLocal[0].name)}).</div>`
       : '';
 
     if (!selectedFiles.length) {
       statusEl.innerHTML = skippedLocal.length
-        ? `<span class="text-red-600">${isLfOnly() ? 'No LF images were selected.' : 'The folder has no image or PDF files.'}</span>${skippedNote}`
+        ? `<span class="text-red-600">${isFlatPick() ? `No ${flatLabel()} images were selected.` : 'The folder has no image or PDF files.'}</span>${skippedNote}`
         : (uploadTypeCheckEl && !selectedUploadType()
           ? 'Tick <b>Choose upload type</b> and pick an option to continue.'
-          : (isLfOnly() ? 'No LF images selected.' : 'No folder selected.'));
+          : (isFlatPick() ? `No ${flatLabel()} images selected.` : 'No folder selected.'));
       migrateBtn.disabled = true; ready = false; return;
     }
 
@@ -862,7 +872,7 @@
     localParentName = inferred;
 
     if (!typedRaw) {
-      const sourceLabel = isLfOnly() ? 'LF images selected' : `Folder selected${inferred ? ` ("${escapeHtml(inferred)}")` : ''}`;
+      const sourceLabel = isFlatPick() ? `${flatLabel() === 'LF' ? 'LF' : 'Index card'} images selected` : `Folder selected${inferred ? ` ("${escapeHtml(inferred)}")` : ''}`;
       statusEl.innerHTML = `${sourceLabel}. Click <b>Select</b> to choose the file number.${skippedNote}`;
       migrateBtn.disabled = true; ready = false; return;
     }
@@ -875,6 +885,10 @@
       statusEl.innerHTML = `<span class="text-red-600">This folder has an <b>A4</b> subfolder, so it is not LF scans only.</span> Pick just the LF images, or change the upload type to Full file.${skippedNote}`;
       migrateBtn.disabled = true; ready = false; return;
     }
+    if (isIndexCards() && selectedFiles.some(f => isInPaperFolder(f, 'A4') || isInPaperFolder(f, 'A3'))) {
+      statusEl.innerHTML = `<span class="text-red-600">These come from an <b>A4</b> or <b>A3</b> folder, so they are file pages, not index cards.</span> Pick just the index card images, or change the upload type to Full file.${skippedNote}`;
+      migrateBtn.disabled = true; ready = false; return;
+    }
 
     const counts = paperCounts(selectedFiles);
     const registryLabel = registryEl.options[registryEl.selectedIndex].text;
@@ -883,7 +897,7 @@
       : '';
 
     statusEl.innerHTML = `<span class="text-green-700"><i class="fa-solid fa-circle-check mr-1"></i>Ready:</span>
-      <b>${selectedFiles.length}</b> file(s), ${formatBytes(totalSelectedBytes)} &mdash; A4 ${counts.A4}, A3 ${counts.A3}${counts.other ? `, no paper folder ${counts.other}` : ''}
+      <b>${selectedFiles.length}</b> file(s), ${formatBytes(totalSelectedBytes)} &mdash; ${isIndexCards() ? `Index cards ${counts.IC}` : `A4 ${counts.A4}, A3 ${counts.A3}${counts.IC ? `, index cards ${counts.IC}` : ''}${counts.other ? `, no paper folder ${counts.other}` : ''}`}
       &rarr; <b>${escapeHtml(typedRaw)}</b> in <b>${escapeHtml(registryLabel)}</b>.${mismatch}${skippedNote}`;
     migrateBtn.disabled = uploading; ready = true;
   }
@@ -914,16 +928,25 @@
   function applyUploadType() {
     if (!uploadTypeCheckEl) return;
     const type = selectedUploadType();
-    const lf = type === 'lf';
+    // LF and Index Cards are both a pick of images into one folder of the file.
+    const lf = type === 'lf' || type === 'ic';
+    const ic = type === 'ic';
     if (!uploadTypeCheckEl.checked) uploadTypeRadios.forEach(r => { r.checked = false; });
     document.getElementById('uploadTypeOptions').classList.toggle('hidden', !uploadTypeCheckEl.checked);
     document.getElementById('lfFilesWrap').classList.toggle('hidden', !lf);
     document.getElementById('folderPickerWrap').classList.toggle('hidden', lf);
     folderEl.disabled = !type || lf;
     if (lfFilesEl) lfFilesEl.disabled = !lf;
-    document.getElementById('uploadTypeHint').textContent = lf
+    const lfLabel = document.getElementById('lfFilesLabel'), lfHint = document.getElementById('lfFilesHint');
+    if (lfLabel) lfLabel.textContent = ic ? 'Pick the index card images' : 'Pick the LF images';
+    if (lfHint) lfHint.textContent = ic
+      ? 'Select only the scanned property index cards to add to the INDEX_CARDS folder.'
+      : 'Select only the large-format image files to add to the A3 folder.';
+    document.getElementById('uploadTypeHint').textContent = ic
+      ? 'Scanned property index cards for this file. They go into its INDEX_CARDS folder and pages already uploaded stay as they are.'
+      : lf
       ? 'Large-format pages added to this file. They go into its A3 folder and pages already uploaded stay as they are.'
-      : (type ? 'The whole file, with its A4 and A3 subfolders.' : 'Required before a folder can be picked.');
+      : (type ? 'The whole file, with its A4 and A3 subfolders (and an Index Cards folder, if it has one).' : 'Required before a folder can be picked.');
     document.getElementById('folderHint').textContent = 'Use Chrome/Edge on desktop. The folder name should match the File Number.';
     folderEl.value = '';
     if (lfFilesEl) lfFilesEl.value = '';
@@ -956,7 +979,7 @@
   }
 
   function computeRelativeUploadPath(file, folderName) {
-    if (isLfOnly()) return `A3/${file.name}`;
+    if (isFlatPick()) return `${flatFolder()}/${file.name}`;
 
     let relativePath = file.webkitRelativePath || file.name || '';
     if (!relativePath) {
@@ -1046,9 +1069,10 @@
     const MAX_TILES = 150;
     const objectUrls = [];
     const counts = paperCounts(selectedFiles);
-    const groups = { A4: [], A3: [], other: [] };
+    const groups = { A4: [], A3: [], IC: [], other: [] };
     selectedFiles.forEach(file => {
-      (isLfOnly() || isInPaperFolder(file, 'A3') ? groups.A3 : isInPaperFolder(file, 'A4') ? groups.A4 : groups.other).push(file);
+      (isIndexCards() || (!isLfOnly() && isInIndexFolder(file)) ? groups.IC
+        : isLfOnly() || isInPaperFolder(file, 'A3') ? groups.A3 : isInPaperFolder(file, 'A4') ? groups.A4 : groups.other).push(file);
     });
     const naturalSort = (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
     Object.values(groups).forEach(list => list.sort(naturalSort));
@@ -1108,15 +1132,15 @@
           <div class="bsp-card"><small>File number</small><b>${escapeHtml(folderName)}</b></div>
           <div class="bsp-card"><small>Registry</small><b>${escapeHtml(registryLabel)}</b></div>
           <div class="bsp-card"><small>Files</small><b>${selectedFiles.length}</b> <small>${formatBytes(totalSelectedBytes)}</small></div>
-          <div class="bsp-card"><small>${isLfOnly() ? 'LF Scan only: adding' : 'Paper size'}</small><b>A4 ${counts.A4} · A3 ${counts.A3}</b>${counts.other ? `<small>${counts.other} not in an A4/A3 folder (stored as A4)</small>` : ''}</div>
-          ${existing ? `<div class="bsp-card"><small>Already on the server</small><b>A4 ${existing.blind.A4 + existing.edms.A4} · A3 ${existing.blind.A3 + existing.edms.A3}</b>${existing.edms.A4 + existing.edms.A3 ? `<small>${existing.edms.A4 + existing.edms.A3} already moved on to Scan Upload</small>` : ''}</div>` : ''}
+          <div class="bsp-card"><small>${isIndexCards() ? 'Index Cards: adding' : isLfOnly() ? 'LF Scan only: adding' : 'Paper size'}</small><b>${isIndexCards() ? `Index cards ${counts.IC}` : `A4 ${counts.A4} · A3 ${counts.A3}${counts.IC ? ` · Index cards ${counts.IC}` : ''}`}</b>${counts.other ? `<small>${counts.other} not in an A4/A3 folder (stored as A4)</small>` : ''}</div>
+          ${existing ? `<div class="bsp-card"><small>Already on the server</small><b>A4 ${existing.blind.A4 + existing.edms.A4} · A3 ${existing.blind.A3 + existing.edms.A3}${(existing.blind.IC || 0) + (existing.edms.IC || 0) ? ` · Index cards ${(existing.blind.IC || 0) + (existing.edms.IC || 0)}` : ''}</b>${existing.edms.A4 + existing.edms.A3 ? `<small>${existing.edms.A4 + existing.edms.A3} already moved on to Scan Upload</small>` : ''}</div>` : ''}
         </div>
         ${existing && existing.blind.A4 + existing.blind.A3 + existing.edms.A4 + existing.edms.A3 ? `<div class="bsp-note"><i class="fa-solid fa-shield-halved mr-1"></i>Pages already on the server are kept. Nothing is replaced: an identical file is skipped and a different one with the same name is saved beside it.</div>` : ''}
         ${mismatch ? `<div class="bsp-warn"><i class="fa-solid fa-triangle-exclamation mr-1"></i>The folder you picked is <b>${escapeHtml(localParentName)}</b> but the file number is <b>${escapeHtml(folderName)}</b>. Check these are the right scans before uploading.</div>` : ''}
-        ${skippedLocal.length ? `<div class="bsp-note">${skippedLocal.length} ${isLfOnly() ? 'non-image file(s)' : 'unsupported file(s)'} will be left out: ${skippedLocal.slice(0, 5).map(f => escapeHtml(f.name)).join(', ')}${skippedLocal.length > 5 ? '…' : ''}</div>` : ''}
+        ${skippedLocal.length ? `<div class="bsp-note">${skippedLocal.length} ${isFlatPick() ? 'non-image file(s)' : 'unsupported file(s)'} will be left out: ${skippedLocal.slice(0, 5).map(f => escapeHtml(f.name)).join(', ')}${skippedLocal.length > 5 ? '…' : ''}</div>` : ''}
         <div class="bsp-note">Click a thumbnail to open it full size in a new tab.</div>
         <div class="bsp-scroll">
-          ${section('A4', groups.A4)}${section('A3', groups.A3)}${section('Not in an A4/A3 folder', groups.other)}
+          ${section('A4', groups.A4)}${section('A3', groups.A3)}${section('Index Cards', groups.IC)}${section('Not in an A4/A3 folder', groups.other)}
         </div>
       </div>`;
 
@@ -1153,7 +1177,7 @@
     uploading = true;
     cancelRequested = false;
     migrateBtn.disabled = true;
-    const uploadType = isLfOnly() ? 'lf' : 'full';
+    const uploadType = isLfOnly() ? 'lf' : (isIndexCards() ? 'ic' : 'full');
     const lockUploadType = locked => [uploadTypeCheckEl, ...uploadTypeRadios].forEach(el => { if (el) el.disabled = locked; });
     lockUploadType(true);
 

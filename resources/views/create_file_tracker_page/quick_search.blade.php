@@ -1297,12 +1297,13 @@
                             ${filePassportThumb(d.passport_url, d.file_title, 'h-14 w-14')}
                             <div>
                             <div class="text-lg font-bold text-gray-900">${esc(d.file_number)}</div>
+                            ${/* The file's own title under its number, before any related file (user, 2026-11-11). */''}
+                            <div class="text-sm text-gray-500">${esc(d.file_title || '—')}</div>
                             ${relatedChips.length ? `
                             <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                                 <span class="font-semibold text-violet-700">Related file${relatedChips.length === 1 ? '' : 's'}:</span>
                                 ${relatedChips.map(f => `<span class="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-violet-800"><span class="font-semibold">${esc(f.file_number)}</span>${f.file_title ? `<span class="text-violet-700">— ${esc(f.file_title)}</span>` : ''}${f.sighting === 'not_in_file' ? `<span class="rounded-full bg-red-100 px-2 text-xs font-bold text-red-700" title="Physical File Not in the File: not kept with this file and not indexed">NPF</span>` : ''}${f.sighting === 'indexed' ? `<span class="rounded-full bg-blue-100 px-2 text-xs font-bold text-blue-700" title="Not kept with this file; indexed on its own (search it to see where it is)">Physical File Indexed</span>` : ''}</span>`).join('')}
                             </div>` : ''}
-                            <div class="text-sm text-gray-500">${esc(d.file_title || '—')}</div>
                             </div>
                         </div>
                         <div class="flex flex-col items-end gap-1.5">

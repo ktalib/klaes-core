@@ -292,6 +292,8 @@
                                                 <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap">Commissioned By</th>
                                                 <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap">Time Commissioned</th>
                                                 <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap">Date Commissioned</th>
+                                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap">Updated By</th>
+                                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap">Date Updated</th>
                                                 <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap">Longitude</th>
                                                 <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap">Latitude</th>
                                                 <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap">Map</th>
@@ -1451,15 +1453,15 @@
                                                         <div class="flex items-center gap-2">
                                                             <input type="text" readonly
                                                                 x-model="oldFileNo"
-                                                                class="flex-1 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-700 font-mono cursor-not-allowed"
+                                                                class="flex-1 min-w-0 w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-700 font-mono cursor-not-allowed"
                                                                 placeholder="No old file selected">
                                                             <button type="button" @click="openOldFileModal()"
-                                                                    class="px-3 py-2 bg-rose-600 text-white text-xs font-semibold rounded-md hover:bg-rose-700 transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                                                                    class="flex-shrink-0 px-3 py-2 bg-rose-600 text-white text-xs font-semibold rounded-md hover:bg-rose-700 transition-colors flex items-center gap-1.5 whitespace-nowrap">
                                                                 <i data-lucide="search" class="w-3.5 h-3.5"></i>
                                                                 Select
                                                             </button>
                                                             <button type="button" x-show="oldFileNo" @click="clearOldFile()"
-                                                                    class="px-3 py-2 bg-white border border-rose-300 text-rose-700 text-xs font-semibold rounded-md hover:bg-rose-100 transition-colors">
+                                                                    class="flex-shrink-0 px-3 py-2 bg-white border border-rose-300 text-rose-700 text-xs font-semibold rounded-md hover:bg-rose-100 transition-colors">
                                                                 Clear
                                                             </button>
                                                         </div>
@@ -4025,4 +4027,3 @@
         </script>
     @endpush
 @endsection
-

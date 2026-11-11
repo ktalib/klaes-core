@@ -68,6 +68,14 @@
         .field .label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #64748b; margin-bottom: 2px; }
         .field .value { font-size: 11px; font-weight: 600; word-break: break-word; }
         .missing h4 { background: #94a3b8; }
+        .col h4 .role { font-weight: 500; text-transform: none; letter-spacing: 0; opacity: .85; }
+        .forgery { border-color: #be123c; }
+        .forgery h4 { background: #be123c; }
+        .forgery-banner {
+            margin: 0 0 14px; padding: 10px 14px; border: 2px solid #be123c; border-radius: 6px;
+            color: #be123c; font-size: 13px; font-weight: 700; text-align: center; letter-spacing: .5px;
+        }
+        .forgery-banner small { display: block; font-weight: 500; color: #9f1239; letter-spacing: 0; margin-top: 2px; }
         .missing .value { color: #94a3b8; font-weight: 500; }
         /* ---- 3+ files: half-width cards, two per row ---- */
         body.wrap2 .col { flex: 0 1 calc(50% - 6px); min-width: calc(50% - 6px); }
@@ -167,10 +175,16 @@
         </div>
         <div class="vgap"><br><br><br><br><br><br></div>
         <div class="content">
+            @if ($suspectedForgery ?? false)
+                <div class="forgery-banner">
+                    SUSPECTED FORGERY
+                    <small>The temporary file carries a different title from the indexed main file.</small>
+                </div>
+            @endif
             <div class="columns">
                 @foreach ($files as $index => $f)
-                    <div class="col {{ $f['found'] ? '' : 'missing' }}">
-                        <h4>File {{ $index + 1 }}</h4>
+                    <div class="col {{ $f['found'] ? '' : 'missing' }} {{ $f['suspected_forgery'] ? 'forgery' : '' }}">
+                        <h4>File {{ $index + 1 }}@if ($f['role']) <span class="role">&middot; {{ $f['role'] }}{{ $f['suspected_forgery'] ? ' · Suspected Forgery' : '' }}</span>@endif</h4>
                         <div class="field">
 
                             <div class="value">File No: {{ $f['file_no'] }}</div>

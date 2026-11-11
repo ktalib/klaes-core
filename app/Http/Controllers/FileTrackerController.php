@@ -1095,6 +1095,14 @@ class FileTrackerController extends Controller
                 $fileTracker->movement_log = $movementLog;
                 $fileTracker->save();
 
+                // Tell the officer the file was logged out to that it is back (CR 11112026-2).
+                app(\App\Services\FileTracking\FileReturnNotifier::class)->notifyReturned(
+                    $fileTracker,
+                    $validatedData['status'],
+                    $validatedData['registry_office_name'],
+                    $logId
+                );
+
                 Log::info('File tracker status updated', [
                     'tracking_identifier' => $id,
                     'database_id' => $fileTracker->id,
@@ -1370,18 +1378,18 @@ class FileTrackerController extends Controller
                         'tracking_id' => $info['tracking_id'] ?: ('DIIT-' . $info['file_number']),
                         'file_name' => $info['file_title'] ?: 'N/A',
                         'file_number' => $info['file_number'],
-                        'current_location' => \App\Services\FileCommissioningTrackingService::OFFICE_NAME,
-                        'current_handler' => $info['commissioned_by'] ?: \App\Services\FileCommissioningTrackingService::OFFICE_NAME,
-                        'current_status' => \App\Services\FileCommissioningTrackingService::LABEL,
+                        'current_location' => \App\Services\FileCommissioningTrackingService::officeOf($info)[1],
+                        'current_handler' => $info['commissioned_by'] ?: \App\Services\FileCommissioningTrackingService::officeOf($info)[1],
+                        'current_status' => $info['label'] ?? \App\Services\FileCommissioningTrackingService::LABEL,
                         'date_received' => $commissionedAt->format('Y-m-d H:i:s'),
                         'due_date' => 'N/A',
                         // A commissioned file carries no requested deadline, so the
                         // Reason for Delay field stays hidden.
                         'timeline_status' => null,
-                        'origin_registry' => \App\Services\FileCommissioningTrackingService::OFFICE_NAME,
-                        'origin_office_name' => \App\Services\FileCommissioningTrackingService::OFFICE_NAME,
-                        'origin_office_code' => \App\Services\FileCommissioningTrackingService::OFFICE_CODE,
-                        'assigned_office' => \App\Services\FileCommissioningTrackingService::OFFICE_NAME,
+                        'origin_registry' => \App\Services\FileCommissioningTrackingService::officeOf($info)[1],
+                        'origin_office_name' => \App\Services\FileCommissioningTrackingService::officeOf($info)[1],
+                        'origin_office_code' => \App\Services\FileCommissioningTrackingService::officeOf($info)[0],
+                        'assigned_office' => \App\Services\FileCommissioningTrackingService::officeOf($info)[1],
                         // Nothing was counted at log-out — there was no log-out.
                         'num_pages' => null,
                         'table' => 'diit',

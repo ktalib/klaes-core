@@ -21,7 +21,7 @@ class SourceBadge
         'subdivision'           => ['#fffbeb', '#b45309', '#fde68a'], // amber
         'resettlement'          => ['#fff7ed', '#c2410c', '#fed7aa'], // orange
         'op resettlement'       => ['#fff7ed', '#c2410c', '#fed7aa'],
-        'op direct allocation'  => ['#f5f3ff', '#6d28d9', '#ddd6fe'], // violet
+        'op direct allocation'  => ['#f0fdf4', '#15803d', '#bbf7d0'], // green: shown as Direct Allocation (see label())
         'transfer of title (op)' => ['#f5f3ff', '#6d28d9', '#ddd6fe'],
         'occupancy permit'      => ['#fff7ed', '#c2410c', '#fed7aa'],
         'mls commissioned'      => ['#f8fafc', '#334155', '#cbd5e1'], // slate
@@ -49,6 +49,11 @@ class SourceBadge
     public static function label($value): string
     {
         $value = trim((string) $value);
+        // "OP Direct Allocation" and "Direct Allocation" are the same thing (user, 2026-11-11):
+        // the badge reads Direct Allocation; the stored value is untouched.
+        if (isset(self::DISPLAY_AS[self::key($value)])) {
+            return self::DISPLAY_AS[self::key($value)];
+        }
         if ($value === '' || (strpos($value, '_') === false && $value !== strtolower($value))) {
             return $value;
         }
@@ -58,6 +63,11 @@ class SourceBadge
 
         return implode(' ', array_map(fn ($w) => $acronyms[$w] ?? $w, $words));
     }
+
+    /** Stored values shown under another name. */
+    private const DISPLAY_AS = [
+        'op direct allocation' => 'Direct Allocation',
+    ];
 
     /** Anything not listed: neutral grey. */
     private const FALLBACK = ['#f3f4f6', '#374151', '#d1d5db'];

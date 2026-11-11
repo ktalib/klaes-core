@@ -131,6 +131,14 @@ class FileCommissioningTrackingService
                     $this->cache[$key] = isset($found[$key]) ? $this->hydrate($found[$key]) : false;
                 }
             }
+
+            // Survey files: at their unit's office until first tracked (user, 2026-11-09).
+            $survey = app(\App\Services\Survey\SurveyFileIndexing::class)->diitRows(
+                array_values(array_filter($wanted, fn ($n, $key) => $this->cache[$key] === false, ARRAY_FILTER_USE_BOTH))
+            );
+            foreach ($survey as $key => $row) {
+                $this->cache[$key] = \App\Services\Survey\SurveyFileIndexing::diitInfo($row);
+            }
         } catch (\Throwable $e) {
             // A transient failure must not break the screen — leave the cache
             // alone so infoFor() falls back to per-row lookups.
@@ -159,6 +167,10 @@ class FileCommissioningTrackingService
                     ->first(['full_file_number', 'commissioning_date', 'commissioning_time', 'created_by', 'created_at', 'tracking_id', 'source', 'file_name']);
 
                 $this->cache[$key] = $row ? $this->hydrate($row) : false;
+                // A Survey file: at its unit's office until first tracked (user, 2026-11-09).
+                if (!$row && ($survey = app(\App\Services\Survey\SurveyFileIndexing::class)->diitRows([(string) $fileNumber])[$key] ?? null)) {
+                    $this->cache[$key] = \App\Services\Survey\SurveyFileIndexing::diitInfo($survey);
+                }
             } catch (\Throwable $e) {
                 return null;
             }
@@ -246,6 +258,21 @@ class FileCommissioningTrackingService
             'commissioned_by' => trim((string) ($row->created_by ?? '')) ?: null,
             'tracking_id'     => trim((string) ($row->tracking_id ?? '')) ?: null,
             'source'          => trim((string) ($row->source ?? '')) ?: null,
+            // Where the line sits. Land commissioning is the FCO; Survey files carry their unit's office.
+            'office_code'       => self::OFFICE_CODE,
+            'office_name'       => self::OFFICE_NAME,
+            'office_department' => self::OFFICE_DEPARTMENT,
+            'label'             => self::LABEL,
+        ];
+    }
+
+    /** The office a file's default line sits at: [code, name, department]. */
+    public static function officeOf(array $info): array
+    {
+        return [
+            $info['office_code'] ?? self::OFFICE_CODE,
+            $info['office_name'] ?? self::OFFICE_NAME,
+            $info['office_department'] ?? self::OFFICE_DEPARTMENT,
         ];
     }
 
@@ -291,7 +318,8 @@ class FileCommissioningTrackingService
     {
         /** @var Carbon $at */
         $at = $info['commissioned_at'];
-        $holder = $info['commissioned_by'] ?: 'File Commissioning Office';
+        [$officeCode, $officeName, $officeDept] = self::officeOf($info);
+        $holder = $info['commissioned_by'] ?: $officeName;
 
         // A legacy file recommissioned into KLAES can carry movements older than its
         // commissioning date; the line still closes (the file did leave the office),
@@ -302,27 +330,27 @@ class FileCommissioningTrackingService
 
         return [
             'log_id'                 => 'DIIT-' . strtoupper(substr(sha1('diit|' . $info['file_number']), 0, 10)),
-            'office_code'            => self::OFFICE_CODE,
-            'office_name'            => self::OFFICE_NAME,
+            'office_code'            => $officeCode,
+            'office_name'            => $officeName,
             'log_in_date'            => $at->format('Y-m-d'),
             'log_in_time'            => $at->format('H:i'),
             'log_out_date'           => $closedAt ? $closedAt->format('Y-m-d') : null,
             'log_out_time'           => $closedAt ? $closedAt->format('H:i') : null,
             'status'                 => $closedAt ? 'completed' : 'active',
-            'status_label'           => self::LABEL,
+            'status_label'           => $info['label'] ?? self::LABEL,
             // A file since moved to a new number was first commissioned under the old one.
-            'notes'                  => ($firstAs = \App\Services\FileNumber\CommissionedFileMoveService::firstCommissionedAs($info['file_number']))
+            'notes'                  => $info['notes'] ?? (($firstAs = \App\Services\FileNumber\CommissionedFileMoveService::firstCommissionedAs($info['file_number']))
                 ? "File commissioned in KLAES as {$firstAs} — in process at the File Commissioning Office."
-                : 'File commissioned in KLAES — in process at the File Commissioning Office.',
+                : 'File commissioned in KLAES — in process at the File Commissioning Office.'),
             'timestamp'              => $at->toIso8601String(),
             'user_name'              => $info['commissioned_by'] ?: 'System',
-            'receiving_office_code'  => self::OFFICE_CODE,
-            'receiving_office_name'  => self::OFFICE_NAME,
+            'receiving_office_code'  => $officeCode,
+            'receiving_office_name'  => $officeName,
             'receiving_officer_id'   => null,
             'receiving_officer_name' => $holder,
-            'origin_office_code'     => self::OFFICE_CODE,
-            'origin_office_name'     => self::OFFICE_NAME,
-            'origin_office_department' => self::OFFICE_DEPARTMENT,
+            'origin_office_code'     => $officeCode,
+            'origin_office_name'     => $officeName,
+            'origin_office_department' => $officeDept,
             // Marks the row as the derived commissioning line rather than a real
             // logged movement, so the UI can render it read-only.
             '_diit'                  => true,
@@ -360,6 +388,7 @@ class FileCommissioningTrackingService
      */
     public function syntheticTracker(array $info): FileTracker
     {
+        [$officeCode, $officeName, $officeDept] = self::officeOf($info);
         /** @var Carbon $at */
         $at = $info['commissioned_at'];
 
@@ -372,17 +401,17 @@ class FileCommissioningTrackingService
             'file_type'             => 'File',
             'priority'              => FileTracker::PRIORITY_MEDIUM,
             'status'                => FileTracker::STATUS_ACTIVE,
-            'department'            => self::OFFICE_DEPARTMENT,
+            'department'            => $officeDept,
             'created_by_name'       => $info['commissioned_by'],
             'description'           => 'Default In-process In-transit Tracking — file commissioned in KLAES.',
             'movement_log'          => [$this->movementEntry($info)],
-            'current_office_code'   => self::OFFICE_CODE,
-            'current_office_name'   => self::OFFICE_NAME,
-            'origin_office_code'    => self::OFFICE_CODE,
-            'origin_office_name'    => self::OFFICE_NAME,
-            'origin_office_department' => self::OFFICE_DEPARTMENT,
-            'receiving_office_code' => self::OFFICE_CODE,
-            'receiving_office_name' => self::OFFICE_NAME,
+            'current_office_code'   => $officeCode,
+            'current_office_name'   => $officeName,
+            'origin_office_code'    => $officeCode,
+            'origin_office_name'    => $officeName,
+            'origin_office_department' => $officeDept,
+            'receiving_office_code' => $officeCode,
+            'receiving_office_name' => $officeName,
             'receiving_officer_name' => $info['commissioned_by'],
             'total_offices'         => 1,
             'completed_offices'     => 1,
@@ -423,6 +452,7 @@ class FileCommissioningTrackingService
      */
     public function materialize(array $info, ?Carbon $closedAt = null): FileTracker
     {
+        [$officeCode, $officeName, $officeDept] = self::officeOf($info);
         $existing = FileTracker::where('file_number', $info['file_number'])
             ->orderByDesc('id')
             ->first();
@@ -447,7 +477,7 @@ class FileCommissioningTrackingService
             'file_type'             => 'File',
             'priority'              => FileTracker::PRIORITY_MEDIUM,
             'status'                => FileTracker::STATUS_ACTIVE,
-            'department'            => self::OFFICE_DEPARTMENT,
+            'department'            => $officeDept,
             'created_by'            => auth()->id(),
             'created_by_name'       => auth()->user()->name ?? ($info['commissioned_by'] ?: 'System'),
             'description'           => 'File commissioned in KLAES — tracking opened from the default in-process line.',
@@ -455,13 +485,13 @@ class FileCommissioningTrackingService
             'date_created'          => $commissionedAt,
             'date_requested'        => $commissionedAt,
             'movement_log'          => [$this->movementEntry($info, $closedAt)],
-            'current_office_code'   => self::OFFICE_CODE,
-            'current_office_name'   => self::OFFICE_NAME,
-            'origin_office_code'    => self::OFFICE_CODE,
-            'origin_office_name'    => self::OFFICE_NAME,
-            'origin_office_department' => self::OFFICE_DEPARTMENT,
-            'receiving_office_code' => self::OFFICE_CODE,
-            'receiving_office_name' => self::OFFICE_NAME,
+            'current_office_code'   => $officeCode,
+            'current_office_name'   => $officeName,
+            'origin_office_code'    => $officeCode,
+            'origin_office_name'    => $officeName,
+            'origin_office_department' => $officeDept,
+            'receiving_office_code' => $officeCode,
+            'receiving_office_name' => $officeName,
             'receiving_officer_name' => $info['commissioned_by'],
             'total_offices'         => 1,
             'completed_offices'     => 1,

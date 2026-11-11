@@ -46,6 +46,36 @@ class BeaconRequests
         }
     }
 
+    /**
+     * The Job Nos this portal account may quote on a beacon request (Survey Update 5b, user 2026-11-10):
+     * public Computation Files commissioned to its surveyors-list entry (SUV-JOB-...), and Cadastral survey
+     * jobs assigned to its SURCON entry (private). Keyed by Job No, with the property to fill in.
+     *
+     * @return array<string, array{kind:string, label:string, plot_no:?string, district:?string, lga:?string}>
+     */
+    public function jobChoices(SurveyorPortalAccount $a): array
+    {
+        $out = [];
+        if ($a->surveyors_list_id && \Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasColumn('survey_computation_files', 'job_no')) {
+            $files = \App\Models\Survey\SurveyComputationFile::query()->whereNotNull('job_no')->where('surveyors_list_id', $a->surveyors_list_id)
+                ->orderByDesc('id')->get(['job_no', 'computation_no', 'file_number', 'plot_no', 'district', 'lga']);
+            foreach ($files as $f) {
+                $out[$f->job_no] = ['kind' => 'Public', 'label' => trim($f->job_no . ' · ' . $f->computation_no . ($f->file_number ? ' · ' . $f->file_number : '')),
+                    'plot_no' => $f->plot_no, 'district' => $f->district, 'lga' => $f->lga];
+            }
+        }
+        if ($a->cadastral_surveyor_id) {
+            $jobs = CadastralSurveyJob::query()->whereNotNull('job_number')->where('cadastral_surveyor_id', $a->cadastral_surveyor_id)
+                ->whereNotIn('status', ['Cancelled', 'Rejected'])->orderByDesc('id')->get(['job_number', 'file_number', 'prop_plot', 'prop_district', 'prop_lga']);
+            foreach ($jobs as $j) {
+                $out[$j->job_number] ??= ['kind' => 'Private', 'label' => trim($j->job_number . ($j->file_number ? ' · ' . $j->file_number : '')),
+                    'plot_no' => $j->prop_plot, 'district' => $j->prop_district, 'lga' => $j->prop_lga];
+            }
+        }
+
+        return $out;
+    }
+
     /** From the portal. @param array{layout_type:string, request_type:string, quantity:int, amount_paid:string, payment_date:string, job_name:?string, plot_no:?string, district:?string, lga:?string, latitude:?float, longitude:?float, remarks:?string} $data */
     public function fromPortal(SurveyorPortalAccount $account, array $data, UploadedFile $paymentEvidence): SurveyBeaconRequest
     {
@@ -105,6 +135,8 @@ class BeaconRequests
             'surveyor_name' => $job->surveyor_name,
             'surveyor_phone' => $job->surveyor?->phone,
             'job_name' => $job->its_number ?: $job->job_number,
+            // The Job No quoted on every request (Survey Update 5b): here, the job it is raised from.
+            'job_no' => $job->job_number,
             'quantity' => $quantity,
             'plot_no' => $job->prop_plot,
             'district' => $job->prop_district,
@@ -118,8 +150,9 @@ class BeaconRequests
     }
 
     /**
-     * The SG issues the numbers. Public takes the next numbers from the pool; Private is A + serial +
-     * letters, with the letters and start serial from the SG's window.
+     * The SG issues the numbers. Public takes the next numbers from the pool; Private is the company's
+     * letters + serial (B0001, AB0001), as on Issue Beacon No, with the letters and start serial from the
+     * SG's window. The old A + serial + letters shape (A0001B) is legacy and no longer issued.
      *
      * @param array{letters?:?string, start?:?int, company_choice?:?string, company_other?:?string, issue_date?:?string} $input
      */
@@ -224,7 +257,7 @@ class BeaconRequests
             throw ValidationException::withMessages(['start' => 'Enter a start serial that fits ' . $q->quantity . ' beacons up to 9999.']);
         }
 
-        $number = fn (int $seq) => BeaconRegisterController::PRIVATE_PREFIX . str_pad((string) $seq, 4, '0', STR_PAD_LEFT) . $letters;
+        $number = fn (int $seq) => $letters . str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
         $company = trim((string) ($input['company_choice'] ?? ''));
         if ($company === '' && $q->company_id) $company = (string) $q->company_id;
         $other = trim((string) ($input['company_other'] ?? ''));

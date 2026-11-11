@@ -105,6 +105,7 @@
                 @if ($back && $back['reason'])
                   <div class="text-xs text-red-700 mt-0.5">"{{ $back['reason'] }}"</div>
                 @endif
+                @include('cadastral_dept.partials._timer_badge', ['t' => $timers[$case->id] ?? null])
               </td>
               <td class="px-4 py-2 text-gray-600 whitespace-nowrap">{{ optional($case->received_at ?? $case->created_at)->format('d M Y H:i') ?: '—' }}</td>
               <td class="px-4 py-2 text-gray-600">{{ optional($case->receiver)->name ?: '—' }}</td>
@@ -120,6 +121,27 @@
                     @if ($fmcInstalled && $fmcVisible && $case->fmc)
                       <a href="{{ route('cadastral-dept.cases.fmc.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="id-card" class="w-4 h-4 text-gray-500"></i> File Movement Card</a>
                     @endif
+                    {{-- Recording 355: the land file's scans and, once opened, the correspondence file's. --}}
+                    <button type="button" @click="open = false; cdScannedFiles(@js($case->file_number))" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                      <i data-lucide="scan-eye" class="w-4 h-4 text-gray-500"></i> View Scanned Files
+                    </button>
+                    @php $cdT = $timers[$case->id] ?? null; @endphp
+                    @if ($pauseReady && $cdT)
+                      {{-- Genuine reasons (illness, leave, other assignment): Central Admin pauses the office's day. --}}
+                      @if ($cdT['paused'])
+                        <form method="POST" action="{{ route('cadastral-dept.central-admin.timer.resume.save', $case->id) }}"
+                              data-confirm-title="Resume the timer for {{ $case->file_number }}?" data-confirm="{{ $case->deskShort() }} gets one working day from now.">
+                          @csrf
+                          <button class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="play" class="w-4 h-4 text-gray-500"></i> Resume timer</button>
+                        </form>
+                      @else
+                        <button type="button" @click="open = false; askPause(@js(['url' => route('cadastral-dept.central-admin.timer.pause.save', $case->id),
+                                    'ref' => $case->case_ref, 'file' => $case->file_number, 'desk' => $case->deskShort(), 'text' => $cdT['text']]))"
+                                class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                          <i data-lucide="pause" class="w-4 h-4 text-gray-500"></i> Pause timer
+                        </button>
+                      @endif
+                    @endif
                     @if ($canAct)
                       @if ($m && $m['question'] && ! $m['decision'])
                         <div class="px-3 pt-2 pb-1 text-xs font-bold text-gray-500 border-t border-gray-100">{{ $m['question'] }}</div>
@@ -130,7 +152,7 @@
                         <div class="border-t border-gray-100">
                           @if ($m['jacket'] === 'commission')
                             <form method="POST" action="{{ route('cadastral-dept.cases.field-jacket.store', $case->id) }}"
-                                  data-confirm-title="Commission the Computation File?" data-confirm="A Computation File is numbered for {{ $case->file_number }}.">
+                                  data-confirm-title="Commission the Computation File?" data-confirm="A Computation File and its Job No are numbered for {{ $case->file_number }}.">
                               @csrf
                               <button class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50">
                                 <span class="inline-flex items-center gap-2"><i data-lucide="briefcase" class="w-4 h-4"></i> Commission Computation File (Field Jacket)</span>
@@ -138,13 +160,13 @@
                               </button>
                             </form>
                           @elseif ($m['jacket'] === 'attach_job')
-                            @php $cdFj = \App\Models\CadastralDept\CadastralFieldJacket::query()->where('cadastral_case_id', $case->id)->value('field_jacket_no'); @endphp
+                            @php $cdFjRow = \App\Models\CadastralDept\CadastralFieldJacket::query()->with('job:id,job_number')->where('cadastral_case_id', $case->id)->first(['id', 'field_jacket_no', 'cadastral_survey_job_id']); $cdFj = $cdFjRow?->field_jacket_no; @endphp
                             <button type="button" class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50"
                                     data-attach-job data-url="{{ route('cadastral-dept.cases.job.store', $case->id) }}"
                                     data-ref="{{ $case->case_ref }}" data-file="{{ $case->file_number }}" data-plot="{{ $case->plot_no }}"
-                                    data-district="{{ $case->district }}" data-lga="{{ $case->lga }}" data-jacket="{{ $cdFj }}">
+                                    data-district="{{ $case->district }}" data-lga="{{ $case->lga }}" data-jacket="{{ $cdFj }}" data-job="{{ $cdFjRow?->job?->job_number }}">
                               <span class="inline-flex items-center gap-2"><i data-lucide="link" class="w-4 h-4"></i> Attach Job and Surveyor</span>
-                              <span class="block text-xs text-gray-500">From the Job Book; then issue the Instruction to Surveyor</span>
+                              <span class="block text-xs text-gray-500">{{ $cdFjRow?->job ? 'Job ' . $cdFjRow->job->job_number . '; then' : 'From the Job Book; then' }} issue the Instruction to Surveyor</span>
                             </button>
                           @else
                             <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="block px-3 py-2 text-sm text-blue-700 hover:bg-gray-50">
@@ -299,6 +321,44 @@
       </div>
     </form>
   </div>
+
+  {{-- Pause timer (user, 2026-11-09): a genuine reason and an end time; afterwards the office gets a fresh working day. --}}
+  @if ($pauseReady)
+    <div x-show="pause" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4" @keydown.escape.window="pause = null">
+      <form method="POST" :action="pause && pause.url" class="w-full max-w-md rounded-xl bg-white shadow-xl p-5 space-y-4" @click.outside="pause = null">
+        @csrf
+        <div>
+          <div class="text-xs font-bold uppercase text-gray-500" x-text="pause && (pause.ref + ' · ' + pause.file)"></div>
+          <div class="text-lg font-bold text-gray-800 mt-1">Pause timer at <span x-text="pause && pause.desk"></span></div>
+          <div class="text-sm text-gray-600 mt-1" x-text="pause && pause.text"></div>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Reason <span class="text-red-600">*</span></label>
+          <select name="reason" x-model="pauseReason" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <option value="">Choose…</option>
+            @foreach ($pauseReasons as $cdReason)
+              <option value="{{ $cdReason }}">{{ $cdReason }}</option>
+            @endforeach
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div x-show="pauseReason === 'Other'">
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Specify <span class="text-red-600">*</span></label>
+          <input type="text" name="reason_other" maxlength="200" :required="pauseReason === 'Other'" :disabled="pauseReason !== 'Other'"
+                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Paused until <span class="text-red-600">*</span></label>
+          <input type="datetime-local" name="until" required :min="pauseMin" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+          <p class="text-xs text-gray-500 mt-1">When it ends, the office gets one working day from then.</p>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" @click="pause = null" class="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700">Cancel</button>
+          <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold">Pause</button>
+        </div>
+      </form>
+    </div>
+  @endif
   @include('admin.footer')
 </div>
 @if ($canAct)
@@ -311,10 +371,18 @@
 @endsection
 
 @push('scripts')
+<script src="{{ asset('js/scanning/scan-viewer.js') }}?v={{ @filemtime(public_path('js/scanning/scan-viewer.js')) }}"></script>
+<script src="{{ asset('js/cadastral-dept/scanned-files.js') }}?v={{ @filemtime(public_path('js/cadastral-dept/scanned-files.js')) }}"></script>
 <script>
   function cdDesk() {
     return {
       modal: null, remarks: '', pick: null,
+      pause: null, pauseReason: '', pauseMin: '',
+      askPause(p) {
+        const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+        this.pauseMin = d.toISOString().slice(0, 16);
+        this.pauseReason = ''; this.pause = p;
+      },
       ask(m) { this.remarks = ''; this.pick = null; this.modal = m; },
       // The answer being confirmed: the one picked for a decision, else the single action.
       cur() { return !this.modal ? null : (this.modal.choices ? this.modal.choices[this.pick] || null : this.modal); },

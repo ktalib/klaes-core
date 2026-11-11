@@ -88,6 +88,8 @@ return [
         // RequirePhoneVerification already gates the first, and the second is a display
         // preference every signed-in user sets for themselves.
         'phone.*',
+        // Security questions: account-level like the phone; RequireSecurityQuestions gates them.
+        'security-questions.*',
         'theme.*',
         'impersonate*',
         // Deleting a scanned page is open to every user (user, 2026-10-21): the Document
@@ -105,6 +107,7 @@ return [
     'exempt_paths' => [
         'laas', 'laas/*',
         'kssgof', 'kssgof/*',
+        'mlpp-sg', 'mlpp-sg/*',
         'phs', 'phs/*',
         'online-legal-search', 'online-legal-search/*',
         'api/*',
@@ -173,6 +176,8 @@ return [
         'cadastral_printlabel.*' => 'Print File Labels',
         'printlabel.*' => 'Print File Labels',
         'dciv-printlabel.*' => 'Print File Labels',
+        // Survey PFL (2026-11-09): the Survey Digital Archive's role; Print File Labels holders pass too (alternatives).
+        'survey-printlabel.*' => 'Survey - E-Registry',
 
         // ---- Survey, Cadastral, GIS -----------------------------------------------------
         'survey_record.*' => 'Survey - Records',
@@ -251,7 +256,10 @@ return [
     | (user, 2026-10-30) open just their own pages.
     */
     'alternatives' => [
+        'survey-printlabel.*'                    => ['Print File Labels'],
         'survey-module.gkn.*'                    => ['Survey - GKN'],
+        'survey-module.survey-plans.*'           => ['Survey - GKN', 'Survey - Examination/Verification', 'Survey - Public Survey', 'Survey - SG'],
+        'survey-module.workflow.uploaded-plans'  => ['Survey - Examination/Verification'],
         'survey-module.records.surveyors.*'      => ['Survey - GKN'],
         'survey-module.workflow.register-file.*' => ['Survey - Examination/Verification'],
         'survey-module.workflow.boundary-disputes.*' => ['Survey - Examination/Verification'],

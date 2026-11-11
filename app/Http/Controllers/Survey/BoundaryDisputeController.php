@@ -154,6 +154,13 @@ class BoundaryDisputeController extends Controller
         $data['boundary_type_other'] = $data['boundary_type'] === BD::TYPE_PUBLIC_OTHER
             ? (trim(preg_replace('/\s+/', ' ', (string) ($data['boundary_type_other'] ?? ''))) ?: null)
             : null;
+        // A listed public boundary typed under "Others" is taken as that type (standard 6).
+        if ($data['boundary_type'] === BD::TYPE_PUBLIC_OTHER && $data['boundary_type_other'] !== null) {
+            $listed = ['lga boundary' => BD::TYPE_PUBLIC_LGA, 'lga' => BD::TYPE_PUBLIC_LGA, 'interstate boundary' => BD::TYPE_PUBLIC_INTERSTATE, 'interstate' => BD::TYPE_PUBLIC_INTERSTATE];
+            if ($hit = $listed[mb_strtolower($data['boundary_type_other'])] ?? null) {
+                [$data['boundary_type'], $data['boundary_type_other']] = [$hit, null];
+            }
+        }
 
         // A Register File line supplies its file when none was picked.
         if (! empty($data['survey_register_file_id']) && empty($data['file_number'])) {

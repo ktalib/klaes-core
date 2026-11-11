@@ -94,7 +94,7 @@ class ConfigurableEntriesController extends Controller
         'deeds-workflow' => ['label' => 'Valuation - Consent - Registration', 'icon' => 'workflow', 'accent' => '#4d7c0f', 'tint' => '#f7fee7'],
         'land-rates' => ['label' => 'Land Rates (G.Rent & LUC)', 'icon' => 'map', 'accent' => '#0f766e', 'tint' => '#f0fdfa'],
         'logos' => ['label' => 'Logos', 'icon' => 'image', 'accent' => '#4338ca', 'tint' => '#eef2ff'],
-        'surveyor-portal' => ['label' => 'KNSSGOF Portal', 'icon' => 'globe-2', 'accent' => '#1d4ed8', 'tint' => '#eff6ff'],
+        'surveyor-portal' => ['label' => 'MLPP-SG Portal', 'icon' => 'globe-2', 'accent' => '#1d4ed8', 'tint' => '#eff6ff'],
         'signatories' => ['label' => 'Signatories', 'icon' => 'pen-line', 'accent' => '#9d174d', 'tint' => '#fdf2f8'],
         // The Kano State MDAs list (OP Source = Kano MDAs, File Movement External sender).
         'kano-mdas' => ['label' => 'Kano MDAs', 'icon' => 'landmark', 'accent' => '#0369a1', 'tint' => '#f0f9ff'],
@@ -2260,7 +2260,7 @@ class ConfigurableEntriesController extends Controller
         ];
     }
 
-    /** Save the KNSSGOF Portal's identity, theme, support details and logo overrides. */
+    /** Save the MLPP-SG Portal's identity, theme, support details and logo overrides. */
     public function saveSurveyorPortalSettings(Request $request)
     {
         $this->authorizeAdmin();
@@ -2274,6 +2274,8 @@ class ConfigurableEntriesController extends Controller
             'brand_name' => 'required|string|max:80',
             'portal_name' => 'required|string|max:120',
             'office_name' => 'required|string|max:160',
+            'ministry_line' => 'required|string|max:200',
+            'ministry_address' => 'required|string|max:255',
             'support_email' => 'nullable|email|max:255',
             'support_phone' => 'nullable|string|max:50',
             'beacon_request_sms_phone' => ['required', 'string', 'max:50', new \App\Rules\NigerianPhone()],
@@ -2308,7 +2310,7 @@ class ConfigurableEntriesController extends Controller
 
         $values = [];
         foreach ([
-            'brand_name', 'portal_name', 'office_name', 'support_email', 'support_phone',
+            'brand_name', 'portal_name', 'office_name', 'ministry_line', 'ministry_address', 'support_email', 'support_phone',
             'primary_color', 'primary_dark_color', 'green_color', 'gold_color',
             'how_title', 'how_subtitle', 'private_title', 'private_description',
             'private_example', 'ready_title',
@@ -2343,7 +2345,7 @@ class ConfigurableEntriesController extends Controller
 
         return redirect()
             ->route('configurable-entries.index', ['tab' => 'surveyor-portal'])
-            ->with('success', 'KNSSGOF Portal settings saved.');
+            ->with('success', 'MLPP-SG Portal settings saved.');
     }
 
     /** Replace one slot's image. The upload is kept beside the shipped logos, named for its slot. */

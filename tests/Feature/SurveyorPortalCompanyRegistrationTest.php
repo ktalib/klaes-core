@@ -9,7 +9,7 @@ class SurveyorPortalCompanyRegistrationTest extends TestCase
 {
     public function test_company_registration_form_has_state_dependent_lga_selection(): void
     {
-        $response = $this->get('/kssgof/company/register')
+        $response = $this->get('/mlpp-sg/company/register')
             ->assertOk()
             ->assertSee('Register a surveying company')
             ->assertSee('Your company’s next step starts here.')
@@ -44,7 +44,7 @@ class SurveyorPortalCompanyRegistrationTest extends TestCase
 
     public function test_private_surveyor_form_has_no_free_text_company_option(): void
     {
-        $response = $this->get('/kssgof/register?company=yes')
+        $response = $this->get('/mlpp-sg/register?company=yes')
             ->assertOk()
             ->assertSee('Only approved companies are listed.')
             ->assertSee(route('surveyor-portal.company.register'), false)
@@ -62,7 +62,7 @@ class SurveyorPortalCompanyRegistrationTest extends TestCase
 
     public function test_registration_shows_only_the_company_status_choice(): void
     {
-        $this->get('/kssgof/register')
+        $this->get('/mlpp-sg/register')
             ->assertOk()
             ->assertSee('Is your surveying company registered?')
             ->assertSee('Yes, register')
@@ -73,27 +73,27 @@ class SurveyorPortalCompanyRegistrationTest extends TestCase
 
     public function test_company_status_choice_routes_to_the_correct_registration_form(): void
     {
-        $this->get('/kssgof/register?company=no')
+        $this->get('/mlpp-sg/register?company=no')
             ->assertRedirect(route('surveyor-portal.company.register'));
 
-        $this->get('/kssgof/register?company=yes')
+        $this->get('/mlpp-sg/register?company=yes')
             ->assertOk()
             ->assertSee('id="company_choice"', false);
 
-        $this->get('/kssgof/register?type=Government')
+        $this->get('/mlpp-sg/register?type=Government')
             ->assertNotFound();
     }
 
     public function test_register_entry_points_open_the_company_status_dialog(): void
     {
-        $this->get('/kssgof')
+        $this->get('/mlpp-sg')
             ->assertOk()
             ->assertSee('<dialog id="ksCompanyRegistrationDialog"', false)
             ->assertSee('data-register-dialog-trigger', false)
             ->assertSee('Yes, register')
             ->assertSee('No, register a company');
 
-        $this->get('/kssgof/login')
+        $this->get('/mlpp-sg/login')
             ->assertOk()
             ->assertSee('data-register-dialog-trigger', false);
     }
@@ -128,5 +128,12 @@ class SurveyorPortalCompanyRegistrationTest extends TestCase
         $this->assertStringContainsString("\$registrationTab === 'companies'", $view);
         $this->assertStringContainsString("\$registrationTab === 'surveyors'", $view);
         $this->assertStringContainsString("->orderBy('beacon_letters')", $controller);
+    }
+
+    /** KSSGOF became MLPP-SG (user, 2026-11-10): links already sent out keep working. */
+    public function test_old_kssgof_links_redirect_to_the_same_mlpp_sg_page(): void
+    {
+        $this->get('/kssgof')->assertStatus(301)->assertRedirect('/mlpp-sg');
+        $this->get('/kssgof/register?company=yes')->assertStatus(301)->assertRedirect('/mlpp-sg/register?company=yes');
     }
 }

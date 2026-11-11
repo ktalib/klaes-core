@@ -80,26 +80,7 @@ class UserController extends Controller
         $PageTitle = __('User');
         $PageDescription = __('User List');
 
-        $parentId = parentId();
-        $currentUser = Auth::user();
-        // Some long-standing administrator accounts (including System Admin #2)
-        // have type "Management" but carry the actual whole-system grant in
-        // assign_role. Looking only at type made the User List show that account
-        // only its parent's users. Honour either representation of the admin role.
-        $assignedRoles = collect(explode(',', (string) ($currentUser->assign_role ?? '')))
-            ->map(fn ($role) => trim($role))
-            ->filter();
-        $hasSystemUserAccess = $currentUser && (
-            in_array(strtolower(trim((string) $currentUser->type)), ['super admin', 'owner'], true)
-            || $assignedRoles->contains(fn ($role) => strcasecmp($role, self::SUPPER_ADMIN_ROLE) === 0)
-        );
-        $shouldFilterByParent = !empty($parentId) && $currentUser && !$hasSystemUserAccess;
-
-        $scope = function () use ($shouldFilterByParent, $parentId) {
-            return User::query()->when($shouldFilterByParent, function ($query) use ($parentId) {
-                $query->where('parent_id', $parentId);
-            });
-        };
+        $scope = fn () => $this->visibleUsersQuery();
 
         $activeTab = $request->query('tab') === 'mlpp' ? 'mlpp' : 'mdc';
 
@@ -236,6 +217,161 @@ class UserController extends Controller
             'PageTitle',
             'PageDescription'
         ) + ['perPageOptions' => self::PER_PAGE_OPTIONS, 'unitNotSet' => self::UNIT_NOT_SET]);
+    }
+
+    /**
+     * Rows for the MLPP tab's Export modal (exports.records_export_modal): MLPP staff by
+     * department, then unit, with the date onboarded and first / last login. A user's
+     * unit is their work station, as on the MDC tab's Unit filter. Filters: search,
+     * status = department name, start_date / end_date on the date onboarded.
+     */
+    public function mlppDepartmentUnitReport(Request $request)
+    {
+        $this->authorizeModule(self::MODULE, 'view');
+
+        $users = $this->mlppReportRows($request);
+        $loggedIn = $users->filter(fn ($user) => !empty($user->first_login))->count();
+        // Logins before the log's first entry were never recorded.
+        $loginLogStart = DB::connection('sqlsrv')->table('user_activity_logs')->min('login_time');
+        $dateTime = fn ($value) => $value ? \Illuminate\Support\Carbon::parse($value)->format('d M Y, H:i') : '';
+        // Everything in full caps (user, 2026-11-10), except the email, which keeps its exact form.
+        $caps = fn ($value) => mb_strtoupper(preg_replace('/\s+/u', ' ', trim((string) $value)));
+
+        return response()->json([
+            'success' => true,
+            'columns' => [
+                ['key' => 'sn', 'label' => 'S/N', 'pdfWidth' => 10],
+                ['key' => 'department', 'label' => 'Department', 'pdfWidth' => 26],
+                ['key' => 'unit', 'label' => 'Unit', 'pdfWidth' => 30],
+                ['key' => 'name', 'label' => 'Name', 'pdfWidth' => 36],
+                ['key' => 'username', 'label' => 'Username', 'pdfWidth' => 28],
+                ['key' => 'email', 'label' => 'Email'],
+                ['key' => 'phone', 'label' => 'Phone', 'pdfWidth' => 22, 'wrap' => false],
+                ['key' => 'onboarded', 'label' => 'Date Onboarded', 'pdfWidth' => 20],
+                ['key' => 'first_login', 'label' => 'First Login', 'pdfWidth' => 26],
+                ['key' => 'last_login', 'label' => 'Last Login', 'pdfWidth' => 26],
+                ['key' => 'status', 'label' => 'Status', 'pdfWidth' => 14],
+            ],
+            'data' => $users->values()->map(fn ($user, $index) => [
+                'sn' => $index + 1,
+                'department' => $caps($user->department_name),
+                // Users are not mapped to their proper unit yet (user, 2026-11-10): the work
+                // station is not the unit, so the column shows "-" until that mapping exists.
+                'unit' => '-',
+                'name' => $caps($user->first_name . ' ' . $user->last_name),
+                'username' => $caps($user->username),
+                'email' => $user->email,
+                'phone' => $user->phone_number,
+                'onboarded' => $caps($user->created_at ? $user->created_at->format('d M Y') : ''),
+                'first_login' => $caps($dateTime($user->first_login) ?: 'Never'),
+                'last_login' => $caps($dateTime($user->last_login)),
+                'status' => $user->is_active ? 'ACTIVE' : 'INACTIVE',
+            ]),
+            'summary' => array_values(array_filter([
+                ['Have logged in', $loggedIn],
+                ['Never logged in', $users->count() - $loggedIn],
+                ['Inactive', $users->filter(fn ($user) => !$user->is_active)->count()],
+                $loginLogStart ? ['Logins recorded from', \Illuminate\Support\Carbon::parse($loginLogStart)->format('d M Y')] : null,
+            ])),
+        ]);
+    }
+
+    private function visibleUsersQuery()
+    {
+        $parentId = parentId();
+        $currentUser = Auth::user();
+        $assignedRoles = collect(explode(',', (string) ($currentUser->assign_role ?? '')))
+            ->map(fn ($role) => trim($role))
+            ->filter();
+        $hasSystemUserAccess = $currentUser && (
+            in_array(strtolower(trim((string) $currentUser->type)), ['super admin', 'owner'], true)
+            || $assignedRoles->contains(fn ($role) => strcasecmp($role, self::SUPPER_ADMIN_ROLE) === 0)
+        );
+
+        return User::query()->when(!empty($parentId) && $currentUser && !$hasSystemUserAccess, function ($query) use ($parentId) {
+            $query->where('users.parent_id', $parentId);
+        });
+    }
+
+    private const MLPP_NO_DEPARTMENT = 'No department';
+    private const MLPP_NO_UNIT = 'No unit set';
+
+    /**
+     * MLPP users for the Export modal, filtered and ordered by department, then unit
+     * (case variants of a name are one), then name. "No department" / "No unit set" go last.
+     */
+    private function mlppReportRows(Request $request): \Illuminate\Support\Collection
+    {
+        $reportUserIds = $this->visibleUsersQuery()
+            ->whereRaw(self::TAB_PREDICATES['mlpp'])
+            ->select('users.id');
+
+        $loginStats = DB::connection('sqlsrv')->table('user_activity_logs')
+            ->select('user_id')
+            ->selectRaw('MIN(login_time) as first_login, MAX(login_time) as last_login')
+            ->whereNotNull('login_time')
+            ->whereIn('user_id', $reportUserIds)
+            ->groupBy('user_id');
+
+        $users = $this->visibleUsersQuery()
+            ->leftJoin('departments as report_department', 'users.department_id', '=', 'report_department.id')
+            ->leftJoinSub($loginStats, 'report_logins', function ($join) {
+                $join->on('report_logins.user_id', '=', 'users.id');
+            })
+            ->whereRaw(self::TAB_PREDICATES['mlpp'])
+            ->select([
+                'users.id',
+                'users.first_name',
+                'users.last_name',
+                'users.username',
+                'users.email',
+                'users.phone_number',
+                'users.created_at',
+                'users.is_active',
+                'report_logins.first_login',
+                'report_logins.last_login',
+            ])
+            ->selectRaw("LTRIM(RTRIM(ISNULL(report_department.name, ''))) as department_name")
+            ->selectRaw("LTRIM(RTRIM(ISNULL(users.work_station, ''))) as unit_name")
+            ->orderBy('users.first_name')
+            ->orderBy('users.last_name')
+            ->orderBy('users.id')
+            ->get();
+
+        foreach ($users as $user) {
+            $user->department_name = $user->department_name !== '' ? $user->department_name : self::MLPP_NO_DEPARTMENT;
+            $user->unit_name = $user->unit_name !== '' ? $user->unit_name : self::MLPP_NO_UNIT;
+        }
+
+        $department = mb_strtolower(trim((string) $request->query('status', '')));
+        $search = trim((string) $request->query('search', ''));
+        $date = fn ($key) => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $request->query($key)) ? $request->query($key) : null;
+        $startDate = $date('start_date');
+        $endDate = $date('end_date');
+
+        $noDepartment = mb_strtolower(self::MLPP_NO_DEPARTMENT);
+
+        return $users
+            ->when($department !== '', fn ($rows) => $rows->filter(fn ($user) => mb_strtolower($user->department_name) === $department))
+            ->when($startDate, fn ($rows) => $rows->filter(fn ($user) => $user->created_at && $user->created_at->format('Y-m-d') >= $startDate))
+            ->when($endDate, fn ($rows) => $rows->filter(fn ($user) => $user->created_at && $user->created_at->format('Y-m-d') <= $endDate))
+            ->when($search !== '', fn ($rows) => $rows->filter(function ($user) use ($search) {
+                $haystack = implode(' ', [$user->first_name, $user->last_name, $user->username, $user->email, $user->phone_number]);
+
+                return mb_stripos($haystack, $search) !== false;
+            }))
+            ->sort(function ($a, $b) use ($noDepartment) {
+                $key = fn ($user) => [
+                    mb_strtolower($user->department_name) === $noDepartment,
+                    mb_strtolower($user->department_name),
+                    // No unit in the sort while the Unit column shows "-" (2026-11-10).
+                    mb_strtolower(trim($user->first_name . ' ' . $user->last_name)),
+                    $user->id,
+                ];
+
+                return $key($a) <=> $key($b);
+            })
+            ->values();
     }
 
     /** The Unit filter's value for MDC users with no work station. */

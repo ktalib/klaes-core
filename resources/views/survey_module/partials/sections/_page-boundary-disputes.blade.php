@@ -12,6 +12,7 @@
     $natKnown = $natVal === null || $natVal === '' || $natVal === C::NATURE_OTHER || in_array($natVal, $natures, true);
     $natPick  = $natKnown ? $natVal : C::NATURE_OTHER;
     $natOther = old('nature_other', $natKnown ? '' : $natVal);
+    $bdTypePick = old('boundary_type', $dispute->boundary_type);
     $filters  = ['q', 'status', 'nature', 'type'];
 @endphp
 
@@ -93,8 +94,12 @@
                     <optgroup label="Public Boundary">
                         <option value="{{ BD::TYPE_PUBLIC_LGA }}" @selected(old('boundary_type', $dispute->boundary_type) === BD::TYPE_PUBLIC_LGA)>LGA Boundary</option>
                         <option value="{{ BD::TYPE_PUBLIC_INTERSTATE }}" @selected(old('boundary_type', $dispute->boundary_type) === BD::TYPE_PUBLIC_INTERSTATE)>Interstate Boundary</option>
+                        <option value="{{ BD::TYPE_PUBLIC_OTHER }}" @selected($bdTypePick === BD::TYPE_PUBLIC_OTHER)>Others (specify)</option>
                     </optgroup>
                 </select></div>
+            <div class="form-group" id="bdTypeOtherBox" @style(['display:none' => $bdTypePick !== BD::TYPE_PUBLIC_OTHER])><label>Specify Public Boundary <span class="required">*</span></label>
+                <input type="text" name="boundary_type_other" id="bdTypeOther" maxlength="100" value="{{ old('boundary_type_other', $dispute->boundary_type_other) }}"
+                       @disabled($bdTypePick !== BD::TYPE_PUBLIC_OTHER) @required($bdTypePick === BD::TYPE_PUBLIC_OTHER) /></div>
             <div class="form-group"><label>Nature <span class="required">*</span></label>
                 <select name="nature" id="bdNature" required>
                     <option value="">— Select —</option>
@@ -233,6 +238,12 @@
         if (nat) nat.addEventListener('change', function () {
             var on = nat.value === @json(C::NATURE_OTHER);
             box.style.display = on ? '' : 'none'; other.disabled = !on; other.required = on;
+        });
+        // Public Boundary > Others: the boundary is typed (2026-11-10).
+        var bt = document.getElementById('bdType'), btBox = document.getElementById('bdTypeOtherBox'), btOther = document.getElementById('bdTypeOther');
+        if (bt) bt.addEventListener('change', function () {
+            var on = bt.value === @json(BD::TYPE_PUBLIC_OTHER);
+            btBox.style.display = on ? '' : 'none'; btOther.disabled = !on; btOther.required = on;
         });
     })();
 </script>

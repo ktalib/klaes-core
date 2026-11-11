@@ -1,12 +1,12 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'Passing & Checking — KLAES')
+@section('page-title', 'Checking & Passing — KLAES')
 
 @php
   use App\Models\Survey\SurveyPassingCheck as PC;
 
-  $PageTitle = 'Passing & Checking (Final Survey Plan)';
-  $PageDescription = 'Check the distances on the final survey plan, beacon to beacon, against the distances measured.';
+  $PageTitle = 'Checking & Passing (Survey Plan)';
+  $PageDescription = 'Check the distances on the survey plan, beacon to beacon, against the distances measured.';
   $field = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;';
   $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
   $e = $editing ?? null;
@@ -22,7 +22,7 @@
 
 <div class="page-header">
     <div style="font-size:13px;color:var(--gray-500);">A first version of the form. The fields will follow Survey's own checklist once it is given.</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.gkn.passing-checks.export'), 'title' => 'Passing and Checking', 'dateLabel' => 'Date Checked'])
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.gkn.passing-checks.export'), 'title' => 'Checking and Passing', 'dateLabel' => 'Date Checked'])
     <button type="button" class="btn btn-primary" onclick="document.getElementById('pcForm').classList.add('open')"><i class="fas fa-plus"></i> New Check</button>
     </div>
 </div>

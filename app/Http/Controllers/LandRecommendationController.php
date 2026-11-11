@@ -344,6 +344,12 @@ class LandRecommendationController extends Controller
         $allowedTabs = $viewType === 'OSS'
             ? ['printed', 'not_printed', 'batches']
             : ['printed', 'not_printed', 'batches', 'oss', 'extant'];
+        // Awaiting Approval / Approved (CR item 13, 2026-11-09): Survey's copy of the page only.
+        $approvalTabs = $viewType === 'ROFO'
+            && str_starts_with((string) optional($request->route())->getName(), \App\Support\SurveyLandRoutes::NAME);
+        if ($approvalTabs) {
+            $allowedTabs = array_merge($allowedTabs, ['awaiting_approval', 'approved']);
+        }
         if (!in_array($tab, $allowedTabs, true)) {
             $tab = 'not_printed';
         }
@@ -511,6 +517,8 @@ class LandRecommendationController extends Controller
                     'extant'      => 'Mother Recommendations',
                     'oss'         => 'OSS Recommendations',
                     'batches'     => 'Batch Recommendations',
+                    'awaiting_approval' => 'Awaiting Approval',
+                    'approved'    => 'Approved',
                 ];
                 $where = $tabNames[$found['tab']]
                     . ($found['page'] !== $pageType ? ' on the ' . ($found['page'] === 'OSS' ? 'OSS Recommendations' : 'Land Recommendation') . ' page' : '');
@@ -527,6 +535,14 @@ class LandRecommendationController extends Controller
         // totals under the Land heading and the page read as the OSS page.
         $stats = $this->indexStats($request, $pageType === 'OSS', $applyOssChangeOfNameOriginFilter, $printedExistsFor($pageType === 'OSS'));
         $stats['oss'] = $this->ossRecommendationCount($applyOssChangeOfNameOriginFilter, $printedExistsFor(true));
+        if ($approvalTabs) {
+            // Badges count what the tab lists: Land records, batched ones on the Batches tab unless searching.
+            $approvalScope = fn () => LandRecommendation::query()
+                ->where(fn ($q) => $q->whereNull('type')->orWhereRaw("UPPER(ISNULL(type, '')) <> ?", ['OSS']))
+                ->when(!$request->filled('search'), fn ($q) => $q->whereNull('rofo_batch_id'));
+            $stats['tab_awaiting_approval'] = $approvalScope()->where('status', LandRecommendation::STATUS_PENDING)->count();
+            $stats['tab_approved'] = $approvalScope()->where('status', LandRecommendation::STATUS_APPROVED)->count();
+        }
 
         // The Batches tab pages over batches, not over recommendations. On the main
         // list a 100-child batch is one collapsed row whose children are spread
@@ -649,7 +665,10 @@ class LandRecommendationController extends Controller
 
         // OSS recommendations are printed in OSS itself, so the OSS list only ever
         // shows printed records — there is no not-printed half of it to show.
-        if ($tab === 'extant') {
+        if ($tab === 'awaiting_approval' || $tab === 'approved') {
+            // By approval status, printed or not (CR item 13, Survey only).
+            $query->where('land_recommendations.status', $tab === 'approved' ? LandRecommendation::STATUS_APPROVED : LandRecommendation::STATUS_PENDING);
+        } elseif ($tab === 'extant') {
             $this->extantRecommendation($query);
         } elseif ($tab === 'printed' || $ossTab) {
             $query->whereExists($printedExists);
@@ -955,6 +974,10 @@ class LandRecommendationController extends Controller
                         ->exists();
                 case 'oss':
                     return $listSearch($scoped(true))->whereExists($printedExistsFor(true))->exists();
+                case 'awaiting_approval':
+                    return $unbatched($listSearch($scoped($ossPage)))->where('status', LandRecommendation::STATUS_PENDING)->exists();
+                case 'approved':
+                    return $unbatched($listSearch($scoped($ossPage)))->where('status', LandRecommendation::STATUS_APPROVED)->exists();
                 case 'extant':
                     return $this->extantRecommendation($unbatched($listSearch($scoped($ossPage))))->exists();
                 case 'printed':
@@ -4600,8 +4623,20 @@ class LandRecommendationController extends Controller
         // form learned to recognise a file matched on the Match OP page carries the
         // flag as 0, and re-opening it is the repair: the card sets the hidden inputs
         // again and this writes them. It never CLEARS the flag — a form posting 0 for
-        // any other reason leaves a flagged record flagged.
+        // any other reason leaves a flagged record flagged. The one exception follows:
+        // a save with Use Subdivision Template = No (user, 2026-11-10).
         $this->applyExistingRecommendationMode($request, $validated);
+
+        // Saved with Use Subdivision Template = No, the record leaves Mother Recommendations
+        // for the regular tabs, approved or not and letter uploaded or not (user, 2026-11-10).
+        // An OP-matched record sits there on is_existing_recommendation alone, so the No
+        // clears that flag as well, and the row takes the regular menu (White Copy, Print
+        // Manager). The uploaded letter stays on the record.
+        $existingBefore = (bool) $recommendation->is_existing_recommendation;
+        if (! $validated['use_subdivision_template']
+            && ($existingBefore || ! empty($validated['is_existing_recommendation']))) {
+            $validated['is_existing_recommendation'] = false;
+        }
 
         // Said in the log because the row keeps no history of it: it decides whether the
         // file sits under Mother Recommendations, and "I chose No" cannot otherwise be checked.
@@ -4610,6 +4645,8 @@ class LandRecommendationController extends Controller
             'file_number' => $recommendation->file_number,
             'before' => (bool) $recommendation->use_subdivision_template,
             'after'  => $validated['use_subdivision_template'],
+            'existing_recommendation_before' => $existingBefore,
+            'existing_recommendation_after'  => (bool) ($validated['is_existing_recommendation'] ?? $existingBefore),
         ]);
 
         $recommendation->update($validated);

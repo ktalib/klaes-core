@@ -207,6 +207,13 @@ Route::middleware(['auth', 'XSS'])->get('/op-serial/next-preview', function () {
     return response()->json(['next' => app(\App\Services\OpSerialGenerator::class)->peekNext()]);
 })->name('op-serial.next-preview');
 
+// Module Dashboards (KLAES sidebar outline, 2026-11-10): the "Dashboard" first under each module
+// that had none. Who may open one is App\Services\ModuleDashboards::canView.
+// Commented out for now (user, 2026-11-10); the sidebar links are commented out too.
+// Route::middleware(['auth', 'XSS'])->get('/module-dashboard/{module}', [\App\Http\Controllers\ModuleDashboardController::class, 'show'])
+//     ->where('module', implode('|', \App\Services\ModuleDashboards::keys()))
+//     ->name('module-dashboard.show');
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -255,6 +262,7 @@ Route::group(['prefix' => 'users', 'middleware' => ['auth', 'XSS']], function ()
     // Feeds the clickable creator/indexer cells. Declared here so it resolves
     // before the users/{id} resource wildcard.
     Route::get('/profile-card', [\App\Http\Controllers\UserController::class, 'profileCard'])->name('users.profile-card');
+    Route::get('/mlpp-department-unit-report', [UserController::class, 'mlppDepartmentUnitReport'])->name('users.mlpp-report');
     Route::get('/import-form', [\App\Http\Controllers\UserImportController::class, 'showImportForm'])->name('users.import.form');
     Route::get('/import-template', [\App\Http\Controllers\UserImportController::class, 'downloadTemplate'])->name('users.import.template');
     Route::get('/department-lookup', [\App\Http\Controllers\UserImportController::class, 'departmentLookupPdf'])->name('users.department.lookup-pdf');
@@ -1269,6 +1277,8 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'propertycard'], func
 Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'property-index-card'], function () {
     Route::get('/', [App\Http\Controllers\PropertyIndexCardController::class, 'index'])->name('property_index_card.index');
     Route::get('/data', [App\Http\Controllers\PropertyIndexCardController::class, 'getData'])->name('property_index_card.getData');
+    // A Cadastral-generated card's PDF, from the page's "Cadastral Generated Cards" tab (2026-11-11).
+    Route::get('/cadastral-card', [App\Http\Controllers\PropertyIndexCardController::class, 'cadastralCard'])->name('property_index_card.cadastral-card');
     Route::get('/cofo', function () {
         return redirect()->route('propertycard.cofo');
     })->name('property_index_card.cofo');

@@ -37,7 +37,7 @@
         <tr><td class="label">Request No.</td><td>{{ $request->request_no }}</td><td class="label">Date Issued</td><td>{{ $issued }}</td></tr>
         <tr><td class="label">Type</td><td>{{ $request->type_label }}</td><td class="label">Number of Beacons</td><td>{{ $numbers->count() }}</td></tr>
         <tr><td class="label">Company</td><td>{{ $request->company_name ?: '—' }}</td><td class="label">Surveyor's Name</td><td>{{ $request->surveyor_name }}</td></tr>
-        <tr><td class="label">Name of Survey</td><td colspan="3">{{ $request->job_name ?: '—' }}</td></tr>
+        <tr><td class="label">Job No.</td><td>{{ $request->job_no ?: '—' }}</td><td class="label">Name of Survey</td><td>{{ $request->job_name ?: '—' }}</td></tr>
         <tr><td class="label">Plot No.</td><td>{{ $request->plot_no ?: '—' }}</td><td class="label">District</td><td>{{ $request->district ?: '—' }}</td></tr>
         <tr><td class="label">LGA</td><td>{{ $request->lga ? mb_strtoupper($request->lga) : '—' }}</td><td class="label">Location</td><td>{{ $request->location ?: '—' }}</td></tr>
     </table>

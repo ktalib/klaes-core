@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.app')
 
-@section('title', 'KNSSGOF Portal · Kano State Surveyor General\'s Office')
+@section('title', 'MLPP-SG Portal · Ministry of Land and Physical Planning – Surveyor General\'s Office')
 
 @push('styles')
 <style>
@@ -100,7 +100,7 @@
 
 {{-- The hero is a slideshow (user, 2026-11-05: "add images slides"): the wordmark banner first, then the field
      photo and the seal. Every 7 s; pauses on hover or focus, and never moves by itself under reduced motion. --}}
-<section class="ks-hero" id="ksSlides" aria-roledescription="carousel" aria-label="About the KNSSGOF portal">
+<section class="ks-hero" id="ksSlides" aria-roledescription="carousel" aria-label="About the MLPP-SG portal">
     <div class="ks-slide-stack">
         <div class="ks-slide is-on" role="group" aria-roledescription="slide" aria-label="1 of 3">
         {{-- A traverse between beacons, drawn behind the banner. Decoration only. --}}
@@ -121,7 +121,7 @@
             </g>
             <g font-family="ui-monospace, Consolas, monospace" font-size="12" fill="rgba(11,58,126,.45)">
                 <text x="246" y="374">KDJ 0001</text><text x="346" y="116">KDJ 0002</text>
-                <text x="1005" y="164">A0001B</text><text x="1066" y="316">A0002B</text>
+                <text x="1005" y="164">B0001</text><text x="1066" y="316">B0002</text>
             </g>
         </svg>
 
@@ -143,7 +143,7 @@
                     <a class="ks-btn ks-btn-light" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.requests.create', ['tab' => 'request', 'request_type_dialog' => 1]) }}"><i data-lucide="plus-circle" class="w-4 h-4"></i> Request beacons</a>
                 @else
                     <a class="ks-btn ks-btn-primary" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.register') }}" data-register-dialog-trigger><i data-lucide="user-plus" class="w-4 h-4"></i> Register as a surveyor</a>
-                    <a class="ks-btn ks-btn-light" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.login') }}"><i data-lucide="log-in" class="w-4 h-4"></i> Sign in</a>
+                    <a class="ks-btn ks-btn-light" style="padding:13px 24px;font-size:15px;" href="{{ route('surveyor-portal.login') }}" data-signin-dialog-trigger><i data-lucide="log-in" class="w-4 h-4"></i> Sign in</a>
                 @endif
             </div>
 
@@ -167,7 +167,7 @@
                         <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ route('surveyor-portal.requests.create', ['tab' => 'request', 'request_type_dialog' => 1]) }}"><i data-lucide="plus-circle" class="w-4 h-4"></i> Request beacons</a>
                     @else
                         <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ route('surveyor-portal.register') }}" data-register-dialog-trigger><i data-lucide="user-plus" class="w-4 h-4"></i> Register as a surveyor</a>
-                        <a class="ks-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);padding:12px 22px;" href="{{ route('surveyor-portal.login') }}">Sign in</a>
+                        <a class="ks-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);padding:12px 22px;" href="{{ route('surveyor-portal.login') }}" data-signin-dialog-trigger>Sign in</a>
                     @endif
                 </div>
             </div>
@@ -281,7 +281,7 @@
                 </div>
                 <div class="flex flex-wrap gap-3 shrink-0">
                     <a class="ks-btn" style="background:var(--ks-gold);color:#1B1405;padding:12px 22px;" href="{{ route('surveyor-portal.register') }}" data-register-dialog-trigger>Register now</a>
-                    <a class="ks-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55);padding:12px 22px;" href="{{ route('surveyor-portal.login') }}">Sign in</a>
+                    <a class="ks-btn" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55);padding:12px 22px;" href="{{ route('surveyor-portal.login') }}" data-signin-dialog-trigger>Sign in</a>
                 </div>
             </div>
         </section>
@@ -295,14 +295,17 @@
             <img src="{{ asset($portalSettings['logo_seal']) }}" alt="{{ $portalSettings['brand_name'] }} seal" width="40" height="40" style="width:40px;height:40px;border-radius:50%;">
             <div style="font-size:14px;">
                 <div class="font-semibold" style="color:#fff;">{{ $portalSettings['office_name'] }}</div>
+                <div style="font-size:12px;">{{ $portalSettings['ministry_line'] }}</div>
+                <div style="font-size:12px;opacity:.75;">{{ $portalSettings['ministry_address'] }}</div>
                 <div style="font-size:12px;opacity:.75;">{{ $portalSettings['portal_name'] }} · part of KLAES</div>
             </div>
         </div>
         <div class="flex items-center gap-5" style="font-size:14px;">
-            <a href="{{ route('surveyor-portal.login') }}" style="color:#C9D1DA;">Sign in</a>
+            <a href="{{ route('surveyor-portal.login') }}" data-signin-dialog-trigger style="color:#C9D1DA;">Sign in</a>
             <a href="{{ route('surveyor-portal.register') }}" style="color:#C9D1DA;" data-register-dialog-trigger>Register</a>
             <span style="opacity:.6;">© {{ date('Y') }}</span>
         </div>
     </div>
+    @include('partials.vmal_credit', ['dark' => true])
 </footer>
 @endsection

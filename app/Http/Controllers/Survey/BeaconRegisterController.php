@@ -374,10 +374,11 @@ class BeaconRegisterController extends Controller
     private function privateRun(array $g): array
     {
         $a = SurveyBeaconRegister::parseBeacon($g['beacon_from'] ?? '');
-        $newPrefix = $a && preg_match('/^[A-Z]{1,3}$/', $a['prefix']) && $a['suffix'] === '';
+        // Prefix letters + serial, with an optional one-letter suffix (user, 2026-11-09: "add the box for suffix too").
+        $newPrefix = $a && preg_match('/^[A-Z]{1,3}$/', $a['prefix']) && preg_match('/^[A-Z]?$/', $a['suffix']);
         $legacy = $a && $a['prefix'] === self::PRIVATE_PREFIX && preg_match('/^[A-Z]{1,3}$/', $a['suffix']);
         if (! $newPrefix && ! $legacy) {
-            throw ValidationException::withMessages(['beacon_from' => 'Choose one to three prefix letters A-Z, followed by the serial, e.g. B0001 or AB0001.']);
+            throw ValidationException::withMessages(['beacon_from' => 'Choose one to three prefix letters A-Z, the serial, and optionally one suffix letter, e.g. B0001, AB0001 or AB0001C.']);
         }
         if (trim((string) ($g['company_choice'] ?? '')) === '' || (($g['company_choice'] ?? '') === 'other' && trim((string) ($g['company_other'] ?? '')) === '')) {
             throw ValidationException::withMessages(['company_choice' => 'Choose the company.']);

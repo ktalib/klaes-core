@@ -4359,6 +4359,31 @@
         };
     }
 
+    // KANGIS file(s) a land file is kept inside, above the log table — the same
+    // orange panel Quick Search shows. A KANGIS file that is out names its holder.
+    // Orange is inline: the Tailwind 2.2.19 CDN build has no orange-* / amber-* classes.
+    function renderKangisContainerPanel(files) {
+        if (!Array.isArray(files) || !files.length) return '';
+        const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        return files.map((k) => {
+            const badge = k.is_in_transit
+                ? `<span class="inline-flex items-center gap-1 rounded-full border border-yellow-200 bg-yellow-50 px-2 py-0.5 text-xs font-bold text-yellow-700"><i data-lucide="truck" class="h-3 w-3"></i> In-Transit</span>`
+                : `<span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold" style="background:#ffedd5;color:#9a3412;border-color:#fdba74;"><i data-lucide="archive" class="h-3 w-3"></i> ${esc(k.registry || 'KANGIS Registry')}</span>`;
+            const where = k.is_in_transit
+                ? `Out at <strong>${esc(k.current_location || '—')}</strong>${k.receiving_officer_name ? ` — ${esc(k.receiving_officer_name)}` : ''}`
+                : `${esc(k.current_location || k.registry || '—')}${k.rack_shelf && !String(k.current_location || '').includes(k.rack_shelf) ? ` — Shelf/Rack ${esc(k.rack_shelf)}` : ''}`;
+            return `
+                <div class="mb-3 rounded-lg border px-4 py-2.5" style="background:#fff7ed;border-color:#fed7aa;" data-kangis-container="${esc(k.file_number)}">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="inline-flex items-center gap-1.5 text-xs font-bold" style="color:#c2410c;"><i data-lucide="folder-tree" class="h-3.5 w-3.5"></i> KANGIS file</span>
+                        ${badge}
+                    </div>
+                    <div class="mt-1 text-sm font-bold text-gray-900">${esc(k.file_number)}${k.file_title ? ` <span class="font-medium text-gray-600">— ${esc(k.file_title)}</span>` : ''}</div>
+                    <div class="mt-0.5 text-xs text-gray-600">${where}</div>
+                </div>`;
+        }).join('');
+    }
+
     function transformApiTracker(tracker) {
         if (!tracker) {
             return null;
@@ -4508,12 +4533,18 @@
             id: tracker.id,
             trackingId: tracker.tracking_id,
             fileNo: tracker.file_number,
+            // A duplicate file's own tracking line, kept apart from the file that now holds
+            // the number: "<number> (DUPLICATE)" (user, 2026-11-11). Watermarked on its card.
+            isDuplicateFile: /\(\s*DUPLICATE\s*\)\s*$/i.test(String(tracker.file_number || '')),
             fileName: tracker.file_title,
             fileType: tracker.file_type,
             // The APPLICANT's passport photograph for this file, resolved server-side by
             // FilePassportService. Null for corporate files and for files commissioned
             // before the photo was captured, so every use has to tolerate its absence.
             passportUrl: tracker.passport_url ?? tracker.passportUrl ?? null,
+            // KANGIS file(s) this land file is kept inside (server-resolved, same link as
+            // Quick Search). Shown above the log table; empty for most files.
+            kangisFiles: Array.isArray(tracker.kangis_files) ? tracker.kangis_files : [],
             priority: tracker.priority || 'MEDIUM',
             // Tracker-level status (submitted / recommended / approved / in_processing / ...).
             // Distinct from the per-movement entry.status carried on logEntries.
@@ -6904,7 +6935,8 @@
             const cardHeaderClass = `tracker-card-header ${isOwnedByCurrentUser ? 'tracker-card-header--owned' : 'tracker-card-header--other'}`;
 
             return `
-                    <div class="tracker-card border rounded-lg p-4 mb-6 hover:shadow-md transition-shadow duration-200 ${isOwnedByCurrentUser ? 'border-l-4 border-l-blue-500' : (pendingMovement ? 'border-l-4 border-l-green-500 bg-green-50/30' : 'border-l-4 border-l-red-500 bg-red-50/30')}" data-tracking-id="${safeTrackingId}">
+                    <div class="tracker-card border rounded-lg p-4 mb-6 hover:shadow-md transition-shadow duration-200 ${isOwnedByCurrentUser ? 'border-l-4 border-l-blue-500' : (pendingMovement ? 'border-l-4 border-l-green-500 bg-green-50/30' : 'border-l-4 border-l-red-500 bg-red-50/30')}" data-tracking-id="${safeTrackingId}"${tracker.isDuplicateFile ? ' style="position:relative;"' : ''}>
+                        ${tracker.isDuplicateFile ? `<span aria-label="Duplicate file" title="A duplicate file moved off this number; its own tracking line" style="position:absolute;right:10px;bottom:8px;transform:rotate(-8deg);padding:2px 10px;border:2px solid rgba(220,38,38,.55);border-radius:4px;color:rgba(220,38,38,.6);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;pointer-events:none;user-select:none;z-index:1;">Duplicate File</span>` : ''}
                         <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-3">
                             <div class="flex flex-1 items-start gap-3">
                             ${renderFilePassportThumb(tracker, 'h-11 w-11')}
@@ -7004,6 +7036,8 @@
                                 </button>
                             </div>
                         </div>
+
+                        ${renderKangisContainerPanel(tracker.kangisFiles)}
 
                         ${(() => {
                             const moduleKey = (window.currentModule || '').toLowerCase();

@@ -124,6 +124,15 @@
           @endif
         </div>
 
+        {{-- Security-question fallback: shown once the sign-in has waited long enough (SecurityQuestionService). --}}
+        @if (!is_null($questionsOpenIn))
+          <div id="questionsFallback" data-seconds="{{ $questionsOpenIn }}"
+               class="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900 {{ $questionsOpenIn > 0 ? 'hidden' : '' }}">
+            Experiencing network delays?
+            <a href="{{ route('login.questions') }}" class="font-semibold underline hover:text-yellow-700">Click here to verify your identity using your security questions.</a>
+          </div>
+        @endif
+
         <form action="{{ route('login.otp.cancel') }}" method="post" class="mt-5 text-center">
           @csrf
           <button type="submit" class="inline-flex items-center text-sm text-gray-500 hover:text-gray-800">
@@ -266,6 +275,13 @@
         setTimeout(resendTick, 1000);
       }
       resendTick();
+
+      // Reveal the security-question fallback when its wait is over.
+      var fallback = document.getElementById('questionsFallback');
+      var fallbackWait = fallback ? (parseInt(fallback.getAttribute('data-seconds'), 10) || 0) : 0;
+      if (fallback && fallbackWait > 0) {
+        setTimeout(function () { fallback.classList.remove('hidden'); }, fallbackWait * 1000);
+      }
     });
   </script>
 </body>

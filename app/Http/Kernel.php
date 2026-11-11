@@ -43,6 +43,8 @@ class Kernel extends HttpKernel
             // Second gate, and it defers to the first: a user is asked for their
             // photo, then for their phone number, never both at once.
             \App\Http\Middleware\RequirePhoneVerification::class,
+            // Third, deferring to both: security questions, the sign-in code fallback.
+            \App\Http\Middleware\RequireSecurityQuestions::class,
             /*
              | Module permissions. Last in the group on purpose: it asks who the user is and
              | what module the route belongs to, so it must run after the session is started
@@ -92,6 +94,12 @@ class Kernel extends HttpKernel
         // the `web` group: it applies only behind `auth:laas`. See the class.
         'laas.otp' => \App\Http\Middleware\RequireLaasLoginOtp::class,
         'laas.password' => \App\Http\Middleware\RequireLaasPasswordChange::class,
+        // MLPP-SG portal: sign-in code backstop, then the mandatory security questions (2026-11-10).
+        'surveyor.otp' => \App\Http\Middleware\RequireSurveyorLoginOtp::class,
+        'surveyor.questions' => \App\Http\Middleware\RequireSurveyorSecurityQuestions::class,
+        // Company logins (2026-11-10): a surveyor's pages vs a company's, and the sent password changed first.
+        'surveyor.kind' => \App\Http\Middleware\EnsureSurveyorPortalKind::class,
+        'surveyor.password' => \App\Http\Middleware\RequireSurveyorPasswordChange::class,
         // The same for the PHS Portal, behind `auth:phs`.
         'phs.otp' => \App\Http\Middleware\RequirePhsLoginOtp::class,
         'super.admin' => \App\Http\Middleware\EnsureSuperAdmin::class,

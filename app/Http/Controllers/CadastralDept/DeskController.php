@@ -4,10 +4,12 @@ namespace App\Http\Controllers\CadastralDept;
 
 use App\Http\Controllers\Controller;
 use App\Models\CadastralDept\CadastralCase;
+use App\Services\CadastralDept\CadastralCaseTimer;
 use App\Services\CadastralDept\CaseWorkflow;
 use App\Services\CadastralDept\CorrespondenceCustody;
 use App\Services\CadastralDept\FieldJackets;
 use App\Services\CadastralDept\DeedsDispatchChecks;
+use App\Services\CadastralDept\DeskDecisions;
 use App\Services\CadastralDept\DeskQueues;
 use App\Services\CadastralDept\FileMovementCards;
 use App\Services\CadastralDept\WorkflowDefinition;
@@ -19,6 +21,9 @@ class DeskController extends Controller
 {
     /** Rows of "sent on" files shown on a desk page. */
     private const SENT_LIMIT = 200;
+
+    /** The Penalties (30 days) card on desk pages and Central Admin: hidden for now (user, 2026-11-09). Penalties are still recorded. */
+    protected const SHOW_PENALTY_CARD = false;
 
     /**
      * A desk's listing. Each row carries an action menu with only what the file
@@ -139,6 +144,7 @@ class DeskController extends Controller
             // A sidebar list narrows the inbox to the files where its action is due.
             if ($queue) {
                 $queues = app(DeskQueues::class);
+                $deskHere = $here;   // the whole desk, for the FMC list's Waiting on Charting tab
                 $here = $here->filter(fn ($c) => $queues->matches($c, $queue))->values();
                 $away = $away->filter(fn ($c) => $queues->matches($c, $queue))->values();
                 // A list with no rule (Registry's Intake Queue) is the whole desk, so keep them.
@@ -169,6 +175,19 @@ class DeskController extends Controller
                     $done = $doneQuery->orderByDesc('created_at')->orderByDesc('id')->limit(self::SENT_LIMIT)->get();
                     $closed = $done->filter(fn ($c) => !$c->isOpen())->values();
                     $sent = $done->filter(fn ($c) => $c->isOpen())->values();
+                } elseif ($queueKey === 'approval') {
+                    // D Cad / DD Cad Recommend (CR item 13, 2026-11-09): the Approved tab lists the files
+                    // this desk decided, wherever they are now and even once completed.
+                    $doneQuery = app(DeskDecisions::class)->decidedAt($filter(CadastralCase::query()->with(['receiver'])), $desk)
+                        ->whereNotIn('id', $here->concat($away)->pluck('id'))
+                        ->where(fn ($q) => $q->where('current_desk', '!=', $desk)->orWhere('status', '!=', CadastralCase::STATUS_IN_PROGRESS));
+                    $sentTotal = (clone $doneQuery)->count();
+                    $doneOpen = (clone $doneQuery)->open()->count();
+                    $sentCard['value'] = $doneOpen;
+                    $closedCard['value'] = $sentTotal - $doneOpen;
+                    $done = $doneQuery->orderByDesc('created_at')->orderByDesc('id')->limit(self::SENT_LIMIT)->get();
+                    $closed = $done->filter(fn ($c) => !$c->isOpen())->values();
+                    $sent = $done->filter(fn ($c) => $c->isOpen())->values();
                 } elseif (array_intersect_key($queue, array_flip(['steps', 'to', 'at']))) {
                     $sent = $closed = collect();
                     $sentCard = $closedCard = null;
@@ -191,6 +210,17 @@ class DeskController extends Controller
                 ['label' => 'Ready to send on', 'value' => $here->count() - $open->count(), 'hint' => 'every task done', 'colour' => 'green'],
                 ['label' => 'Waiting over 7 days', 'value' => $here->filter(fn ($c) => $c->updated_at && $c->updated_at->lt(now()->subDays(7)))->count(), 'hint' => 'no movement in a week', 'colour' => 'red'],
             ];
+            // One working day per office (recording 355): files here past their day.
+            $timers = app(CadastralCaseTimer::class)->states($here);
+            if (CadastralCaseTimer::installed()) {
+                $cards[] = ['label' => 'Over 1 working day', 'value' => collect($timers)->whereIn('stage', ['default', 'penalty'])->count(),
+                    'hint' => 'past their day at this office', 'colour' => 'red'];
+                // The desk tally (user, 2026-11-09): penalties recorded against this office.
+                if (self::SHOW_PENALTY_CARD && CadastralCaseTimer::alertsInstalled()) {
+                    $cards[] = ['label' => 'Penalties (30 days)', 'value' => (int) (app(CadastralCaseTimer::class)->penaltyCounts(now()->subDays(30))[$desk] ?? 0),
+                        'hint' => 'recorded against this office', 'colour' => 'red'];
+                }
+            }
             if (\App\Services\CadastralDept\CadastralFileTracking::installed() && !\App\Services\CadastralDept\CadastralFileTracking::autoAccept()) {   // sent here, not yet accepted (2026-10-27)
                 array_splice($cards, 1, 0, [['label' => 'Awaiting acceptance', 'value' => $here->filter(fn ($c) => \App\Services\CadastralDept\CadastralFileTracking::awaiting($c))->count(),
                     'hint' => 'accept before working on it', 'colour' => 'purple']]);
@@ -206,6 +236,57 @@ class DeskController extends Controller
                 $cards[] = ['label' => 'Out with other departments', 'value' => $away->count(), 'hint' => 'record when they come back', 'colour' => 'purple'];
             }
             $cards = array_merge($cards, array_values(array_filter([$sentCard, $closedCard])));
+        }
+
+        // Approval / Recommend lists (CR item 13, 2026-11-09): two tabs. Awaiting Approval holds the
+        // files waiting for the decision, Approved the ones decided here (view only).
+        $approvalTabs = $installed && $queueKey === 'approval';
+        $tab = $approvalTabs && $request->query('tab') === 'approved' ? 'approved' : 'awaiting';
+        $tabCounts = $approvalTabs ? ['awaiting' => $here->count() + $away->count(), 'approved' => $sentTotal ?? 0] : [];
+        $decisions = [];
+        if ($approvalTabs && $tab === 'approved') {
+            $here = $away = collect();
+            $decisions = app(DeskDecisions::class)->latest($sent->concat($closed), $desk);
+        } elseif ($approvalTabs) {
+            $sent = $closed = collect();
+        }
+
+        /*
+         | FMC list tabs (CR 11112026-2, item 13): Awaiting FMC is the list as it was; Waiting on
+         | Charting shows the files whose FMC is held back by the charting order (view only, with
+         | what is still to do); All FMCs is every card ever opened, wherever the file is now.
+         */
+        $fmcTabs = $installed && $queueKey === 'fmc' && !empty($queue['requires']);
+        $fmcTab = $fmcTabs && in_array($request->query('tab'), ['waiting', 'all'], true) ? $request->query('tab') : 'queue';
+        $fmcWaiting = collect();
+        $fmcAll = collect();
+        if ($fmcTabs) {
+            $queues = app(DeskQueues::class);
+            $taskOnly = array_diff_key($queue, ['requires' => true]);
+            foreach (($deskHere ?? collect()) as $c) {
+                if ($queues->matches($c, $queue) || !$queues->matches($c, $taskOnly)) {
+                    continue;
+                }
+                $step = $def->step((string) $c->workflow, (string) $c->current_step);
+                $stepTasks = (array) ($step['tasks'] ?? []);
+                $missing = array_diff(array_intersect((array) $queue['requires'], array_keys($stepTasks)), $c->doneTaskKeys());
+                $c->setAttribute('fmc_waiting_for', array_values(array_map(
+                    fn ($k) => is_array($stepTasks[$k] ?? null) ? ($stepTasks[$k]['label'] ?? $k) : ($stepTasks[$k] ?? $k),
+                    $missing
+                )));
+                $fmcWaiting->push($c);
+            }
+            $fmcAll = \App\Models\CadastralDept\CadastralFmc::query()->with(['case', 'commissioner'])
+                ->when($term !== '', fn ($q) => $q->where(fn ($x) => $x->where('file_number', 'like', "%{$term}%")
+                    ->orWhere('fmc_no', 'like', "%{$term}%")
+                    ->orWhere('file_title', 'like', "%{$term}%")))
+                ->when($wfFilter, fn ($q) => $q->whereHas('case', fn ($c) => $c->where('workflow', $wfFilter)))
+                ->orderByDesc('commissioned_at')->orderByDesc('id')
+                ->get();
+            $tabCounts = ['queue' => $here->count(), 'waiting' => $fmcWaiting->count(), 'all' => $fmcAll->count()];
+            if ($fmcTab !== 'queue') {
+                $here = $away = $sent = $closed = collect();
+            }
         }
 
         $menus = [];
@@ -229,6 +310,7 @@ class DeskController extends Controller
             'sentTotal' => $sentTotal ?? 0,
             'sentLimit' => self::SENT_LIMIT,
             'menus' => $menus,
+            'timers' => $timers ?? [],
             'fmcInstalled' => FileMovementCards::installed(),
             'fmcVisible' => FileMovementCards::canView(auth()->user()),   // config fmc_roles (2026-10-26)
             'waitingJobs' => $attachDue ? app(FieldJackets::class)->waitingJobs() : null,
@@ -237,7 +319,15 @@ class DeskController extends Controller
             'term' => $term,
             'queueKey' => $queueKey,
             'queueLabel' => $queue['label'] ?? null,
-            'queueKeepsDone' => !empty($queue['tasks']) || !empty($queue['awaiting_head']),   // task and Approval lists: done files stay, read only
+            'queueKeepsDone' => !empty($queue['tasks']) || !empty($queue['awaiting_head']) || $queueKey === 'approval',   // task and Approval lists: done files stay, read only
+            'approvalTabs' => $approvalTabs,
+            'fmcTabs' => $fmcTabs,
+            'fmcTab' => $fmcTab,
+            'fmcWaiting' => $fmcWaiting,
+            'fmcAll' => $fmcAll,
+            'tab' => $tab,
+            'tabCounts' => $tabCounts,
+            'decisions' => $decisions,
             // Header as the sidebar names it: the list opened, or the desk's whole-inbox
             // entry (Intake Queue, All files at ...), or the desk itself (D Cad).
             'pageTitle' => $queue['label'] ?? $this->sidebarTitle($def, $desk),

@@ -47,7 +47,7 @@ class FieldJacketController extends Controller
             $link = fn (?string $s) => route('cadastral-dept.field-jackets.index', array_filter(['status' => $s]));
             $cdCards = [
                 ['label' => 'Field jackets', 'value' => number_format(CadastralFieldJacket::query()->count()), 'hint' => 'commissioned', 'colour' => 'gray', 'url' => $link(null), 'active' => !$status],
-                ['label' => 'I to S not issued', 'value' => number_format($byStatus['Draft'] ?? 0), 'hint' => 'job registered, no instruction yet', 'colour' => 'yellow', 'url' => $link('Draft'), 'active' => $status === 'Draft'],
+                ['label' => 'I to S not issued', 'value' => number_format($byStatus['Draft'] ?? 0), 'hint' => 'job numbered, no instruction yet', 'colour' => 'yellow', 'url' => $link('Draft'), 'active' => $status === 'Draft'],
                 ['label' => 'With the surveyor', 'value' => number_format(($byStatus['Issued'] ?? 0) + ($byStatus['In Field'] ?? 0)), 'hint' => 'I to S issued or in the field', 'colour' => 'blue'],
                 ['label' => 'Accepted', 'value' => number_format($byStatus['Accepted'] ?? 0), 'hint' => 'survey accepted', 'colour' => 'green', 'url' => $link('Accepted'), 'active' => $status === 'Accepted'],
                 ['label' => 'Reassigned', 'value' => number_format(CadastralFieldJacket::query()->has('assignments', '>', 1)->count()), 'hint' => 'given to another surveyor', 'colour' => 'purple'],
@@ -57,7 +57,7 @@ class FieldJacketController extends Controller
         return view('cadastral_dept.field_jackets.index', compact('def', 'installed', 'term', 'status', 'rows') + ['cdCards' => $cdCards ?? []]);
     }
 
-    /** AD P&D: commission the plain field jacket (no job, no surveyor). */
+    /** AD P&D: commission the field jacket and its job (Job No); no surveyor yet. */
     public function store(Request $request, int $case)
     {
         $data = $request->validate(['remarks' => 'nullable|string|max:2000']);
@@ -66,7 +66,8 @@ class FieldJacketController extends Controller
         return $this->attempt(function () use ($case, $data) {
             $jacket = $this->jackets->commission($case, $data, auth()->id());
 
-            return "Computation File (Field Jacket) {$jacket->field_jacket_no} commissioned for {$case->file_number}. Next: issue the I to S.";
+            return "Computation File (Field Jacket) " . ($jacket->lppl_no ?: $jacket->field_jacket_no) . ", Job No " . ($jacket->job?->job_number ?? '—')
+                . ", commissioned for {$case->file_number}. Next: issue the I to S.";
         }, 'Computation File (Field Jacket) commissioned.');
     }
 
@@ -79,14 +80,16 @@ class FieldJacketController extends Controller
         return $this->attempt(fn () => $this->jackets->issueIts($case, $data, auth()->id()), 'I to S issued.');
     }
 
-    /** AD Cad Info: attach a job from the Job Book and a surveyor to the field jacket. */
+    /**
+     * AD Cad Info: attach the surveyor to the field jacket's job. A jacket commissioned before
+     * Survey Update 5a has no job yet and takes one from the Job Book (FieldJackets::attachJob).
+     */
     public function attachJob(Request $request, int $case)
     {
         $data = $request->validate([
-            'cadastral_survey_job_id' => 'required|integer',
+            'cadastral_survey_job_id' => 'nullable|integer',
             'cadastral_surveyor_id' => 'required|integer',
         ], [
-            'cadastral_survey_job_id.required' => 'Choose the survey job to attach.',
             'cadastral_surveyor_id.required' => 'Choose the surveyor.',
         ]);
         $case = CadastralCase::findOrFail($case);
@@ -139,7 +142,7 @@ class FieldJacketController extends Controller
             'def' => $def,
             'jacket' => $jacket,
             'surveyors' => $this->jackets->surveyors(),
-            'canReassign' => $jacket->job && $jacket->case->isOpen() && !in_array($jacket->job->status, ['Accepted', 'Cancelled'], true),
+            'canReassign' => $jacket->job && $jacket->cadastral_surveyor_id && $jacket->case->isOpen() && !in_array($jacket->job->status, ['Accepted', 'Cancelled'], true),
         ]);
     }
 

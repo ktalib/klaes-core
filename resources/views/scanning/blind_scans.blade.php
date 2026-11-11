@@ -428,6 +428,11 @@
                     <input type="radio" name="uploadType" value="lf" class="h-4 w-4" />
                     <span>LF Scan only (large format, A3)</span>
                   </label>
+                  {{-- Scanned property index cards, into the file's INDEX_CARDS folder as LF goes to A3 (user, 2026-11-11). --}}
+                  <label class="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="radio" name="uploadType" value="ic" class="h-4 w-4" />
+                    <span>Index Cards (property index cards)</span>
+                  </label>
                 </div>
                 <p id="uploadTypeHint" class="text-xs text-muted-foreground mt-1">Required before a folder can be picked.</p>
               </div>
@@ -442,10 +447,10 @@
               </div>
 
               <div id="lfFilesWrap" class="hidden">
-                <label class="block text-sm font-medium mb-1">Pick the LF images</label>
+                <label id="lfFilesLabel" class="block text-sm font-medium mb-1">Pick the LF images</label>
                 <input id="lfFilesInput" type="file" multiple accept=".jpg,.jpeg,.png,.tif,.tiff,.bmp,.gif,.webp"
                   class="w-full border rounded-md px-3 py-2" />
-                <p class="text-xs text-muted-foreground mt-1">Select only the large-format image files to add to the A3 folder.</p>
+                <p id="lfFilesHint" class="text-xs text-muted-foreground mt-1">Select only the large-format image files to add to the A3 folder.</p>
               </div>
 
               <div id="status" class="text-sm text-muted-foreground">No folder selected.</div>

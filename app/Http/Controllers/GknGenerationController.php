@@ -479,6 +479,8 @@ class GknGenerationController extends Controller
                 'lga' => $currentLgaName,
                 'created_by' => $userName,
                 'workflow_status' => 'indexed',
+                // Survey files are indexed under the Survey registry (user, 2026-11-09).
+                'registry' => 'Survey',
                 'source' => 'GKN FileNo Commissioning',
             ]);
 

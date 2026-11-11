@@ -240,6 +240,7 @@
                     Kano State Ministry of Land &amp; Physical Planning<br>Federal Republic of Nigeria
                 </p>
             </div>
+            @include('partials.vmal_credit', ['dark' => true])
         </div>
     </aside>
 </div>

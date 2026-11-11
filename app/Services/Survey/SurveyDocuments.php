@@ -38,13 +38,16 @@ class SurveyDocuments
     public const PAPER_SIZE = 'A4';
 
     public const KIND_SKETCH_PLAN = 'sketch_plan';
+    // The I to S's item 4, "the land to be demarcated is as per the attached plan" (user, 2026-11-10).
+    public const KIND_ITS_PLAN = 'its_plan';
 
     private const DOCUMENT_TYPES = [
         self::KIND_SKETCH_PLAN => 'Survey – Sketch Plan',
+        self::KIND_ITS_PLAN => 'Survey – I to S Attached Plan',
     ];
 
     /** Kinds where a new upload supersedes the previous one. */
-    private const SINGLE = [self::KIND_SKETCH_PLAN];
+    private const SINGLE = [self::KIND_SKETCH_PLAN, self::KIND_ITS_PLAN];
 
     private array $written = [];
 

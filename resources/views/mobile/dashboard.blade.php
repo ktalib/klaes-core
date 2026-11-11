@@ -2017,12 +2017,14 @@ async function searchFile() {
           <div style="background:var(--surface-2);padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;">
             <div>
               <div style="font-size:15px;font-weight:800;">${esc(d.file_number)}</div>
+              ${/* The file's own title straight under its number, before any related file (user, 2026-11-11: with a
+                   related file it sat under the related-file chip and read as missing). */''}
+              <div style="font-size:12px;font-weight:600;color:var(--text);opacity:.82;margin-top:3px;">${esc(d.file_title||'—')}</div>
               ${relatedChips.length ? `
               <div style="margin-top:5px;font-size:11px;line-height:1.55;color:var(--muted);">
                 <span style="font-weight:800;color:var(--primary);">Related file${relatedChips.length === 1 ? '' : 's'}:</span>
                 ${relatedChips.map(f => `<span style="display:inline-block;margin:2px 3px 0 0;padding:2px 6px;border:1px solid #c4b5fd;background:#f5f3ff;border-radius:20px;color:#5b21b6;font-weight:700;">${esc(f.file_number)}${f.file_title ? ` <span style="font-weight:500;">— ${esc(f.file_title)}</span>` : ''}</span>`).join('')}
               </div>` : ''}
-              <div style="font-size:12px;font-weight:600;color:var(--text);opacity:.82;margin-top:3px;">${esc(d.file_title||'—')}</div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
             <span style="white-space:nowrap;font-size:11px;font-weight:700;color:${badge.color};background:${badge.color}1a;border:1px solid ${badge.color}55;padding:5px 10px;border-radius:30px;"><i class="fas ${badge.icon}" style="margin-right:4px;"></i>${esc(badge.label)}</span>

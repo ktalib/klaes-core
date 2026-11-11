@@ -273,6 +273,17 @@
                                                 <option value="CON-IND">CON-IND - Con. Industrial</option>
                                                 <option value="CON-AG">CON-AG - Con. Agricultural</option>
                                             </optgroup>
+                                            {{-- RC files get extended too (user, 2026-11-11): the same RC prefixes as the regular list. --}}
+                                            <optgroup label="RC Options">
+                                                <option value="RES-RC">RES-RC</option>
+                                                <option value="COM-RC">COM-RC</option>
+                                                <option value="AG-RC">AG-RC</option>
+                                                <option value="IND-RC">IND-RC</option>
+                                                <option value="CON-RES-RC">CON-RES-RC</option>
+                                                <option value="CON-COM-RC">CON-COM-RC</option>
+                                                <option value="CON-AG-RC">CON-AG-RC</option>
+                                                <option value="CON-IND-RC">CON-IND-RC</option>
+                                            </optgroup>
                                         </select>
                                     </div>
                                     <div>

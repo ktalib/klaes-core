@@ -1028,8 +1028,11 @@
         calcPlots = null;
         if (!size) { out.textContent = 'Area (Step 1) ÷ plot size for the density, rounded down.'; use.style.display = 'none'; return; }
         if (!area) { out.textContent = 'Enter the area on Step 1 first.'; use.style.display = 'none'; return; }
-        calcPlots = Math.floor(area / size + 1e-9);
-        out.textContent = area + ' ha ÷ ' + size + ' ha = ' + (area / size).toFixed(3) + ' → ' + calcPlots + ' plot' + (calcPlots === 1 ? '' : 's') + ' (rounded down).';
+        // As ResettlementCalculator::effectiveSize: 0.1667 is 1/6 ha, so 3 ha gives 18, not 17; then 2 decimals.
+        var n1 = Math.round(1 / size), useSize = n1 >= 1 && Math.abs(size - 1 / n1) < 0.0001 ? 1 / n1 : size;
+        var calcExact = Math.round(area / useSize * 100) / 100;
+        calcPlots = Math.floor(calcExact + 1e-9);
+        out.textContent = area + ' ha ÷ ' + size + ' ha = ' + calcExact.toFixed(2) + ' → ' + calcPlots + ' plot' + (calcPlots === 1 ? '' : 's') + ' (rounded down).';
         qs('calcUseN').textContent = calcPlots;
         use.style.display = '';
     }

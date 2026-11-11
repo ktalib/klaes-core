@@ -1218,8 +1218,11 @@
                             if (data.record.plan_no) document.getElementById('pe-plan-no').value = data.record.plan_no;
                             if (data.record.house_no) document.getElementById('pe-house-no').value = data.record.house_no;
                             if (data.record.street_name) document.getElementById('pe-street').value = data.record.street_name;
-                            if (data.record.district) document.getElementById('pe-district').value = data.record.district;
-                            if (data.record.lga) document.getElementById('pe-lga').value = data.record.lga;
+                            // District: the file's own, even when the records hold one the
+                            // district list lacks (CON-COM-2005-8 holds "Kura", 2026-11-11);
+                            // cleared when the new file has none.
+                            peSelectValue(document.getElementById('pe-district'), data.record.district || '');
+                            if (data.record.lga) peSelectValue(document.getElementById('pe-lga'), data.record.lga);
                             if (data.record.state) document.getElementById('pe-state').value = data.record.state;
 
                             if (window.syncSearchableSelects) syncSearchableSelects();
@@ -1245,6 +1248,20 @@
 
         if (window.lucide) window.lucide.createIcons();
     });
+
+    // Pick the option matching value (any case/spacing); a value the list lacks is added as
+    // its own option so a backfilled record still shows and saves. '' clears the select.
+    function peSelectValue(select, value) {
+        if (!select) return;
+        const want = String(value || '').trim().replace(/\s+/g, ' ');
+        if (want === '') { select.value = ''; return; }
+        const hit = Array.from(select.options).find(o => o.value.trim().toUpperCase() === want.toUpperCase());
+        if (hit) { select.value = hit.value; return; }
+        const opt = new Option(want.toUpperCase(), want, true, true);
+        opt.dataset.fromRecord = '1';
+        select.add(opt);
+        select.value = want;
+    }
 
     function docFileChanged(input, btnId) {
         const btn = document.getElementById(btnId);

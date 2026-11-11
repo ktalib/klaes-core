@@ -83,7 +83,10 @@ class Kernel extends ConsoleKernel
 
         // Evaluate Cadastral processing timers every 15 minutes so reminders,
         // warnings and penalties stay current without needing live polling.
-        $schedule->command('cadastral:timeline-evaluate')->everyFifteenMinutes()->withoutOverlapping();
+        // 2026-11-09: the first version looped forever (run of 2026-11-08 21:30 held up every scheduled job
+        // until stopped) and its columns were never created. Fixed: migration 2026_11_09_020000, whole-second
+        // arithmetic with a loop guard. The 10-minute expiry frees the overlap lock if a run ever dies.
+        $schedule->command('cadastral:timeline-evaluate')->everyFifteenMinutes()->withoutOverlapping(10)->runInBackground();
 
         // Warn PHS organizations whose token balance is running low (daily).
         $schedule->command('phs:low-balance-reminders')->dailyAt('07:00')->withoutOverlapping();

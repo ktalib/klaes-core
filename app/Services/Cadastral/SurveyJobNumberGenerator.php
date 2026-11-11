@@ -4,16 +4,15 @@ namespace App\Services\Cadastral;
 
 use App\Models\Cadastral\CadastralSurveyJob;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Survey job numbers and Instruction-to-Surveyor numbers.
  *
- * THE FORMAT IS UNCONFIRMED. The concept note calls for a SURCON-compliant
- * number and nobody in this codebase knows the pattern SURCON mandates.
- * config('cadastral_module.job_number.format') is a KLAES-local placeholder and
- * says so; cadastral-module:install warns while it is still the default. Confirm
- * with the Surveyor-General's office before go-live, or numbers issued now will
- * need reissuing.
+ * Job numbers are SUV-JOB-<year>-<serial> (CR 11112026-2; SRV-JOB- before): one series shared
+ * by Cadastral survey jobs and Survey's public Computation Files (both are the
+ * "Job No" a surveyor quotes on a beacon request), so the next serial is the
+ * highest across both tables.
  *
  * Uniqueness is belt and braces: the serial is read under UPDLOCK inside the
  * caller's transaction, and the column carries a unique index that would reject
@@ -25,7 +24,7 @@ class SurveyJobNumberGenerator
 {
     private const CONN = 'sqlsrv';
 
-    /** Next survey job number, e.g. "KN/CAD/2026/0001". */
+    /** Next survey job number, e.g. "SUV-JOB-2026-001". */
     public function nextJobNumber(): string
     {
         // Configurable Entries → Cadastral, falling back to the config file.
@@ -34,7 +33,10 @@ class SurveyJobNumberGenerator
         return $this->next(
             'job_number',
             (string) $cfg['format'],
-            (int) $cfg['serial_pad']
+            (int) $cfg['serial_pad'],
+            Schema::connection(self::CONN)->hasColumn('survey_computation_files', 'job_no')
+                ? ['survey_computation_files' => 'job_no']
+                : []
         );
     }
 
@@ -67,22 +69,27 @@ class SurveyJobNumberGenerator
      * moment serialise rather than both seeing the same maximum. That only holds
      * inside a transaction, which is why every caller opens one.
      */
-    private function next(string $column, string $format, int $pad): string
+    private function next(string $column, string $format, int $pad, array $alsoIn = []): string
     {
         $year = date('Y');
 
-        // The stem is everything before the serial, so "KN/CAD/2026/" — matching
+        // The stem is everything before the serial, so "SUV-JOB-2026-" — matching
         // on it keeps last year's numbers out of this year's pool.
         $stem = str_replace(['{year}', '{serial}'], [$year, ''], $format);
 
-        $rows = DB::connection(self::CONN)
-            ->select(
-                "SELECT TOP 500 [{$column}] AS value
-                   FROM [cadastral_survey_jobs] WITH (UPDLOCK, HOLDLOCK)
-                  WHERE [{$column}] LIKE ?
-               ORDER BY LEN([{$column}]) DESC, [{$column}] DESC",
-                [$stem . '%']
-            );
+        // $alsoIn: other [table => column] pools sharing this series.
+        $rows = [];
+
+        foreach (['cadastral_survey_jobs' => $column] + $alsoIn as $table => $col) {
+            $rows = array_merge($rows, DB::connection(self::CONN)
+                ->select(
+                    "SELECT TOP 500 [{$col}] AS value
+                       FROM [{$table}] WITH (UPDLOCK, HOLDLOCK)
+                      WHERE [{$col}] LIKE ?
+                   ORDER BY LEN([{$col}]) DESC, [{$col}] DESC",
+                    [$stem . '%']
+                ));
+        }
 
         $highest = 0;
 

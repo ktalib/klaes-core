@@ -14,9 +14,12 @@ class CadastralTimelineEvaluate extends Command
     public function handle(): int
     {
         $timer = app(CadastralCaseTimer::class);
-        $count = $timer->evaluateAll();
+        $dry = (bool) $this->option('dry-run');
+        $count = $timer->evaluateAll($dry);
 
-        $this->info("Cadastral timeline check completed: {$count} case(s) updated.");
+        $this->info($dry
+            ? "Cadastral timeline dry run: {$count} case(s) would change. Nothing saved."
+            : "Cadastral timeline check completed: {$count} case(s) updated.");
 
         return self::SUCCESS;
     }

@@ -105,8 +105,10 @@
     </style>
 </head>
 <body>
+    @php $portal = rescue(fn () => \App\Support\PortalContext::fromRequest(), null, false); @endphp
     <main class="card">
         <span class="code">Error 500</span>
+        @if ($portal)<span class="code" style="margin-left:6px;background:#eef2f7;color:#334155;">{{ $portal['name'] }}</span>@endif
         <h1>Something went wrong on our side</h1>
         <p>
             We could not complete your request right now. Please refresh the page or try again in a few minutes.
@@ -115,8 +117,17 @@
 
         <div class="actions">
             <button class="btn btn-primary" onclick="window.location.reload()">Refresh Page</button>
-            <a class="btn btn-secondary" href="{{ url()->previous() }}">Go Back</a>
-            <a class="btn btn-secondary" href="{{ url('/') }}">Home</a>
+            @if (request()->is('survey-module/mobile*'))
+                {{-- The field apps (user, 2026-11-09): no Home, so the card never takes the user out of the app to the main web. --}}
+                <button class="btn btn-secondary" type="button" onclick="history.length > 1 ? history.back() : window.location.reload()">Go Back</button>
+            @elseif ($portal)
+                {{-- A public portal (user, 2026-11-11): the links stay inside the portal, never the main site. --}}
+                <a class="btn btn-secondary" href="{{ $portal['back'] }}">Go Back</a>
+                <a class="btn btn-secondary" href="{{ $portal['home'] }}">{{ $portal['name'] }} Home</a>
+            @else
+                <a class="btn btn-secondary" href="{{ url()->previous() }}">Go Back</a>
+                <a class="btn btn-secondary" href="{{ url('/') }}">Home</a>
+            @endif
         </div>
     </main>
 </body>

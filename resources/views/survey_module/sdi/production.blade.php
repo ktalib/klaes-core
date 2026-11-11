@@ -70,7 +70,7 @@
                         <td><a href="{{ route('survey-module.sdi.map-requests.show', $m) }}"><strong>{{ $m->request_ref }}</strong></a>
                             <div style="font-size:12px;color:var(--gray-500);">{{ optional($m->received_date)->format('d M Y') }}</div></td>
                         <td>{{ $m->requesterName() }}</td>
-                        <td>{{ $m->map_name }}<div style="font-size:12px;color:var(--gray-500);">{{ $m->mapType?->name ?? '—' }}</div></td>
+                        <td>{{ $m->map_name }}<div style="font-size:12px;color:var(--gray-500);">{{ $m->mapTypeLabel() ?: '—' }}</div></td>
                         <td>{{ $m->formatsLabel() }}</td>
                         <td>
                             @if ($tab === 'queue')

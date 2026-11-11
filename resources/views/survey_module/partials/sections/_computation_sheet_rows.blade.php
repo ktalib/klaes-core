@@ -12,7 +12,19 @@
 @foreach ($rows as $x)
     <tr class="imp-staged imp-line {{ $x->kind !== 'line' ? 'imp-line-total' : '' }}" data-of="{{ $sheet }}">
         <td class="nowrap">{{ $x->kind === 'line' ? ($group ? $group . '.' : '') . ($first + $loop->index) : '' }}</td>
-        <td class="wide">Computation Sheet</td>
+        {{-- The farmer's passport photo from the KMC Access export (user, 2026-11-11), on its own row or on the sheet's
+             row it matched; it opens full size. --}}
+        @php $srcLabel = ($x->source_file ?? '') === \App\Services\Survey\KmcAccessImport::SOURCE ? 'KMC Access' : 'Computation Sheet'; @endphp
+        <td class="wide">
+            @if (! empty($x->photo_path))
+                <a href="{{ route('survey-module.compensation.computation-sheet.photo', $x->id) }}" target="_blank" rel="noopener" title="{{ $x->photo_name }}" style="display:inline-flex;align-items:center;gap:8px;">
+                    <img src="{{ route('survey-module.compensation.computation-sheet.photo', $x->id) }}" alt="Passport photo" loading="lazy" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--gray-200);">
+                    {{ $srcLabel }}
+                </a>
+            @else
+                {{ $srcLabel }}
+            @endif
+        </td>
         {!! $none !!}
         {!! $none !!}
         {!! $none !!}
@@ -28,7 +40,12 @@
         {!! $cell($x->govt_50) !!}
         {!! $cell($x->farm_50) !!}
         <td class="mid">{{ $x->plots ?: '—' }}</td>
-        <td class="mid">{{ trim(($x->tag_no ? 'Tag No ' . $x->tag_no . ' ' : '') . $x->remarks) ?: '—' }}</td>
+        @php
+            // Remarks, with the Access farm record's own fields (District, Staff ID, Supervisor, Camera) as written.
+            $extra = collect(['District' => $x->district ?? null, 'Staff ID' => $x->staff_id ?? null, 'Supervisor' => $x->supervisor ?? null, 'Camera' => $x->camera ?? null])
+                ->filter()->map(fn ($v, $k) => "$k $v")->implode(' · ');
+        @endphp
+        <td class="mid">{{ trim(implode(' · ', array_filter([$x->tag_no ? 'Tag No ' . $x->tag_no : null, $x->remarks, $extra]))) ?: '—' }}</td>
         <td class="ctr muted">—</td>
         {!! $none !!}
         {!! $none !!}

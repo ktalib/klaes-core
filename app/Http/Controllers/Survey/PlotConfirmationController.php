@@ -121,6 +121,30 @@ class PlotConfirmationController extends Controller
         return response()->json($this->opRows($ops->inGroup($group, (string) $r->query('plot', ''))));
     }
 
+    /**
+     * Capture Occupancy Permit (user, 2026-11-10): while the OP serial number, the allottee, the plot and place or the
+     * file number is entered, the OPs already captured that match, so the user is asked to use one instead.
+     * Strongest first: same serial, same file, same plot in the place, same allottee.
+     */
+    public function opMatches(Request $r, OpLookup $ops)
+    {
+        $q = fn ($k) => trim((string) $r->query($k, ''));
+        $found = [];
+        $add = function (array $rows, string $why) use (&$found) {
+            foreach ($rows as $op) $found[$op['key']] ??= ['op' => $op, 'why' => $why];
+        };
+
+        if ($q('serial') !== '') $add($ops->exactSerial($q('serial'), 5), 'serial');
+        if ($q('file') !== '') $add($ops->forFileNumber($q('file'), 5), 'file');
+        if ($q('plot') !== '') $add($ops->atPlot($q('plot'), $q('district') ?: null, $q('lga') ?: null), 'location');
+        if (mb_strlen($q('grantee')) >= 5) $add($ops->byGrantee($q('grantee'), $q('plot') ?: null, $q('district') ?: null, $q('lga') ?: null), 'grantee');
+
+        $found = array_slice(array_values($found), 0, 8);
+        $rows = $this->opRows(array_column($found, 'op'));
+
+        return response()->json(['matches' => array_map(fn ($row, $f) => $row + ['why' => $f['why']], $rows, $found)]);
+    }
+
     /** Search active file-indexing records for the OP capture modal. */
     public function indexedFileSearch(Request $r)
     {
@@ -538,7 +562,12 @@ class PlotConfirmationController extends Controller
             'tp_other'         => ['nullable', 'string', 'max:100', Rule::requiredIf(fn () => $r->input('tp') === 'other')],
             'photos'           => 'nullable|array|max:10',
             'photos.*'         => 'file|mimes:jpg,jpeg,png|max:12288',
+            // Survey Update 5e (user, 2026-11-10): required on every new showing recorded here.
+            'payment_evidence' => [Rule::requiredIf(fn () => Showing::hasPaymentEvidence()), 'nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ] + \App\Support\AddressBuilder::rules('req_'), [
+            'payment_evidence.required' => 'Upload the Evidence of Payment.',
+            'payment_evidence.mimes'    => 'The Evidence of Payment must be a PDF, JPG or PNG.',
+            'payment_evidence.max'      => 'The Evidence of Payment can be at most 5 MB.',
             'req_district.required'       => "Choose the requester's district.",
             'req_district_other.required' => "Specify the requester's district.",
             'req_street_other.required'   => "Specify the requester's street.",
@@ -600,6 +629,13 @@ class PlotConfirmationController extends Controller
                         'size'                 => $file->getSize(),
                     ]);
                 }
+                // Evidence of Payment (Survey Update 5e): private disk, beside the showing's photographs.
+                if ($file = $r->file('payment_evidence')) {
+                    $path = Storage::disk(ShowingPhoto::DISK)->putFileAs("app/survey/op-showings/{$op['source']}-{$op['id']}/payment", $file,
+                        Str::uuid() . '.' . strtolower($file->extension() ?: 'pdf'));
+                    $stored[] = $path;
+                    $showing->forceFill(['payment_evidence_path' => $path, 'payment_evidence_name' => mb_substr($file->getClientOriginalName(), 0, 255)])->save();
+                }
 
                 return $showing;
             });
@@ -612,6 +648,18 @@ class PlotConfirmationController extends Controller
 
         return redirect()->route(self::GKN)
             ->with('success', "{$showing->label} of OP {$showing->op_serial} recorded.");
+    }
+
+    /** A showing's Evidence of Payment (Survey Update 5e), from the private disk. */
+    public function paymentEvidence(Showing $showing)
+    {
+        $path = $showing->payment_evidence_path;
+        abort_unless($path && Storage::disk(ShowingPhoto::DISK)->exists($path), 404);
+
+        return Storage::disk(ShowingPhoto::DISK)->response($path, $showing->payment_evidence_name ?: basename($path), [
+            'Cache-Control' => 'private, max-age=3600',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     /**

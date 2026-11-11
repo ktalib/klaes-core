@@ -5,7 +5,6 @@
     $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
     $inputStyle = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;';
     $chip = fn ($label, $c) => '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-' . $c . '-100 text-' . $c . '-800">' . e($label) . '</span>';
-    $cadPrint = \Illuminate\Support\Facades\Route::has('cadastral-module.survey-jobs.its.print');
     $filters = ['q', 'status'];
 @endphp
 
@@ -13,11 +12,22 @@
 
 <div class="page-header">
     <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.gkn.its.export'), 'title' => 'Instruction to Survey - ' . ($tab === 'private' ? 'Private' : 'Public'), 'dateLabel' => 'Issue Date'])</div>
-    {{-- Survey issues Government jobs only; the Private tab lists Cadastral's jobs, read-only. --}}
-    @if ($tab === 'government')
-        <a href="{{ route('survey-module.gkn.its.create') }}" class="btn btn-primary"><i class="fas fa-plus"></i> Issue I to S</a>
-    @endif
+    {{-- Public: Survey's own I to S. The Private tab's Issue I to S (the paper form keyed in) is switched off for now
+         (user, 2026-11-10: "comment out the issue I to S button on private tab"; the form is to move to Public).
+    <button type="button" class="btn btn-primary" data-pv-open><i class="fas fa-plus"></i> Issue I to S</button>
+    --}}
+    {{-- The empty template, printed for the surveyor to fill by hand and bring back (CR 10112026 call). --}}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="{{ route('survey-module.gkn.its.print-blank') }}" target="_blank" rel="noopener" class="btn btn-outline"><i class="fas fa-print"></i> Print Blank I to S</a>
+        @if ($tab === 'government')
+            <a href="{{ route('survey-module.gkn.its.create') }}" class="btn btn-primary"><i class="fas fa-plus"></i> Issue I to S</a>
+        @endif
+    </div>
 </div>
+{{-- Off with its button (2026-11-10); the form, route and print stay for the move to Public. --}}
+@if (false && $tab === 'private')
+    @include('survey_module.gkn.its._private_form')
+@endif
 
 @include('survey_module.partials._gov_private_tabs', ['route' => 'survey-module.gkn.its.index', 'tab' => $tab])
 
@@ -62,6 +72,8 @@
                     <th>Surveyor</th>
                     <th>Issued</th>
                     <th>Status</th>
+                    <th>Created By</th>
+                    <th>Date Created</th>
                     <th></th>
                 </tr>
             </thead>
@@ -88,6 +100,16 @@
                         <td>{{ $row['surveyor'] ?: '—' }}</td>
                         <td>{{ $row['issued'] ? \Illuminate\Support\Carbon::parse($row['issued'])->format('d M Y') : '—' }}</td>
                         <td>{!! $chip($row['status'], SurveyIts::STATUS_COLOURS[$row['status']] ?? 'gray') !!}</td>
+                        {{-- Created By + Date Created after Status (user, 2026-11-11), as the other Survey lists show them. --}}
+                        <td style="white-space:nowrap;">@if ($row['created_by_name']){{ $row['created_by_name'] }}@else<span style="color:var(--gray-400);">—</span>@endif</td>
+                        <td style="white-space:nowrap;">
+                            @if ($row['created_at'])
+                                {{ $row['created_at']->format('d M Y') }}
+                                <span style="display:block;font-size:11px;color:var(--gray-500);">{{ $row['created_at']->format('H:i') }}</span>
+                            @else
+                                <span style="color:var(--gray-400);">—</span>
+                            @endif
+                        </td>
                         <td>
                             <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
                                 <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
@@ -126,15 +148,14 @@
                                             </button>
                                         @endunless
                                     @else
-                                        @if ($cadPrint)
-                                            <a href="{{ route('cadastral-module.survey-jobs.its.print', $row['id']) }}" target="_blank" class="{{ $svItem }}">
-                                                <i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Print I to S
-                                            </a>
-                                        @endif
+                                        {{-- On the Survey Department's I to S form (user, 2026-11-10). --}}
+                                        <a href="{{ route('survey-module.gkn.its.print-private', $row['id']) }}" target="_blank" class="{{ $svItem }}">
+                                            <i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Print I to S
+                                        </a>
                                         <a href="{{ route('survey-module.gkn.reports.create', ['its' => 'cadastral-' . $row['id']]) }}" class="{{ $svItem }}">
                                             <i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i> Surveyors Report
                                         </a>
-                                        <div class="px-3 py-2 text-xs text-gray-500">Issued by Cadastral · read-only here</div>
+                                        <div class="px-3 py-2 text-xs text-gray-500">Private I to S · read-only here</div>
                                     @endif
                                 </div>
                             </div>
@@ -142,7 +163,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="13" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="15" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-clipboard-list" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             @if (request()->hasAny($filters))
                                 No instructions match these filters.

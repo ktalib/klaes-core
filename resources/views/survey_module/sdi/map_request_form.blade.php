@@ -11,6 +11,11 @@
 
     $mdaPick = old('mda_id', $m->exists ? ($m->mda_id ? (string) $m->mda_id : SdiMapRequestController::REQUESTER_OTHER) : '');
     $isOther = $mdaPick === SdiMapRequestController::REQUESTER_OTHER;
+    // Map type "Others (Specify)" (Survey Update 5c, 2026-11-10); hidden until its column exists.
+    $typeOther = \App\Models\Sdi\SdiMapType::OTHER;
+    $typeOtherOn = \App\Models\Sdi\SdiMapRequest::supportsOtherType();
+    $typePick = (string) old('map_type_id', $m->exists ? ($m->map_type_id ? (string) $m->map_type_id : ($m->map_type_other ? $typeOther : '')) : '');
+    $isTypeOther = $typeOtherOn && $typePick === $typeOther;
     $formats = (array) old('output_formats', $m->output_formats ?? ['pdf']);
     $grouped = $mdas->groupBy(fn ($x) => $x->category?->name ?? 'Other');
 @endphp
@@ -86,9 +91,18 @@
                         @foreach ($mapTypes as $t)
                             <option value="{{ $t->id }}" data-basemap="{{ $t->previewBasemap() }}" data-landuse="{{ $t->isLandUse() ? 1 : 0 }}" @selected((string) old('map_type_id', $m->map_type_id) === (string) $t->id)>{{ $t->name }}</option>
                         @endforeach
+                        @if ($typeOtherOn)<option value="{{ $typeOther }}" data-basemap="streets" data-landuse="0" @selected($isTypeOther)>Others (Specify)</option>@endif
                     </select>
                     @error('map_type_id')<div class="err">{{ $message }}</div>@enderror
                 </div>
+                @if ($typeOtherOn)
+                <div class="form-group full" id="mrqTypeOtherBox" @style(['display:none' => ! $isTypeOther])>
+                    <label>Type of Map <span class="required">*</span></label>
+                    <input type="text" name="map_type_other" id="mrqTypeOther" maxlength="150" value="{{ old('map_type_other', $m->map_type_other) }}"
+                           placeholder="The type of map needed" @required($isTypeOther) @disabled(! $isTypeOther) />
+                    @error('map_type_other')<div class="err">{{ $message }}</div>@enderror
+                </div>
+                @endif
                 <div class="form-group full">
                     <label>Map Name <span class="required">*</span></label>
                     <input type="text" name="map_name" maxlength="300" value="{{ old('map_name', $m->map_name) }}" required placeholder="e.g. Land use map of Kumbotso layout" />
@@ -191,6 +205,15 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
     if (mda.value === @json(SdiMapRequestController::REQUESTER_OTHER)) other.required = true;
+
+    // Map type "Others (Specify)" reveals a required box; any other type hides, clears and disables it.
+    var tPick = document.getElementById('mrqType'), tBox = document.getElementById('mrqTypeOtherBox'), tOther = document.getElementById('mrqTypeOther');
+    if (tBox) tPick.addEventListener('change', function () {
+        var on = tPick.value === @json($typeOther);
+        tBox.style.display = on ? '' : 'none';
+        tOther.disabled = !on; tOther.required = on;
+        if (on) tOther.focus(); else tOther.value = '';
+    });
 
     // Draw map (ALAES map-request create): one area per request, bbox recomputed on the server.
     var map = L.map('mrqMap', { center: [12.0022, 8.5920], zoom: 10, minZoom: 6, maxZoom: 19 });

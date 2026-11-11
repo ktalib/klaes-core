@@ -4379,7 +4379,12 @@ class MlsFileNoController extends Controller
                 if (($validated['file_option'] ?? '') === 'extension' && !empty($validated['existing_file_no'])) {
                     $oldFile = $validated['existing_file_no'];
 
-                    $oldIndexing = DB::connection('sqlsrv')->table('file_indexings')->where('file_number', $oldFile)->first();
+                    // "Keep the file number as-is": the extension IS the main file (same number).
+                    // The main file stays live — never decommissioned or linked as its own parent
+                    // (user, 2026-11-11: "the extension should not delete the main file").
+                    $keptAsIs = strcasecmp(trim((string) $oldFile), trim((string) $fullFileNumber)) === 0;
+
+                    $oldIndexing = $keptAsIs ? null : DB::connection('sqlsrv')->table('file_indexings')->where('file_number', $oldFile)->first();
 
                     if ($oldIndexing && $oldIndexing->prop_id) {
                         $newPropId = $propIdService->allocateOrRetrievePropId($fullFileNumber);
@@ -4400,8 +4405,11 @@ class MlsFileNoController extends Controller
                             ]);
                     }
 
-                    $res = $workflowService->decommissionFiles([$oldFile], "Plot Extension to $fullFileNumber", $commissionedBy, $fullFileNumber, false);
-                    $decommissionSummary['archived'] = array_merge($decommissionSummary['archived'], $res['archived']);
+                    if (! $keptAsIs) {
+                        // Flag only ($removeIndexedParent = false): the main file's records stay.
+                        $res = $workflowService->decommissionFiles([$oldFile], "Plot Extension to $fullFileNumber", $commissionedBy, $fullFileNumber, false);
+                        $decommissionSummary['archived'] = array_merge($decommissionSummary['archived'], $res['archived']);
+                    }
 
                     // The extension comment belongs on the EXTENSION file's own row. It used
                     // to be stamped on every pra row carrying the old file number as well,

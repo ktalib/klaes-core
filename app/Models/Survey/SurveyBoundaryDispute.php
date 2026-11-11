@@ -40,14 +40,14 @@ class SurveyBoundaryDispute extends SurveyModel
     public const TYPE_PUBLIC_INTERSTATE = 'Public Boundary – Interstate Boundary';
     /**
      * Any other public boundary (sidebar update 2026-10-29), typed in boundary_type_other.
-     * Withdrawn 2026-10-30: the spec lists Public Boundary as LGA + Interstate only, so it
-     * is no longer offered; kept so a stored value would still read.
+     * Withdrawn 2026-10-30, offered again since 2026-11-10 (user: "c. Others" under Public
+     * Boundary on the Survey Update sidebar image).
      */
     public const TYPE_PUBLIC_OTHER      = 'Public Boundary – Others';
 
-    public const TYPES = [self::TYPE_PROPERTY, self::TYPE_PUBLIC_LGA, self::TYPE_PUBLIC_INTERSTATE];
+    public const TYPES = [self::TYPE_PROPERTY, self::TYPE_PUBLIC_LGA, self::TYPE_PUBLIC_INTERSTATE, self::TYPE_PUBLIC_OTHER];
 
-    public const PUBLIC_TYPES = [self::TYPE_PUBLIC_LGA, self::TYPE_PUBLIC_INTERSTATE];
+    public const PUBLIC_TYPES = [self::TYPE_PUBLIC_LGA, self::TYPE_PUBLIC_INTERSTATE, self::TYPE_PUBLIC_OTHER];
 
     /** "Public Boundary – Others (Ward boundary)" when the other boundary was typed. */
     public function getBoundaryLabelAttribute(): ?string

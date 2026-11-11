@@ -87,7 +87,7 @@
                         </td>
                         <td>
                             {{ $m->map_name }}
-                            <div style="font-size:12px;color:var(--gray-500);">{{ $m->mapType?->name ?? '—' }}{{ $m->map_reference ? ' · ' . $m->map_reference : '' }}</div>
+                            <div style="font-size:12px;color:var(--gray-500);">{{ $m->mapTypeLabel() ?: '—' }}{{ $m->map_reference ? ' · ' . $m->map_reference : '' }}</div>
                         </td>
                         <td>{{ $m->formatsLabel() }}</td>
                         <td>

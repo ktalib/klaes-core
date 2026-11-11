@@ -63,6 +63,20 @@ class SdiMapRequest extends SurveyModel
         return $this->belongsTo(SdiMapType::class, 'map_type_id');
     }
 
+    /** The listed type's name, or the type typed under "Others (Specify)". */
+    public function mapTypeLabel(): ?string
+    {
+        return $this->mapType?->name ?? ($this->map_type_other ?: null);
+    }
+
+    /** Whether map_type_other exists yet (migration 2026_11_10_120000); the Others choice hides until it does. */
+    public static function supportsOtherType(): bool
+    {
+        static $has;
+
+        return $has ??= \Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasColumn('sdi_map_requests', 'map_type_other');
+    }
+
     public function requester(): BelongsTo
     {
         return $this->belongsTo(User::class, 'requested_by');

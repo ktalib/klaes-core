@@ -91,6 +91,7 @@ function renderRows(rows) {
         <td class="px-4 py-3 whitespace-nowrap">
           <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono font-semibold bg-slate-100 text-slate-600 border border-slate-200"
                 title="Original file_indexings.id">${dash(row.file_indexing_id)}</span>
+          ${row.source === 'manual' ? `<span style="margin-left:4px;display:inline-block;padding:1px 6px;border-radius:9999px;background:#ffe4e6;color:#9f1239;font-size:10px;font-weight:700;" title="Captured by hand: never indexed, nothing to reverse">Manual</span>` : ''}
         </td>
         <td class="px-4 py-3 whitespace-nowrap">
           <span class="font-semibold text-slate-800">${escapeHtml(row.file_number)}</span>
@@ -107,7 +108,7 @@ function renderRows(rows) {
         <td class="px-4 py-3 text-right">
           <button type="button" class="dup-actions-btn inline-flex items-center justify-center p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-all"
                   aria-label="Actions" aria-haspopup="menu" aria-expanded="false"
-                  data-id="${escapeHtml(row.id)}" data-reversed="${row.restored_at ? '1' : '0'}">
+                  data-id="${escapeHtml(row.id)}" data-reversed="${row.restored_at ? '1' : '0'}" data-manual="${row.source === 'manual' ? '1' : '0'}">
             <i data-lucide="more-vertical" class="h-4 w-4"></i>
           </button>
         </td>
@@ -187,9 +188,12 @@ const rowMenu = (() => {
 
     const id = button.getAttribute('data-id');
     const reversed = button.getAttribute('data-reversed') === '1';
+    // A manual entry was never indexed: there is nothing to put back.
+    const manual = button.getAttribute('data-manual') === '1';
     panel.dataset.id = id;
     panel.innerHTML = item('snapshot', 'file-search', 'Snapshot', '#334155')
-      + (config.canReverse && !reversed ? item('reverse', 'rotate-ccw', 'Reverse Duplicate', '#be123c') : '');
+      + item('tempfile', 'file-clock', 'Check Temporary File', '#1d4ed8')
+      + (config.canReverse && !reversed && !manual ? item('reverse', 'rotate-ccw', 'Reverse Duplicate', '#be123c') : '');
     refreshIcons();
 
     panel.style.display = 'block';
@@ -229,6 +233,8 @@ const rowMenu = (() => {
     close();
     if (button.dataset.action === 'snapshot') {
       openDetails(id);
+    } else if (button.dataset.action === 'tempfile') {
+      checkTempFile(id);
     } else {
       reverseDuplicate(id);
     }
@@ -654,6 +660,175 @@ function attachEventListeners() {
   });
 }
 
+/*
+ * Check Temporary File (CR 11112026-2): where the duplicate's "(T)" file is now and
+ * what it is, so an officer can answer the owner when they call about it.
+ */
+async function checkTempFile(id) {
+  if (!window.Swal) {
+    return;
+  }
+  let payload = {};
+  try {
+    const response = await fetch(config.tempFileUrlTemplate.replace('__ID__', encodeURIComponent(id)), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+    });
+    payload = await readJson(response);
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.message || 'Could not look up the temporary file.');
+    }
+  } catch (error) {
+    window.Swal.fire({ icon: 'error', title: 'Temporary File', text: error.message });
+    return;
+  }
+
+  const files = payload.files || [];
+  const body = files.length === 0
+    ? `<p>No temporary file is recorded for <strong>${escapeHtml(payload.file_number)}</strong>.</p>
+       <p class="text-xs text-slate-500 mt-2">Looked for: ${escapeHtml((payload.looked_for || []).join(', '))}</p>`
+    : files.map((f) => `
+        <div class="border border-slate-200 rounded-xl p-3 mb-2">
+          <p class="font-semibold text-slate-800">${escapeHtml(f.file_number)} &middot; ${escapeHtml(f.file_title || 'no title')}</p>
+          <p class="text-sm mt-1"><strong>Status:</strong> ${escapeHtml(f.status || '—')}${f.current_location ? ` &middot; <strong>At:</strong> ${escapeHtml(f.current_location)}` : ''}</p>
+          <p class="text-xs text-slate-500 mt-1">${f.indexed ? 'Indexed' : 'Not indexed'}${f.problem_files ? ` &middot; Problem Files: ${escapeHtml(f.problem_files)}` : ''}${f.registry ? ` &middot; ${escapeHtml(f.registry)}` : ''}${f.rack_shelf ? ` &middot; Rack/Shelf ${escapeHtml(f.rack_shelf)}` : ''}</p>
+        </div>`).join('');
+
+  window.Swal.fire({
+    title: 'Temporary File',
+    width: 600,
+    html: `<div class="text-left text-sm text-slate-600">${body}</div>`,
+  });
+}
+
+/* Manual Entry (Super Admin): a duplicate file that was never indexed. */
+function attachManualEntry() {
+  const modal = document.getElementById('dup-manual-modal');
+  const openBtn = document.getElementById('dup-manual-open');
+  const form = document.getElementById('dup-manual-form');
+  if (!modal || !openBtn || !form) {
+    return;
+  }
+  const fileNo = document.getElementById('dup-manual-fileno');
+  const dupOf = document.getElementById('dup-manual-dupof');
+  const error = document.getElementById('dup-manual-error');
+  const save = document.getElementById('dup-manual-save');
+
+  const show = () => { modal.classList.remove('hidden'); modal.classList.add('flex'); refreshIcons(); };
+  const hide = () => { modal.classList.add('hidden'); modal.classList.remove('flex'); };
+  const fail = (message) => { error.textContent = message; error.classList.toggle('hidden', !message); };
+
+  // Picked from the global selector, never typed -- and nothing is backfilled: the
+  // indexed record behind the number is the OTHER file.
+  const pick = () => {
+    if (typeof window.GlobalFileNoModal === 'undefined') {
+      fail('The file number selector did not load. Refresh the page and try again.');
+      return;
+    }
+    window.GlobalFileNoModal.open({
+      initialValue: fileNo.value || '',
+      callback: (fileData) => {
+        const picked = fileData && (fileData.fileNumber || fileData.fileno || fileData.mlsFNo
+          || fileData.kangisFileNo || fileData.NewKANGISFileno
+          || (fileData.record && (fileData.record.file_number || fileData.record.mlsFNo || fileData.record.kangisFileNo)));
+        if (picked) {
+          fileNo.value = picked;
+          dupOf.value = picked;
+          fail('');
+        }
+      },
+    });
+  };
+
+  /*
+   | District and LGA come from the lookup lists, each with one "Other" that opens a
+   | required specify box. Location is built from them -- "District, LGA, Kano" --
+   | and never carries the plot number.
+   */
+  const places = [
+    { select: document.getElementById('dup-manual-district'), other: document.getElementById('dup-manual-district-other'), label: 'district' },
+    { select: document.getElementById('dup-manual-lga'), other: document.getElementById('dup-manual-lga-other'), label: 'LGA' },
+  ];
+  const locationInput = document.getElementById('dup-manual-location');
+  const placeValue = (p) => (p.select.value === '__other' ? p.other.value.replace(/\s+/g, ' ').trim() : p.select.value);
+  const composeLocation = () => {
+    const parts = places.map(placeValue).filter(Boolean);
+    locationInput.value = parts.length ? [...parts, 'Kano'].join(', ') : '';
+  };
+  const syncOther = (p) => {
+    const isOther = p.select.value === '__other';
+    p.other.classList.toggle('hidden', !isOther);
+    p.other.disabled = !isOther;
+    if (!isOther) p.other.value = '';
+    composeLocation();
+  };
+  const $ = window.jQuery;
+  places.forEach((p) => {
+    if ($ && $.fn && $.fn.select2) {
+      $(p.select).select2({ dropdownParent: $(modal), width: '100%', placeholder: `Select ${p.label}` })
+        .on('change', () => syncOther(p));
+    } else {
+      p.select.addEventListener('change', () => syncOther(p));
+    }
+    p.other.addEventListener('input', composeLocation);
+  });
+  const resetPlaces = () => {
+    places.forEach((p) => {
+      p.select.value = '';
+      if ($ && $.fn && $.fn.select2) $(p.select).trigger('change.select2');
+      syncOther(p);
+    });
+  };
+
+  openBtn.addEventListener('click', () => { form.reset(); resetPlaces(); fail(''); show(); });
+  document.getElementById('dup-manual-close').addEventListener('click', hide);
+  document.getElementById('dup-manual-cancel').addEventListener('click', hide);
+  fileNo.addEventListener('click', pick);
+  document.getElementById('dup-manual-fileno-btn').addEventListener('click', pick);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(form).entries());
+    for (const p of places) {
+      if (p.select.value === '__other' && !placeValue(p)) {
+        fail(`Specify the ${p.label}, or pick one from the list.`);
+        p.other.focus();
+        return;
+      }
+      data[p.select.name] = placeValue(p);
+    }
+    data.location = locationInput.value;
+    if (!data.file_number) { fail('Select the file number.'); return; }
+    if (!String(data.file_title || '').trim()) { fail('Enter the title on the duplicate file.'); return; }
+    if (!String(data.reason || '').trim()) { fail('Say why this file is a duplicate.'); return; }
+
+    save.disabled = true;
+    try {
+      const response = await fetch(config.manualUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': config.csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify(data),
+      });
+      const payload = await readJson(response);
+      if (!response.ok || !payload.success) {
+        const first = payload.errors ? Object.values(payload.errors)[0] : null;
+        throw new Error((Array.isArray(first) ? first[0] : first) || payload.message || 'Could not save the entry.');
+      }
+      hide();
+      state.page = 1;
+      loadTable();
+      loadStats();
+      if (window.Swal) {
+        window.Swal.fire({ icon: 'success', title: 'Captured', text: payload.message, timer: 2500, showConfirmButton: false });
+      }
+    } catch (err) {
+      fail(err.message);
+    } finally {
+      save.disabled = false;
+    }
+  });
+}
+
 attachEventListeners();
+attachManualEntry();
 loadTable();
 loadStats();

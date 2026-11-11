@@ -227,6 +227,84 @@ document.addEventListener('DOMContentLoaded', () => {
         return !recordId?.value && recordCommentSelect?.value === 'duplicate';
     }
 
+    /**
+     | Temporary File mode (CR 11112026-2): the officer picks the MAIN file, the
+     | record is saved as "MAIN(T)", and the temp title is checked against the
+     | indexed main file's title -- different holders = suspected forgery.
+     */
+    function usesTemporaryMode() {
+        return !recordId?.value && recordCommentSelect?.value === 'temporary';
+    }
+
+    function tempNumberFor(number) {
+        const n = String(number || '').trim();
+        return n === '' || /\(T\)\s*$/i.test(n) ? n : `${n}(T)`;
+    }
+
+    async function checkMainFile(row) {
+        const number = row.querySelector('.record-file-number-input')?.value.trim() ?? '';
+        const title = row.querySelector('.record-file-title-input')?.value.trim() ?? '';
+        const info = row.querySelector('.record-file-temp-info');
+        const plotInput = row.querySelector('.record-file-plot-input');
+        const locationInput = row.querySelector('.record-file-location-input');
+
+        if (!info) {
+            return;
+        }
+        if (number === '') {
+            row.dataset.tempNumber = '';
+            info.classList.add('hidden');
+            return;
+        }
+
+        row.dataset.tempNumber = tempNumberFor(number);
+        const token = String(Date.now());
+        row.dataset.mainCheck = token;
+
+        let data = null;
+        try {
+            const url = `${config.mainFileUrl}?file_number=${encodeURIComponent(number)}&title=${encodeURIComponent(title)}`;
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            const payload = await response.json();
+            data = payload?.data ?? null;
+        } catch (error) {
+            data = null;
+        }
+
+        // A newer pick or keystroke has already asked again.
+        if (row.dataset.mainCheck !== token) {
+            return;
+        }
+
+        // Backfill plot / location from the main file, replacing what the previous
+        // pick filled in but never what the officer typed.
+        const refill = (input, key, value) => {
+            if (!input) return;
+            const current = input.value.trim();
+            if (current === '' || current === (row.dataset[key] || '')) {
+                input.value = value || '';
+            }
+            row.dataset[key] = value || '';
+        };
+        refill(plotInput, 'filledPlot', data?.plot_number);
+        refill(locationInput, 'filledLocation', data?.location);
+
+        const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        info.classList.remove('hidden');
+
+        if (!data) {
+            info.className = 'record-file-temp-info rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800';
+            info.innerHTML = `Saved as <strong>${esc(row.dataset.tempNumber)}</strong>. The main file is not indexed, so there is no title to compare.`;
+            return;
+        }
+
+        row.dataset.tempNumber = data.temp_file_number || row.dataset.tempNumber;
+        const flagged = data.condition === 'suspected_forgery';
+        info.className = `record-file-temp-info rounded-xl border px-3 py-2 text-xs ${flagged ? 'border-rose-300 bg-rose-50 text-rose-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`;
+        info.innerHTML = `Saved as <strong>${esc(row.dataset.tempNumber)}</strong> &middot; Main file title: <strong>${esc(data.file_title || '—')}</strong>`
+            + (flagged ? '<br><strong>Titles differ: this will be flagged SUSPECTED FORGERY.</strong>' : '');
+    }
+
     function fileRowInput(cls, placeholder) {
         const input = document.createElement('input');
         input.type = 'text';
@@ -325,9 +403,10 @@ document.addEventListener('DOMContentLoaded', () => {
         numberGroup.appendChild(numberInput);
         numberGroup.appendChild(lookupButton);
 
-        const titleInput = fileRowInput('record-file-title-input', 'Enter file title');
+        const tempMode = usesTemporaryMode();
+        const titleInput = fileRowInput('record-file-title-input', tempMode ? 'Title on the temporary file' : 'Enter file title');
         titleInput.value = values.file_title || '';
-        titleInput.required = sharedNumber;
+        titleInput.required = sharedNumber || tempMode;
 
         const plotInput = fileRowInput('record-file-plot-input', 'e.g., Plot 123');
         plotInput.value = values.plot_number || '';
@@ -338,9 +417,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const topGrid = document.createElement('div');
         topGrid.className = sharedNumber ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 sm:grid-cols-2 gap-3';
         if (!sharedNumber) {
-            topGrid.appendChild(fileRowField('File Number <span class="text-red-500">*</span>', numberInput, numberGroup));
+            topGrid.appendChild(fileRowField(tempMode ? 'Main File No. <span class="text-red-500">*</span>' : 'File Number <span class="text-red-500">*</span>', numberInput, numberGroup));
         }
-        topGrid.appendChild(fileRowField(sharedNumber ? 'File Title <span class="text-red-500">*</span>' : 'File Title', titleInput));
+        topGrid.appendChild(fileRowField(
+            sharedNumber ? 'File Title <span class="text-red-500">*</span>'
+                : (tempMode ? 'Temporary File Title <span class="text-red-500">*</span>' : 'File Title'),
+            titleInput
+        ));
+
+        let tempInfo = null;
+        if (tempMode) {
+            tempInfo = document.createElement('div');
+            tempInfo.className = 'record-file-temp-info hidden';
+            numberInput.addEventListener('change', () => checkMainFile(row));
+            let titleTimer = null;
+            titleInput.addEventListener('input', () => {
+                clearTimeout(titleTimer);
+                titleTimer = setTimeout(() => checkMainFile(row), 400);
+            });
+        }
 
         const bottomGrid = document.createElement('div');
         bottomGrid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3';
@@ -349,10 +444,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         row.appendChild(head);
         row.appendChild(topGrid);
+        if (tempInfo) {
+            row.appendChild(tempInfo);
+        }
         row.appendChild(bottomGrid);
         recordFileList.appendChild(row);
 
         updateFileRowChrome();
+
+        if (tempMode && numberInput.value.trim() !== '') {
+            checkMainFile(row);
+        }
 
         return row;
     }
@@ -381,10 +483,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const sharedNumber = usesSharedFileNumber() ? (recordFileNumber?.value.trim() ?? '') : null;
+        const tempMode = usesTemporaryMode();
+        const rowNumber = (row) => {
+            const picked = row.querySelector('.record-file-number-input')?.value.trim() ?? '';
+            return tempMode ? (row.dataset.tempNumber || tempNumberFor(picked)) : picked;
+        };
 
         return Array.from(recordFileList.querySelectorAll('.record-file-row'))
             .map((row) => ({
-                file_number: sharedNumber ?? (row.querySelector('.record-file-number-input')?.value.trim() ?? ''),
+                file_number: sharedNumber ?? rowNumber(row),
                 file_title: row.querySelector('.record-file-title-input')?.value.trim() ?? '',
                 plot_number: row.querySelector('.record-file-plot-input')?.value.trim() ?? '',
                 location: row.querySelector('.record-file-location-input')?.value.trim() ?? '',
@@ -450,7 +557,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (recordFileListHelp) {
             recordFileListHelp.textContent = usesSharedFileNumber()
                 ? 'Every title below will be saved against the selected file number above.'
-                : 'Each file below is saved as its own record, under the registry and category above.';
+                : (usesTemporaryMode()
+                    ? 'Pick the MAIN file; each entry is saved as its temporary file "(T)". A title that differs from the main file is flagged as a suspected forgery.'
+                    : 'Each file below is saved as its own record, under the registry and category above.');
         }
         if (recordFileAddLabel) {
             recordFileAddLabel.textContent = 'Add File';
@@ -944,6 +1053,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            if (usesTemporaryMode() && files.some((file) => file.file_title === '')) {
+                renderFormError('Enter the title on every temporary file, so it can be compared with the main file.');
+                setSubmitting(false);
+                return;
+            }
+
             formData = {
                 registry: recordRegistry?.value?.trim() ?? '',
                 comment: emptyToNull(recordCommentNote?.value),
@@ -1137,6 +1252,110 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    /*
+     | Row action menu: one element for the whole page, opened against the clicked
+     | trigger with fixed positioning (flipped upward near the bottom of the screen)
+     | and closed on an outside click, Escape, scroll or resize.
+     */
+    let rowMenu = null;
+    let rowMenuTrigger = null;
+    let rowMenuAnchorTop = 0;
+
+    function closeRowMenu() {
+        if (rowMenu) {
+            rowMenu.classList.add('hidden');
+        }
+        if (rowMenuTrigger) {
+            rowMenuTrigger.setAttribute('aria-expanded', 'false');
+        }
+        rowMenuTrigger = null;
+    }
+
+    function openRowMenu(trigger, record, recordType) {
+        if (rowMenuTrigger === trigger) {
+            closeRowMenu();
+            return;
+        }
+        closeRowMenu();
+
+        if (!rowMenu) {
+            rowMenu = document.createElement('div');
+            rowMenu.className = 'hidden fixed z-[60] w-52 rounded-xl border border-slate-200 bg-white py-1 shadow-xl';
+            rowMenu.setAttribute('role', 'menu');
+            rowMenu.addEventListener('click', (event) => event.stopPropagation());
+            document.body.appendChild(rowMenu);
+        }
+
+        const icon = (path) => `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${path}"></path></svg>`;
+        const items = [
+            {
+                label: 'Call-up Sheet',
+                cls: 'text-slate-700 hover:bg-slate-50',
+                icon: 'M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z',
+                run: () => {
+                    if (record.file_number) {
+                        window.open(`/duplicate-callup?file_number=${encodeURIComponent(record.file_number)}&duplicate_id=${encodeURIComponent(record.id || '')}`, '_blank');
+                    }
+                },
+            },
+            {
+                label: 'Edit',
+                cls: 'text-blue-700 hover:bg-blue-50',
+                icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+                run: () => openEditModal(record.id, recordType),
+            },
+            {
+                label: 'Delete',
+                cls: 'text-rose-700 hover:bg-rose-50',
+                icon: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16',
+                run: () => showDeleteModal(record.id, recordType),
+            },
+        ];
+
+        rowMenu.innerHTML = '';
+        items.forEach((item) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.setAttribute('role', 'menuitem');
+            button.className = `flex w-full items-center gap-2 px-4 py-2 text-left text-sm ${item.cls}`;
+            button.innerHTML = `${icon(item.icon)}<span>${item.label}</span>`;
+            button.addEventListener('click', () => {
+                closeRowMenu();
+                item.run();
+            });
+            rowMenu.appendChild(button);
+        });
+
+        rowMenu.classList.remove('hidden');
+        const rect = trigger.getBoundingClientRect();
+        const menuHeight = rowMenu.offsetHeight;
+        const menuWidth = rowMenu.offsetWidth;
+        const below = rect.bottom + 4;
+        const top = below + menuHeight > window.innerHeight ? Math.max(4, rect.top - menuHeight - 4) : below;
+        const left = Math.min(Math.max(4, rect.right - menuWidth), window.innerWidth - menuWidth - 4);
+        rowMenu.style.top = `${top}px`;
+        rowMenu.style.left = `${left}px`;
+
+        rowMenuTrigger = trigger;
+        rowMenuAnchorTop = rect.top;
+        trigger.setAttribute('aria-expanded', 'true');
+    }
+
+    document.addEventListener('click', closeRowMenu);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeRowMenu();
+        }
+    });
+    window.addEventListener('resize', closeRowMenu);
+    // Close on scroll only once the row has actually moved: the scroll that brings
+    // a trigger into view as it is clicked must not shut the menu it just opened.
+    window.addEventListener('scroll', () => {
+        if (rowMenuTrigger && Math.abs(rowMenuTrigger.getBoundingClientRect().top - rowMenuAnchorTop) > 2) {
+            closeRowMenu();
+        }
+    }, true);
+
     function createTableManager(type) {
         const sectionId = `file-search-${type}`;
         const section = document.querySelector(`section[data-record-type="${type}"]`);
@@ -1263,6 +1482,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         cell.textContent = value;
                     }
+
+                    // Temporary File condition: name the indexed main file under the
+                    // title, and flag the pair when the two titles differ.
+                    if (isFileTitleCell && record.main_file_number) {
+                        const main = document.createElement('div');
+                        main.className = 'mt-1 text-xs text-slate-500';
+                        main.textContent = `Main file ${record.main_file_number}: ${record.main_file_title || '—'}`;
+                        cell.appendChild(main);
+                    }
+                    if (index === 6 && record.condition === 'suspected_forgery') {
+                        const badge = document.createElement('span');
+                        badge.className = 'mb-1 inline-block rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-rose-700';
+                        badge.textContent = 'Suspected Forgery';
+                        badge.title = 'The main file is indexed under a different title';
+                        cell.prepend(document.createElement('br'));
+                        cell.prepend(badge);
+                    }
                     row.appendChild(cell);
                 });
 
@@ -1272,54 +1508,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                // One three-dots trigger per row; the menu itself is shared and
+                // positioned against the viewport, so the table's overflow-x
+                // wrapper cannot clip it.
                 const actionsCell = document.createElement('td');
                 actionsCell.className = 'px-4 py-3 text-center whitespace-nowrap';
-                actionsCell.innerHTML = `
-                    <div class="inline-flex items-center gap-1">
-                        <button type="button" class="callup-btn rounded-lg p-2 text-rose-600 hover:bg-rose-50" data-file-number="${record.file_number || ''}" data-id="${record.id}" title="Duplicate Call-up">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                        </button>
-                        <button type="button" class="edit-btn rounded-lg p-2 text-blue-600 hover:bg-blue-50" data-id="${record.id}" data-record-type="${record.record_type || type}" title="Edit">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                        </button>
-                        <button type="button" class="delete-btn rounded-lg p-2 text-rose-600 hover:bg-rose-50" data-id="${record.id}" data-record-type="${record.record_type || type}" title="Delete">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        </button>
-                    </div>
-                `;
+                const trigger = document.createElement('button');
+                trigger.type = 'button';
+                trigger.className = 'row-actions-btn rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800';
+                trigger.setAttribute('aria-label', 'Actions');
+                trigger.setAttribute('aria-haspopup', 'menu');
+                trigger.innerHTML = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>';
+                trigger.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    openRowMenu(trigger, record, record.record_type || type);
+                });
+                actionsCell.appendChild(trigger);
                 row.appendChild(actionsCell);
 
                 tableBody.appendChild(row);
-            });
-
-            tableBody.querySelectorAll('.callup-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const fn = btn.getAttribute('data-file-number');
-                    const id = btn.getAttribute('data-id');
-                    if (fn) {
-                        window.open(`/duplicate-callup?file_number=${encodeURIComponent(fn)}&duplicate_id=${encodeURIComponent(id || '')}`, '_blank');
-                    }
-                });
-            });
-
-            tableBody.querySelectorAll('.edit-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const id = btn.getAttribute('data-id');
-                    const recordType = btn.getAttribute('data-record-type') || type;
-                    if (id) {
-                        openEditModal(id, recordType);
-                    }
-                });
-            });
-
-            tableBody.querySelectorAll('.delete-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const id = btn.getAttribute('data-id');
-                    const recordType = btn.getAttribute('data-record-type') || type;
-                    if (id) {
-                        showDeleteModal(id, recordType);
-                    }
-                });
             });
         };
 

@@ -21,7 +21,7 @@
                         <td>{{ $m->contact_name }}</td>
                         <td style="white-space:nowrap;">{{ $m->contact_phone }}</td>
                         <td>{{ $m->map_name }}</td>
-                        <td>{{ $m->mapType?->name ?: '—' }}</td>
+                        <td>{{ $m->mapTypeLabel() ?: '—' }}</td>
                         <td>{{ $m->formatsLabel() }}</td>
                         <td>{{ $m->production_officer ?: '—' }}</td>
                         <td style="white-space:nowrap;">

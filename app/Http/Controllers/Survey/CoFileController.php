@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Survey;
 
 use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyCoFile;
+use App\Services\Survey\SurveyFileIndexing;
 use App\Support\AddressBuilder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -116,14 +117,21 @@ class CoFileController extends Controller
         $data = $this->validated($r, null, $capture);
 
         $data['source'] = $capture ? SurveyCoFile::SOURCE_CAPTURED : SurveyCoFile::SOURCE_COMMISSIONED;
+        // Saved with its File Indexing row, or not at all (user, 2026-11-09).
+        $save = fn (array $values) => DB::connection('sqlsrv')->transaction(function () use ($values) {
+            $f = SurveyCoFile::create($values);
+            app(SurveyFileIndexing::class)->indexCoFile($f);
+
+            return $f;
+        });
         if ($capture) {
-            $coFile = SurveyCoFile::create($data);
+            $coFile = $save($data);
         } else {
             // Numbered on save, never from the form. The number is unique in the table, so
             // if someone else took it in the same moment, take the next one.
             for ($try = 1; ; $try++) {
                 try {
-                    $coFile = SurveyCoFile::create(['co_file_no' => SurveyCoFile::nextNumber()] + $data);
+                    $coFile = $save(['co_file_no' => SurveyCoFile::nextNumber()] + $data);
                     break;
                 } catch (QueryException $e) {
                     if ($try >= 3) throw $e;
@@ -152,7 +160,11 @@ class CoFileController extends Controller
         // A commissioned number is the system's; only a captured one may be corrected.
         if (! $capture) unset($data['co_file_no']);
 
-        $coFile->update($data);
+        $oldNumber = $coFile->co_file_no;
+        DB::connection('sqlsrv')->transaction(function () use ($coFile, $data, $oldNumber) {
+            $coFile->update($data);
+            app(SurveyFileIndexing::class)->indexCoFile($coFile, $oldNumber);
+        });
 
         return redirect()
             ->route(self::listRoute($coFile->source))
@@ -167,7 +179,10 @@ class CoFileController extends Controller
         }
 
         $no = $coFile->co_file_no;
-        $coFile->delete();
+        DB::connection('sqlsrv')->transaction(function () use ($coFile) {
+            $coFile->delete();
+            app(SurveyFileIndexing::class)->removeCoFile($coFile);
+        });
 
         return back()->with('success', "CO file {$no} deleted.");
     }

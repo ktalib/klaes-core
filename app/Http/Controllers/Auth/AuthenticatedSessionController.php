@@ -103,6 +103,9 @@ class AuthenticatedSessionController extends Controller
         // header) so the value is stable for the whole session.
         session(['last_login_time' => time()]);
 
+        // From this sign-in on, RequireSecurityQuestions holds the session until answers are set.
+        session([\App\Http\Middleware\RequireSecurityQuestions::CHECK_KEY => true]);
+
         // Clear intended URL if it points to a JSON/utility endpoint
         // (e.g. /world-time, /api/*, etc.) to prevent redirecting there after login
         $intended = session()->get('url.intended');

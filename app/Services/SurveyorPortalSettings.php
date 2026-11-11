@@ -9,16 +9,21 @@ use Illuminate\Support\Facades\DB;
 class SurveyorPortalSettings
 {
     public const DEFAULT_LOGO_PATHS = [
-        'wordmark' => 'assets/logo/knssgof-wordmark.png',
-        'seal' => 'assets/logo/knssgof-logo.png',
-        'registration_banner' => 'assets/logo/knssgof-register-banner.png',
-        'favicon' => 'assets/logo/knssgof-logo.png',
+        // MLPP-SG artwork (user, 2026-11-10); the KNSSGOF files stay on disk, unused.
+        'wordmark' => 'assets/logo/mlppsg-wordmark.jpg',
+        'seal' => 'assets/logo/mlppsg-logo.png',
+        'registration_banner' => 'assets/logo/mlppsg-register-banner.jpg',
+        'favicon' => 'assets/logo/mlppsg-favicon.png',
     ];
 
     public const DEFAULTS = [
-        'brand_name' => 'KNSSGOF',
-        'portal_name' => 'KNSSGOF Portal',
-        'office_name' => "Kano State Surveyor General's Office",
+        // Renamed from KNSSGOF (user, 2026-11-10): "MLPP- Surveyor General Portal", acronym "MLPP-SG portal".
+        'brand_name' => 'MLPP-SG',
+        'portal_name' => 'MLPP - Surveyor General Portal',
+        'office_name' => "Ministry of Land and Physical Planning – Surveyor General's Office",   // wording image, 2026-11-10
+        // Survey Update 5j (user, 2026-11-10): shown on the portal's pages.
+        'ministry_line' => 'Under the Kano State Ministry of Land and Physical Planning',
+        'ministry_address' => 'No. 2 Dr Bala Mohammed Road, Kano State, Nigeria',
         'primary_color' => '#0B3A7E',
         'primary_dark_color' => '#082B5E',
         'green_color' => '#15803D',
@@ -48,7 +53,7 @@ class SurveyorPortalSettings
         ],
         'private_title' => 'Private surveyors',
         'private_description' => "For surveys by a registered company. Numbers carry your company's letters and continue its own series.",
-        'private_example' => 'A0001B',
+        'private_example' => 'B0001',
         'ready_title' => 'Have these ready',
         'ready_items' => [
             'Your SURCON registration number',

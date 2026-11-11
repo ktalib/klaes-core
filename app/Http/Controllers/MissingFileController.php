@@ -8,6 +8,7 @@ use App\Services\FileLocationResolver;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
@@ -339,6 +340,25 @@ class MissingFileController extends Controller
             'found_by'      => $user->id ?? null,
             'found_by_name' => $user ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) : null,
         ]);
+
+        // Clear the "Not With KLAES" / SCB Not Found outcome stamped on the file's indexing row by the
+        // Not Found (Missing) response, as Revert Response does; otherwise Quick Search keeps showing it
+        // after the file is found (RES-2023-5062, 2026-11-11). Left alone while another report on the
+        // same number is still open, and never touches any other stamped outcome.
+        $stillMissing = MissingFile::where('file_number', $missing->file_number)
+            ->where('status', '!=', MissingFile::STATUS_FOUND)
+            ->exists();
+        if (! $stillMissing && $missing->file_number) {
+            DB::connection('sqlsrv')->table('file_indexings')
+                ->where('file_number', $missing->file_number)
+                ->whereIn('tracking_status', [
+                    FileLocationResolver::STATUS_MISSING_FILE,
+                    FileLocationResolver::STATUS_IN_ARCHIVE_NOT_FOUND,
+                    FileLocationResolver::STATUS_IN_POOL_NOT_FOUND,
+                    FileLocationResolver::STATUS_NOT_FOUND,
+                ])
+                ->update(['tracking_status' => null, 'location_status_manual' => null]);
+        }
 
         return response()->json([
             'success' => true,

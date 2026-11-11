@@ -138,6 +138,14 @@ class FileLocationResolver
             && !empty($tracker->updated_at)
             && strtotime((string) $tracker->updated_at) > strtotime((string) $indexing->location_status_manual);
 
+        // A "Not With KLAES" stamp only stands while the file still has an open missing report: once the
+        // report is marked Found or deleted the file is no longer missing, whichever screen did it
+        // (RES-2023-5062, 2026-11-11).
+        if ($indexing && !$manualIsStale && $indexing->tracking_status === self::STATUS_MISSING_FILE
+            && !$this->hasOpenMissingReport($fileNumber)) {
+            $manualIsStale = true;
+        }
+
         if ($indexing && !$manualIsStale && !empty($indexing->location_status_manual) && !empty($indexing->tracking_status)) {
             $meta = $this->actionMetaFor($indexing->tracking_status, $this->indexingRegistry($indexing), $this->isDcivFile($indexing));
             return $this->result($fileNumber, $indexing->tracking_status, array_merge([
@@ -199,8 +207,9 @@ class FileLocationResolver
                 $heldSince = $commissioning['commissioned_at'];
 
                 return $this->result($fileNumber, self::STATUS_IN_TRANSIT, [
-                    'registry'         => FileCommissioningTrackingService::OFFICE_NAME,
-                    'current_location' => FileCommissioningTrackingService::OFFICE_NAME,
+                    // The FCO for Land; a Survey file's unit office (user, 2026-11-09).
+                    'registry'         => FileCommissioningTrackingService::officeOf($commissioning)[1],
+                    'current_location' => FileCommissioningTrackingService::officeOf($commissioning)[1],
                     // The file's assigned home shelf still applies — it is where the file
                     // will be filed once processing is done.
                     'rack_shelf'       => $this->getRackShelf($fileNumber, $indexing),
@@ -579,6 +588,40 @@ class FileLocationResolver
     }
 
     /**
+     * Batch form of kangisContainersFor(), for a page of file numbers (File Tracker
+     * log cards). Same links, same NPF exclusions; a number that is itself a KANGIS
+     * file gets none. Keyed by the upper-cased file number; numbers with no KANGIS
+     * file are absent. Read-only.
+     *
+     * @param  array<int,string>  $fileNumbers
+     * @return array<string, array<int, array>>
+     */
+    public function kangisContainersForMany(array $fileNumbers): array
+    {
+        $map = $this->kangisContainerNumbers($fileNumbers);
+        if (!$map) {
+            return [];
+        }
+
+        $selfKangis = FileIndexing::query()
+            ->whereIn('file_number', array_keys($map))
+            ->where(fn ($q) => $q->where('general_registry', 'like', '%KANGIS%')
+                ->orWhere('physical_registry', 'like', '%KANGIS%'))
+            ->pluck('file_number')
+            ->map(fn ($n) => strtoupper(trim((string) $n)))
+            ->flip();
+
+        $out = [];
+        foreach ($map as $key => $numbers) {
+            if (!$selfKangis->has($key)) {
+                $out[$key] = $this->describeLinkedFiles(array_slice($numbers, 0, 5), 'KANGIS Registry');
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Resolve each linked file number to where it is now, for the KANGIS / Land
      * panels on Quick Search. Restores the caller's duplicate flag, which
      * resolve() overwrites.
@@ -843,17 +886,7 @@ class FileLocationResolver
         // and the "Send Blind Request to SCB Monitor" button changes to
         // "Send Blind Request to the Original Registry" instead,
         // and the record saves without sending the request to the SCB.
-        try {
-            if (Schema::connection('sqlsrv')->hasTable('missing_files')) {
-                $merged['is_missing_file'] = DB::connection('sqlsrv')
-                    ->table('missing_files')
-                    ->where('file_number', $fileNumber)
-                    ->where('status', '!=', MissingFile::STATUS_FOUND)
-                    ->exists();
-            }
-        } catch (\Throwable $e) {
-            // Fail open — treat as not in missing_files if the table is missing.
-        }
+        $merged['is_missing_file'] = $this->hasOpenMissingReport($fileNumber);
 
         // Override status when the file is confirmed missing — SCB already searched and
         // could not find it. This takes precedence over the resolver's inferred status
@@ -875,6 +908,24 @@ class FileLocationResolver
         }
 
         return $merged;
+    }
+
+    /** The file number has a missing_files report not yet marked Found. Fails open (false) on error. */
+    protected function hasOpenMissingReport(string $fileNumber): bool
+    {
+        try {
+            if (Schema::connection('sqlsrv')->hasTable('missing_files')) {
+                return DB::connection('sqlsrv')
+                    ->table('missing_files')
+                    ->where('file_number', $fileNumber)
+                    ->where('status', '!=', MissingFile::STATUS_FOUND)
+                    ->exists();
+            }
+        } catch (\Throwable $e) {
+            // Fail open — treat as not in missing_files if the table is missing.
+        }
+
+        return false;
     }
 
     /**

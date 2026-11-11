@@ -289,15 +289,16 @@
         @foreach (['imported' => ['Imported', 'fa-file-import'], 'entered' => ['Captured', 'fa-keyboard']] as $k => [$label, $icon])
             <a href="{{ route('survey-module.compensation.cases', ['origin' => $k] + (request('view') === 'showing' ? ['view' => 'showing'] : [])) }}" role="tab" aria-selected="{{ $tab === $k ? 'true' : 'false' }}"
                class="btn {{ $tab === $k ? 'btn-primary' : 'btn-outline' }} btn-sm">
-                <i class="fas {{ $icon }}"></i> {{ $label }} <span style="opacity:.75;">({{ number_format($tabCounts[$k]) }})</span>
+                <i class="fas {{ $icon }}"></i> {{ $label }} <span style="opacity:.75;">({{ number_format($tabCounts[$k]) }} {{ $tabCounts[$k] === 1 ? 'farm' : 'farms' }})</span>
             </a>
         @endforeach
     </div>
 
     <div class="kpi-grid">
         <div class="kpi-card">
-            <div class="kpi-label">Total Assessment</div>
+            <div class="kpi-label">Total Farms</div>
             <div class="kpi-value">{{ number_format($stats['total']) }}</div>
+            <div style="font-size:12px;color:var(--gray-500);">in {{ number_format($stats['blocks']) }} {{ $stats['blocks'] === 1 ? 'block' : 'blocks' }}</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-label">Active</div>
@@ -355,7 +356,7 @@
 
     @if ($tab === 'imported')
         <div class="page-header" style="margin-bottom:10px;">
-            <div class="comp-type-note" style="margin:0;padding:8px 12px;background:#fef3c7;border-color:#fde68a;color:#78350f;"><i class="fas fa-info-circle"></i> Amber rows are Computation sheet.xlsx, staged as written. They are not lands or farmers yet.</div>
+            <div class="comp-type-note" style="margin:0;padding:8px 12px;background:#fef3c7;border-color:#fde68a;color:#78350f;"><i class="fas fa-info-circle"></i> Amber rows are Computation sheet.xlsx and the KMC Phase1 Access export (with passport photos), staged as written. They are not lands or farmers yet.</div>
             @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.compensation.computation-sheet.export'), 'title' => 'Computation Sheet', 'dates' => false, 'params' => ['origin' => 'imported']])
         </div>
     @endif
@@ -366,7 +367,7 @@
                 <thead>
                     <tr>
                         <th>S/N</th>
-                        <th>Project</th>
+                        <th>{{ $tab === 'imported' ? 'Project / Farmer' : 'Project' }}</th>
                         <th>TP No.</th>
                         <th>Scheme</th>
                         <th>Surveyor / Portion</th>
@@ -388,7 +389,7 @@
                             <th>Plots</th>
                             <th>Remarks</th>
                         @endif
-                        <th class="ctr">Beneficiaries</th>
+                        <th class="ctr">{{ $tab === 'imported' ? 'Farms' : 'Beneficiaries' }}</th>
                         <th>Status</th>
                         <th>Created By</th>
                         <th>Date Created</th>
@@ -396,7 +397,7 @@
                     </tr>
                 </thead>
                 @if ($tab === 'imported')
-                <tbody id="impGroups" data-rows-url="{{ route('survey-module.compensation.computation-sheet.rows') }}" data-q="{{ request('q') }}">
+                <tbody id="impGroups" data-rows-url="{{ route('survey-module.compensation.computation-sheet.rows') }}" data-farms-url="{{ route('survey-module.compensation.cases.farms') }}" data-q="{{ request('q') }}">
                     @include('survey_module.partials.sections._imported_groups')
                 </tbody>
                 @else

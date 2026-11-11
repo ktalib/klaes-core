@@ -7,6 +7,8 @@ use App\Models\FileIndexing;
 use App\Services\AuditService;
 use App\Services\IndexedFilesFilterOptions;
 use App\Services\IndexingDuplicateService;
+use App\Services\TemporaryFileConditionService;
+use App\Services\TemporaryFileNumberResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -144,7 +146,7 @@ class IndexedFileTableController extends Controller
 
         $items = $query->limit(self::EXPORT_LIMIT)->get();
 
-        $creatorIds = $items->pluck('created_by')
+        $creatorIds = $items->flatMap(fn ($item) => [$item->created_by, $item->updated_by])
             ->map(fn ($value) => trim((string) $value))
             ->filter(fn ($value) => $value !== '' && ctype_digit($value) && (int) $value > 0)
             ->unique()->values();
@@ -169,6 +171,7 @@ class IndexedFileTableController extends Controller
             if ($fileNo === '' || $fileNo === '-') {
                 $fileNo = (string) $item->temp_file_no;
             }
+            $wasUpdated = $this->wasUpdatedAfterCreation($item->created_at, $item->updated_at);
 
             return [
                 'sn' => $i + 1,
@@ -182,12 +185,18 @@ class IndexedFileTableController extends Controller
                 'lga' => $dash($item->lga),
                 'shelf_location' => $dash($this->resolveShelfLocation($item, $shelfLookup)),
                 'indexed_by' => $this->resolveCreatorName($item->created_by, $creators),
+                'updated_by' => $wasUpdated
+                    ? $this->resolveUpdaterName($item->updated_by, $creators)
+                    : '-',
+                'updated_at' => $wasUpdated
+                    ? \Carbon\Carbon::parse($item->updated_at)->format('Y-m-d H:i:s')
+                    : '-',
                 'indexed_at' => $item->created_at ? \Carbon\Carbon::parse($item->created_at)->format('Y-m-d') : '-',
             ];
         })->all();
 
         $headings = ['S/N', 'File No', 'File Name', 'Gen. Registry', 'Plot No', 'TP No', 'Land Use',
-            'District', 'LGA', 'Shelf/Rack', 'Indexed By', 'Indexed Date'];
+            'District', 'LGA', 'Shelf/Rack', 'Indexed By', 'Updated By', 'Updated Date', 'Indexed Date'];
         $filename = 'indexed-files-' . now()->format('Y-m-d_His') . '.csv';
 
         return response()->streamDownload(function () use ($headings, $data) {
@@ -260,6 +269,7 @@ class IndexedFileTableController extends Controller
                 'file_indexings.gender_source',
                 'file_indexings.plot_number',
                 'file_indexings.created_at',
+                'file_indexings.updated_at',
                 'file_indexings.tp_no',
                 'file_indexings.lpkn_no',
                 'file_indexings.land_use_type',
@@ -268,6 +278,7 @@ class IndexedFileTableController extends Controller
                 'file_indexings.general_registry',
                 'file_indexings.physical_registry',
                 'file_indexings.created_by',
+                'file_indexings.updated_by',
                 'file_indexings.batch_generated',
                 'file_indexings.last_batch_id',
                 'file_indexings.location',
@@ -453,20 +464,23 @@ class IndexedFileTableController extends Controller
 
         // Pre-compute which file_numbers are flagged as duplicates (present in
         // duplicate_fileno), so the UI can enable the "Duplicate Call-up" action.
+        // A temporary file "X(T)" in the register counts for its main file X.
         $duplicateSet = $fileNumbers->isEmpty()
             ? collect()
             : DB::connection('sqlsrv')
                 ->table('duplicate_fileno')
-                ->whereIn('file_number', $fileNumbers)
+                ->whereIn('file_number', $fileNumbers
+                    ->flatMap(fn ($n) => array_merge([$n], TemporaryFileNumberResolver::tempForms((string) $n)))
+                    ->unique()->values())
                 ->distinct()
                 ->pluck('file_number')
-                ->map(fn ($v) => trim((string) $v))
+                ->map(fn ($v) => trim((string) (TemporaryFileConditionService::mainNumber((string) $v) ?? $v)))
                 ->flip();
 
         // created_by holds a typed display name on most rows but a users.id on ~2,500 of
         // them, so the Indexed By column has to resolve the numeric ones or it prints a
         // bare "50553". Only the ids on this page are looked up.
-        $creatorIds = $items->pluck('created_by')
+        $creatorIds = $items->flatMap(fn ($item) => [$item->created_by, $item->updated_by])
             ->map(fn ($value) => trim((string) $value))
             ->filter(fn ($value) => $value !== '' && ctype_digit($value) && (int) $value > 0)
             ->unique()
@@ -487,10 +501,13 @@ class IndexedFileTableController extends Controller
                 })
                 ->filter();
 
-        $data = $items->map(function ($item) use ($scanningCounts, $pageTypingCounts, $workflowScanningCounts, $workflowTypingCounts, $creators, $groupingFallbacks, $relatedFileCounts, $edmsFolderMap, $duplicateSet, $shelfLookup, $oldKangisLookup) {
+        $kangisLinks = $this->kangisContainerLinks($items);
+
+        $data = $items->map(function ($item) use ($scanningCounts, $pageTypingCounts, $workflowScanningCounts, $workflowTypingCounts, $creators, $groupingFallbacks, $relatedFileCounts, $edmsFolderMap, $duplicateSet, $shelfLookup, $oldKangisLookup, $kangisLinks) {
             $scanned = (int) ($scanningCounts->get($item->id) ?? 0);
             $typed = (int) ($pageTypingCounts->get($item->id) ?? 0);
             $hasRelatedFilesFromLinks = (int) ($relatedFileCounts->get($item->id) ?? 0) > 0;
+            $kangisContainers = $kangisLinks[strtoupper(trim((string) $item->file_number))] ?? [];
 
             // Check if there are related files in the JSON column
             $jsonRelated = null;
@@ -499,7 +516,7 @@ class IndexedFileTableController extends Controller
             }
             $hasRelatedFilesFromJson = !empty($jsonRelated) && is_array($jsonRelated);
 
-            $hasRelatedFiles = $hasRelatedFilesFromLinks || $hasRelatedFilesFromJson;
+            $hasRelatedFiles = $hasRelatedFilesFromLinks || $hasRelatedFilesFromJson || $kangisContainers;
 
             $relatedFileDisplay = '-';
             if ($hasRelatedFilesFromJson && count($jsonRelated) > 0) {
@@ -508,9 +525,11 @@ class IndexedFileTableController extends Controller
                     $relatedFileDisplay .= ' (+' . (count($jsonRelated) - 1) . ')';
                 }
             } elseif ($hasRelatedFilesFromLinks) {
-                // We don't have the first link number easily here without another query or mapping, 
+                // We don't have the first link number easily here without another query or mapping,
                 // so we'll let the JS handle the 'View' button or show a generic count.
                 $relatedFileDisplay = 'Linked Records';
+            } elseif ($kangisContainers) {
+                $relatedFileDisplay = $kangisContainers[0] . (count($kangisContainers) > 1 ? ' (+' . (count($kangisContainers) - 1) . ')' : '');
             }
 
             $status = 'Indexed';
@@ -523,6 +542,7 @@ class IndexedFileTableController extends Controller
             $indexedAt = $item->created_at instanceof Carbon
                 ? $item->created_at
                 : Carbon::parse($item->created_at);
+            $wasUpdated = $this->wasUpdatedAfterCreation($item->created_at, $item->updated_at);
 
             // Use display file number with fallback to temp file number
             $displayFileNo = $item->file_number;
@@ -563,6 +583,12 @@ class IndexedFileTableController extends Controller
                 'indexed_at' => $indexedAt ? $indexedAt->format('Y-m-d H:i') : null,
                 'indexed_date' => $indexedAt ? $indexedAt->toDateString() : null,
                 'indexed_by' => $this->resolveCreatorName($item->created_by, $creators),
+                'updated_by' => $wasUpdated
+                    ? $this->resolveUpdaterName($item->updated_by, $creators)
+                    : '-',
+                'updated_at' => $wasUpdated
+                    ? Carbon::parse($item->updated_at)->format('Y-m-d H:i:s')
+                    : '-',
                 'tp_no' => $item->tp_no ?? '-',
                 'lpkn_no' => $item->lpkn_no ?? '-',
                 'land_use_type' => $item->land_use_type ?? '-',
@@ -727,15 +753,18 @@ class IndexedFileTableController extends Controller
                 ->groupBy('file_indexing_id')
                 ->pluck('total', 'file_indexing_id');
 
-        $data = $items->map(function ($item) use ($relatedFileCounts) {
+        $kangisLinks = $this->kangisContainerLinks($items);
+
+        $data = $items->map(function ($item) use ($relatedFileCounts, $kangisLinks) {
             $hasRelatedFilesFromLinks = (int) ($relatedFileCounts->get($item->id) ?? 0) > 0;
+            $kangisContainers = $kangisLinks[strtoupper(trim((string) $item->file_number))] ?? [];
 
             $jsonRelated = null;
             if (!empty($item->related_fileno)) {
                 $jsonRelated = json_decode($item->related_fileno, true);
             }
             $hasRelatedFilesFromJson = !empty($jsonRelated) && is_array($jsonRelated);
-            $hasRelatedFiles = $hasRelatedFilesFromLinks || $hasRelatedFilesFromJson;
+            $hasRelatedFiles = $hasRelatedFilesFromLinks || $hasRelatedFilesFromJson || $kangisContainers;
 
             $relatedFileDisplay = '-';
             if ($hasRelatedFilesFromJson && count($jsonRelated) > 0) {
@@ -745,6 +774,8 @@ class IndexedFileTableController extends Controller
                 }
             } elseif ($hasRelatedFilesFromLinks) {
                 $relatedFileDisplay = 'Linked Records';
+            } elseif ($kangisContainers) {
+                $relatedFileDisplay = $kangisContainers[0] . (count($kangisContainers) > 1 ? ' (+' . (count($kangisContainers) - 1) . ')' : '');
             }
 
             $displayFileNo = $item->file_number;
@@ -1375,6 +1406,35 @@ class IndexedFileTableController extends Controller
         return $trimmed;
     }
 
+    private function resolveUpdaterName($rawUpdatedBy, Collection $users): string
+    {
+        if ($rawUpdatedBy === null || trim((string) $rawUpdatedBy) === '') {
+            return '-';
+        }
+
+        return $this->resolveCreatorName($rawUpdatedBy, $users);
+    }
+
+    private function wasUpdatedAfterCreation($createdAt, $updatedAt): bool
+    {
+        if ($updatedAt === null || trim((string) $updatedAt) === '') {
+            return false;
+        }
+
+        if ($createdAt === null || trim((string) $createdAt) === '') {
+            return true;
+        }
+
+        return Carbon::parse($updatedAt)->greaterThan(Carbon::parse($createdAt));
+    }
+
+    private function currentUpdaterName(): string
+    {
+        $user = Auth::user();
+
+        return $user->name ?? $user->email ?? 'System';
+    }
+
     /**
      * Get fallback batch/registry data from grouping table
      */
@@ -1402,6 +1462,37 @@ class IndexedFileTableController extends Controller
             'sys_batch_no' => $grouping->sys_batch_no,
             'mdc_batch_no' => $grouping->mdc_batch_no,
         ];
+    }
+
+    /**
+     * KANGIS file(s) each land file in $items is kept inside, keyed by the upper-cased
+     * file number — the same lookup Quick Search uses (FileLocationResolver), so a link
+     * stored only on the KANGIS row's related_fileno still counts. A record that is
+     * itself a KANGIS file gets none. Read-only.
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function kangisContainerLinks(Collection $items): array
+    {
+        $numbers = $items
+            ->reject(fn ($item) => stripos((string) ($item->general_registry ?? ''), 'KANGIS') !== false
+                || stripos((string) ($item->physical_registry ?? ''), 'KANGIS') !== false)
+            ->pluck('file_number')
+            ->map(fn ($n) => trim((string) $n))
+            ->filter(fn ($n) => $n !== '' && $n !== '-')
+            ->values()
+            ->all();
+
+        if (!$numbers) {
+            return [];
+        }
+
+        try {
+            return app(\App\Services\FileLocationResolver::class)->kangisContainerNumbers($numbers);
+        } catch (\Throwable $e) {
+            Log::warning('Indexed files: KANGIS container lookup failed', ['error' => $e->getMessage()]);
+            return [];
+        }
     }
 
     public function getRelatedFiles($id): JsonResponse
@@ -1448,7 +1539,7 @@ class IndexedFileTableController extends Controller
             $mainRecord = DB::connection('sqlsrv')
                 ->table('file_indexings')
                 ->where('id', $id)
-                ->select(['file_number', 'related_fileno', 'file_title', 'temp_file_no', 'prop_id', 'parent_prop_id'])
+                ->select(['file_number', 'related_fileno', 'file_title', 'temp_file_no', 'prop_id', 'parent_prop_id', 'general_registry', 'physical_registry'])
                 ->first();
 
             $finalResults = $relatedLinks;
@@ -1505,6 +1596,38 @@ class IndexedFileTableController extends Controller
                             ];
                         }
                     }
+                }
+            }
+
+            // KANGIS file(s) this land file is kept inside, where the link is stored only on
+            // the KANGIS row's related_fileno — the link Quick Search shows. Flagged
+            // is_kangis_container: it cannot be edited or unlinked from this record.
+            if ($mainRecord && trim((string) $mainRecord->file_number) !== '') {
+                $mainKey = strtoupper(trim((string) $mainRecord->file_number));
+                $kangisNumbers = $this->kangisContainerLinks(collect([$mainRecord]))[$mainKey] ?? [];
+                $listed = [];
+                foreach ($finalResults as $r) {
+                    $listed[strtoupper(trim((string) (is_object($r) ? ($r->file_number ?? '') : ($r['file_number'] ?? ''))))] = true;
+                }
+                foreach ($kangisNumbers as $kangisNo) {
+                    if (isset($listed[strtoupper(trim($kangisNo))])) {
+                        continue;
+                    }
+                    $finalResults[] = [
+                        'id' => 'kangis_' . md5($kangisNo),
+                        'file_indexing_id' => $id,
+                        'file_number' => $kangisNo,
+                        'file_title' => null,
+                        'plot_number' => '-',
+                        'tp_no' => '-',
+                        'lpkn_no' => '-',
+                        'location' => '-',
+                        'created_by' => 'System',
+                        'created_at' => null,
+                        'main_file_number' => $mainRecord->file_number,
+                        'main_is_temp_fallback' => false,
+                        'is_kangis_container' => true,
+                    ];
                 }
             }
 
@@ -1743,10 +1866,11 @@ class IndexedFileTableController extends Controller
         }
 
         $linkId = trim((string) ($validated['link_id'] ?? ''));
+        $updatedBy = $this->currentUpdaterName();
 
         try {
             $result = DB::connection('sqlsrv')->transaction(function () use (
-                $conn, $record, $fileId, $target, $targetKey, $linkId, $hasAncestral
+                $conn, $record, $fileId, $target, $targetKey, $linkId, $hasAncestral, $updatedBy
             ) {
                 // ---- 1. Link rows -------------------------------------------------
                 // Scoped to this record and matched on the normalised number, so a
@@ -1789,7 +1913,11 @@ class IndexedFileTableController extends Controller
                     $newRelated = empty($kept) ? null : json_encode(array_values($kept));
                     $conn->table('file_indexings')
                         ->where('id', $fileId)
-                        ->update(['related_fileno' => $newRelated, 'updated_at' => now()]);
+                        ->update([
+                            'related_fileno' => $newRelated,
+                            'updated_by' => $updatedBy,
+                            'updated_at' => now(),
+                        ]);
                 }
 
                 // ---- 3. Property ID linkage --------------------------------------
@@ -1839,7 +1967,11 @@ class IndexedFileTableController extends Controller
                         // Another surviving related file still points at the same parcel.
                         $propIdNote = 'still_justified_by_remaining_related_file';
                     } else {
-                        $clear = ['parent_prop_id' => null, 'updated_at' => now()];
+                        $clear = [
+                            'parent_prop_id' => null,
+                            'updated_by' => $updatedBy,
+                            'updated_at' => now(),
+                        ];
                         if ($hasAncestral) {
                             $clear['ancestral_prop_id'] = null;
                         }
@@ -1950,6 +2082,8 @@ class IndexedFileTableController extends Controller
             $fileIndexing = FileIndexing::on('sqlsrv')->findOrFail($id);
             $fileIndexing->latitude = $validated['latitude'] ?? null;
             $fileIndexing->longitude = $validated['longitude'] ?? null;
+            $fileIndexing->updated_by = $this->currentUpdaterName();
+            $fileIndexing->updated_at = now();
             $fileIndexing->save();
 
             return response()->json([
@@ -1992,6 +2126,7 @@ class IndexedFileTableController extends Controller
                 ->where('id', $fileId)
                 ->update([
                     'is_duplicate' => 1,
+                    'updated_by' => $this->currentUpdaterName(),
                     'updated_at' => now(),
                 ]);
 
@@ -2367,6 +2502,7 @@ class IndexedFileTableController extends Controller
             $updateData = [
                 'has_temp_file' => 1,
                 'temp_file_no' => $tempFileNo,
+                'updated_by' => $this->currentUpdaterName(),
                 'updated_at' => now(),
             ];
 
@@ -2469,6 +2605,7 @@ class IndexedFileTableController extends Controller
                 ->update([
                     'is_corresponding_file' => 1,
                     'corresponding_fileno'  => $correspondingFileNo,
+                    'updated_by'            => $this->currentUpdaterName(),
                     'updated_at'            => now(),
                 ]);
 
@@ -2509,6 +2646,7 @@ class IndexedFileTableController extends Controller
                 ->update([
                     'is_corresponding_file' => 0,
                     'corresponding_fileno'  => null,
+                    'updated_by'            => $this->currentUpdaterName(),
                     'updated_at'            => now(),
                 ]);
 
@@ -2582,6 +2720,7 @@ class IndexedFileTableController extends Controller
                     'pp_lands_matching'      => 1,
                     'pp_lands_date_matched'  => $now->toDateString(),
                     'pp_lands_time_matched'  => $now->toTimeString(),
+                    'updated_by'             => $this->currentUpdaterName(),
                     'updated_at'             => $now,
                 ]);
 
@@ -2651,6 +2790,7 @@ class IndexedFileTableController extends Controller
                     'pp_lands_matching'      => 0,
                     'pp_lands_date_matched'  => null,
                     'pp_lands_time_matched'  => null,
+                    'updated_by'             => $this->currentUpdaterName(),
                     'updated_at'             => $now,
                 ]);
 
@@ -2954,6 +3094,7 @@ class IndexedFileTableController extends Controller
                 ->where('id', $fileId)
                 ->update([
                     'kangis_fileno_placeholder' => $placeholder,
+                    'updated_by' => $this->currentUpdaterName(),
                     'updated_at' => now(),
                 ]);
 

@@ -74,11 +74,20 @@
               ['Lien', 'lock', null, 'slate'],
           ]],
       ],
-      'survey-recommendation' => $tcRecommendation('survey-module.lg.land-recommendations.index', 'ROFO'),
+      // Plus Survey's Awaiting Approval / Approved tabs (CR item 13, 2026-11-09).
+      'survey-recommendation' => array_merge($tcRecommendation('survey-module.lg.land-recommendations.index', 'ROFO'), [
+          ['Awaiting Approval', 'clock', route('survey-module.lg.land-recommendations.index', ['type' => 'ROFO', 'tab' => 'awaiting_approval']), 'orange'],
+          ['Approved', 'check-circle', route('survey-module.lg.land-recommendations.index', ['type' => 'ROFO', 'tab' => 'approved']), 'green'],
+      ]),
       'survey-rofo' => $tcRofo('survey-module.lg.land-rofos.index', []),
       'survey-docware' => [
           ['Files', 'folder', route('filearchive.index', ['url' => 'survey']), 'pink'],
           ['Scanned Map Layouts', 'map', route('filearchive.index', ['url' => 'survey', 'section' => 'layouts']), 'blue'],
+      ],
+      // MLPP-SG Portal Admin > Registrations: the page's two registration tabs (user, 2026-11-10).
+      'mlppsg-registrations' => [
+          ['Company Registrations', 'building-2', route('survey-module.beacon-requests.index', ['tab' => 'registrations', 'registration_tab' => 'companies']), 'blue'],
+          ['Surveyor Registrations', 'user-check', route('survey-module.beacon-requests.index', ['tab' => 'registrations', 'registration_tab' => 'surveyors']), 'teal'],
       ],
       'survey-op' => [
           ['Existing', 'archive', route('survey-module.compensation.op', ['tab' => 'existing']), 'slate'],
@@ -123,6 +132,13 @@
           'New Recommendation',
           'plus-circle',
           route('land-recommendations.create'),
+          'green',
+      ];
+      // Survey's own copy of the page and its button (user, 2026-11-09).
+      $tabCards['survey-recommendation'][] = [
+          'New Recommendation',
+          'plus-circle',
+          route('survey-module.lg.land-recommendations.create'),
           'green',
       ];
   }

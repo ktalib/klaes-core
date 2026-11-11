@@ -96,13 +96,13 @@ class SdiMapRequestController extends Controller
     {
         $areas = SdiMapRequest::with(['mda:id,name,abbreviation', 'mapType:id,name'])
             ->whereNotNull('geometry_geojson')->orderByDesc('id')->limit(2000)
-            ->get(['id', 'request_ref', 'map_name', 'mda_id', 'requester_other', 'map_type_id', 'status', 'geometry_geojson', 'received_date'])
+            ->get(array_merge(['id', 'request_ref', 'map_name', 'mda_id', 'requester_other', 'map_type_id', 'status', 'geometry_geojson', 'received_date'], SdiMapRequest::supportsOtherType() ? ['map_type_other'] : []))
             ->map(fn ($m) => [
                 'geometry' => json_decode($m->geometry_geojson),
                 'ref'      => $m->request_ref,
                 'name'     => $m->map_name,
                 'mda'      => $m->mda ? $m->mda->name . ($m->mda->abbreviation ? " ({$m->mda->abbreviation})" : '') : $m->requester_other,
-                'type'     => $m->mapType?->name,
+                'type'     => $m->mapTypeLabel(),
                 'status'   => $m->status,
                 'label'    => $m->statusLabel(),
                 'date'     => optional($m->received_date)->format('d M Y'),
@@ -126,7 +126,7 @@ class SdiMapRequestController extends Controller
         }
         // A surveyor is waiting on this one: rejecting it gives them the reason, deleting would only make it vanish.
         if ($mapRequest->surveyor_portal_account_id) {
-            return back()->with('error', "{$mapRequest->request_ref} came from the KSSGOF portal. Reject it in the Production Unit so the surveyor sees the reason.");
+            return back()->with('error', "{$mapRequest->request_ref} came from the MLPP-SG portal. Reject it in the Production Unit so the surveyor sees the reason.");
         }
 
         $ref = $mapRequest->request_ref;
@@ -202,7 +202,8 @@ class SdiMapRequestController extends Controller
             'contact_name'     => 'required|string|max:200',
             'contact_phone'    => 'required|string|max:50',
             'contact_email'    => 'nullable|email|max:255',
-            'map_type_id'      => ['required', Rule::exists('sqlsrv.sdi_map_types', 'id')->whereNull('deleted_at')],
+            'map_type_id'      => ['required'],
+            'map_type_other'   => ['nullable', 'string', 'max:150', Rule::requiredIf(fn () => $r->input('map_type_id') === SdiMapType::OTHER)],
             'map_name'         => 'required|string|max:300',
             'map_reference'    => 'nullable|string|max:120',
             'map_description'  => 'nullable|string|max:2000',
@@ -217,6 +218,7 @@ class SdiMapRequestController extends Controller
             'mda_id.required'          => 'Choose the requesting MDA, or Other.',
             'requester_other.required' => 'Name the requesting body.',
             'map_type_id.required'     => 'Choose the type of map needed.',
+            'map_type_other.required'  => 'Specify the type of map.',
             'output_formats.required'  => 'Tick at least one format.',
             'geometry_geojson.required'=> 'Draw the area to be mapped.',
             'due_date.after_or_equal'  => 'The due date cannot be before the date received.',
@@ -239,6 +241,14 @@ class SdiMapRequestController extends Controller
             $data['mda_id'] = (int) $data['mda_id'];
             $data['requester_other'] = null;
         }
+
+        // A listed type, or the type typed under Others (a listed type typed again becomes that type).
+        if ($data['map_type_id'] === SdiMapType::OTHER && ! SdiMapRequest::supportsOtherType()) {
+            throw ValidationException::withMessages(['map_type_id' => 'Choose the type of map needed.']);
+        }
+        [$data['map_type_id'], $other] = SdiMapType::resolveChoice(is_scalar($data['map_type_id']) ? (string) $data['map_type_id'] : '', $data['map_type_other'] ?? null, false);
+        unset($data['map_type_other']);
+        if (SdiMapRequest::supportsOtherType()) $data['map_type_other'] = $other;
 
         // The drawn shape is the source of truth; its bounding box is recomputed, never trusted.
         $bounds = SdiMapRequest::boundsFromGeoJson(json_decode($data['geometry_geojson'], true));
@@ -283,7 +293,7 @@ class SdiMapRequestController extends Controller
             'reference' => 'Map Reference', 'formats' => 'Formats', 'priority' => 'Priority', 'due' => 'Due', 'status' => 'Status', 'officer' => 'Officer',
         ], fn ($m) => [
             'ref' => $m->request_ref, 'received' => $this->exportDate($m->received_date), 'mda' => $m->requesterName(), 'contact' => $m->contact_name, 'phone' => $m->contact_phone,
-            'map' => $m->map_name, 'map_type' => $m->mapType?->name, 'reference' => $m->map_reference, 'formats' => $m->formatsLabel(), 'priority' => $m->priorityLabel(),
+            'map' => $m->map_name, 'map_type' => $m->mapTypeLabel(), 'reference' => $m->map_reference, 'formats' => $m->formatsLabel(), 'priority' => $m->priorityLabel(),
             'due' => $this->exportDate($m->due_date), 'status' => $m->statusLabel(), 'officer' => $m->production_officer,
         ], 'received_date');
     }

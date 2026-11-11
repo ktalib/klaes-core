@@ -1,6 +1,6 @@
 @extends(auth('surveyor')->check() ? 'surveyor_portal.layouts.portal' : 'surveyor_portal.layouts.public')
 
-@section('title', 'Request Map — KNSSGOF Portal')
+@section('title', 'Request Map — MLPP-SG Portal')
 @section('heading', 'Request Map')
 
 @push('styles')
@@ -27,6 +27,10 @@
         $mdaOther = \App\Http\Controllers\SurveyorPortal\MapRequestController::MDA_OTHER;
         $mdaPick = (string) old('mda_id');
         $isOther = $mdaPick === $mdaOther;
+        // Map type "Others (Specify)" (Survey Update 5c, 2026-11-10); hidden until its column exists.
+        $typeOther = \App\Models\Sdi\SdiMapType::OTHER;
+        $typeOtherOn = \App\Models\Sdi\SdiMapRequest::supportsOtherType();
+        $isTypeOther = $typeOtherOn && old('map_type_id') === $typeOther;
     @endphp
     <form method="POST" id="mrqForm" enctype="multipart/form-data" action="{{ route('surveyor-portal.map-requests.store') }}">
         @csrf
@@ -73,8 +77,17 @@
                         @foreach ($mapTypes as $t)
                             <option value="{{ $t->id }}" @selected((string) old('map_type_id') === (string) $t->id)>{{ $t->name }}</option>
                         @endforeach
+                        @if ($typeOtherOn)<option value="{{ $typeOther }}" @selected($isTypeOther)>Others (Specify)</option>@endif
                     </select>
+                    @error('map_type_id')<div class="ks-error">{{ $message }}</div>@enderror
                 </div>
+                @if ($typeOtherOn)
+                <div id="mrqTypeOtherBox" @style(['display:none' => ! $isTypeOther])>
+                    <label class="ks-label" for="map_type_other">Type of Map <span class="ks-req">*</span></label>
+                    <input class="ks-input" id="map_type_other" name="map_type_other" value="{{ old('map_type_other') }}" maxlength="150" @required($isTypeOther) @disabled(! $isTypeOther)>
+                    @error('map_type_other')<div class="ks-error">{{ $message }}</div>@enderror
+                </div>
+                @endif
                 <div>
                     <label class="ks-label" for="map_name">Map Name <span class="ks-req">*</span></label>
                     <input class="ks-input" id="map_name" name="map_name" value="{{ old('map_name') }}" maxlength="300" required>
@@ -131,6 +144,15 @@
         input.disabled = !on;
         input.required = on;
         if (on) input.focus(); else input.value = '';
+    });
+    // Map type "Others (Specify)": the same.
+    var tPick = document.getElementById('map_type_id'), tWrap = document.getElementById('mrqTypeOtherBox'), tInput = document.getElementById('map_type_other');
+    if (tWrap) tPick.addEventListener('change', function () {
+        var on = tPick.value === @json($typeOther);
+        tWrap.style.display = on ? '' : 'none';
+        tInput.disabled = !on;
+        tInput.required = on;
+        if (on) tInput.focus(); else tInput.value = '';
     });
 })();
 </script>

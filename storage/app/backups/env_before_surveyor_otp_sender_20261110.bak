@@ -1,0 +1,113 @@
+APP_NAME='Kano State Land Admin Enterprise System'
+APP_ENV=local
+APP_KEY=base64:Y81lc34GAzkfefoV7ScuQ09hHTiHnpByl4C70f3/Exo=
+APP_DEBUG=false
+APP_LOG_LEVEL=debug
+APP_URL=http://app.klaes.ng
+TIMEZONE=Africa/Lagos
+DB_CONNECTION=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DB_DATABASE=klaes
+DB_USERNAME=klaes
+DB_PASSWORD=New@54@StrongPassword
+ 
+
+#  $dbServerName = "10.50.1.1";  // Database server IP
+# $database = "klas";
+# $username = "klaesDb";
+# $password = "Klasdb@123Db@1";
+
+# SQL Server Configuration
+
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.stackmail.com
+MAIL_PORT=587
+MAIL_USERNAME=mails@adsemaportal.com.ng
+MAIL_PASSWORD=Fi833c05c
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=mails@adsemaportal.com.ng
+MAIL_FROM_NAME="Kano State Land Admin Enterprise System (KLAES)"
+MAIL_ADMIN_EMAIL="iorkuakator@gmail.com"
+ 
+ 
+PAYSTACK_SECRET_KEY=sk_test_82b25417f1560bed61069fe05364479623d15ca6
+PAYSTACK_PUBLIC_KEY=pk_test_17602406d27584fcbd1a9fc68b7de5cd0e153351
+GOOGLE_MAPS_API_KEY=AIzaSyAInPAjeQvIooHsa2_zv6pNofaHbNVJP90
+
+DB_SQLSRV_HOST=10.50.1.1
+DB_SQLSRV_PORT=1433
+DB_SQLSRV_DATABASE=klas
+DB_SQLSRV_USERNAME=klaesDb
+DB_SQLSRV_PASSWORD=KlasdbStrongPassword123
+
+BROADCAST_DRIVER=log
+CACHE_DRIVER=file
+SESSION_DRIVER=database
+SESSION_CONNECTION=sqlsrv
+SESSION_LIFETIME=2160000
+SESSION_SECURE_COOKIE=false
+SESSION_AUTO_LOGOUT_ENABLED=true
+SESSION_AUTO_LOGOUT_TIMEOUT=3600 
+SESSION_AUTO_LOGOUT_WARNING=300
+QUEUE_DRIVER=sync
+# Use a dedicated storage folder on F: to avoid creating unexpected root folders
+STORAGE_PATH=F:\\storage
+ 
+ DFR_RAW_FOLDER_PATH=C:\c
+# Number of working days (Mon–Fri) before a granted digital access expires
+DFR_ACCESS_DAYS=5
+ 
+# BetaSMS — Special Assignment contravention notices (first / second serve)
+BETASMS_USERNAME=katsoltech@gmail.com
+BETASMS_PASSWORD=katsoltech@gmail.com
+BETASMS_SENDER=SPAS
+
+ # Bulk-SMS.ng — SPAS notice SMS provider (https, reachable where BetaSMS :80 is blocked)
+BULK_SMS_NG_EMAIL=katsoltech@gmail.com
+BULK_SMS_NG_PASSWORD=katsoltech@gmail.com
+BULK_SMS_NG_SENDER=KANOMLPP
+BULK_SMS_NG_GATEWAY=1
+
+# Require a verified SMS/email code after password sign-in for users with a
+# confirmed mobile number. Set to false only for an authorised OTP outage.
+LOGIN_OTP_ENABLED=true
+
+# Which route the FIRST sign-in code takes: 'sms' (the config default) or
+# 'email'. Accounts with no real email address receive an SMS either way, and
+# the sign-in screen always offers the other route.
+#
+# Reverted to 'sms' on 2026-09-28 on request: codes had been switched to email
+# and were expected by SMS. NOTE this does not cover 19:45-08:00 -- the telcos
+# hold promotional SMS overnight, so login_otp.quiet_hours_email_first still
+# sends the first code by email in that window. See config/phone_verification.php.
+LOGIN_OTP_CHANNEL=sms
+
+
+
+REGISTRY_SOURCE_BASE_PATH=F:\\storage\\app\\public\\EDMS\\UPLOAD
+
+# Raw scans kept on the records server (10.50.1.1), read over the LAN for File
+# Archive page restores. Forward slashes on purpose: dotenv passes an unquoted
+# value through verbatim, so backslashes here would reach PHP doubled and the
+# UNC path would not resolve. PHP accepts this form and realpath()s it back to
+# \\10.50.1.1\LAND_REGISTRY_RAW.
+#
+# Apache must keep running as an account that can reach the share. It runs as
+# klaes\Administrator today; installed as a service under LocalSystem it would
+# lose access and every restore would report the folder unavailable.
+ARCHIVE_SCANS_FOLDER=//10.50.1.1/land_registry_raw
+# Large-format scans for Page Typing / Scan Upload "Add LF Scan" and
+# "Replace with LF Scan". Same share rules and slash form as above.
+MASTER_LFS_FOLDER=//10.50.1.1/backup/LargeFormatImages
+GOOGLE_GEOCODING_API_KEY=AIzaSyCAtaeqHVZoLC5uvS0AWZzgpLKthDU--sw
+TESSERACT_PATH='C:\Program Files\Tesseract-OCR\tesseract.exe'
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.stackmail.com
+MAIL_PORT=587
+MAIL_USERNAME=mails@adsemaportal.com.ng
+MAIL_PASSWORD=Fi833c05c
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=mails@adsemaportal.com.ng
+MAIL_FROM_NAME="KLAES"
+MAIL_ADMIN_EMAIL=klaes@firstnationbnks.com

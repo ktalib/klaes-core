@@ -141,6 +141,10 @@
           <dd class="font-mono">{{ $case->correspondence_fileno }}@if ($case->shadow_fileno ?? null) · {{ $case->shadow_fileno }}@endif</dd>
         @endif
         <dt class="text-gray-500">Registered</dt><dd>{{ optional($case->received_at)->format('d M Y H:i') }} · {{ optional($case->receiver)->name }}</dd>
+        {{-- Recording 355: the land file's scans and, once opened, the correspondence file's. --}}
+        <dt class="text-gray-500">Scanned files</dt>
+        <dd><button type="button" onclick="cdScannedFiles(@js($case->file_number))" class="inline-flex items-center gap-1 text-blue-700 hover:underline">
+          <i data-lucide="scan-eye" class="w-4 h-4"></i> View Land File / Correspondence File</button></dd>
       </dl>
     </div>
 
@@ -388,7 +392,7 @@
                           @endif
                         @elseif ($key === 'field_jacket')
                           <form method="POST" action="{{ route('cadastral-dept.cases.field-jacket.store', $case->id) }}"
-                                data-confirm-title="Commission the Computation File?" data-confirm="A Computation File is numbered for {{ $case->file_number }}. AD Cad Info attaches the job and the surveyor later.">
+                                data-confirm-title="Commission the Computation File?" data-confirm="A Computation File and its Job No are numbered for {{ $case->file_number }}. AD Cad Info attaches the surveyor later.">
                             @csrf
                             <button class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Commission Computation File (Field Jacket)</button>
                           </form>
@@ -399,7 +403,7 @@
                           <button type="button" class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold"
                                   data-attach-job data-url="{{ route('cadastral-dept.cases.job.store', $case->id) }}"
                                   data-ref="{{ $case->case_ref }}" data-file="{{ $case->file_number }}" data-plot="{{ $case->plot_no }}"
-                                  data-district="{{ $case->district }}" data-lga="{{ $case->lga }}" data-jacket="{{ $fieldJacket->field_jacket_no }}">Attach job and surveyor</button>
+                                  data-district="{{ $case->district }}" data-lga="{{ $case->lga }}" data-jacket="{{ $fieldJacket->field_jacket_no }}" data-job="{{ $fieldJacket->job?->job_number }}">Attach {{ $fieldJacket->job ? 'surveyor' : 'job and surveyor' }}</button>
                         @elseif ($key === 'job_its' && $fieldJacket?->job)
                           <button type="button" onclick="document.getElementById('cd-its-modal').classList.remove('hidden')"
                                   class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Issue Instruction to Surveyor</button>
@@ -490,7 +494,16 @@
                         <button class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Commission Correspondence File</button>
                       </form>
                     @elseif ($key === 'fmc_commissioned')
-                      @if ($fmcBackfill !== null)
+                      @php $cdFmcWhy = $fmcBackfill !== null ? app(\App\Services\CadastralDept\FileMovementCards::class)->blocker($case) : null; @endphp
+                      @if ($cdFmcWhy)
+                        {{-- Charting and the layout check come first on Direct Allocation (recording 365, 2026-11-09). --}}
+                        <span class="flex items-center gap-2">
+                          <span class="inline-flex items-center gap-1 px-3 py-1 rounded-md bg-gray-200 text-gray-500 text-xs font-semibold cursor-not-allowed" title="{{ $cdFmcWhy }}">
+                            <i data-lucide="lock" class="w-3 h-3"></i> Commission FMC
+                          </span>
+                          <span class="text-xs text-gray-500">{{ $cdFmcWhy }}</span>
+                        </span>
+                      @elseif ($fmcBackfill !== null)
                         <button type="button" onclick="document.getElementById('cd-fmc-modal').classList.remove('hidden')"
                                 class="px-3 py-1 rounded-md bg-green-700 text-white text-xs font-semibold">Commission FMC</button>
                       @else
@@ -953,9 +966,17 @@
         'block_no' => 'Block No.', 'layout_no' => 'Layout No.',
         'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA', 'location' => 'Location',
     ];
+    if (! \App\Services\CadastralDept\FileMovementCards::SHOW_ALLOTTEE) {
+        unset($cdFmcFields['allottee_name']);   // hidden for now (user, 2026-11-09); still stored from the records
+    }
     $cdFmcShort = ['block_no', 'layout_no'];   // 50 characters, upper case
+    // Dropdowns (2026-11-09): District and LGA from the lookups, Layout No. = TP No. from tp_lookups.
+    // Layout No. is prefilled from the records' TP No. but stays open for the officer.
+    $cdFmcOptions = app(\App\Services\CadastralDept\FileMovementCards::class)->options();
+    $cdFmcSelects = ['district' => ['districts', true], 'lga' => ['lgas', false], 'layout_no' => ['layouts', true]];
   @endphp
-  <div id="cd-fmc-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
+  @include('cadastral_dept.fmc._select_js')
+  <div id="cd-fmc-modal" data-fmc-modal class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
     <form method="POST" action="{{ route('cadastral-dept.cases.fmc.store', $case->id) }}" data-confirm-title="Commission the FMC?" data-confirm="A File Movement Card is created for {{ $case->file_number }}." class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto">
       @csrf
       <div>
@@ -963,14 +984,17 @@
         <div class="text-lg font-bold text-gray-800">Commission File Movement Card</div>
         <p class="text-xs text-gray-500 mt-1">Grey fields come from the file's records. Fill in what the records leave blank.</p>
       </div>
+      @include('cadastral_dept.fmc._fixed', ['fixed' => $fmcFixed])
       <div class="grid gap-3 sm:grid-cols-2">
         @foreach ($cdFmcFields as $name => $label)
           <div class="{{ in_array($name, ['file_title', 'allottee_name', 'location'], true) ? 'sm:col-span-2' : '' }}">
             <label class="block text-xs font-semibold text-gray-600 mb-1">{{ $label }}</label>
-            @if (isset($fmcBackfill[$name]))
+            @if (isset($fmcBackfill[$name]) && $name !== 'layout_no')
               <input type="text" value="{{ $fmcBackfill[$name] }}" disabled class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-700">
+            @elseif (isset($cdFmcSelects[$name]))
+              @include('cadastral_dept.fmc._select', ['name' => $name, 'options' => $cdFmcOptions[$cdFmcSelects[$name][0]], 'value' => $fmcBackfill[$name] ?? '', 'other' => $cdFmcSelects[$name][1]])
             @else
-              <input type="text" name="{{ $name }}" value="{{ old($name) }}" maxlength="{{ in_array($name, $cdFmcShort, true) ? 50 : 255 }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm{{ in_array($name, $cdFmcShort, true) ? ' uppercase' : '' }}">
+              <input type="text" name="{{ $name }}" value="{{ old($name) }}" maxlength="{{ in_array($name, $cdFmcShort, true) ? 50 : 255 }}" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm{{ in_array($name, $cdFmcShort, true) || $name === 'location' ? ' uppercase' : '' }}">
             @endif
           </div>
         @endforeach
@@ -990,3 +1014,8 @@
   @endif
 @endif
 @endsection
+
+@push('scripts')
+<script src="{{ asset('js/scanning/scan-viewer.js') }}?v={{ @filemtime(public_path('js/scanning/scan-viewer.js')) }}"></script>
+<script src="{{ asset('js/cadastral-dept/scanned-files.js') }}?v={{ @filemtime(public_path('js/cadastral-dept/scanned-files.js')) }}"></script>
+@endpush

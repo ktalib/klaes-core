@@ -20,7 +20,29 @@ class SurveyIts extends SurveyModel
         'completed_at'          => 'datetime',
         'surveyor_id'           => 'integer',
         'its_issued_by_user_id' => 'integer',
+        'return_date'           => 'date',
+        'rec_report'            => 'boolean',
+        'rec_survey_diagram'    => 'boolean',
+        'rec_field_books'       => 'boolean',
+        'rec_computation_sheets' => 'boolean',
+        'rec_surveyors_plan'    => 'boolean',
     ];
+
+    /** Page 2's Field Records in the field jacket, in the paper's order (CR 10112026 call): column => label, a tick box each. */
+    public const FIELD_RECORDS = [
+        'rec_report'             => 'Report',
+        'rec_survey_diagram'     => 'Survey Diagram',
+        'rec_field_books'        => 'Field Books',
+        'rec_computation_sheets' => 'Computation Sheets',
+        'rec_surveyors_plan'     => "Surveyor's Plan",
+    ];
+
+    /*
+     | Item 1's bold words, the data of the two sub-items (user, 2026-11-10), each with Other (specify). The first
+     | entry is the paper form's own word and the default; add choices here.
+     */
+    public const CONTROL_CONDITIONS = ['prove to be in situ'];
+    public const DETAIL_CONDITIONS = ['Identifiable'];
 
     public const DRAFT     = 'Draft';
     public const ISSUED    = 'Issued';
@@ -41,6 +63,20 @@ class SurveyIts extends SurveyModel
     public function surveyor(): BelongsTo
     {
         return $this->belongsTo(SurveyorListEntry::class, 'surveyor_id');
+    }
+
+    public function computationFile(): BelongsTo
+    {
+        return $this->belongsTo(SurveyComputationFile::class, 'survey_computation_file_id');
+    }
+
+    /**
+     * The Job No. (SUV-JOB-YYYY-NNN) is the Computation File's; the I to S never takes its own (user, 2026-11-11:
+     * "Computation File No. must have job no").
+     */
+    public function jobNo(): ?string
+    {
+        return $this->survey_computation_file_id ? $this->computationFile?->job_no : null;
     }
 
     public function isIssued(): bool

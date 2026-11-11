@@ -74,6 +74,8 @@ class ComputationFileController extends Controller
             'editingIts' => $editing ? (SurveyIts::where('survey_computation_file_id', $editing->id)->orderBy('id')->value('id') ?: $editing->survey_its_id) : null,
             // Shown on the Commission form; the number itself is given on save (user, 2026-11-02).
             'nextNo'    => ComputationNumbers::peek(CF::PREFIX),
+            // Job No, given on Commission too (Survey Update 5a, 2026-11-10).
+            'nextJobNo' => CF::nextJobNo(),
             'surveyors' => SurveyorListEntry::query()->where('is_active', true)->orderBy('first_name')->orderBy('surname')->get(['id', 'first_name', 'surname', 'other_name', 'rank']),
         ]);
     }
@@ -105,6 +107,8 @@ class ComputationFileController extends Controller
 
             $cf = CF::create($data + [
                 'computation_no'  => $no,
+                // Auto generated, never typed (Survey Update 5a); quoted on beacon requests.
+                'job_no'          => CF::nextJobNo(),
                 'year'            => (int) $year,
                 'serial'          => (int) $serial,
                 'commissioned_by' => Auth::id(),
@@ -116,7 +120,7 @@ class ComputationFileController extends Controller
             return $cf;
         });
 
-        return redirect()->route('survey-module.gkn.computation-files')->with('success', "Computation File {$cf->computation_no} commissioned.");
+        return redirect()->route('survey-module.gkn.computation-files')->with('success', "Computation File {$cf->computation_no} commissioned, Job No {$cf->job_no}.");
     }
 
     public function update(Request $r, CF $computationFile)
@@ -257,7 +261,7 @@ class ComputationFileController extends Controller
         $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
 
         return CF::query()->with('commissioner:id,first_name,last_name')
-            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('computation_no', 'like', $like)->orWhere('file_number', 'like', $like)
+            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('computation_no', 'like', $like)->orWhere('job_no', 'like', $like)->orWhere('file_number', 'like', $like)
                 ->orWhere('file_title', 'like', $like)->orWhere('surveyor_name', 'like', $like)))
             ->orderByDesc('commissioned_at')->orderByDesc('id');
     }
@@ -287,8 +291,8 @@ class ComputationFileController extends Controller
 
         $beacons = $this->beaconMap();
 
-        return $this->exportRecords($r, fn () => $this->fileQuery($r), $columns + ['survey_type' => 'Survey Type', 'beacons' => 'Beacon Numbers', 'its' => 'I to S', 'commissioned' => 'Commissioned'],
-            fn ($x) => ['number' => $x->computation_no, 'surveyor' => $x->surveyor_name, 'survey_type' => $x->survey_type, 'beacons' => implode(', ', $beacons[$x->id] ?? []),
+        return $this->exportRecords($r, fn () => $this->fileQuery($r), $columns + ['job_no' => 'Job No.', 'survey_type' => 'Survey Type', 'beacons' => 'Beacon Numbers', 'its' => 'I to S', 'commissioned' => 'Commissioned'],
+            fn ($x) => ['number' => $x->computation_no, 'job_no' => $x->job_no, 'surveyor' => $x->surveyor_name, 'survey_type' => $x->survey_type, 'beacons' => implode(', ', $beacons[$x->id] ?? []),
                 'its' => $its[$x->id] ?? ($picked[$x->survey_its_id] ?? null) ?: ($jobs[$x->survey_its_id] ?? null)] + $common($x), 'commissioned_at');
     }
 }

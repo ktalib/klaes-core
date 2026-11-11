@@ -397,6 +397,7 @@
       <p class="mt-1">Empowering Kano with transparent and efficient land administration.</p>
     </div>
   </div>
+    @include('partials.vmal_credit', ['dark' => true])
 </footer>
 
 <!-- ── Pricing Modal ────────────────────────────────────────────────────── -->

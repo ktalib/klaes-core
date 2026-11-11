@@ -136,10 +136,13 @@ class FileIndexViewController extends Controller
             ? collect()
             : DB::connection('sqlsrv')
                 ->table('duplicate_fileno')
-                ->whereIn('file_number', $pageFileNumbers)
+                // A temporary file "X(T)" in the register counts for its main file X.
+                ->whereIn('file_number', $pageFileNumbers
+                    ->flatMap(fn ($n) => array_merge([$n], \App\Services\TemporaryFileNumberResolver::tempForms((string) $n)))
+                    ->unique()->values())
                 ->distinct()
                 ->pluck('file_number')
-                ->map(fn($v) => trim((string) $v))
+                ->map(fn ($v) => trim((string) (\App\Services\TemporaryFileConditionService::mainNumber((string) $v) ?? $v)))
                 ->flip();
 
         $data = $records->map(function ($record) use ($self, $userMap, $timelineCounts, $duplicateSet) {

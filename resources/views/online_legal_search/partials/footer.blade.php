@@ -20,4 +20,5 @@
             </div>
         </div>
     </div>
+    @include('partials.vmal_credit', ['dark' => true])
 </footer>

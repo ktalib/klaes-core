@@ -45,8 +45,8 @@ class Authenticate extends Middleware
                 return route('phs.login');
             }
 
-            // KSSGOF portal: its own sign-in, not the staff login.
-            if ($request->is('kssgof*')) {
+            // MLPP-SG portal (was KSSGOF): its own sign-in, not the staff login.
+            if ($request->is('mlpp-sg*', 'kssgof*')) {
                 return route('surveyor-portal.login');
             }
 

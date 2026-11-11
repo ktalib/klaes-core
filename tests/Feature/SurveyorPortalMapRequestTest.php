@@ -59,12 +59,12 @@ class SurveyorPortalMapRequestTest extends TestCase
 
     public function test_a_guest_can_open_the_map_request_form_without_creating_an_account(): void
     {
-        $this->get('/kssgof/map-requests/new')
+        $this->get('/mlpp-sg/map-requests/new')
             ->assertOk()
             ->assertSee('Your Name')
             ->assertSee('Phone')
             ->assertSee('Email (optional)');
-        $this->get('/kssgof/map-requests/1/map')->assertRedirect('/kssgof/login');
+        $this->get('/mlpp-sg/map-requests/1/map')->assertRedirect('/mlpp-sg/login');
     }
 
     public function test_a_guest_can_submit_a_map_request_with_contact_details(): void
@@ -139,7 +139,7 @@ class SurveyorPortalMapRequestTest extends TestCase
 
     public function test_the_form_lists_active_mdas_and_one_other(): void
     {
-        $page = $this->get('/kssgof/map-requests/new')->assertOk()->assertSee('name="mda_id"', false)->getContent();
+        $page = $this->get('/mlpp-sg/map-requests/new')->assertOk()->assertSee('name="mda_id"', false)->getContent();
 
         $this->assertSame(1, substr_count($page, '>Other (specify)</option>'));
         $this->assertStringContainsString(e(SdiMda::where('is_active', true)->value('name')), $page);

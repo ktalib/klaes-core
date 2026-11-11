@@ -28,10 +28,10 @@
         <strong>My latest Plot Showings</strong>
         @forelse ($showings as $s)
             <a class="item" href="{{ route('survey-module.mobile.plots.op', $s->op_key) }}">
-                <div><strong>OP {{ $s->op_serial ?: '—' }} · {{ $s->label }}</strong>
-                    <div class="sub">{{ $s->allottee_name }}</div>
-                    {{-- Plot No., District, LGA --}}
-                    <div class="sub">{{ implode(' · ', array_filter([$s->plot_no ? 'Plot ' . $s->plot_no : null, $s->district, $s->lga])) }}</div></div>
+                {{-- TP No. and plot first, as the web (user, 2026-11-09); the OP serial last. --}}
+                <div><strong>{{ $s->tp_no ?: 'No TP No.' }} · Plot {{ $s->plot_no ?: '—' }}</strong>
+                    <div class="sub">{{ $s->label }} · {{ implode(' · ', array_filter([$s->district, $s->lga])) }}</div>
+                    <div class="sub">{{ $s->allottee_name }}{{ $s->op_serial ? ' · OP ' . $s->op_serial : '' }}</div></div>
                 <div class="sub" style="text-align:right;">{{ $s->shown_on?->format('d M') }}<br>{{ $s->photos_count }} photo{{ $s->photos_count === 1 ? '' : 's' }}</div>
             </a>
         @empty

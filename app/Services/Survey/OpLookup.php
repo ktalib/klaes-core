@@ -104,6 +104,77 @@ class OpLookup
             ->take($limit)->values()->all();
     }
 
+    /**
+     * The OPs filed under exactly this file number, in any of the file-number columns the
+     * OP rows carry (Cadastral FMC card, 2026-11-10: the OP No. is shown and never edited).
+     */
+    public function forFileNumber(string $fileNumber, int $limit = 10): array
+    {
+        $fileNumber = trim($fileNumber);
+        if ($fileNumber === '') {
+            return [];
+        }
+        $capture = $this->captureQuery()
+            ->where(fn ($q) => $q->where('ic.mlsFNo', $fileNumber)->orWhere('ic.temp_fileno', $fileNumber))
+            ->orderByDesc('ic.id')->limit($limit)->get();
+        $pra = $this->praQuery()
+            ->where(fn ($q) => $q->where('p.mlsFNo', $fileNumber)->orWhere('p.kangisFileNo', $fileNumber)->orWhere('p.NewKANGISFileno', $fileNumber)
+                ->orWhere('p.fileno', $fileNumber)->orWhere('p.temp_fileno', $fileNumber))
+            ->orderByDesc('p.id')->limit($limit)->get();
+
+        return $capture->map(fn ($r) => $this->fromCapture($r))
+            ->merge($pra->map(fn ($r) => $this->fromPra($r)))
+            ->take($limit)->values()->all();
+    }
+
+    /**
+     * OPs already captured for this allottee (user, 2026-11-10: Capture OP prompts when the OP exists). The name
+     * contains what was typed; a plot, district or LGA given narrows it.
+     */
+    public function byGrantee(string $name, ?string $plot = null, ?string $district = null, ?string $lga = null, int $limit = 5): array
+    {
+        $name = trim(preg_replace('/\s+/', ' ', $name));
+        if (mb_strlen($name) < 5) {
+            return [];
+        }
+        $like = '%' . str_replace(['[', '%', '_', ' '], ['[[]', '[%]', '[_]', '%'], $name) . '%';
+        $eq = fn ($q, $col, $v) => $v !== null && trim($v) !== '' ? $q->whereRaw("LTRIM(RTRIM({$col})) = ?", [trim($v)]) : $q;
+
+        $capture = $eq($eq($eq($this->captureQuery()->where('ic.party_2_name', 'like', $like), 'ic.plot_number', $plot), 'ic.district', $district), 'ic.lga', $lga)
+            ->orderByDesc('ic.id')->limit($limit)->get();
+        $pra = $eq($eq($eq($this->praQuery()->where('p.Grantee', 'like', $like), 'p.plot_no', $plot), 'p.districtName', $district), 'p.lgsaOrCity', $lga)
+            ->orderByDesc('p.id')->limit($limit)->get();
+
+        return $capture->map(fn ($r) => $this->fromCapture($r))
+            ->merge($pra->map(fn ($r) => $this->fromPra($r)))
+            ->take($limit)->values()->all();
+    }
+
+    /** OPs already captured on this plot in this district and/or LGA (a plot number alone is too common to match on). */
+    public function atPlot(string $plot, ?string $district = null, ?string $lga = null, int $limit = 5): array
+    {
+        $plot = trim($plot);
+        $district = trim((string) $district);
+        $lga = trim((string) $lga);
+        if ($plot === '' || ($district === '' && $lga === '')) {
+            return [];
+        }
+        $where = function ($q, $plotCol, $districtCol, $lgaCol) use ($plot, $district, $lga) {
+            $q->whereRaw("LTRIM(RTRIM({$plotCol})) = ?", [$plot]);
+            if ($district !== '') $q->whereRaw("LTRIM(RTRIM({$districtCol})) = ?", [$district]);
+            if ($lga !== '') $q->whereRaw("LTRIM(RTRIM({$lgaCol})) = ?", [$lga]);
+
+            return $q;
+        };
+
+        $capture = $where($this->captureQuery(), 'ic.plot_number', 'ic.district', 'ic.lga')->orderByDesc('ic.id')->limit($limit)->get();
+        $pra = $where($this->praQuery(), 'p.plot_no', 'p.districtName', 'p.lgsaOrCity')->orderByDesc('p.id')->limit($limit)->get();
+
+        return $capture->map(fn ($r) => $this->fromCapture($r))
+            ->merge($pra->map(fn ($r) => $this->fromPra($r)))
+            ->take($limit)->values()->all();
+    }
+
     public function find(string $key): ?array
     {
         if (! preg_match('/^(capture|pra)-(\d+)$/', $key, $m)) {
@@ -162,7 +233,7 @@ class OpLookup
             ->where(fn ($q) => $q->whereNull('p.is_deleted')->orWhere('p.is_deleted', 0))
             ->select(['p.id', 'p.op_serial_number', 'p.op_type', 'p.Grantee', 'p.plot_no', 'p.plot_size', 'p.districtName', 'p.lgsaOrCity', 'p.location',
                       'p.property_description', 'p.lpkn_no', 'p.tp_no', 'p.layout', 'p.temp_fileno', 'p.mlsFNo', 'p.kangisFileNo',
-                      'p.NewKANGISFileno', 'p.fileno', 'p.np_fileno', 'p.regNo']);
+                      'p.NewKANGISFileno', 'p.fileno', 'p.regNo']);   // pra has no np_fileno: asking for it broke every OP search (2026-11-07 to 2026-11-09)
     }
 
     private function fromCapture(object $r): array
@@ -183,8 +254,7 @@ class OpLookup
             'location'    => $this->s($r->property_location) ?? $this->s($r->property_description),
             'layout'      => $this->s($r->lpkn_no) ?? $this->s($r->tp_no),
             'tp_no'       => $this->s($r->tp_no),
-            'file_number' => $this->s($r->mlsFNo) ?? $this->s($r->kangisFileNo) ?? $this->s($r->NewKANGISFileno)
-                ?? $this->s($r->fileno) ?? $this->s($r->np_fileno) ?? $this->s($r->temp_fileno),
+            'file_number' => $this->s($r->mlsFNo) ?? $this->s($r->temp_fileno),
             'reg_no'      => $this->s($r->registration_number),
             'land_use'    => $this->s($r->land_use),
         ];
@@ -208,7 +278,9 @@ class OpLookup
             'location'    => $this->s($r->location) ?? $this->s($r->property_description),
             'layout'      => $this->s($r->lpkn_no) ?? $this->s($r->tp_no) ?? $this->s($r->layout),
             'tp_no'       => $this->s($r->tp_no),
-            'file_number' => $this->s($r->mlsFNo) ?? $this->s($r->temp_fileno),
+            // The KANGIS / other file numbers pra carries (added 2026-11-07, first put on the capture rows by mistake).
+            'file_number' => $this->s($r->mlsFNo) ?? $this->s($r->kangisFileNo) ?? $this->s($r->NewKANGISFileno)
+                ?? $this->s($r->fileno) ?? $this->s($r->temp_fileno),
             'reg_no'      => $this->s($r->regNo),
             'land_use'    => null,
         ];

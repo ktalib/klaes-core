@@ -15,14 +15,15 @@ use Illuminate\Http\Request;
  * - A write on a case needs the role of the desk acting on the case's current step.
  * - Registering a file (intake) is Registry's.
  * GET pages other than desks (case file, prints, lists, lookups) are not checked here.
- * Not checked: the FMC QR log (whoever physically moves the file scans it) and Master
- * Delete (gated by its own Super Admin check).
+ * Not checked: the FMC QR log (whoever physically moves the file scans it), the FMC edit
+ * (FMC roles, wherever the file is; checked in FmcController) and Master Delete (gated by
+ * its own Super Admin check).
  * Central Admin (2026-10-26) passes every desk check; a write that passes only through it is
  * written to the audit log as a Central Admin intervention.
  */
 class CadastralDeskAccess
 {
-    private const UNCHECKED = ['cadastral-dept.fmc.log.save', 'cadastral-dept.cases.master-destroy'];
+    private const UNCHECKED = ['cadastral-dept.fmc.log.save', 'cadastral-dept.cases.fmc.update', 'cadastral-dept.cases.master-destroy'];
 
     /** Writes allowed on a file that is waiting to be accepted (CadastralFileTracking). */
     private const BEFORE_ACCEPT = ['cadastral-dept.cases.accept.save', 'cadastral-dept.cases.jump.save', 'cadastral-dept.cases.master-destroy'];

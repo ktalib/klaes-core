@@ -59,9 +59,15 @@
             <td class="label">FMC No.</td><td class="value">{{ $fmc->fmc_no }}</td>
         </tr>
         <tr>
+            <td class="label">File Type</td><td class="value"@if (! ($fixed['is_op'] ?? false)) colspan="3"@endif>{{ ($fixed['file_type'] ?? null) ?: '—' }}</td>
+            @if ($fixed['is_op'] ?? false)
+                <td class="label">OP Serial No.</td><td class="value">{{ ($fixed['op_no'] ?? null) ?: '—' }}</td>
+            @endif
+        </tr>
+        <tr>
             <td class="label">File Title</td><td class="value" colspan="3">{{ $fmc->file_title ?: '—' }}</td>
         </tr>
-        @if ($fmc->allottee_name && $fmc->allottee_name !== $fmc->file_title)
+        @if (\App\Services\CadastralDept\FileMovementCards::SHOW_ALLOTTEE && $fmc->allottee_name && $fmc->allottee_name !== $fmc->file_title)
             <tr><td class="label">Allottee</td><td class="value" colspan="3">{{ $fmc->allottee_name }}</td></tr>
         @endif
         <tr>

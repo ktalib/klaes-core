@@ -34,8 +34,15 @@ class LoginOtpController extends Controller
             ? 0
             : max(0, $this->otp->ttlMinutes() * 60 - (now()->timestamp - (int) $last['sent_at']));
 
+        // Seconds until the security-question fallback opens; null when the account has none set.
+        $questions = app(\App\Services\SecurityQuestionService::class);
+        $questionsOpenIn = $questions->enabled() && $questions->hasAnswers($user)
+            ? $questions->fallbackOpensIn((int) ($this->otp->pending($request)['started_at'] ?? 0))
+            : null;
+
         return view('auth.login-otp', [
             'expiresIn' => $expiresIn,
+            'questionsOpenIn' => $questionsOpenIn,
             // The networks hold SMS 19:45–08:00 Lagos time; only then is the email route worth pointing at.
             'quietHours' => $this->otp->inQuietHours(),
             'maskedPhone' => app(\App\Services\PhoneOtpService::class)->mask($this->otp->phoneFor($user)),

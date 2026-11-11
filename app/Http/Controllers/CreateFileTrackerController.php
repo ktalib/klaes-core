@@ -965,8 +965,15 @@ class CreateFileTrackerController extends Controller
             // whole page rather than two per row.
             app(\App\Services\FilePassportService::class)->prime($results->pluck('file_number'));
 
-            $collection = $results->map(function ($tracker) {
-                return $this->decorateTrackerForResponse($tracker);
+            // KANGIS file(s) each land file on this page is kept inside — the same link
+            // Quick Search shows — so the log card can name it above the movement table.
+            $kangisByFile = app(FileLocationResolver::class)
+                ->kangisContainersForMany($results->pluck('file_number')->filter()->all());
+
+            $collection = $results->map(function ($tracker) use ($kangisByFile) {
+                $tracker = $this->decorateTrackerForResponse($tracker);
+                $tracker->setAttribute('kangis_files', $kangisByFile[strtoupper(trim((string) $tracker->file_number))] ?? []);
+                return $tracker;
             });
 
             return response()->json([

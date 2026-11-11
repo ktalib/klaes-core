@@ -21,6 +21,9 @@ class SurveyorPortalAccount extends Authenticatable
     public const REJECTED = 'rejected';
     public const SUSPENDED = 'suspended';
 
+    /** surveyor_type of a company's own login (user, 2026-11-10): made when the SG approves the company. */
+    public const COMPANY = 'Company';
+
     /** A reset code is good for ten minutes and five guesses. */
     public const RESET_TTL_MINUTES = 10;
     public const RESET_MAX_ATTEMPTS = 5;
@@ -29,11 +32,24 @@ class SurveyorPortalAccount extends Authenticatable
 
     protected $hidden = ['password', 'remember_token', 'reset_code'];
 
-    protected $casts = ['reviewed_at' => 'datetime', 'last_login_at' => 'datetime', 'reset_expires_at' => 'datetime'];
+    protected $casts = ['reviewed_at' => 'datetime', 'last_login_at' => 'datetime', 'reset_expires_at' => 'datetime',
+        'must_change_password' => 'boolean', 'login_sms_sent_at' => 'datetime', 'login_email_sent_at' => 'datetime'];
 
     public function isActive(): bool
     {
         return $this->status === self::ACTIVE;
+    }
+
+    /** A company's login, not a surveyor's. */
+    public function isCompany(): bool
+    {
+        return $this->surveyor_type === self::COMPANY;
+    }
+
+    /** Surveyors' accounts only, without the company logins. */
+    public function scopeSurveyors($query)
+    {
+        return $query->where('surveyor_type', '<>', self::COMPANY);
     }
 
     public function getTypeLabelAttribute(): string
@@ -77,7 +93,7 @@ class SurveyorPortalAccount extends Authenticatable
         return LaasApplicant::normalizePhone((string) $phone);
     }
 
-    /** Next id with this stem, e.g. KSSGOF-REG-2026-00001. The unique index catches two at once. */
+    /** Next id with this stem, e.g. MLPPSG-REG-2026-00001 (KSSGOF-REG- before the 2026-11-10 rename). The unique index catches two at once. */
     public static function nextId(string $column, string $stem, int $pad): string
     {
         $prefix = $stem . '-' . now()->year . '-';

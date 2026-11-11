@@ -19,7 +19,7 @@
                 <a class="ks-btn ks-btn-light" style="padding:8px 10px;" href="{{ route('surveyor-portal.map-requests.create') }}">
                     <i data-lucide="map" class="w-4 h-4"></i><span class="hidden sm:inline">Request a map</span><span class="sr-only sm:hidden">Request a map</span>
                 </a>
-                <a class="ks-btn ks-btn-light" style="padding:8px 12px;" href="{{ route('surveyor-portal.login') }}">Sign in</a>
+                <a class="ks-btn ks-btn-light" style="padding:8px 12px;" href="{{ route('surveyor-portal.login') }}" data-signin-dialog-trigger>Sign in</a>
                 <a class="ks-btn ks-btn-primary" style="padding:8px 12px;" href="{{ route('surveyor-portal.register') }}" data-register-dialog-trigger>Register</a>
             @endif
         </nav>
@@ -42,12 +42,44 @@
             </div>
         </div>
     </dialog>
+    {{-- Sign in asks first (user, 2026-11-11): company or surveyor, each with its own sign-in URL. --}}
+    <dialog id="ksSignInDialog" aria-labelledby="ksSignInTitle"
+            style="width:min(92vw,480px);padding:0;border:0;border-radius:14px;box-shadow:0 24px 70px rgba(8,43,94,.28);">
+        <div style="padding:26px;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;">
+                <div>
+                    <h2 id="ksSignInTitle" class="text-lg font-bold">Sign in as</h2>
+                    <p class="ks-help" style="margin-top:7px;">Are you signing in as a company or as a surveyor?</p>
+                </div>
+                <button type="button" class="ks-btn ks-btn-light" style="padding:6px 10px;" aria-label="Close" data-signin-dialog-close>&times;</button>
+            </div>
+            <div class="grid sm:grid-cols-2 gap-3" style="margin-top:22px;">
+                <a class="ks-btn ks-btn-primary" href="{{ route('surveyor-portal.login.as', 'surveyor') }}"><i data-lucide="user-round" class="w-4 h-4"></i> Surveyor</a>
+                <a class="ks-btn ks-btn-light" href="{{ route('surveyor-portal.login.as', 'company') }}"><i data-lucide="building-2" class="w-4 h-4"></i> Company</a>
+            </div>
+        </div>
+    </dialog>
     <style>
-        #ksCompanyRegistrationDialog::backdrop { background:rgba(8,23,43,.56); backdrop-filter:blur(3px); }
-        #ksCompanyRegistrationDialog[open] { animation:ks-dialog-in .16s ease-out; }
+        #ksCompanyRegistrationDialog::backdrop, #ksSignInDialog::backdrop { background:rgba(8,23,43,.56); backdrop-filter:blur(3px); }
+        #ksCompanyRegistrationDialog[open], #ksSignInDialog[open] { animation:ks-dialog-in .16s ease-out; }
         @keyframes ks-dialog-in { from { opacity:0; transform:translateY(8px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
-        @media (prefers-reduced-motion:reduce) { #ksCompanyRegistrationDialog[open] { animation:none; } }
+        @media (prefers-reduced-motion:reduce) { #ksCompanyRegistrationDialog[open], #ksSignInDialog[open] { animation:none; } }
     </style>
+    <script>
+        (function () {
+            var dialog = document.getElementById('ksSignInDialog');
+            if (!dialog || typeof dialog.showModal !== 'function') return;   // no <dialog>: the link opens /login, which asks the same
+
+            document.addEventListener('click', function (event) {
+                var trigger = event.target instanceof Element ? event.target.closest('[data-signin-dialog-trigger]') : null;
+                if (!trigger) return;
+                event.preventDefault();
+                dialog.showModal();
+            });
+            dialog.querySelector('[data-signin-dialog-close]').addEventListener('click', function () { dialog.close(); });
+            dialog.addEventListener('click', function (event) { if (event.target === dialog) dialog.close(); });
+        })();
+    </script>
     <script>
         (function () {
             var dialog = document.getElementById('ksCompanyRegistrationDialog');

@@ -43,9 +43,18 @@ Route::middleware(['auth', 'XSS', 'cadastral.desk'])->prefix('cadastral-dept')->
     // Central Admin (CADASTRAL UPDATE, 2026-10-26): every open file in one table; the Central Admin
     // role acts for any desk or unit head through the case routes below. Sidebar: Admin, after Dashboard.
     Route::get('/central-admin', [CentralAdminController::class, 'index'])->name('central-admin.index');
+    // Pause the one-working-day timer for a genuine reason (user, 2026-11-09): Central Admin only, checked in the controller.
+    Route::post('/central-admin/timer/{timerCase}/pause', [CentralAdminController::class, 'pauseTimer'])->name('central-admin.timer.pause.save');
+    Route::post('/central-admin/timer/{timerCase}/resume', [CentralAdminController::class, 'resumeTimer'])->name('central-admin.timer.resume.save');
 
     // Verification > File Status > Search (user, 2026-10-31): the Survey File Status search, copied for Cadastral.
     Route::get('/file-status', [\App\Http\Controllers\CadastralDept\FileStatusController::class, 'index'])->name('file-status');
+
+    // Scanned files pop-up > Commissioning (user, 2026-11-10): commissioning sheet / LGA confirmation,
+    // drawn read-only as VFS draws them. Keyed by ?file_number=.
+    Route::get('/commissioning-docs', [\App\Http\Controllers\CadastralDept\CommissioningDocumentController::class, 'index'])->name('commissioning-docs.index');
+    Route::get('/commissioning-docs/{key}', [\App\Http\Controllers\CadastralDept\CommissioningDocumentController::class, 'show'])
+        ->where('key', 'commissioning-sheet|lga-confirmation')->name('commissioning-docs.show');
 
     // Generate Property Index Card (2026-10-16): one card per file from the Legal Search records,
     // filed as a PDF to EDMS/SCAN_UPLOAD/Cadastral_Registry/PIC/{file}/. Registering a file generates it too.
@@ -147,6 +156,8 @@ Route::middleware(['auth', 'XSS', 'cadastral.desk'])->prefix('cadastral-dept')->
     Route::post('/cases/{case}/fmc', [FmcController::class, 'store'])->whereNumber('case')->name('cases.fmc.store');
     Route::get('/cases/{case}/fmc', [FmcController::class, 'show'])->whereNumber('case')->name('cases.fmc.show');
     Route::get('/cases/{case}/fmc/print', [FmcController::class, 'print'])->whereNumber('case')->name('cases.fmc.print');
+    // Edit modal on the card (recording 365, 2026-11-09): FMC roles, checked in the controller.
+    Route::post('/cases/{case}/fmc/update', [FmcController::class, 'update'])->whereNumber('case')->name('cases.fmc.update');
     Route::get('/fmc/{token}', [FmcController::class, 'scan'])->name('fmc.scan');
     Route::post('/fmc/{token}/log', [FmcController::class, 'log'])->name('fmc.log.save');
 });

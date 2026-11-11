@@ -294,7 +294,10 @@
                 });
             };
 
-            stateField.addEventListener('change', function () { loadLgas(false); });
+            // select2 announces a pick as a jQuery event, which addEventListener never hears; jQuery's .on hears both
+            // (2026-11-10: picking another state left Kano's LGAs in the list).
+            if (window.jQuery) jQuery(stateField).on('change', function () { loadLgas(false); });
+            else stateField.addEventListener('change', function () { loadLgas(false); });
             loadLgas(Boolean(initialLga));
         }
 

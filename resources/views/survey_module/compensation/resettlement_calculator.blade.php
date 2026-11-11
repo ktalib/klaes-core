@@ -282,7 +282,9 @@
     // The farmer takes the whole plots of their share (SurveySettings::splitPlots).
     function calc(a, size, pct, mode, doSplit, farmerPct) {
         pct = Math.max(0, Math.min(100, pct || 0));
-        var net = a * (1 - pct / 100), exact = net / size;
+        // As the server (ResettlementCalculator::effectiveSize): 0.1667 is 1/6 ha, so 3 ha gives 18, not 17; then 2 decimals.
+        var n1 = Math.round(1 / size); if (n1 >= 1 && Math.abs(size - 1 / n1) < 0.0001) size = 1 / n1;
+        var net = a * (1 - pct / 100), exact = Math.round(net / size * 100) / 100;
         var plots = mode === 'up' ? Math.ceil(exact - 1e-6) : (mode === 'nearest' ? Math.round(exact) : Math.floor(exact + 1e-6));
         plots = Math.max(0, plots);
         var farmer = Math.floor(plots * farmerPct / 100);

@@ -26,7 +26,7 @@
 <div class="page-header">
     <div>
         @if (request('via') === 'kssgof')
-            <a href="{{ route('survey-module.beacon-requests.index', ['tab' => 'maps']) }}" style="font-size:14px;">&larr; KSSGOF Map Requests</a>
+            <a href="{{ route('survey-module.beacon-requests.index', ['tab' => 'maps']) }}" style="font-size:14px;">&larr; MLPP-SG Map Requests</a>
         @else
             <a href="{{ route('survey-module.sdi.map-requests') }}" style="font-size:14px;">&larr; All map requests</a>
         @endif
@@ -53,12 +53,12 @@
             </div>
             <div class="mrs-fields">
                 {!! $row('Request No', $m->request_ref) !!}
-                {!! $row('Map Type', $m->mapType?->name) !!}
+                {!! $row('Map Type', $m->mapTypeLabel()) !!}
                 {!! $row('Map Reference', $m->map_reference) !!}
                 {!! $row('Formats', $m->formatsLabel()) !!}
                 {!! $row('Date Received', optional($m->received_date)->format('d M Y')) !!}
                 {!! $row('Due Date', optional($m->due_date)->format('d M Y') . ($m->isOverdue() ? ' (overdue)' : '')) !!}
-                {!! $row('Logged By', $m->surveyor_portal_account_id ? 'KSSGOF Portal' : $m->requester?->name) !!}
+                {!! $row('Logged By', $m->surveyor_portal_account_id ? 'MLPP-SG Portal' : $m->requester?->name) !!}
             </div>
             <div style="margin-top:12px;">{!! $row('Description', $m->map_description) !!}</div>
         </div>

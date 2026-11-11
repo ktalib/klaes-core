@@ -11,8 +11,28 @@
     {{-- Filters, and Registry's Register button --}}
     @include('cadastral_dept.partials._stat_cards')
 
+    @if ($approvalTabs)
+      {{-- CR item 13 (2026-11-09): Awaiting Approval / Approved on every Approval and Recommend list. --}}
+      <div class="flex flex-wrap items-center gap-2 mb-4" role="tablist">
+        @foreach (['awaiting' => ['Awaiting Approval', 'clock'], 'approved' => ['Approved', 'check-circle']] as $cdTabKey => [$cdTabLabel, $cdTabIcon])
+          <a href="{{ route('cadastral-dept.desks.show', array_filter(['desk' => $desk, 'queue' => $queueKey, 'tab' => $cdTabKey === 'approved' ? 'approved' : null, 'q' => $term, 'workflow' => $filterWorkflow])) }}"
+             role="tab" aria-selected="{{ $tab === $cdTabKey ? 'true' : 'false' }}"
+             class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border {{ $tab === $cdTabKey ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50' }}">
+            <i data-lucide="{{ $cdTabIcon }}" class="w-4 h-4"></i> {{ $cdTabLabel }}
+            <span class="px-2 py-0.5 rounded-full text-xs {{ $tab === $cdTabKey ? 'bg-white bg-opacity-25 text-white' : 'bg-gray-100 text-gray-600' }}">{{ number_format($tabCounts[$cdTabKey] ?? 0) }}</span>
+          </a>
+        @endforeach
+      </div>
+    @endif
+
+    @if ($fmcTabs)
+      @include('cadastral_dept.fmc._register_tabs')
+    @endif
+
     <form method="GET" class="flex flex-wrap items-center gap-2 mb-6">
       @if ($queueKey)<input type="hidden" name="queue" value="{{ $queueKey }}">@endif
+      @if ($approvalTabs && $tab === 'approved')<input type="hidden" name="tab" value="approved">@endif
+      @if ($fmcTabs && $fmcTab !== 'queue')<input type="hidden" name="tab" value="{{ $fmcTab }}">@endif
       <input type="text" name="q" value="{{ $term }}" placeholder="File no., ref or title"
              class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-64">
       <select name="workflow" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
@@ -23,7 +43,7 @@
       </select>
       <button class="px-3 py-2 rounded-lg bg-gray-800 text-white text-sm font-semibold">Filter</button>
       @if ($term !== '' || $filterWorkflow)
-        <a href="{{ route('cadastral-dept.desks.show', array_filter(['desk' => $desk, 'queue' => $queueKey])) }}" class="text-sm text-gray-600 hover:underline">Clear</a>
+        <a href="{{ route('cadastral-dept.desks.show', array_filter(['desk' => $desk, 'queue' => $queueKey, 'tab' => $approvalTabs && $tab === 'approved' ? 'approved' : ($fmcTabs && $fmcTab !== 'queue' ? $fmcTab : null)])) }}" class="text-sm text-gray-600 hover:underline">Clear</a>
       @endif
       @if ($desk === 'registry' && $queueKey !== 'approval')
         {{-- Not on AD CAD Registry > Approval (user, 2026-10-16). --}}
@@ -51,6 +71,9 @@
       </form>
     @endif
 
+    @if ($fmcTabs && $fmcTab !== 'queue')
+      @include('cadastral_dept.fmc._register_tables')
+    @else
     {{-- One table: files at this desk, any out with another department that this desk takes back,
          then the open files this desk has sent on (view only, status says where they are). --}}
     @php
@@ -106,7 +129,12 @@
               <td class="px-4 py-2">{{ $case->file_title }}</td>
               <td class="px-4 py-2 whitespace-nowrap">{!! $def->wfChip($case->workflow) !!} <span class="text-xs text-gray-500">{{ $case->fileTypeLabel() }}</span></td>
               <td class="px-4 py-2">
-                @if ($isClosed)
+                @php $cdDec = $decisions[$case->id] ?? null; @endphp
+                @if ($cdDec)
+                  {{-- Approved tab: the decision made here, then where the file is now. --}}
+                  <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold {{ $cdDec['tone'] === 'red' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800' }}">{{ $cdDec['label'] }}</span>
+                  <div class="text-xs text-gray-500 mt-0.5">{{ trim(($cdDec['by'] ? 'By ' . $cdDec['by'] : '') . ' · ' . optional($cdDec['at'])->format('d M Y H:i'), ' ·') }}</div>
+                @elseif ($isClosed)
                   <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-gray-200 text-gray-800">{{ $case->status === 'returned' ? 'Returned' : 'Completed' }}</span>
                 @elseif ($isSent && $case->current_desk === $desk)
                   {{-- On a task list: its task is done, the file is still here for the rest. --}}
@@ -129,6 +157,9 @@
                   <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800">Ready to send</span>
                 @endif
                 <div class="text-xs text-gray-500 mt-0.5">{{ $isClosed ? 'Closed ' . optional($case->closed_at)->format('d M Y') : (($isSent ? 'Now: ' : '') . $case->stepLabel()) }}</div>
+                @unless ($isSent || $isAway || $isClosed)
+                  @include('cadastral_dept.partials._timer_badge', ['t' => $timers[$case->id] ?? null])
+                @endunless
                 @if (! $isAway && $back && $back['reason'])
                   <div class="text-xs text-red-700 mt-0.5">“{{ $back['reason'] }}”</div>
                 @endif
@@ -155,6 +186,10 @@
                     @if ($fmcInstalled && $fmcVisible && $case->fmc)
                       <a href="{{ route('cadastral-dept.cases.fmc.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="id-card" class="w-4 h-4 text-gray-500"></i> File Movement Card</a>
                     @endif
+                    {{-- Recording 355: the land file's scans and, once opened, the correspondence file's. --}}
+                    <button type="button" @click="open = false; cdScannedFiles(@js($case->file_number))" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                      <i data-lucide="scan-eye" class="w-4 h-4 text-gray-500"></i> View Scanned Files
+                    </button>
                     @foreach ($case->verificationReportActions() as $cdVrItem)
                       <a href="{{ $cdVrItem[2] }}" @if ($cdVrItem[3] ?? false) target="_blank" @endif class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="{{ $cdVrItem[1] }}" class="w-4 h-4 text-gray-500"></i> {{ $cdVrItem[0] }}</a>
                     @endforeach
@@ -174,7 +209,7 @@
                       <div class="border-t border-gray-100">
                         @if ($m['jacket'] === 'commission')
                           <form method="POST" action="{{ route('cadastral-dept.cases.field-jacket.store', $case->id) }}"
-                                data-confirm-title="Commission the Computation File?" data-confirm="A Computation File is numbered for {{ $case->file_number }}.">
+                                data-confirm-title="Commission the Computation File?" data-confirm="A Computation File and its Job No are numbered for {{ $case->file_number }}.">
                             @csrf
                             <button class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50">
                               <span class="inline-flex items-center gap-2"><i data-lucide="briefcase" class="w-4 h-4"></i> Commission Computation File (Field Jacket)</span>
@@ -182,13 +217,13 @@
                             </button>
                           </form>
                         @elseif ($m['jacket'] === 'attach_job')
-                          @php $cdFj = \App\Models\CadastralDept\CadastralFieldJacket::query()->where('cadastral_case_id', $case->id)->value('field_jacket_no'); @endphp
+                          @php $cdFjRow = \App\Models\CadastralDept\CadastralFieldJacket::query()->with('job:id,job_number')->where('cadastral_case_id', $case->id)->first(['id', 'field_jacket_no', 'cadastral_survey_job_id']); $cdFj = $cdFjRow?->field_jacket_no; @endphp
                           <button type="button" class="w-full text-left px-3 py-2 text-sm text-blue-700 hover:bg-gray-50"
                                   data-attach-job data-url="{{ route('cadastral-dept.cases.job.store', $case->id) }}"
                                   data-ref="{{ $case->case_ref }}" data-file="{{ $case->file_number }}" data-plot="{{ $case->plot_no }}"
-                                  data-district="{{ $case->district }}" data-lga="{{ $case->lga }}" data-jacket="{{ $cdFj }}">
+                                  data-district="{{ $case->district }}" data-lga="{{ $case->lga }}" data-jacket="{{ $cdFj }}" data-job="{{ $cdFjRow?->job?->job_number }}">
                             <span class="inline-flex items-center gap-2"><i data-lucide="link" class="w-4 h-4"></i> Attach Job and Surveyor</span>
-                            <span class="block text-xs text-gray-500">From the Job Book; then issue the Instruction to Surveyor</span>
+                            <span class="block text-xs text-gray-500">{{ $cdFjRow?->job ? 'Job ' . $cdFjRow->job->job_number . '; then' : 'From the Job Book; then' }} issue the Instruction to Surveyor</span>
                           </button>
                         @else
                           <a href="{{ route('cadastral-dept.cases.show', $case->id) }}" class="block px-3 py-2 text-sm text-blue-700 hover:bg-gray-50">
@@ -287,13 +322,14 @@
               </td>
             </tr>
           @empty
-            <tr><td colspan="10" class="px-4 py-6 text-center text-gray-400">No files here.</td></tr>
+            <tr><td colspan="10" class="px-4 py-6 text-center text-gray-400">{{ $approvalTabs ? ($tab === 'approved' ? 'No approved files yet.' : 'No files awaiting approval.') : 'No files here.' }}</td></tr>
           @endforelse
         </tbody>
       </table>
     </div>
     @if ($sentTotal > $sent->count() && $sent->isNotEmpty())
       <p class="mt-2 text-xs text-gray-500">Showing the latest {{ $sentLimit }} of {{ number_format($sentTotal) }} {{ ! empty($queueKeepsDone) ? 'files done on this list' : 'files sent on' }}. Search by file number to find an older one.</p>
+    @endif
     @endif
   </div>
 
@@ -351,6 +387,8 @@
 @endsection
 
 @push('scripts')
+<script src="{{ asset('js/scanning/scan-viewer.js') }}?v={{ @filemtime(public_path('js/scanning/scan-viewer.js')) }}"></script>
+<script src="{{ asset('js/cadastral-dept/scanned-files.js') }}?v={{ @filemtime(public_path('js/cadastral-dept/scanned-files.js')) }}"></script>
 <script>
   function cdDesk() {
     return {

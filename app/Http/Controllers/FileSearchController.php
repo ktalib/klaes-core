@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DuplicateFileno;
 use App\Services\CsvImporter\Support\CsvValueNormalizer;
+use App\Services\TemporaryFileConditionService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -164,8 +165,16 @@ class FileSearchController extends Controller
             $timezone = 'UTC';
         }
 
+        // Temporary File condition: the indexed main file of each "X(T)" row, and a
+        // suspected-forgery flag when the two titles name different holders.
+        $conditions = app(TemporaryFileConditionService::class)->forRows(
+            Collection::make($paginator->items())
+                ->mapWithKeys(fn ($row) => [(int) $row->id => ['file_number' => $row->file_number, 'file_title' => $row->file_title]])
+                ->all()
+        );
+
         $items = Collection::make($paginator->items())
-            ->map(function ($row, int $index) use ($serialOffset, $timezone) {
+            ->map(function ($row, int $index) use ($serialOffset, $timezone, $conditions) {
                 [$recordType, $note] = $this->splitComment($row->comment);
 
                 $category = $row->category ?? $this->categoryLabel($recordType);
@@ -195,6 +204,9 @@ class FileSearchController extends Controller
                     'comment_display' => $this->commentDisplay($category, $note),
                     'created_at' => $createdAt ? $createdAt->toIso8601String() : null,
                     'created_at_display' => $createdAtDisplay,
+                    'main_file_number' => $conditions[(int) $row->id]['main_file_number'] ?? null,
+                    'main_file_title' => $conditions[(int) $row->id]['main_file_title'] ?? null,
+                    'condition' => $conditions[(int) $row->id]['condition'] ?? null,
                 ];
             })
             ->values();
@@ -1038,7 +1050,8 @@ class FileSearchController extends Controller
                     'registry' => 'required|string|max:255',
                     'files' => 'required|array|min:1|max:50',
                     'files.*.file_number' => 'required|string|max:255',
-                    'files.*.file_title' => 'nullable|string|max:255',
+                    // A temporary file's title is what gets compared with the main file.
+                    'files.*.file_title' => 'required_if:comment_label,temporary|nullable|string|max:255',
                     'files.*.plot_number' => 'nullable|string|max:255',
                     'files.*.location' => 'nullable|string|max:255',
                     'comment' => 'nullable|string|max:2000',
@@ -1048,6 +1061,7 @@ class FileSearchController extends Controller
                     'files.required' => 'Add at least one file before saving.',
                     'files.max' => 'Up to 50 files can be captured at once.',
                     'files.*.file_number.required' => 'Every file needs a file number.',
+                    'files.*.file_title.required_if' => 'Enter the title on every temporary file.',
                 ]);
             } else {
                 $validated = $request->validate([
@@ -1335,6 +1349,36 @@ class FileSearchController extends Controller
                 'message' => 'Failed to delete record. Please try again.',
             ], 500);
         }
+    }
+
+    /**
+     * The indexed main file behind a Temporary File, for the Add Record card: backfills
+     * plot and location, and says whether the typed temp title names another holder.
+     *
+     * GET /file-search-db/main-file?file_number=X&title=...
+     */
+    public function mainFile(Request $request, TemporaryFileConditionService $conditions): JsonResponse
+    {
+        $number = trim((string) $request->query('file_number', ''));
+        $main = $number === '' ? null : $conditions->mainFile($number);
+
+        if (!$main) {
+            return response()->json(['success' => true, 'data' => null]);
+        }
+
+        $title = trim((string) $request->query('title', ''));
+
+        return response()->json([
+            'success' => true,
+            'data' => $main + [
+                'temp_file_number' => TemporaryFileConditionService::mainNumber($number) === null
+                    ? $main['file_number'] . '(T)'
+                    : $number,
+                'condition' => $title !== '' && TemporaryFileConditionService::titlesDiffer($title, $main['file_title'])
+                    ? TemporaryFileConditionService::SUSPECTED_FORGERY
+                    : null,
+            ],
+        ]);
     }
 
     /**

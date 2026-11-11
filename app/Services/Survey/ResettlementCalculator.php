@@ -49,6 +49,18 @@ class ResettlementCalculator
     public const ROUNDINGS = ['down' => 'Round down', 'nearest' => 'Nearest whole plot', 'up' => 'Round up'];
 
     /**
+     * The plot size the sum uses. A size that is 1/n of a hectare written to 4 decimals (0.1667 = 1/6, 0.0714 = 1/14,
+     * 0.0454 = 1/22) is taken as that exact fraction, so the plots are n a hectare at any area. Others are used as given.
+     * Mirrored in the calculators' previews (resettlement_calculator, _page-compensation-calculator, _page-compensation-register).
+     */
+    public static function effectiveSize(float $plotSizeHa): float
+    {
+        $n = round(1 / $plotSizeHa);
+
+        return $n >= 1 && abs($plotSizeHa - 1 / $n) < 0.0001 ? 1 / $n : $plotSizeHa;
+    }
+
+    /**
      * @return array{net_area:float, exact:float, plots:int, split:bool, farmer:?int, government:?int}
      */
     public function calculate(float $areaHa, float $plotSizeHa, float $deductionPercent = self::DEFAULT_DEDUCTION,
@@ -60,7 +72,9 @@ class ResettlementCalculator
 
         $deductionPercent = max(0.0, min(100.0, $deductionPercent));
         $net = round($areaHa * (1 - $deductionPercent / 100), 6);
-        $exact = round($net / $plotSizeHa, 6);
+        // Plots a hectare as the SG means them (user, 2026-11-09): 0.1667 is 1/6 ha, so 3 ha gives 18, not 17
+        // (3 / 0.1667 = 17.997). Then to 2 decimals before any rounding.
+        $exact = round($net / self::effectiveSize($plotSizeHa), 2);
 
         // A hair of tolerance so 15.0000001 from floating point is 15, not 14 / 16.
         $plots = match ($rounding) {

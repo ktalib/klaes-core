@@ -152,12 +152,28 @@ class FieldJackets
                 'commissioned_by' => $userId,
                 'commissioned_at' => $now,
             ]);
+            // The job and its Job No come with the Computation File (Survey Update 5a, user 2026-11-10),
+            // so a private file carries its Job No from commissioning, as a public one does. AD Cad Info
+            // then attaches the surveyor to this job.
+            $job = CadastralSurveyJob::create([
+                'job_number' => $this->numbers->nextJobNumber(),
+                'status' => 'Draft',
+                'cadastral_case_id' => $case->id,
+                'field_jacket_no' => $jacketNo,
+                'file_number' => $case->file_number,
+                'file_title' => $case->file_title,
+                'prop_plot' => $case->plot_no,
+                'prop_district' => $case->district,
+                'prop_lga' => $case->lga,
+            ]);
+            $jacket->update(['cadastral_survey_job_id' => $job->id]);
             $this->tick($case, self::TASK_JACKET, $jacketNo, $userId);
             // Commissioning attaches it to the correspondence file (change request 26-10-2026).
             $this->attachTo($jacket, $case, $userId);
 
             $this->audit->logAction('Cadastral Field Jacket Commissioned', 'CadastralFieldJacket', $jacket->id, null,
-                ['field_jacket_no' => $jacketNo, 'lppl_no' => $lpplNo], "Computation File (Field Jacket) " . ($lpplNo ? "{$lpplNo} ({$jacketNo})" : $jacketNo) . " commissioned for {$case->case_ref} ({$case->file_number})");
+                ['field_jacket_no' => $jacketNo, 'lppl_no' => $lpplNo, 'job_number' => $job->job_number],
+                "Computation File (Field Jacket) " . ($lpplNo ? "{$lpplNo} ({$jacketNo})" : $jacketNo) . ", Job No {$job->job_number}, commissioned for {$case->case_ref} ({$case->file_number})");
 
             return $jacket;
         });
@@ -193,17 +209,15 @@ class FieldJackets
     }
 
     /**
-     * AD Cad Info attaches a registered job (Job Book) and a surveyor to the field jacket
-     * (transcript, 2026-10-16). The job takes the file's number, title and location: a job
-     * has no location of its own. Ticks the task.
+     * AD Cad Info attaches the surveyor to the field jacket's job (transcript, 2026-10-16). Since
+     * Survey Update 5a (2026-11-10) the job is made at commissioning; a jacket commissioned
+     * before then has none, and takes a registered job from the Job Book here. The job takes the
+     * file's number, title and location: a job has no location of its own. Ticks the task.
      */
     public function attachJob(CadastralCase $case, array $input, ?int $userId): CadastralFieldJacket
     {
         $this->assertInstalled();
         $jobId = (int) ($input['cadastral_survey_job_id'] ?? 0);
-        if (!$jobId) {
-            throw WorkflowGuardException::because('Choose the survey job to attach.');
-        }
         $surveyor = $this->activeSurveyor($input['cadastral_surveyor_id'] ?? null);
 
         return DB::connection(self::CONN)->transaction(function () use ($case, $input, $userId, $jobId, $surveyor) {
@@ -215,15 +229,19 @@ class FieldJackets
             if (!$jacket) {
                 throw WorkflowGuardException::because("{$case->case_ref} has no Computation File. P&D commissions it first.");
             }
-            if ($jacket->cadastral_survey_job_id) {
-                throw WorkflowGuardException::because("{$jacket->field_jacket_no} already has its job.");
+            if ($jacket->cadastral_surveyor_id) {
+                throw WorkflowGuardException::because("{$jacket->field_jacket_no} already has its job and surveyor.");
+            }
+            $own = (bool) $jacket->cadastral_survey_job_id;   // made at commissioning
+            if (!$own && !$jobId) {
+                throw WorkflowGuardException::because('Choose the survey job to attach.');
             }
 
-            $job = CadastralSurveyJob::query()->lockForUpdate()->find($jobId);
+            $job = CadastralSurveyJob::query()->lockForUpdate()->find($own ? $jacket->cadastral_survey_job_id : $jobId);
             if (!$job) {
                 throw WorkflowGuardException::because('That survey job no longer exists.');
             }
-            if (trim((string) $job->file_number) !== '' || $job->cadastral_case_id) {
+            if (!$own && (trim((string) $job->file_number) !== '' || $job->cadastral_case_id)) {
                 throw WorkflowGuardException::because("{$job->job_number} is already attached to " . ($job->file_number ?: 'another file') . '.');
             }
             if ($job->status !== 'Draft') {
@@ -268,6 +286,9 @@ class FieldJackets
 
         return DB::connection(self::CONN)->transaction(function () use ($jacket, $surveyor, $reason, $userId) {
             $jacket = CadastralFieldJacket::query()->lockForUpdate()->findOrFail($jacket->id);
+            if (!$jacket->cadastral_surveyor_id) {
+                throw WorkflowGuardException::because("{$jacket->field_jacket_no} has no surveyor yet. Attach one at AD Cad Info.");
+            }
             $case = CadastralCase::findOrFail($jacket->cadastral_case_id);
             $job = CadastralSurveyJob::query()->lockForUpdate()->findOrFail($jacket->cadastral_survey_job_id);
             if (!$case->isOpen() || in_array($job->status, ['Accepted', 'Cancelled'], true)) {
@@ -322,7 +343,7 @@ class FieldJackets
                 throw WorkflowGuardException::because("{$case->case_ref} is not at the step where the Instruction to Surveyor is issued.");
             }
             $jacket = CadastralFieldJacket::query()->where('cadastral_case_id', $case->id)->first();
-            if (!$jacket || !$jacket->cadastral_survey_job_id) {
+            if (!$jacket || !$jacket->cadastral_survey_job_id || !$jacket->cadastral_surveyor_id) {
                 throw WorkflowGuardException::because('Attach the job and the surveyor first; the instruction is issued on the job.');
             }
             $job = CadastralSurveyJob::query()->lockForUpdate()->findOrFail($jacket->cadastral_survey_job_id);

@@ -9,7 +9,7 @@
 
 <div class="iw-alert info">
     <i data-lucide="globe-2" class="h-4 w-4 mt-0.5"></i>
-    <div>Manage KNSSGOF Portal logos, identity, theme colours and support contact details.</div>
+    <div>Manage MLPP-SG Portal logos, identity, theme colours and support contact details.</div>
 </div>
 
 @if($errors->any())
@@ -47,6 +47,16 @@
                 <label class="iw-label" for="office_name">Office name</label>
                 <input class="iw-input" id="office_name" name="office_name" maxlength="160" required
                        value="{{ old('office_name', $portalSettings['office_name']) }}">
+            </div>
+            <div class="iw-field md:col-span-2">
+                <label class="iw-label" for="ministry_line">Ministry line</label>
+                <input class="iw-input" id="ministry_line" name="ministry_line" maxlength="200" required
+                       value="{{ old('ministry_line', $portalSettings['ministry_line']) }}">
+            </div>
+            <div class="iw-field">
+                <label class="iw-label" for="ministry_address">Ministry address</label>
+                <input class="iw-input" id="ministry_address" name="ministry_address" maxlength="255" required
+                       value="{{ old('ministry_address', $portalSettings['ministry_address']) }}">
             </div>
         </div>
     </section>

@@ -207,14 +207,18 @@ class BlindScanIngestionService
             }
             $paperSize = $this->detectPaperSizeFromPath($relativePath);
             $targetFilename = $this->buildTargetFilename($file->getFilename());
-            $targetRelativePath = $paperSize . '/' . $targetFilename;
+            // Scanned property index cards keep their own folder in Scan Upload, as A3 pages keep theirs (user, 2026-11-11).
+            $indexCard = \App\Http\Controllers\BlindScanningController::isIndexCardPath($relativePath);
+            $targetRelativePath = ($indexCard ? \App\Http\Controllers\BlindScanningController::INDEX_CARD_FOLDER : $paperSize) . '/' . $targetFilename;
 
             $files->push([
                 'name' => $file->getFilename(),
                 'relative_path' => $relativePath,
                 'size' => $file->getSize(),
                 'paper_size' => $this->detectPaperSizeFromPath($relativePath),
-                'document_type' => $this->detectDocumentTypeFromName($file->getFilename()),
+                'document_type' => $indexCard
+                    ? \App\Http\Controllers\BlindScanningController::INDEX_CARD_DOCUMENT_TYPE
+                    : $this->detectDocumentTypeFromName($file->getFilename()),
                 'target_relative_path' => $targetRelativePath,
                 'original_path' => $file->getPathname(),
                 'blind_storage_path' => self::BLIND_SCAN_ROOT . '/' . $blindRelative . '/' . $relativePath,

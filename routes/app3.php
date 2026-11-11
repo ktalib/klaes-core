@@ -1034,6 +1034,9 @@ Route::middleware(['auth'])->group(function () {
         // Reverse Duplicate: puts a moved file back in the live tables (Super Admin, checked in the controller).
         Route::get('/{id}/reverse-preview', [App\Http\Controllers\IndexingDuplicateController::class, 'reversePreview'])->name('reverse-preview');
         Route::post('/{id}/reverse', [App\Http\Controllers\IndexingDuplicateController::class, 'reverse'])->name('reverse');
+        // Manual entry of a never-indexed duplicate, and its temporary file's current state (CR 11112026-2).
+        Route::post('/manual', [App\Http\Controllers\IndexingDuplicateController::class, 'storeManual'])->name('manual');
+        Route::get('/{id}/temp-file', [App\Http\Controllers\IndexingDuplicateController::class, 'tempFileState'])->name('temp-file');
         Route::get('/{id}', [App\Http\Controllers\IndexingDuplicateController::class, 'show'])->name('show');
     });
 
@@ -1122,6 +1125,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('file-search-db')->name('file-search-db.')->group(function () {
         Route::get('/', [FileSearchController::class, 'index'])->name('index');
         Route::get('/records', [FileSearchController::class, 'apiList'])->name('records');
+        Route::get('/main-file', [FileSearchController::class, 'mainFile'])->name('main-file');
         Route::get('/export', [FileSearchController::class, 'export'])->name('export');
         Route::get('/debug-export', [FileSearchController::class, 'debugExport'])->name('debug-export');
         Route::get('/import/template', [FileSearchController::class, 'downloadTemplate'])->name('import-template');
@@ -1669,6 +1673,30 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/api/batch/{id}/print', [KangisPrintLabelController::class, 'getBatchForPrinting'])->name('api.batch.print');
         Route::patch('/api/batch/{id}/print', [KangisPrintLabelController::class, 'markBatchAsPrinted'])->name('api.batch.mark-printed');
         Route::delete('/api/batch/{id}', [KangisPrintLabelController::class, 'deleteBatch'])->name('api.batch.delete');
+    });
+
+    // Survey Print Labels (user, 2026-11-09): cloned from KANGIS; series CO, GKN, LPKN, LPPL, RDKN, MISC KN.
+    Route::prefix('survey-printlabel')->name('survey-printlabel.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\SurveyPrintLabelController::class, 'index'])->name('index');
+        Route::get('/print-template', function () {
+            return view('survey_printlabel.print-file-lab');
+        })->name('print-template');
+        Route::get('/api/prefixes', [\App\Http\Controllers\SurveyPrintLabelController::class, 'getPrefixes'])->name('api.prefixes');
+        Route::get('/api/prefix-next-range', [\App\Http\Controllers\SurveyPrintLabelController::class, 'getNextRangeForPrefix'])->name('api.prefix-next-range');
+        Route::get('/api/registry-batches', [\App\Http\Controllers\SurveyPrintLabelController::class, 'getRegistryBatchNos'])->name('api.registry-batches');
+        Route::get('/api/files', [\App\Http\Controllers\SurveyPrintLabelController::class, 'getAvailableFiles'])->name('api.files');
+        Route::get('/api/rack-label/status', [\App\Http\Controllers\SurveyPrintLabelController::class, 'getRackLabelStatus'])->name('api.rack-label.status');
+        Route::post('/api/batch', [\App\Http\Controllers\SurveyPrintLabelController::class, 'createBatch'])->name('api.batch.store');
+        // Override Shelf/Rack, kept until unticked (CR 10112026 item 3).
+        Route::post('/api/shelf-rack-override', [\App\Http\Controllers\SurveyPrintLabelController::class, 'setShelfRackOverride'])->name('api.shelf-rack-override');
+        Route::get('/api/batches', [\App\Http\Controllers\SurveyPrintLabelController::class, 'getBatches'])->name('api.batches');
+        Route::get('/api/batch-index', [\App\Http\Controllers\SurveyPrintLabelController::class, 'getBatchIndex'])->name('api.batch-index');
+        Route::get('/batch-index/print', [\App\Http\Controllers\SurveyPrintLabelController::class, 'printBatchIndex'])->name('batch-index.print');
+        Route::post('/api/manual-fetch', [\App\Http\Controllers\SurveyPrintLabelController::class, 'fetchManualFiles'])->name('api.manual_fetch');
+        Route::post('/api/batches/backfill-sys-batch-no', [\App\Http\Controllers\SurveyPrintLabelController::class, 'backfillSysBatchNo'])->name('api.batches.backfill');
+        Route::get('/api/batch/{id}/print', [\App\Http\Controllers\SurveyPrintLabelController::class, 'getBatchForPrinting'])->name('api.batch.print');
+        Route::patch('/api/batch/{id}/print', [\App\Http\Controllers\SurveyPrintLabelController::class, 'markBatchAsPrinted'])->name('api.batch.mark-printed');
+        Route::delete('/api/batch/{id}', [\App\Http\Controllers\SurveyPrintLabelController::class, 'deleteBatch'])->name('api.batch.delete');
     });
 
     // SLTR Print Labels

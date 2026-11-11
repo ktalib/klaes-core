@@ -1,7 +1,8 @@
 @php
     use App\Models\Survey\SurveyOpShowing as Showing;
     use App\Http\Controllers\Survey\MobilePlotController as PC;
-    $title = 'OP ' . ($op['serial'] ?: '—');
+    // TP No. and plot, as the web finds it (user, 2026-11-09), not the OP serial.
+    $title = ($tpLabel ?: 'No TP No.') . ' · Plot ' . ($op['plot_no'] ?: '—');
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -24,14 +25,15 @@
 
     <div class="card card-pad" style="margin-bottom:12px;">
         <strong>Occupancy Permit</strong>
-        {{-- Plot No., District, LGA, Location --}}
+        {{-- TP No. first, then Plot No., District, LGA, Location (as the web form). --}}
         <dl class="kv">
-            <dt>Allottee</dt><dd>{{ $op['allottee'] ?: '—' }}</dd>
+            <dt>TP No.</dt><dd>{{ $tpLabel ?: '—' }}</dd>
             <dt>Plot No.</dt><dd>{{ $op['plot_no'] ?: '—' }}</dd>
             <dt>District</dt><dd>{{ $op['district'] ?: '—' }}</dd>
             <dt>LGA</dt><dd>{{ $op['lga'] ?: '—' }}</dd>
             <dt>Location</dt><dd>{{ $op['location'] ?: '—' }}</dd>
-            @if ($op['layout'])<dt>Layout</dt><dd>{{ $op['layout'] }}</dd>@endif
+            <dt>Allottee</dt><dd>{{ $op['allottee'] ?: '—' }}</dd>
+            <dt>OP serial</dt><dd>{{ $op['serial'] ?: '—' }}</dd>
             @if ($op['plot_size'])<dt>Plot size</dt><dd>{{ $op['plot_size'] }}</dd>@endif
             @if ($op['type'])<dt>OP type</dt><dd>{{ $op['type'] }}</dd>@endif
             @if ($op['file_number'])<dt>File no.</dt><dd>{{ $op['file_number'] }}</dd>@endif
@@ -44,27 +46,18 @@
     <form class="card card-pad" id="showForm" method="POST" action="{{ route('survey-module.mobile.plots.showings.store', $op['key']) }}" novalidate style="margin-bottom:12px;">
         @csrf
         <strong id="nextLabel">Record the {{ Showing::ordinal($next) }} Plot Showing</strong>
-        <div class="field" style="margin-top:10px;"><label for="sv">Surveyor</label>
-            <select class="input" id="sv" name="surveyor" required>
-                <option value="">Choose…</option>
-                @foreach ($surveyors as $s)
-                    <option value="staff:{{ $s->id }}" @selected($me === $s->id)>{{ $s->full_name }}{{ $s->rank ? ' (' . $s->rank . ')' : '' }}</option>
+        {{-- The web form's order (user, 2026-11-09): TP No. (Layout), Requester, then the Showing. --}}
+        <div class="field" style="margin-top:10px;"><label for="tp">TP No. (Layout)</label>
+            <select class="input" id="tp" name="tp">
+                <option value="">— Select TP No. —</option>
+                @foreach ($tpNumbers as $t)
+                    <option value="{{ $t->id }}" @selected((int) $tpPicked === (int) $t->id)>{{ $t->tp_no }}</option>
                 @endforeach
-                <option value="{{ PC::SURVEYOR_OTHER }}">Other</option>
-            </select></div>
-        <div class="field" id="svOtherBox" hidden style="margin-top:8px;"><label for="svo">Surveyor's name</label>
-            <input class="input" id="svo" name="surveyor_other" maxlength="255" disabled></div>
-        <div class="grid2" style="margin-top:10px;">
-            <div class="field"><label for="on">Date</label>
-                <input class="input" id="on" type="date" name="shown_on" value="{{ now()->toDateString() }}" max="{{ now()->toDateString() }}" required></div>
-            <div class="field"><label for="at">Time</label>
-                <input class="input" id="at" type="time" name="shown_at" value="{{ now()->format('H:i') }}" required></div>
-        </div>
-        <div class="field" style="margin-top:10px;"><label>Was the allottee there?</label>
-            <div class="seg">
-                <label><input type="radio" name="allottee_present" value="1" required> Yes</label>
-                <label><input type="radio" name="allottee_present" value="0"> No</label>
-            </div></div>
+                <option value="{{ PC::OTHER }}">Other (specify)</option>
+            </select>
+            <div class="sub">Public Layout Plans ({{ number_format($tpNumbers->count()) }} drawings).{{ $tpPicked ? ' Picked from the OP\'s layout.' : '' }}</div></div>
+        <div class="field" id="tpOtherBox" hidden style="margin-top:8px;"><label for="tpo">Specify TP No.</label>
+            <input class="input" id="tpo" name="tp_other" maxlength="100" autocapitalize="characters" placeholder="e.g. TP/KNUPDA/358E" disabled></div>
         {{-- Who asked for the showing (user, 2026-11-02): ticked takes the allottee's name and address. --}}
         <div class="field" style="margin-top:10px;">
             <input type="hidden" name="requester_is_allottee" value="0">
@@ -102,16 +95,38 @@
         </div>
         <div class="field" style="margin-top:8px;"><label for="rqFull">Full address</label>
             <input class="input" id="rqFull" readonly tabindex="-1" placeholder="Street, Plot, District, LGA, State" style="background:#f3f4f6;font-weight:600;"></div>
-        <div class="field" id="reasonBox" style="margin-top:10px;" @if ($next === 1) hidden @endif><label for="rs">Reason for this Plot Showing</label>
+        <div class="field" style="margin-top:14px;"><label>Showing</label></div>
+        <div class="grid2" style="margin-top:4px;">
+            <div class="field"><label for="on">Date</label>
+                <input class="input" id="on" type="date" name="shown_on" value="{{ now()->toDateString() }}" max="{{ now()->toDateString() }}" required></div>
+            <div class="field"><label for="at">Time</label>
+                <input class="input" id="at" type="time" name="shown_at" value="{{ now()->format('H:i') }}" required></div>
+        </div>
+        <div class="field" style="margin-top:10px;"><label>Was the allottee there?</label>
+            <div class="seg">
+                <label><input type="radio" name="allottee_present" value="1" required> Yes</label>
+                <label><input type="radio" name="allottee_present" value="0"> No</label>
+            </div></div>
+        <div class="field" id="reasonBox" style="margin-top:10px;" @if ($next === 1) hidden @endif><label for="rs">Reason</label>
             <select class="input" id="rs" name="reason" @disabled($next === 1)>
-                <option value="">Choose…</option>
+                <option value="">— Why is it shown again? —</option>
                 @foreach (Showing::REASONS as $r)<option value="{{ $r }}">{{ $r }}</option>@endforeach
             </select>
-            <div class="sub">Required from the 2nd Plot Showing.</div></div>
-        <div class="field" style="margin-top:10px;"><label for="nt">Notes</label>
-            <textarea class="input" id="nt" name="notes" rows="2" maxlength="2000"></textarea></div>
+            <div class="sub">Needed from the 2nd showing on.</div></div>
+        <div class="field" style="margin-top:10px;"><label for="sv">Surveyor</label>
+            <select class="input" id="sv" name="surveyor" required>
+                <option value="">— Select surveyor —</option>
+                @foreach ($surveyors as $s)
+                    <option value="staff:{{ $s->id }}" @selected($me === $s->id)>{{ $s->full_name }}{{ $s->rank ? ' · ' . $s->rank : '' }}</option>
+                @endforeach
+                <option value="{{ PC::SURVEYOR_OTHER }}">Other (specify)</option>
+            </select></div>
+        <div class="field" id="svOtherBox" hidden style="margin-top:8px;"><label for="svo">Surveyor's name</label>
+            <input class="input" id="svo" name="surveyor_other" maxlength="255" disabled></div>
         @include('survey_module.mobile.plots._gps')
         @include('survey_module.mobile.plots._photos')
+        <div class="field" style="margin-top:10px;"><label for="nt">Notes</label>
+            <textarea class="input" id="nt" name="notes" rows="2" maxlength="2000"></textarea></div>
         <div class="err-box" hidden></div>
         <button type="submit" class="btn btn-success" style="margin-top:12px;width:100%;"><i class="fas fa-check"></i> Save Plot Showing</button>
     </form>
@@ -160,6 +175,10 @@
     var sv = form.surveyor, other = document.getElementById('svOtherBox');
     var toggleOther = function () { var on = sv.value === @json(PC::SURVEYOR_OTHER); other.hidden = !on; form.surveyor_other.disabled = !on; };
     sv.addEventListener('change', toggleOther); toggleOther();
+    // TP No. (Layout): Other reveals a required box.
+    var tpSel = form.tp, tpBox = document.getElementById('tpOtherBox');
+    var toggleTp = function () { var on = tpSel.value === @json(PC::OTHER); tpBox.hidden = !on; form.tp_other.disabled = !on; };
+    tpSel.addEventListener('change', toggleTp); toggleTp();
 
     // Requester is the allottee: the OP's allottee name (locked) and address on record.
     var OP_ALLOTTEE = @json($op['allottee']), OP_ADDRESS = @json($op['address'] ?? null);
@@ -200,6 +219,7 @@
     });
 
     pcSave(form, function () { return @json($title) + ' · Plot Showing'; }, function (f) {
+        if (f.tp.value === @json(PC::OTHER) && !f.tp_other.value.trim()) return 'Specify the TP No.';
         if (!f.surveyor.value) return 'Choose the surveyor who showed the plot.';
         if (f.surveyor.value === @json(PC::SURVEYOR_OTHER) && !f.surveyor_other.value.trim()) return "Type the surveyor's name.";
         if (!f.shown_on.value || !f.shown_at.value) return 'Give the date and time.';

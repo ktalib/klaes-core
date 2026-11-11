@@ -30,7 +30,7 @@ class ComputationSheetController extends Controller
         $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
 
         return $q->where(function ($w) use ($like) {
-            foreach (['farm_id', 'tag_no', 'first_name', 'middle_name', 'last_name', 'sheet_no', 'sheet_name', 'plots', 'remarks'] as $col) {
+            foreach (['farm_id', 'tag_no', 'first_name', 'middle_name', 'last_name', 'sheet_no', 'sheet_name', 'plots', 'remarks', 'district', 'supervisor'] as $col) {
                 $w->orWhere($col, 'like', $like);
             }
             $w->orWhereRaw("CONCAT(first_name, ' ', middle_name, ' ', last_name) LIKE ?", [$like])
@@ -48,7 +48,7 @@ class ComputationSheetController extends Controller
     public function sheets(?string $term)
     {
         return $this->search($this->table(), $term)
-            ->selectRaw("sheet_name, SUM(CASE WHEN kind = 'line' THEN 1 ELSE 0 END) AS lines, SUM(CASE WHEN kind = 'line' AND plots IS NOT NULL THEN 1 ELSE 0 END) AS with_plots, "
+            ->selectRaw("sheet_name, MAX(source_file) AS source_file, SUM(CASE WHEN photo_path IS NOT NULL THEN 1 ELSE 0 END) AS photos, SUM(CASE WHEN kind = 'line' THEN 1 ELSE 0 END) AS lines, SUM(CASE WHEN kind = 'line' AND plots IS NOT NULL THEN 1 ELSE 0 END) AS with_plots, "
                 . implode(', ', array_map([self::class, 'sum'], ['area_m2', 'area_ha', 'creatable', 'govt_50', 'farm_50'])))
             ->groupBy('sheet_name')->orderBy('sheet_name')->get();
     }
@@ -76,14 +76,26 @@ class ComputationSheetController extends Controller
         ]);
     }
 
+    /** A staged farm record's passport photo (KMC Access export), from the local disk. */
+    public function photo(int $id)
+    {
+        $row = $this->table()->where('id', $id)->first(['photo_path', 'photo_name']);
+        abort_unless($row && $row->photo_path && \Illuminate\Support\Facades\Storage::disk('local')->exists($row->photo_path), 404);
+
+        return \Illuminate\Support\Facades\Storage::disk('local')->response($row->photo_path, $row->photo_name ?: basename($row->photo_path),
+            ['Cache-Control' => 'private, max-age=86400']);
+    }
+
     public function export(Request $r)
     {
         return $this->exportRecords($r, fn () => $this->search($this->table(), $r->query('q'))->orderBy('sheet_name')->orderBy('source_row'), [
             'sheet' => 'Sheet', 'farm_id' => 'Farm ID', 'tag_no' => 'Tag No', 'first' => 'First Name', 'middle' => 'Middle Name', 'last' => 'Last Name', 'sheet_no' => 'Sheet No',
             'area_m2' => 'Area (M²)', 'area_ha' => 'Area (Ha)', 'creatable' => 'Creatable', 'govt' => 'Govt 50%', 'farm' => 'Farm 50%', 'plots' => 'Plots', 'remarks' => 'Remarks',
+            'district' => 'District', 'staff' => 'Staff ID', 'supervisor' => 'Supervisor', 'camera' => 'Camera', 'photo' => 'Photo',
         ], fn ($x) => [
             'sheet' => $x->sheet_name, 'farm_id' => $x->farm_id, 'tag_no' => $x->tag_no, 'first' => $x->first_name, 'middle' => $x->middle_name, 'last' => $x->last_name, 'sheet_no' => $x->sheet_no,
             'area_m2' => $x->area_m2, 'area_ha' => $x->area_ha, 'creatable' => $x->creatable, 'govt' => $x->govt_50, 'farm' => $x->farm_50, 'plots' => $x->plots, 'remarks' => $x->remarks,
+            'district' => $x->district ?? null, 'staff' => $x->staff_id ?? null, 'supervisor' => $x->supervisor ?? null, 'camera' => $x->camera ?? null, 'photo' => $x->photo_name ?? null,
         ], null);
     }
 }

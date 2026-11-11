@@ -47,13 +47,7 @@
     @if ($e) @method('PUT') @endif
     <div class="form-grid cols-3">
         <div class="sv-group"><i class="fas fa-folder-open"></i><span>File</span></div>
-        {{-- The Computation File No.: this file's, or the next one on a new file (given on save; user 2026-11-02). --}}
-        <div class="form-group">
-            <label>Computation File No.</label>
-            <input type="text" value="{{ $e ? $e->computation_no : $nextNo }}" readonly tabindex="-1"
-                   style="background:var(--gray-100);font-weight:700;letter-spacing:.3px;" />
-            @unless ($e)<p class="helper-text">Next number. It is given when you press Commission.</p>@endunless
-        </div>
+        {{-- Order (user, 2026-11-11): File No. first, then Computation File No., then Job No. --}}
         <div class="form-group">
             <label>File No.</label>
             <div style="display:flex;gap:6px;">
@@ -62,6 +56,20 @@
                 <button type="button" class="btn btn-outline btn-sm" id="cfClear" title="Clear"><i class="fas fa-times"></i></button>
             </div>
             <p class="helper-text" id="cfFileNote">Optional. Picking a file fills its details below.</p>
+        </div>
+        {{-- The Computation File No.: this file's, or the next one on a new file (given on save; user 2026-11-02). --}}
+        <div class="form-group">
+            <label>Computation File No.</label>
+            <input type="text" value="{{ $e ? $e->computation_no : $nextNo }}" readonly tabindex="-1"
+                   style="background:var(--gray-100);font-weight:700;letter-spacing:.3px;" />
+            @unless ($e)<p class="helper-text">Next number. It is given when you press Commission.</p>@endunless
+        </div>
+        {{-- Job No (Survey Update 5a, 2026-11-10): auto generated on Commission, never typed; surveyors quote it to request beacons. --}}
+        <div class="form-group">
+            <label>Job No.</label>
+            <input type="text" value="{{ $e ? ($e->job_no ?: 'None (commissioned before Job Nos)') : $nextJobNo }}" readonly tabindex="-1"
+                   style="background:var(--gray-100);font-weight:700;letter-spacing:.3px;" />
+            @unless ($e)<p class="helper-text">Given with the Computation File No. when you press Commission.</p>@endunless
         </div>
         <div class="form-group">
             <label>File Title</label>
@@ -183,6 +191,7 @@
                 <tr>
                     <th>S/N</th>
                     <th>Computation File No.</th>
+                    @if ($tab !== 'private')<th>Job No.</th>@endif
                     <th>File No.</th>
                     <th>Title</th>
                     <th>Plot No.</th>
@@ -204,6 +213,7 @@
                             <td><strong style="font-family:monospace;">{{ $row->lppl_no ?: $row->field_jacket_no }}</strong>@if ($row->lppl_no)<div style="font-size:11px;color:var(--gray-500);font-family:monospace;">{{ $row->field_jacket_no }}</div>@endif</td>
                         @else
                             <td><strong style="font-family:monospace;">{{ $row->computation_no }}</strong></td>
+                            <td style="font-family:monospace;white-space:nowrap;">{{ $row->job_no ?: '—' }}</td>
                         @endif
                         <td style="font-family:monospace;white-space:nowrap;">{{ $row->file_number ?: '—' }}</td>
                         <td>{{ $row->file_title ?: '—' }}</td>
@@ -252,7 +262,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ $tab === 'private' ? 12 : 14 }}" style="text-align:center;padding:28px;color:var(--gray-500);">
+                        <td colspan="{{ $tab === 'private' ? 12 : 15 }}" style="text-align:center;padding:28px;color:var(--gray-500);">
                             <i class="fas fa-folder-open" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                             @if ($term !== '')
                                 No computation file matches the search.

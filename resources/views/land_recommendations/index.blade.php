@@ -711,7 +711,8 @@
                                 </td>
                                 @php $ie = fn ($f) => \App\Support\InlineEdit::attrs($rec, $f, $recCanInlineEdit); @endphp
                                 <td class="px-4 py-2 text-slate-700 whitespace-nowrap uppercase font-bold text-blue-900">
-                                    <div{{ $ie('applicant_name') }}>{{ $rec->applicant_name }}</div>
+                                    {{-- Not editable from the table, even in Edit mode (user, 2026-11-09). --}}
+                                    <div>{{ $rec->applicant_name }}</div>
                                     @if(trim((string) $rec->applicant_phone) !== '')
                                         <button type="button" data-applicant-phone-action
                                                 data-phone="{{ $rec->applicant_phone }}"
@@ -903,6 +904,8 @@
                                                         $letterMissing = $needsLetter && !$letter;
                                                     @endphp
 
+                                                    {{-- Only while the record stands for its paper letter. A No save clears the flag (2026-11-10)
+                                                         and the record takes the regular menu; the uploaded letter stays on file. --}}
                                                     @if($needsLetter)
                                                         <button type="button"
                                                                 onclick="uploadApprovedRecommendation({{ (int) $rec->id }}, @js($rec->file_number), {{ $letter ? 'true' : 'false' }})"

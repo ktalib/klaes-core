@@ -2310,6 +2310,45 @@
                         return data || 'N/A';
                     }
                 },
+                {
+                    data: 'updated_by',
+                    name: 'updated_by',
+                    title: 'Updated By',
+                    defaultContent: 'N/A',
+                    render: function (data, type) {
+                        const label = data ? String(data).toUpperCase() : 'N/A';
+                        if (type !== 'display' || !data || label === 'N/A') return label;
+
+                        const raw = String(data).trim();
+                        const attr = /^\d+$/.test(raw)
+                            ? 'data-user-id="' + raw + '"'
+                            : 'data-user-name="' + raw.replace(/"/g, '&quot;') + '"';
+
+                        return '<span class="upc-trigger" data-user-card ' + attr + ' title="View profile">' + label.replace(/</g, '&lt;') + '</span>';
+                    }
+                },
+                {
+                    data: 'updated_at',
+                    name: 'updated_at',
+                    title: 'Date Updated',
+                    defaultContent: 'N/A',
+                    render: function (data, type) {
+                        if (type === 'display' && data && data !== 'N/A') {
+                            const date = new Date(String(data).replace(' ', 'T'));
+                            return isNaN(date.getTime())
+                                ? data
+                                : date.toLocaleString('en-US', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit'
+                                });
+                        }
+                        return data || 'N/A';
+                    }
+                },
                 // Longitude / Latitude come from file_indexings — the map pin this page
                 // saves on Generate lands there, not on fileNumber or mls_file_no. Most
                 // legacy files were never pinned, so N/A is the normal reading.
@@ -9618,8 +9657,20 @@
 
                 this.applicationType = this.appTypeRadio;
 
-                this.landUse = '';
-                this.prefix = ''; // Reset prefix when application type changes
+                // A file picked for an Extension keeps the details backfilled from it when the
+                // type changes (user, 2026-11-11: ticking Conversion wiped them); only its prefix
+                // is worked out again for the new type's prefix list (once per type).
+                const extendedFile = this.fileOption === 'extension' ? String(this.existingFileNo || '').trim() : '';
+                if (extendedFile) {
+                    if (this._extPrefixType !== this.applicationType && typeof window.applyFilePrefixAndLandUse === 'function') {
+                        const keepPurpose = (this.purposes || []).find(x => String(x.id) === String(this.purpose));
+                        window.applyFilePrefixAndLandUse(this, extendedFile, this.extendedFileLandUse,
+                            this.extendedFilePurpose || (keepPurpose ? keepPurpose.name : ''));
+                    }
+                } else {
+                    this.landUse = '';
+                    this.prefix = ''; // Reset prefix when application type changes
+                }
 
                 if (this.applicationType === 'new') {
                     this.allocatedByFilter = '';
@@ -11438,8 +11489,16 @@
                                     const data = window.Alpine.$data(modalEl);
                                     data.existingFileNo = cleanedFileNumber;
                                     data.updatePreview();
-                                    linkPlotExtensionApplication(data, cleanedFileNumber);
+                                    // Nothing else runs until the approved Plot Extension is found (user,
+                                    // 2026-11-11): the auto-fill toast used to replace the "No approved Plot
+                                    // Extension" warning, and its lookup put the mother's tracking ID over
+                                    // the extension's on-the-fly one.
+                                    resetTrackingIdDisplay('--');
+                                    linkPlotExtensionApplication(data, cleanedFileNumber).then((app) => {
+                                        if (app) fillFromExtendedFile(cleanedFileNumber, app);
+                                    });
                                     console.log('[FileNumberGenerator] Alpine data updated, existing file no:', data.existingFileNo);
+                                    return;
                                 } else {
                                     // Fallback if Alpine not global
                                     const displayInput = document.getElementById('displayExtensionFileNo');
@@ -11492,8 +11551,26 @@
     // file being extended is linked, and commissioning marks it commissioned. Like a
     // Subdivision, an Extension needs one (user, 2026-10-26): with none the file is not
     // kept, and the server refuses it too (extensionApplicationRefusal).
+    // After the Plot Extension check passes ($app = the linked application): the tracking ID
+    // (on the fly for "… AND EXTENSION") and the details auto-filled from the file being
+    // extended, then ONE toast for both (two toasts replace each other).
+    function fillFromExtendedFile(fileNumber, app) {
+        queueGroupingLookup(fileNumber);
+        fetchTrackingIdForFile(fileNumber).then(() => {
+            // Never over a warning or other dialog still open.
+            if (typeof Swal !== 'undefined' && !(Swal.isVisible() && !Swal.getPopup()?.classList.contains('swal2-toast'))) {
+                Swal.fire({
+                    toast: true, position: 'top-end', icon: 'success', showConfirmButton: false, timer: 6000, timerProgressBar: true,
+                    title: 'Plot Extension application linked',
+                    text: ((app && app.applicant_name) || fileNumber) + ' — it will be marked commissioned with this file. Details auto-filled from the file; please review before submitting.',
+                });
+            }
+        });
+    }
+
+    // Resolves to the linked application, or false when the file was refused.
     function linkPlotExtensionApplication(data, fileNumber) {
-        if (!data) return;
+        if (!data) return Promise.resolve(false);
         data.extensionAppId = '';
         const samePick = () => String(data.existingFileNo || '').trim().toUpperCase() === String(fileNumber).trim().toUpperCase();
         const refuse = (text) => {
@@ -11506,24 +11583,18 @@
                 Swal.fire({ icon: 'warning', title: 'No approved Plot Extension', text, confirmButtonColor: '#f59e0b' });
             }
         };
-        fetch(`{{ route('plot-extension.find-by-file', '') }}/${encodeURIComponent(fileNumber)}`, { headers: { 'Accept': 'application/json' } })
+        return fetch(`{{ route('plot-extension.find-by-file', '') }}/${encodeURIComponent(fileNumber)}`, { headers: { 'Accept': 'application/json' } })
             .then((r) => r.ok ? r.json() : null)
             .then((res) => {
                 if (!res || !res.success || !res.data) {
                     refuse(fileNumber + ' has no approved Plot Extension application. Capture and approve the extension under Parcel Update > Plot Extension first.');
-                    return;
+                    return false;
                 }
-                if (!samePick()) return; // picked another file meanwhile
+                if (!samePick()) return false; // picked another file meanwhile
                 data.extensionAppId = res.data.id;
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        toast: true, position: 'top-end', icon: 'success', showConfirmButton: false, timer: 5000, timerProgressBar: true,
-                        title: 'Plot Extension application linked',
-                        text: (res.data.applicant_name || fileNumber) + ' — it will be marked commissioned with this file.',
-                    });
-                }
+                return res.data;   // the toast is shown once the details are filled (fillFromExtendedFile)
             })
-            .catch(() => refuse('Could not check the Plot Extension application for ' + fileNumber + '. Try selecting the file again.'));
+            .catch(() => { refuse('Could not check the Plot Extension application for ' + fileNumber + '. Try selecting the file again.'); return false; });
     }
 
     // ----- Extension Type (File vs Plot) helpers -----
@@ -11544,6 +11615,42 @@
     // cancelExtensionTypeSelection) and the Plot Extension submitter that kept the original
     // file number are gone. Existing plot_extensions records are untouched and still render
     // in the file-numbers list; only the path that CREATES new ones was removed.
+    // Land use, prefix (for the CURRENT application type) and purpose from a picked file.
+    // Land use: from the API (mother application / MLS register / indexing), else parsed from
+    // the number itself. normalizeLandUseCode strips CON- and -RC, so "CON-IND-2023-9" -> IND.
+    function applyFilePrefixAndLandUse(alpineData, fileNumber, apiLandUse, purposeName) {
+        if (!alpineData || !fileNumber) return;
+        alpineData._extPrefixType = alpineData.applicationType;
+        const prefixPart = (String(fileNumber).match(/^(CON-)?[A-Z]+(-RC)?(?=-\d)/i) || [''])[0].toUpperCase();
+        const luCode = alpineData.normalizeLandUseCode(apiLandUse || '')
+            || alpineData.normalizeLandUseCode(prefixPart);
+        if (!luCode) return;
+
+        // A prefix the Select Prefix list shows for the current application
+        // type, else the selected file's own prefix (e.g. CON-IND).
+        const matchedPrefix = alpineData.findPrefixForLandUseCode(luCode)
+            || (prefixPart && alpineData.allAllPrefixes.find(p => (p.prefix || '').toUpperCase() === prefixPart));
+
+        if (purposeName && typeof alpineData.setPrefillPurpose === 'function') {
+            alpineData.setPrefillPurpose(purposeName);
+        }
+
+        if (matchedPrefix) {
+            alpineData.prefix = matchedPrefix.prefix;
+            // Sets landUse / landUseId and loads that land use's purposes;
+            // the prefilled purpose is selected once they arrive.
+            alpineData.handlePrefixChange();
+        } else {
+            alpineData.landUse = luCode;
+            const lu = alpineData.findLandUseByCode(luCode);
+            if (lu) {
+                alpineData.landUseId = lu.id;
+                alpineData.fetchDependentData(lu.id);
+            }
+        }
+    }
+    window.applyFilePrefixAndLandUse = applyFilePrefixAndLandUse;
+
     // Support function to fetch tracking ID and auto-populate fields
     async function fetchTrackingIdForFile(fileNumber) {
         if (!fileNumber) return;
@@ -11557,8 +11664,11 @@
             if (data.success && data.data) {
                 const match = data.data;
                 
-                // 1. Update Tracking ID UI (Legacy support)
-                if (match && match.tracking_id) {
+                // 1. Update Tracking ID UI (Legacy support). Not for a File Extension: its ID
+                //    comes from queueGroupingLookup (own, on the fly; or the mother's when kept
+                //    as-is), and this lookup returned the MOTHER's, which overwrote it (2026-11-11).
+                const genState = getGeneratorAlpineData();
+                if (match && match.tracking_id && !(genState && genState.fileOption === 'extension')) {
                     const displayEl = document.getElementById('trackingIdDisplay');
                     if (displayEl) displayEl.textContent = match.tracking_id;
                     
@@ -11611,38 +11721,20 @@
                     if (match.rep_address) alpineData.rep_address = match.rep_address;
 
                     // Specialized handling for Land Use and Prefix
-                    if (match.land_use || fileNumber) {
-                        // Land use: from the API (mother application / MLS register /
-                        // indexing), else parsed from the number itself. normalizeLandUseCode
-                        // strips CON- and -RC, so "CON-IND-2023-9" resolves to IND.
-                        const prefixPart = (fileNumber.match(/^(CON-)?[A-Z]+(-RC)?(?=-\d)/i) || [''])[0].toUpperCase();
-                        const luCode = alpineData.normalizeLandUseCode(match.land_use || '')
-                            || alpineData.normalizeLandUseCode(prefixPart);
+                    alpineData.extendedFileLandUse = match.land_use || '';
+                    alpineData.extendedFilePurpose = match.purpose_name || '';
+                    alpineData._extPrefixType = null;
 
-                        if (luCode) {
-                            // A prefix the Select Prefix list shows for the current application
-                            // type, else the selected file's own prefix (e.g. CON-IND).
-                            const matchedPrefix = alpineData.findPrefixForLandUseCode(luCode)
-                                || (prefixPart && alpineData.allAllPrefixes.find(p => (p.prefix || '').toUpperCase() === prefixPart));
-
-                            if (match.purpose_name && typeof alpineData.setPrefillPurpose === 'function') {
-                                alpineData.setPrefillPurpose(match.purpose_name);
-                            }
-
-                            if (matchedPrefix) {
-                                alpineData.prefix = matchedPrefix.prefix;
-                                // Sets landUse / landUseId and loads that land use's purposes;
-                                // the prefilled purpose is selected once they arrive.
-                                alpineData.handlePrefixChange();
-                            } else {
-                                alpineData.landUse = luCode;
-                                const lu = alpineData.findLandUseByCode(luCode);
-                                if (lu) {
-                                    alpineData.landUseId = lu.id;
-                                    alpineData.fetchDependentData(lu.id);
-                                }
-                            }
-                        }
+                    // Extending a conversion file (CON-...): tick Conversion, keeping the details
+                    // just filled, so its CON- prefix is offered (user, 2026-11-11). Switching
+                    // re-applies the prefix itself (updateApplicationType).
+                    if (alpineData.fileOption === 'extension' && /^CON-/i.test(fileNumber)
+                        && alpineData.appTypeRadio !== 'conversion' && alpineData.fileTypeWorkflow !== 'change_of_purpose') {
+                        alpineData.appTypeRadio = 'conversion';
+                        alpineData.updateApplicationType();
+                    }
+                    if (alpineData._extPrefixType !== alpineData.applicationType) {
+                        applyFilePrefixAndLandUse(alpineData, fileNumber, match.land_use, match.purpose_name);
                     }
 
                     alpineData.updatePreview();

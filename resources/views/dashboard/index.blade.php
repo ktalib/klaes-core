@@ -404,7 +404,9 @@
 @section('content')
 {{-- The passport-photo card is the first gate; this prompt waits its turn because
      "Go to Profile" is blocked while the photo is still missing. --}}
-@if (auth()->check() && auth()->user()->needs_password_change)
+@if (auth()->check()
+    && !app(\Lab404\Impersonate\Services\ImpersonateManager::class)->isImpersonating()
+    && auth()->user()->needs_password_change)
     <script>
       document.addEventListener('DOMContentLoaded', function() {
         Swal.fire({

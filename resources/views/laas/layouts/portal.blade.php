@@ -159,6 +159,7 @@
                     The Ministry never asks for payment through private accounts or agents.
                 </p>
             </div>
+            @include('partials.vmal_credit', ['dark' => false])
         </footer>
     </div>
 </div>

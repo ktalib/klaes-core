@@ -184,6 +184,17 @@
   <div class="br-modal-dialog" style="max-width:1200px;">
     <div class="br-modal-header">
         <h4 id="brIssueTitle">Issue Beacon No</h4>
+        {{-- Refresh and Reset at the top (user, 2026-11-10): Refresh reloads the live parts quietly after a network
+             hiccup and keeps what is typed; Reset empties the form and the table. --}}
+        <div style="display:flex;align-items:center;gap:8px;margin-left:auto;margin-right:10px;">
+            <span id="brIssueTopMsg" class="helper-text" style="margin:0;" role="status" aria-live="polite"></span>
+            <button type="button" class="btn btn-outline btn-sm" id="brIssueRefreshBtn" onclick="brIssueRefresh()" title="Reload the pool, the last serials, the duplicate check and the company and surveyor lists; nothing typed is lost">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="brIssueReset()" title="Empty the form and the table">
+                <i class="fas fa-undo"></i> Reset
+            </button>
+        </div>
         <button type="button" class="br-modal-x" aria-label="Close" onclick="brIssueClose()">&times;</button>
     </div>
     <div style="padding:16px 20px;overflow-y:auto;flex:1;min-height:0;">
@@ -263,6 +274,15 @@
                     <label>Start Serial</label>
                     <input type="text" id="brIssueStart" inputmode="numeric" maxlength="6" oninput="brIssueStartInput()" />
                     <p class="helper-text" id="brIssueNextNote"></p>
+                </div>
+                {{-- Optional letter after the serial (user, 2026-11-09: "add the box for suffix too"), e.g. A0875A. Private only. --}}
+                <div class="form-group" id="brIssueSuffixBox">
+                    <label>Suffix</label>
+                    <select id="brIssueSuffix" onchange="brIssueSuffixChanged()" style="width:80px;">
+                        <option value="">—</option>
+                        @foreach (range('A', 'Z') as $letter)<option value="{{ $letter }}">{{ $letter }}</option>@endforeach
+                    </select>
+                    <p class="helper-text">Optional letter after the serial.</p>
                 </div>
             </div>
             {{-- Duplicate check: against the register and against the groups already in the table. --}}
@@ -1159,13 +1179,18 @@
         brIssueEl('brIssue').classList.remove('open'); document.body.style.overflow = '';
         brIssueMode();
     }
-    function brIssueSeries() { return brIssueEl('brIssuePrefix').value + '|'; }
+    // The optional letter after the serial (Private only).
+    function brIssueSuffix() { return brIssueIsPublic() ? '' : (brIssueEl('brIssueSuffix').value || ''); }
+    function brIssueSuffixChanged() { brIssueStartTyped = false; brIssueNext(); }
+    function brIssueSeries() { return brIssueEl('brIssuePrefix').value + '|' + brIssueSuffix(); }
     // The highest serial of this prefix + letter already in the table (0 if none).
     function brIssuePendingMax(series) {
         return brIssueGroups.reduce(function (m, g) { return g.series === series ? Math.max(m, g.start + g.count - 1) : m; }, 0);
     }
     function brIssueIsPublic() { var t = document.querySelector('input[name="br_issue_type"]:checked'); return !!(t && t.value === 'Government'); }
     function brIssuePad(n) { var d = String(n); while (d.length < 4) d = '0' + d; return d; }
+    // How a number reads on screen, as SurveyBeaconRegister::display(): ABC0001 reads ABC 0001. Saved without the space.
+    function brIssueShowNo(no) { return String(no || '').replace(/^([A-Z]{3,})(\d{4})$/, '$1 $2'); }
     function brIssueMode() {
         var start = brIssueEl('brIssueStart');
         if (!brIssueIsPublic() && !brIssueStartTyped) {
@@ -1182,18 +1207,20 @@
     }
     function brIssueNext() {
         if (brIssueIsPublic()) { brIssuePublicNext(); return; }
-        var prefix = brIssueEl('brIssuePrefix').value;
+        var prefix = brIssueEl('brIssuePrefix').value, suffix = brIssueSuffix();
         var note = brIssueEl('brIssueNextNote');
         brIssueServerNext = null;
         if (!prefix) { note.textContent = 'Choose the prefix letters to get the next serial.'; brIssueMode(); return; }
         note.textContent = 'Checking the last serial issued…';
-        fetch(BR_ISSUE_URL.next + '?prefix=' + encodeURIComponent(prefix), { headers: { Accept: 'application/json' } })
+        // The serial runs per prefix and suffix: A…B is its own series.
+        fetch(BR_ISSUE_URL.next + '?prefix=' + encodeURIComponent(prefix) + '&suffix=' + encodeURIComponent(suffix), { headers: { Accept: 'application/json' } })
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 brIssueServerNext = d.next;
-                var pend = brIssuePendingMax(prefix + '|');
-                note.textContent = (d.last ? 'Last issued: ' + prefix + brIssuePad(d.last) + '.' : 'None issued yet with prefix ' + prefix + '.')
-                    + (pend >= d.next ? ' In the table up to ' + prefix + brIssuePad(pend) + '.' : '');
+                var pend = brIssuePendingMax(prefix + '|' + suffix);
+                var series = prefix + (suffix ? '…' + suffix : '');
+                note.textContent = (d.last ? 'Last issued: ' + brIssueShowNo(prefix + brIssuePad(d.last) + suffix) + '.' : 'None issued yet with ' + (suffix ? 'series ' : 'prefix ') + series + '.')
+                    + (pend >= d.next ? ' In the table up to ' + brIssueShowNo(prefix + brIssuePad(pend) + suffix) + '.' : '');
                 brIssueMode();
             })
             .catch(function () { note.textContent = 'The last serial could not be checked; type the serial.'; });
@@ -1231,7 +1258,7 @@
             if (!(count > 0) || nos.length !== count) return null;
             return { isPublic: true, prefix: brIssueEl('brIssuePrefix').value, suffix: '', series: '', start: 0, count: count, from: nos[0], to: nos[nos.length - 1], nos: nos.slice() };
         }
-        var prefix = brIssueEl('brIssuePrefix').value, suffix = '';
+        var prefix = brIssueEl('brIssuePrefix').value, suffix = brIssueSuffix();
         var start = parseInt(brIssueEl('brIssueStart').value, 10);
         if (!prefix || !(count > 0) || !(start > 0)) return null;
         var list = [];
@@ -1244,7 +1271,7 @@
     function brIssuePreview() {
         if (brIssueIsPublic()) { clearTimeout(brIssueTimer); brIssueTimer = setTimeout(brIssuePublicNext, 250); return; }
         var r = brIssueRange(), p = brIssueEl('brIssuePreview'), note = brIssueEl('brIssueDupNote');
-        p.textContent = r ? (r.count === 1 ? r.from : r.from + ' to ' + r.to) + ' (' + r.count + ' beacon' + (r.count === 1 ? '' : 's') + ')' : '';
+        p.textContent = r ? (r.count === 1 ? brIssueShowNo(r.from) : brIssueShowNo(r.from) + ' to ' + brIssueShowNo(r.to)) + ' (' + r.count + ' beacon' + (r.count === 1 ? '' : 's') + ')' : '';
         note.textContent = ''; note.style.color = '';
         clearTimeout(brIssueTimer);
         var mine = ++brIssueSeq;
@@ -1255,7 +1282,7 @@
         brIssueGroups.forEach(function (g, gi) {
             if (g.series !== r.series) return;
             var lo = Math.max(g.start, r.start), hi = Math.min(g.start + g.count - 1, r.start + r.count - 1);
-            if (lo <= hi) inTable.push((lo === hi ? r.prefix + brIssuePad(lo) + r.suffix : r.prefix + brIssuePad(lo) + r.suffix + ' to ' + r.prefix + brIssuePad(hi) + r.suffix) + ' (group ' + (gi + 1) + ')');
+            if (lo <= hi) inTable.push((lo === hi ? brIssueShowNo(r.prefix + brIssuePad(lo) + r.suffix) : brIssueShowNo(r.prefix + brIssuePad(lo) + r.suffix) + ' to ' + brIssueShowNo(r.prefix + brIssuePad(hi) + r.suffix)) + ' (group ' + (gi + 1) + ')');
         });
         brIssueState = 'checking';
         note.textContent = 'Checking for duplicates…';
@@ -1364,6 +1391,47 @@
         brIssueTypeChanged();
     }
 
+    // Refresh (user, 2026-11-10): the live parts again, quietly, keeping what is typed and the table: the company and
+    // surveyor lists (from a fresh copy of this page), then the pool / last serial and the duplicate check.
+    function brIssueRefresh() {
+        var btn = brIssueEl('brIssueRefreshBtn'), msg = brIssueEl('brIssueTopMsg');
+        btn.disabled = true; msg.style.color = ''; msg.textContent = 'Refreshing…';
+        fetch(window.location.href, { headers: { Accept: 'text/html' }, credentials: 'same-origin', cache: 'no-store' })
+            .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(function (html) {
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                // Both picks are noted first: putting the company back runs its own change, which clears the surveyor.
+                var ids = ['brIssueCompany', 'brIssueSurveyor'], keep = {};
+                ids.forEach(function (id) { keep[id] = brIssueEl(id) ? brIssueEl(id).value : ''; });
+                ids.forEach(function (id) {
+                    var mine = brIssueEl(id), fresh = doc.getElementById(id);
+                    if (!mine || !fresh) return;
+                    mine.innerHTML = fresh.innerHTML;
+                    brIssueSetSelect(mine, Array.prototype.some.call(mine.options, function (o) { return o.value === keep[id]; }) ? keep[id] : '');
+                });
+                if (document.querySelector('input[name="br_issue_type"]:checked')) brIssueNext();
+                msg.style.color = '#15803d';
+                msg.textContent = 'Refreshed ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '.';
+            })
+            .catch(function () {
+                msg.style.color = 'var(--danger, #b91c1c)';
+                msg.textContent = 'Could not refresh: check the network and try again.';
+            })
+            .then(function () { btn.disabled = false; });
+    }
+    // Reset (user, 2026-11-10): the whole form back to new, the table emptied, today's date.
+    function brIssueReset() {
+        if (brIssueGroups.length && !confirm('Reset the form and drop the ' + brIssueGroups.length + ' group(s) in the table? They have not been saved.')) return;
+        brIssueGroups = []; brIssueEditAt = null; brIssueMenuClose();
+        brIssueClearForm();
+        var on = brIssueEl('brIssueOn');
+        on.value = on.max || on.value;
+        brIssueEl('brIssueSaveMsg').textContent = '';
+        brIssueRender();
+        var msg = brIssueEl('brIssueTopMsg');
+        msg.style.color = ''; msg.textContent = 'Form reset.';
+    }
+
     // The type decides what the numbers section asks for.
     function brIssueTypeChanged() {
         var t = document.querySelector('input[name="br_issue_type"]:checked'), type = t ? t.value : '', isPublic = type === 'Government';
@@ -1371,6 +1439,8 @@
         brIssueEl('brIssueNumbers').style.display = type ? '' : 'none';
         brIssueEl('brIssueCompanyBox').style.display = type === 'Private' ? '' : 'none';
         brIssueEl('brIssueLettersBox').style.display = isPublic ? 'none' : 'flex';
+        brIssueEl('brIssueSuffixBox').style.display = isPublic ? 'none' : '';
+        brIssueEl('brIssueSuffix').value = '';
         var start = brIssueEl('brIssueStart');
         start.readOnly = isPublic;
         start.style.background = isPublic ? 'var(--gray-100)' : '';
@@ -1424,7 +1494,7 @@
             for (var i = 0; i < g.count; i++) {
                 var tr = document.createElement('tr');
                 if (i === 0) tr.className = 'bi-first';
-                var cells = [++sn, g.nos[i]];
+                var cells = [++sn, brIssueShowNo(g.nos[i])];
                 cells.forEach(function (v, ci) { var td = document.createElement('td'); td.textContent = v; if (ci === 1) td.className = 'bi-no'; tr.appendChild(td); });
                 if (i === 0) {
                     [g.typeLabel, g.coLabel || '—', g.svLabel || '—', g.show.plot || '—', g.show.district || '—', g.show.lga || '—', g.show.location || '—'].forEach(function (v) {
@@ -1492,6 +1562,7 @@
         brIssueTypeChanged();
         if (!g.isPublic) {
             brIssueSetLetters(g.prefix);
+            brIssueEl('brIssueSuffix').value = g.suffix || '';
             brIssueSetSelect(brIssueEl('brIssueCompany'), g.co);
             brIssueEl('brIssueCompanyOther').value = g.coOther;
             brIssueEl('brIssueCompanyOtherWrap').style.display = g.co === 'other' ? '' : 'none';
@@ -1508,7 +1579,7 @@
         if (window.fillAddressBuilder) window.fillAddressBuilder('issue_', g.addr);
         brIssueRender();
         brIssueNext();
-        brIssueEl('brIssueAddMsg').textContent = 'Group ' + g.from + ' is back in the form: change it, then Add to table again.';
+        brIssueEl('brIssueAddMsg').textContent = 'Group ' + brIssueShowNo(g.from) + ' is back in the form: change it, then Add to table again.';
     }
 
     function brIssueSave() {

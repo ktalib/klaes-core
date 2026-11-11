@@ -80,8 +80,16 @@ class CaseController extends Controller
         $cases = null;
         $tpGroups = collect();
         $staged = collect();
+        $lineSums = collect();
         if ($tab === 'imported') {
             $tpGroups = self::byTpNo($q->orderByDesc('id')->get());
+            // Each block's list totals, so the layout and block rows show figures, not blanks (user, 2026-11-09).
+            $ids = $tpGroups->flatten(1)->pluck('id')->all();
+            $lineSums = $ids ? \Illuminate\Support\Facades\DB::connection('sqlsrv')->table('survey_plot_allocations')
+                ->whereIn('survey_comp_case_id', $ids)->whereNull('deleted_at')->groupBy('survey_comp_case_id')
+                ->selectRaw("survey_comp_case_id AS id, SUM(TRY_CAST(creetable AS float)) AS creatable, SUM(TRY_CAST(govt_50 AS float)) AS govt,
+                    SUM(TRY_CAST(farmer_50 AS float)) AS farm, SUM(CASE WHEN plot_no IS NOT NULL AND LTRIM(RTRIM(plot_no)) <> '' THEN 1 ELSE 0 END) AS plots")
+                ->get()->keyBy('id') : collect();
             if (! $r->filled('status') && ! $r->filled('project') && ! $r->filled('scheme')) {
                 $staged = app(ComputationSheetController::class)->sheets($r->query('q'));
             }
@@ -89,24 +97,66 @@ class CaseController extends Controller
             $cases = $q->orderByDesc('id')->paginate(15)->withQueryString();
         }
 
+        // Counted in farms (user, 2026-11-09): a farm is one farmer's land in a block; a block's status is its farms'.
         $mine = fn () => SurveyCompCase::query()->origin($tab);
+        $farmsOf = fn ($cases) => \App\Models\Survey\SurveyBeneficiary::query()->whereIn('survey_comp_case_id', $cases->select('id'))->count();
         $stats = [
-            'total'     => $mine()->count(),
-            'active'    => $mine()->where('status', 'Active')->count(),
-            'review'    => $mine()->where('status', self::STATUS_REVIEW)->count(),
-            'completed' => $mine()->where('status', 'Completed')->count(),
+            'total'     => $farmsOf($mine()),
+            'blocks'    => $mine()->count(),
+            'active'    => $farmsOf($mine()->where('status', 'Active')),
+            'review'    => $farmsOf($mine()->where('status', self::STATUS_REVIEW)),
+            'completed' => $farmsOf($mine()->where('status', 'Completed')),
         ];
 
         return view('survey_module.compensation.cases', [
             'cases'    => $cases,
             'stats'    => $stats,
             'tab'      => $tab,
-            'tabCounts' => ['imported' => SurveyCompCase::query()->origin('imported')->count(), 'entered' => SurveyCompCase::query()->origin('entered')->count()],
+            'tabCounts' => ['imported' => $farmsOf(SurveyCompCase::query()->origin('imported')), 'entered' => $farmsOf(SurveyCompCase::query()->origin('entered'))],
             'tpGroups' => $tpGroups,
+            'lineSums' => $lineSums,
             'staged'   => $staged,
             'stagedLines' => $tab === 'imported' ? app(ComputationSheetController::class)->lineCount() : 0,
             'projects' => $this->projectOptions(),
             'detail'   => null,
+        ]);
+    }
+
+    /** Farms shown at a time under a block on the Imported tab. */
+    private const FARMS_PER_PAGE = 50;
+
+    /**
+     * A block's farms (user, 2026-11-09: "display them as farms since the page is for farm assessment"): one row per
+     * farmer of the block, with that farmer's lines from the list (F No., plots, area, 50:50 shares) added up.
+     * Display only: the imported blocks and their lines stay as they are.
+     */
+    public function farms(Request $r)
+    {
+        $case = SurveyCompCase::query()->with('project')->findOrFail((int) $r->query('case'));
+        $page = max(1, (int) $r->query('page', 1));
+        $q = $case->beneficiaries()->orderBy('id');
+        if ($term = trim((string) $r->query('q', ''))) $q->where('full_name', 'like', "%{$term}%");
+        $total = (clone $q)->count();
+        $farms = $q->forPage($page, self::FARMS_PER_PAGE)->get(['id', 'full_name', 'farm_id_no', 'farm_no', 'status']);
+
+        // The farmers' lines, matched by name within the block (the lists carry names, not ids).
+        $key = fn ($v) => mb_strtoupper(preg_replace('/\s+/u', ' ', trim((string) $v)));
+        $names = $farms->map(fn ($f) => $key($f->full_name))->unique()->values()->all();
+        $lines = $names ? \Illuminate\Support\Facades\DB::connection('sqlsrv')->table('survey_plot_allocations')
+            ->where('survey_comp_case_id', $case->id)->whereNull('deleted_at')
+            ->whereIn(\Illuminate\Support\Facades\DB::raw('UPPER(LTRIM(RTRIM(farmer_name)))'), $names)
+            ->orderBy('id')->get(['farmer_name', 'f_no', 'plot_no', 'acreage', 'creetable', 'govt_50', 'farmer_50', 'remarks'])
+            ->groupBy(fn ($l) => $key($l->farmer_name)) : collect();
+
+        return view('survey_module.partials.sections._compensation_farm_rows', [
+            'case' => $case,
+            'farms' => $farms,
+            'lines' => $lines,
+            'key' => $key,
+            'sn' => (string) $r->query('sn', ''),
+            'first' => ($page - 1) * self::FARMS_PER_PAGE + 1,
+            'nextPage' => $page * self::FARMS_PER_PAGE < $total ? $page + 1 : null,
+            'left' => max(0, $total - $page * self::FARMS_PER_PAGE),
         ]);
     }
 

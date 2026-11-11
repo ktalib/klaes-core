@@ -1,0 +1,38 @@
+id,office_code,office_name,department
+149,DCIV-FC,"File Commissioning",DCIV
+150,DCIV-REG,Registry,DCIV
+151,DEED-BB,"Bill Balance",Deeds
+152,DEED-CAV,Caveat,Deeds
+153,DEED-CON,Consent,Deeds
+154,DEED-LS,"Legal Search Unit",Deeds
+155,DEED-VC,"Valuation - Compensation",Deeds
+156,DEED-VR,"Valuation - Registration",Deeds
+157,KG-REG,Registry,KANGIS
+158,KG-VER,Verification,KANGIS
+159,DMS-ARCH,"Arch Folder","KLAES DMS"
+160,DMS-BS,"Blind Scanning","KLAES DMS"
+161,DMS-IDX,Indexing,"KLAES DMS"
+162,DMS-JKT,Jacketing,"KLAES DMS"
+163,DMS-PT,PageTyping,"KLAES DMS"
+164,DMS-PIC,PIC,"KLAES DMS"
+165,DMS-PRA,PRA,"KLAES DMS"
+166,DMS-QR,QRCoding,"KLAES DMS"
+167,DMS-SU,"Scan Upload","KLAES DMS"
+168,DMS-SCB,SCB,"KLAES DMS"
+169,LND-CONV,Conversion,Land
+170,LND-DA,"Direct Allocation",Land
+171,LND-REC,Recommendation/RofO,Land
+172,LND-REG1,"Registry 1",Land
+173,LND-REG2,"Registry 2",Land
+174,LND-REG3,"Registry 3",Land
+175,PPD-GIS,GIS,"Physical Planning"
+176,PPD-JSI,JSI,"Physical Planning"
+177,PPD-REG,Registry,"Physical Planning"
+178,ST-GIS,GIS,"Sectional Titling"
+179,SLTR-GIS,GIS,SLTR
+180,SPA-BILL,Bills,"Special Assignment"
+181,SPA-FLD,Fieldwork,"Special Assignment"
+182,SPA-NOT,Notice,"Special Assignment"
+183,SUR-EV,Examination/Verification,Survey
+184,SUR-GIS,GIS,Survey
+185,SUR-REG,Registry,Survey

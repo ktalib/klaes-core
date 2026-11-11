@@ -33,15 +33,14 @@ return [
     /*
     | Survey job numbers.
     |
-    | UNCONFIRMED FORMAT. Nobody in this codebase knows the SURCON-mandated
-    | pattern; this placeholder is a KLAES-local serial. Confirm with the
-    | Surveyor-General's office before go-live or numbers issued now will need
-    | reissuing. cadastral-module:install warns while this is still the default.
+    | SUV-JOB-<year>-<serial>, e.g. SUV-JOB-2026-001 (CR 11112026-2; was SRV-JOB-, 4 digits), one series shared with
+    | Survey's public Computation Files. Editable in Configurable Entries ->
+    | Cadastral, whose saved value wins over this one.
     */
     'job_number' => [
-        'format'         => 'KN/CAD/{year}/{serial}',
-        'serial_pad'     => 4,
-        'is_placeholder' => true,
+        'format'         => 'SUV-JOB-{year}-{serial}',
+        'serial_pad'     => 3,
+        'is_placeholder' => false,
     ],
 
     /*

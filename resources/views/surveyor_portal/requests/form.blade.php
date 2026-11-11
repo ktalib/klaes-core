@@ -1,7 +1,7 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Requested Beacons — KNSSGOF Portal')
-@section('heading', 'Requested Beacons')
+@section('title', 'Beacon Request — MLPP-SG Portal')
+@section('heading', 'Beacon Request')
 
 @push('styles')
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -30,8 +30,14 @@
         .ks-request-type-option svg { margin-bottom:13px; color:var(--ks-blue); }
         .ks-request-type-option strong { font-size:15px; }
         .ks-request-type-option span { margin-top:5px; color:var(--ks-soft); font-size:12px; line-height:1.45; }
-        [data-beacon-group-toggle] svg { transition:transform .15s ease; }
-        [data-beacon-group-toggle][aria-expanded="true"] svg { transform:rotate(180deg); }
+        .ks-balance { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px 24px; margin-bottom:16px; padding:16px 20px; border-left:4px solid var(--ks-green); }
+        .ks-balance.blocked { border-left-color:#E0A100; background:#FFFBEB; }
+        .ks-balance-figures { display:flex; gap:28px; }
+        .ks-balance-value { display:block; font-size:24px; font-weight:800; line-height:1.1; font-variant-numeric:tabular-nums; }
+        .ks-balance-label { display:block; margin-top:3px; color:var(--ks-soft); font-size:12px; font-weight:650; }
+        .ks-balance-note { margin:0; color:var(--ks-soft); font-size:13px; line-height:1.5; }
+        .ks-balance-note svg { display:inline; margin-right:4px; vertical-align:-3px; }
+        .ks-balance-note a { color:var(--ks-blue); font-weight:700; }
         @media (max-width:480px) { .ks-request-type-options { grid-template-columns:1fr; } .ks-request-type-option { min-height:112px; } }
     </style>
 @endpush
@@ -39,117 +45,28 @@
 @section('main')
     @php
         $me = auth('surveyor')->user();
-        $tab = $tab ?? 'beacons';
-        $beaconTabUrl = route('surveyor-portal.requests.create', ['tab' => 'beacons']);
+        $blocked = $balance['left'] > 0;
     @endphp
-    <nav class="flex gap-2 mb-4" role="tablist" aria-label="Requested Beacons">
-        <a class="ks-btn {{ $tab === 'beacons' ? 'ks-btn-primary' : 'ks-btn-light' }}"
-           role="tab" aria-selected="{{ $tab === 'beacons' ? 'true' : 'false' }}"
-           href="{{ $beaconTabUrl }}">Beacons</a>
-        <a class="ks-btn {{ $tab === 'request' ? 'ks-btn-primary' : 'ks-btn-light' }}"
-           role="tab" aria-selected="{{ $tab === 'request' ? 'true' : 'false' }}"
-           href="{{ route('surveyor-portal.requests.create', ['tab' => 'request', 'request_type_dialog' => 1]) }}">Beacon Request</a>
-    </nav>
-    @if ($tab === 'beacons')
-        @if ($hasOutstandingBeacons)
-            <div class="ks-flash bad" role="alert">Complete the usage details for every beacon from your previous issued request before submitting another request. Mark unused beacons as No.</div>
-        @endif
-        <div class="ks-card overflow-x-auto">
-            <table class="ks-table" style="min-width:1050px;">
-                <thead><tr><th>S/N</th><th>Request No.</th><th>Issue Date</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Beacons</th><th>Usage</th><th></th></tr></thead>
-                <tbody>
-                    @forelse ($beaconRequests as $beaconRequest)
-                        @php
-                            $groupId = 'beacon-request-' . $beaconRequest->id;
-                            $requestNumbers = $beaconRequest->lines->flatMap(fn ($line) => $line->numbers);
-                            $requestNumberCount = $requestNumbers->count();
-                            $usedNumberCount = $requestNumbers->filter(fn ($number) => $number->used !== null)->count();
-                            $firstIssueDate = $beaconRequest->lines->first()?->issue_date;
-                        @endphp
-                        <tr>
-                            <td>{{ $beaconRequests->firstItem() + $loop->index }}</td>
-                            <td style="white-space:nowrap;"><a href="{{ route('surveyor-portal.requests.show', $beaconRequest) }}" style="color:var(--ks-blue);font-weight:600;">{{ $beaconRequest->request_no }}</a></td>
-                            <td>{{ optional($firstIssueDate)->format('d/m/Y') ?: '—' }}</td>
-                            <td>{{ $beaconRequest->plot_no ?: '—' }}</td>
-                            <td>{{ $beaconRequest->district ?: '—' }}</td>
-                            <td>{{ $beaconRequest->lga ? mb_strtoupper($beaconRequest->lga) : '—' }}</td>
-                            <td>{{ $beaconRequest->location ?: '—' }}</td>
-                            <td>{{ number_format($requestNumberCount) }}</td>
-                            <td>{{ $usedNumberCount }} / {{ $requestNumberCount }}</td>
-                            <td>
-                                <button type="button" class="ks-btn ks-btn-light" data-beacon-group-toggle aria-expanded="false" aria-controls="{{ $groupId }}" style="padding:7px 10px;">
-                                    <i data-lucide="chevron-down" class="w-4 h-4" aria-hidden="true"></i>
-                                    <span>Show beacons</span>
-                                </button>
-                            </td>
-                        </tr>
-                        <tr id="{{ $groupId }}" hidden>
-                            <td colspan="10" style="padding:0 12px 14px;background:#F7F9FC;">
-                                <div class="overflow-x-auto">
-                                    <table class="ks-table" style="min-width:760px;margin-top:8px;background:#fff;">
-                                        <thead><tr><th>S/N</th><th>Beacon No.</th><th>Location</th><th>Used</th><th>X</th><th>Y</th><th></th></tr></thead>
-                                        <tbody>
-                                            @php
-                                                $beaconSn = 0;
-                                            @endphp
-                                            @foreach ($beaconRequest->lines as $register)
-                                                @foreach ($register->numbers as $beacon)
-                                                    @php
-                                                        $beaconFormId = 'beacon-details-' . $beacon->id;
-                                                        $restoreBeaconInput = (string) old('beacon_row') === (string) $beacon->id;
-                                                        $usedValue = $beacon->used === null ? '' : ($beacon->used ? '1' : '0');
-                                                        if ($restoreBeaconInput) {
-                                                            $usedValue = (string) old('used', $usedValue);
-                                                        }
-                                                    @endphp
-                                                    <tr>
-                                                        <td>{{ ++$beaconSn }}</td>
-                                                        <td class="font-semibold">{{ \App\Models\Survey\SurveyBeaconRegister::display($beacon->beacon_no) }}</td>
-                                                        <td>{{ $beaconRequest->location ?: '—' }}</td>
-                                                        <td style="min-width:120px;">
-                                                            <label class="sr-only" for="used-{{ $beacon->id }}">Used status for {{ $beacon->beacon_no }}</label>
-                                                            <select class="ks-input" id="used-{{ $beacon->id }}" name="used" form="{{ $beaconFormId }}" style="min-width:110px;">
-                                                                <option value="">Select…</option>
-                                                                <option value="1" @selected($usedValue === '1')>Yes</option>
-                                                                <option value="0" @selected($usedValue === '0')>No</option>
-                                                            </select>
-                                                        </td>
-                                                        @foreach (['coord_x' => 'X', 'coord_y' => 'Y'] as $field => $label)
-                                                            <td style="min-width:110px;">
-                                                                <label class="sr-only" for="{{ $field }}-{{ $beacon->id }}">{{ $label }} coordinate for {{ $beacon->beacon_no }}</label>
-                                                                <input class="ks-input" id="{{ $field }}-{{ $beacon->id }}" type="number" step="any" name="{{ $field }}" form="{{ $beaconFormId }}" value="{{ $restoreBeaconInput ? old($field, $beacon->{$field}) : $beacon->{$field} }}" style="min-width:100px;" @if ($beacon->used) required @endif>
-                                                            </td>
-                                                        @endforeach
-                                                        <td>
-                                                            <form id="{{ $beaconFormId }}" method="POST" action="{{ route('surveyor-portal.requests.beacons.details', ['beacon' => $beacon, 'page' => $beaconRequests->currentPage()]) }}">
-                                                                @csrf
-                                                                <input type="hidden" name="beacon_row" value="{{ $beacon->id }}">
-                                                                <button class="ks-btn ks-btn-primary" style="padding:7px 10px;">Save</button>
-                                                            </form>
-                                                            @error('coord_x', 'beacon-' . $beacon->id)<p class="ks-error">{{ $message }}</p>@enderror
-                                                            @error('coord_y', 'beacon-' . $beacon->id)<p class="ks-error">{{ $message }}</p>@enderror
-                                                            @error('used', 'beacon-' . $beacon->id)<p class="ks-error">{{ $message }}</p>@enderror
-                                                        </td>
-                                                    </tr>
-                                                @endforeach
-                                            @endforeach
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="10" class="ks-help" style="text-align:center;padding:24px;">No issued beacons yet.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
+    {{-- Like the PHS token balance (user, 2026-11-09): a new request waits until every issued beacon is used. --}}
+    <section class="ks-card ks-balance {{ $blocked ? 'blocked' : '' }}" aria-label="Beacon balance">
+        <div class="ks-balance-figures">
+            <div><span class="ks-balance-value">{{ number_format($balance['issued']) }}</span><span class="ks-balance-label">Issued to you</span></div>
+            <div><span class="ks-balance-value">{{ number_format($balance['used']) }}</span><span class="ks-balance-label">Used</span></div>
+            <div><span class="ks-balance-value">{{ number_format($balance['left']) }}</span><span class="ks-balance-label">Balance</span></div>
         </div>
-        <div class="mt-4">{{ $beaconRequests->links() }}</div>
-    @else
-    @if ($hasOutstandingBeacons)
-        <div class="ks-flash bad" role="alert">You have beacons from a previous issued request that still need usage details. Update each beacon on the Beacons tab before submitting another request.</div>
-    @endif
-    <form method="POST" action="{{ route('surveyor-portal.requests.store') }}" class="ks-card p-6 space-y-4" style="max-width:720px;" enctype="multipart/form-data">
+        <p class="ks-balance-note">
+            @if ($blocked)
+                <i data-lucide="lock" class="w-4 h-4"></i>
+                You can request more beacons when your balance is 0. Enter the beacons you use on a
+                <a href="{{ route('surveyor-portal.reports.index') }}">Surveyor's Report</a>.
+            @else
+                <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                Every issued beacon is used. You can request more.
+            @endif
+        </p>
+    </section>
+    <div>@include('surveyor_portal.partials._unused_beacons')</div>
+    <form method="POST" action="{{ route('surveyor-portal.requests.store') }}" class="ks-card p-6 space-y-4" enctype="multipart/form-data">
         @csrf
         @error('request')<div class="ks-flash bad" role="alert">{{ $message }}</div>@enderror
         <div>
@@ -165,6 +82,23 @@
                 <span class="ks-label">Surveyor</span>
                 <div class="ks-input" style="background:#F1F3F5;">{{ $me->name }}</div>
             </div>
+        </div>
+        {{-- Survey Update 5b (user, 2026-11-10): every request quotes the Job No of the survey's Computation File. --}}
+        <div>
+            <label class="ks-label" for="job_no">Job No. <span class="ks-req">*</span></label>
+            @if ($jobs)
+                <select class="ks-input" id="job_no" name="job_no" required>
+                    <option value="">Select Job No…</option>
+                    @foreach ($jobs as $no => $j)
+                        <option value="{{ $no }}" data-plot="{{ $j['plot_no'] }}" data-district="{{ $j['district'] }}" data-lga="{{ $j['lga'] }}" @selected(old('job_no') === $no)>{{ $j['label'] }} ({{ $j['kind'] }})</option>
+                    @endforeach
+                </select>
+                <p class="ks-help" style="margin-top:4px;">The Job No given when the Computation File for this survey was commissioned. Its plot, district and LGA fill in.</p>
+            @else
+                <div class="ks-input" style="background:#FFF8E6;">No Job No has been given to you yet.</div>
+                <p class="ks-help" style="margin-top:4px;">A beacon request quotes the Job No of the Computation File commissioned for your survey. Ask the Survey Department for it.</p>
+            @endif
+            @error('job_no')<p class="ks-error">{{ $message }}</p>@enderror
         </div>
         <div class="grid sm:grid-cols-2 gap-4 items-start">
         <div>
@@ -250,8 +184,9 @@
                 </select>
             </div>
         </div>
-        {{-- Where the survey is (user, 2026-11-06). Optional, as the location fields above are. --}}
-        <div>
+        {{-- Where the survey is (user, 2026-11-06). Optional, as the location fields above are.
+             Not shown for a Bulk request: its beacons go to several sites (user, 2026-11-09). --}}
+        <div id="brqMapBlock" @if (old('request_type') === 'bulk') style="display:none" @endif>
             <span class="ks-label">Location on the Map</span>
             <p class="ks-help" style="margin:0 0 6px;">Optional map pin. Selecting an LGA places the pin near its approximate center; drag it to the survey location.</p>
             <div id="brqMap"></div>
@@ -273,12 +208,11 @@
             <textarea class="ks-input" id="remarks" name="remarks" rows="3" maxlength="2000">{{ old('remarks') }}</textarea>
         </div>
         <div class="flex justify-end">
-            <button class="ks-btn ks-btn-primary" @disabled($hasOutstandingBeacons)>
-                {{ $hasOutstandingBeacons ? 'Update previous beacons first' : 'Send to the Surveyor General' }}
+            <button class="ks-btn ks-btn-primary" @disabled($blocked || ! $jobs)>
+                {{ $blocked ? 'Use your balance first' : (! $jobs ? 'No Job No yet' : 'Send to the Surveyor General') }}
             </button>
         </div>
     </form>
-    @endif
 @endsection
 
 @push('scripts')
@@ -286,32 +220,37 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
+// Job No: fill plot, district and LGA from the job; clear what the previous job filled (rule 5).
+(function () {
+    var job = document.getElementById('job_no');
+    if (!job) return;
+    var filled = {};
+    job.addEventListener('change', function () {
+        var o = job.options[job.selectedIndex] || {}, d = o.dataset || {};
+        var plot = document.getElementById('plot_no'), lga = document.getElementById('lga'), district = document.getElementById('district');
+        if (plot) { if (filled.plot && plot.value === filled.plot) plot.value = ''; if (d.plot && !plot.value) plot.value = d.plot; filled.plot = d.plot || ''; }
+        if (lga) {
+            if (filled.lga && lga.value === filled.lga) lga.value = '';
+            var match = d.lga ? Array.prototype.find.call(lga.options, function (x) { return x.value.toLowerCase() === d.lga.toLowerCase(); }) : null;
+            if (match && !lga.value) lga.value = match.value;
+            filled.lga = match ? match.value : '';
+            lga.dispatchEvent(new Event('change'));
+        }
+        if (district && window.jQuery) {
+            var $d = window.jQuery(district);
+            if (filled.district && district.value === filled.district) $d.val('').trigger('change');
+            if (d.district && !district.value) {
+                if (!Array.prototype.some.call(district.options, function (x) { return x.value === d.district; })) district.appendChild(new Option(d.district, d.district));
+                $d.val(d.district).trigger('change');
+            }
+            filled.district = d.district || '';
+        }
+    });
+})();
 (function () {
     var district = document.getElementById('district'), districtOther = document.getElementById('district_other'),
         requestType = document.getElementById('request_type'), lgaField = document.getElementById('lga'),
         requestTypeOpen = document.getElementById('requestTypeOpen'), requestTypeDialog = document.getElementById('requestTypeDialog');
-    function setBeaconGroupExpanded(button, expanded) {
-        var row = document.getElementById(button.getAttribute('aria-controls'));
-        if (!row) return;
-        row.hidden = !expanded;
-        button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-        button.querySelector('span').textContent = expanded ? 'Hide beacons' : 'Show beacons';
-    }
-    document.querySelectorAll('[data-beacon-group-toggle]').forEach(function (button) {
-        button.addEventListener('click', function () {
-            setBeaconGroupExpanded(button, button.getAttribute('aria-expanded') !== 'true');
-        });
-    });
-    @if (old('beacon_row'))
-        var beaconWithErrors = document.getElementById('used-{{ old('beacon_row') }}');
-        if (beaconWithErrors) {
-            var groupRow = beaconWithErrors.closest('tr[hidden]');
-            if (groupRow) {
-                var groupToggle = document.querySelector('[aria-controls="' + groupRow.id + '"]');
-                if (groupToggle) setBeaconGroupExpanded(groupToggle, true);
-            }
-        }
-    @endif
     function syncRequestLocation() {
         var single = requestType && requestType.value === 'single';
         if (district) district.required = single;
@@ -319,6 +258,12 @@
         document.querySelectorAll('[data-single-required]').forEach(function (el) {
             el.style.display = single ? '' : 'none';
         });
+        // No map for a Bulk request; a pin dropped before switching is cleared, not sent.
+        var bulk = requestType && requestType.value === 'bulk', mapBlock = document.getElementById('brqMapBlock');
+        if (mapBlock) {
+            mapBlock.style.display = bulk ? 'none' : '';
+            document.dispatchEvent(new CustomEvent(bulk ? 'brq:map-hidden' : 'brq:map-shown'));
+        }
     }
     if (requestType) {
         syncRequestLocation();
@@ -428,6 +373,9 @@
         return true;
     }
     map.on('click', function (e) { place(e.latlng); });
+    // Request type switched (see syncRequestLocation): Bulk drops the pin; showing again needs a resize.
+    document.addEventListener('brq:map-hidden', function () { if (lat.value || lng.value || pin) clear.click(); });
+    document.addEventListener('brq:map-shown', function () { map.invalidateSize(); });
     lga.addEventListener('change', function () { placeAtLga(lga.value); });
     pinLga.addEventListener('click', function () { placeAtLga(lga.value); });
     clear.addEventListener('click', function () {

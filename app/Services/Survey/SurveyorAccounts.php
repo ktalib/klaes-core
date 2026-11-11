@@ -34,16 +34,19 @@ class SurveyorAccounts
 
         for ($try = 1; ; $try++) {
             try {
+                // A company may have several surveyors (user, 2026-11-10); the 2026-11-06 one-account-per-company rule is lifted.
                 $account = $this->db()->transaction(function () use ($data) {
-                    $this->refuseSecondCompanyAccount($data);
-
                     return SurveyorPortalAccount::create($data + [
-                        'registration_id' => SurveyorPortalAccount::nextId('registration_id', 'KSSGOF-REG', 5),
+                        'registration_id' => SurveyorPortalAccount::nextId('registration_id', 'MLPPSG-REG', 5),
                         'status' => SurveyorPortalAccount::PENDING,
                     ]);
                 });
                 break;
             } catch (QueryException $e) {
+                // Two sign-ups choosing the same username at the same moment: the index refuses the second.
+                if (str_contains($e->getMessage(), 'ux_surveyor_portal_username')) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['username' => 'That username is taken. Choose another.']);
+                }
                 $again = str_contains($e->getMessage(), 'ux_surveyor_portal_registration') || str_contains(strtolower($e->getMessage()), 'deadlock');
                 if ($try >= 3 || ! $again) throw $e;
             }
@@ -54,25 +57,50 @@ class SurveyorAccounts
     }
 
     /**
-     * One account per company (user, 2026-11-06). Only a rejected registration frees the company. The rows stay
-     * locked until the new account is saved, so two sign-ups at the same moment can't both pass.
+     * A surveyor added by the SG on Registrations (user, 2026-11-10: the Cadastral "Add a Surveyor" form, with the
+     * company picked from the approved list). Approved at once, as the SG is the approver: a Surveyor ID, the SURCON
+     * directory row (found by SURCON number or made, as approve() does), and that row's licence status and Active as
+     * entered. Email is optional; without one the login goes by SMS only. The password is temporary and returned for SurveyCompanyLogins::send(); the caller sends it.
+     *
+     * @param array $data account values (surveyor_type, company_*, name, phone, email, surcon_number, username, addr_*)
+     * @param array{licence_status:string, is_active:bool} $licence (Licence Expires is not asked, 2026-11-10: the row keeps its own)
+     * @return array{account: SurveyorPortalAccount, password: string}
      */
-    private function refuseSecondCompanyAccount(array $data): void
+    public function createByAdmin(array $data, array $licence): array
     {
-        if (($data['surveyor_type'] ?? null) !== 'Private') return;
+        $password = app(SurveyCompanyLogins::class)->temporaryPassword();
 
-        $taken = SurveyorPortalAccount::query()->where('surveyor_type', 'Private')
-            ->where('status', '!=', SurveyorPortalAccount::REJECTED)
-            ->lockForUpdate()->get(['id', 'company_id', 'company_name', 'company_rc_no']);
+        try {
+            $account = $this->db()->transaction(function () use ($data, $licence, $password) {
+                $a = SurveyorPortalAccount::create($data + [
+                    'registration_id' => SurveyorPortalAccount::nextId('registration_id', 'MLPPSG-REG', 5),
+                    'status' => SurveyorPortalAccount::PENDING,
+                    'password' => Hash::make($password),
+                    'must_change_password' => true,
+                ]);
+                $a->update(array_merge($this->directoryLink($a), [
+                    'status' => SurveyorPortalAccount::ACTIVE,
+                    'surveyor_id_no' => SurveyorPortalAccount::nextId('surveyor_id_no', 'MLPPSG-SV', 4),
+                    'reviewed_by' => Auth::id(), 'reviewed_at' => now(),
+                ]));
+                if ($a->cadastral_surveyor_id) {
+                    $q = $this->db()->table('cadastral_surveyors')->where('id', $a->cadastral_surveyor_id);
+                    $before = (array) (clone $q)->first(['licence_status', 'licence_expires_on', 'is_active']);
+                    $q->update($licence + ['updated_by' => Auth::id(), 'updated_at' => now()]);
+                    Log::info('Surveyor directory licence set from MLPP-SG Add Surveyor', ['cadastral_surveyor' => $a->cadastral_surveyor_id, 'before' => $before, 'after' => $licence]);
+                }
 
-        foreach ($taken as $a) {
-            $same = SurveyorPortalAccount::sameCompanyAs($a->only(['company_id', 'company_name', 'company_rc_no']), $data);
-            if (! $same) continue;
-
-            $field = 'company_choice';
-            throw ValidationException::withMessages([$field => ($same === 'rc' ? 'This RC number is already registered' : "{$a->company_name} is already registered")
-                . ' on the portal. Each company has one account. Contact the Office of the Surveyor General if this is wrong.']);
+                return $a;
+            });
+        } catch (QueryException $e) {
+            if (str_contains($e->getMessage(), 'ux_surveyor_portal_username')) {
+                throw ValidationException::withMessages(['username' => 'That username is taken. Choose another.']);
+            }
+            throw $e;
         }
+        Log::info('Surveyor portal account added by the SG', ['account' => $account->id, 'surveyor_id' => $account->surveyor_id_no, 'by' => Auth::id()]);
+
+        return ['account' => $account, 'password' => $password];
     }
 
     public function approve(SurveyorPortalAccount $account): SurveyorPortalAccount
@@ -85,7 +113,7 @@ class SurveyorAccounts
             $a = SurveyorPortalAccount::query()->lockForUpdate()->findOrFail($account->id);
             $a->update(array_merge($this->directoryLink($a), [
                 'status' => SurveyorPortalAccount::ACTIVE,
-                'surveyor_id_no' => SurveyorPortalAccount::nextId('surveyor_id_no', 'KSSGOF-SV', 4),
+                'surveyor_id_no' => SurveyorPortalAccount::nextId('surveyor_id_no', 'MLPPSG-SV', 4),
                 'reviewed_by' => Auth::id(), 'reviewed_at' => now(),
             ]));
 
@@ -138,8 +166,8 @@ class SurveyorAccounts
 
         $minutes = SurveyorPortalAccount::RESET_TTL_MINUTES;
         $sent = $this->gateway->sendFirstAccepted((string) $account->phone, [
-            "Your KSSGOF password reset code is {$code}. It expires in {$minutes} minutes.",
-            "KSSGOF: use {$code} to reset your password. Valid for {$minutes} minutes.",
+            "Your MLPP-SG password reset code is {$code}. It expires in {$minutes} minutes.",
+            "MLPP-SG: use {$code} to reset your password. Valid for {$minutes} minutes.",
         ], \App\Models\SmsSetting::senderFor(\App\Models\SmsSetting::KEY_PHONE_OTP));
 
         if ($sent === null) {
@@ -158,6 +186,6 @@ class SurveyorAccounts
             $account->increment('reset_attempts');
             throw $bad;
         }
-        $account->update(['password' => Hash::make($password), 'reset_code' => null, 'reset_expires_at' => null, 'reset_attempts' => 0]);
+        $account->update(['password' => Hash::make($password), 'reset_code' => null, 'reset_expires_at' => null, 'reset_attempts' => 0, 'must_change_password' => false]);
     }
 }

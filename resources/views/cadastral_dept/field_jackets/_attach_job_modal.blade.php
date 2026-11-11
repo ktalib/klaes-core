@@ -5,8 +5,11 @@
 
     $waitingJobs  FieldJackets::waitingJobs()
     $surveyors    FieldJackets::surveyors()
+    Since Survey Update 5a (2026-11-10) the job is made when the Computation File is commissioned:
+    data-job carries its Job No, and only the surveyor is picked here. Without data-job (a jacket
+    commissioned before then) the job is picked from the Job Book as before.
     Open it with any element carrying:
-      data-attach-job  data-url  data-ref  data-file  data-plot  data-district  data-lga  data-jacket
+      data-attach-job  data-url  data-ref  data-file  data-plot  data-district  data-lga  data-jacket  data-job
 --}}
 <div id="cd-aj-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4" role="dialog" aria-modal="true">
   <form id="cd-aj-form" method="POST" action="" class="w-full max-w-lg rounded-xl bg-white shadow-xl p-5 space-y-4 max-h-full overflow-y-auto"
@@ -16,7 +19,7 @@
       <div>
         <div class="text-xs font-bold uppercase text-gray-500"><span id="cd-aj-ref"></span> · <span id="cd-aj-file" class="font-mono"></span> · <span id="cd-aj-jacket" class="font-mono"></span></div>
         <div class="text-lg font-bold text-gray-800">Attach Job and Surveyor</div>
-        <p class="text-xs text-gray-500 mt-1">Pick the job from the Job Book and the surveyor: a private surveyor for a Conversion file, a Survey Department surveyor for a Government file. Then issue the Instruction to Surveyor.</p>
+        <p class="text-xs text-gray-500 mt-1">Pick the surveyor: a private surveyor for a Conversion file, a Survey Department surveyor for a Government file. Then issue the Instruction to Surveyor.</p>
       </div>
       <button type="button" data-aj-close class="text-gray-400 hover:text-gray-600 text-2xl leading-none" aria-label="Close">&times;</button>
     </div>
@@ -25,7 +28,12 @@
       <div><dt class="text-xs text-gray-500">District</dt><dd id="cd-aj-district">—</dd></div>
       <div><dt class="text-xs text-gray-500">LGA</dt><dd id="cd-aj-lga">—</dd></div>
     </dl>
-    <div>
+    <div id="cd-aj-own" class="hidden">
+      <label class="block text-xs font-semibold text-gray-600 mb-1">Job No.</label>
+      <input type="text" id="cd-aj-job" readonly tabindex="-1" class="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-sm font-mono">
+      <p class="text-xs text-gray-500 mt-1">Given when the Computation File was commissioned.</p>
+    </div>
+    <div id="cd-aj-pick">
       <label class="block text-xs font-semibold text-gray-600 mb-1">Survey job <span class="text-red-600">*</span></label>
       @if ($waitingJobs->isEmpty())
         <div class="rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm text-yellow-900">
@@ -54,7 +62,7 @@
     </div>
     <div class="flex justify-end gap-2">
       <button type="button" data-aj-close class="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700">Cancel</button>
-      <button @disabled($waitingJobs->isEmpty() || $surveyors->isEmpty()) class="px-4 py-2 rounded-lg bg-green-700 text-white text-sm font-semibold disabled:opacity-50">Attach</button>
+      <button id="cd-aj-submit" data-no-jobs="{{ $waitingJobs->isEmpty() ? 1 : 0 }}" @disabled($surveyors->isEmpty()) data-no-surveyors="{{ $surveyors->isEmpty() ? 1 : 0 }}" class="px-4 py-2 rounded-lg bg-green-700 text-white text-sm font-semibold disabled:opacity-50">Attach</button>
     </div>
   </form>
 </div>
@@ -74,6 +82,14 @@
         $('cd-aj-lga').textContent = el.getAttribute('data-lga') || '—';
         $('cd-aj-jacket').textContent = el.getAttribute('data-jacket') || '';
         modal.querySelectorAll('select').forEach(function (sel) { sel.value = ''; });
+        // The jacket's own job (made at commissioning) replaces the Job Book pick.
+        var job = el.getAttribute('data-job') || '';
+        $('cd-aj-job').value = job;
+        $('cd-aj-own').classList.toggle('hidden', !job);
+        $('cd-aj-pick').classList.toggle('hidden', !!job);
+        $('cd-aj-pick').querySelectorAll('select').forEach(function (sel) { sel.disabled = !!job; });
+        var btn = $('cd-aj-submit');
+        btn.disabled = btn.getAttribute('data-no-surveyors') === '1' || (!job && btn.getAttribute('data-no-jobs') === '1');
         modal.classList.remove('hidden');
         return;
       }

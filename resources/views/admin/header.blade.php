@@ -1,6 +1,11 @@
 <link rel="stylesheet" href="{{ asset('css/admin-header.css') }}">
 <link rel="stylesheet" href="{{ asset('css/welcome-card.css') }}?v={{ filemtime(public_path('css/welcome-card.css')) }}">
 
+@php
+  $accountSetupCardsApply = Auth::check()
+      && !app(\Lab404\Impersonate\Services\ImpersonateManager::class)->isImpersonating();
+@endphp
+
 <div class="p-6 bg-white border-b border-gray-200" data-header-root
   data-auto-logout-enabled="{{ config('session.auto_logout_enabled', false) ? 'true' : 'false' }}"
   data-auto-logout-timeout="{{ (int) config('session.auto_logout_timeout', 180) }}"
@@ -167,6 +172,13 @@
               </svg>
               My Profile
             </a>
+            @if (app(\App\Services\SecurityQuestionService::class)->enabled())
+              <a href="{{ route('security-questions.edit') }}"
+                class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                <i data-lucide="shield-question" class="h-5 w-5 mr-3 text-gray-500"></i>
+                Security Questions
+              </a>
+            @endif
           </div>
 
           <div class="py-1">
@@ -218,7 +230,7 @@
      a logo). Both are held the same way, because neither identifies the person.
      Dismissing hides it for the current page only, so it comes back until a real photo
      is actually uploaded. --}}
-@if (Auth::check() && Auth::user()->needs_profile_photo)
+@if ($accountSetupCardsApply && Auth::user()->needs_profile_photo)
   <div id="missingProfilePhotoBanner"
     class="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-6 py-3 text-sm text-amber-900">
     <span class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-amber-100">
@@ -278,7 +290,7 @@
               @endif
       </div>
       <p class="name">Dear <span id="username">{{ Auth::user()->first_name ?? Auth::user()->name ?? 'User' }}</span></p>
-      @if (Auth::check() && Auth::user()->needs_profile_photo)
+      @if ($accountSetupCardsApply && Auth::user()->needs_profile_photo)
         <button type="button" data-profile-photo-trigger>
           {{ __('Add your profile picture') }}
         </button>
@@ -318,16 +330,6 @@
 <script src="{{ asset('js/push-notification-center.js') }}?v={{ filemtime(public_path('js/push-notification-center.js')) }}" defer></script>
 <script src="{{ asset('js/file-tracker-notifications.js') }}?v={{ filemtime(public_path('js/file-tracker-notifications.js')) }}" defer></script>
 <script src="{{ asset('js/welcome-popup.js') }}" defer></script>
-@php
-  /* Both account-setup cards belong to the ACCOUNT'S OWNER. A Super Admin who has
-     borrowed the session (ImpersonationController) must not be held by them, and
-     must not be able to complete another person's setup on their behalf -- the
-     same rule RequireProfilePhoto and RequirePhoneVerification apply to the URLs.
-     Without this the middlewares let the page through and the card still drew on
-     top of it, locking the borrowed session out of the screen it just opened. */
-  $accountSetupCardsApply = Auth::check()
-      && !app(\Lab404\Impersonate\Services\ImpersonateManager::class)->isImpersonating();
-@endphp
 @if ($accountSetupCardsApply && Auth::user()->needs_profile_photo)
   @include('profile.partials.photo-required-card')
 @endif
@@ -335,6 +337,17 @@
      outstanding, so the two cards can never both be on screen. --}}
 @if ($accountSetupCardsApply && Auth::user()->needs_phone_verification)
   @include('profile.partials.phone-verification-card')
+@endif
+{{-- The third gate, after both: security questions. Owed, it opens on every page and
+     cannot be closed; from the profile menu it opens once to change them. --}}
+@php
+  $sqcForced = $accountSetupCardsApply
+      && app(\App\Services\SecurityQuestionService::class)->mustSetUp(request(), Auth::user());
+  $sqcOpen = $sqcForced || ($accountSetupCardsApply && session('open_security_questions_card')
+      && app(\App\Services\SecurityQuestionService::class)->enabled());
+@endphp
+@if ($sqcOpen)
+  @include('profile.partials.security-questions-card', ['sqcForced' => $sqcForced])
 @endif
 <script src="{{ asset('js/auto-logout.js') }}?v={{ filemtime(public_path('js/auto-logout.js')) }}" defer></script>
 <script src="{{ asset('js/user-profile-dropdown.js') }}" defer></script>

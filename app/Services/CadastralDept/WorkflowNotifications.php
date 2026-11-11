@@ -12,6 +12,9 @@ use Illuminate\Support\Facades\Log;
 /**
  * In-app notifications for the Cadastral Dept workflow (user, 2026-10-14): the header bell.
  *
+ * The one-working-day timer adds its own (timerAlert / timerSummary, from CadastralCaseTimer): Due soon,
+ * Warning, Overdue, Penalty; and a file reaching a timed office is told when it must move on (dueLine).
+ *
  * Four events, all read off one movement (CaseWorkflow::move):
  *   arrived    a file reaches a desk (registered, or sent on)  -> that desk's officers
  *   sent_back  a desk returns a file, with the reason          -> the receiving desk's officers
@@ -107,12 +110,12 @@ class WorkflowNotifications
             $by = $def->deskShort(!empty($from['external']) ? $from['desk'] : $def->actingDesk($wf, $fromStep));
 
             return [$users, 'sent_back', "{$case->file_number} sent back by {$by}",
-                "{$case->case_ref}: file {$file} was sent back to " . $def->deskShort($toDesk) . " by {$by}. Now: {$to['label']}." . $reason];
+                "{$case->case_ref}: file {$file} was sent back to " . $def->deskShort($toDesk) . " by {$by}. Now: {$to['label']}." . $reason . $this->dueLine($toDesk)];
         }
 
         if ($from && !empty($from['external'])) {
             return [$users, 'back', "{$case->file_number} back from " . $def->deskShort($from['desk']),
-                "{$case->case_ref}: file {$file} is back from " . $def->deskLabel($from['desk']) . ' and is now at ' . $def->deskShort($toDesk) . ": {$to['label']}." . $reason];
+                "{$case->case_ref}: file {$file} is back from " . $def->deskLabel($from['desk']) . ' and is now at ' . $def->deskShort($toDesk) . ": {$to['label']}." . $reason . $this->dueLine($toDesk)];
         }
 
         // The next step on the same desk: the file has not moved, so nobody new is told.
@@ -123,7 +126,130 @@ class WorkflowNotifications
         $origin = $fromStep ? $def->deskShort($def->actingDesk($wf, $fromStep)) : 'Registry (registered)';
 
         return [$users, 'arrived', "{$case->file_number} received at " . $def->deskShort($toDesk),
-            "{$case->case_ref}: file {$file} has reached " . $def->deskShort($toDesk) . " from {$origin}. Next: {$to['label']}." . $reason];
+            "{$case->case_ref}: file {$file} has reached " . $def->deskShort($toDesk) . " from {$origin}. Next: {$to['label']}." . $reason . $this->dueLine($toDesk)];
+    }
+
+    /**
+     * A file has gone past its working day at an office (CadastralCaseTimer, user 2026-11-09: "bell").
+     * Kept for the timer before migration 2026_11_09_120000; afterwards timerAlert() rings every stage.
+     */
+    public function overdue(CadastralCase $case, array $state): void
+    {
+        $this->timerAlert($case, $state, 'default');
+    }
+
+    /**
+     * The timer stages (user, 2026-11-09; Daniel's list of 08/11): Due soon, Warning, Overdue, Penalty, once
+     * per office each. To the desk's officers and the admins; the penalty also to the unit head picked in
+     * Central Admin (the line manager). Overdue and Penalty carry tone "red" so the bell shows them in red.
+     */
+    public function timerAlert(CadastralCase $case, array $state, string $stage): void
+    {
+        try {
+            $def = new WorkflowDefinition();
+            $desk = (string) $case->current_desk;
+            $users = $this->timerRecipients($def, $desk, $stage);
+            if (!$users) {
+                return;
+            }
+            $short = $def->deskShort($desk);
+            $file = trim($case->file_number . ($case->file_title ? " ({$case->file_title})" : ''));
+            $due = $state['deadline']->format('d/m/Y H:i');
+            [$title, $tail] = match ($stage) {
+                'reminder' => ["{$case->file_number} due soon at {$short}", " It must move on by {$due}."],
+                'warning'  => ["{$case->file_number}: time nearly up at {$short}", " It must move on by {$due}, or it goes overdue."],
+                'penalty'  => ["{$case->file_number}: penalty at {$short}", " It was due by {$due}; a penalty is recorded against {$short}."],
+                default    => ["{$case->file_number} over 1 working day at {$short}", " It was due to move on by {$due}."],
+            };
+            $body = "{$case->case_ref}: file {$file} reached {$short} on " . $state['since']->format('d/m/Y H:i') . '.' . $tail;
+            $data = $this->timerData($stage, $desk) + [
+                'case_id' => $case->id,
+                'case_ref' => $case->case_ref,
+                'file_number' => $case->file_number,
+                'file_name' => $case->file_title,
+                'deadline' => $state['deadline']->toDateTimeString(),
+                'open_path' => route('cadastral-dept.cases.show', $case->id, false),
+            ];
+            foreach ($users as $userId) {
+                $this->notifier->create($userId, self::TYPE, $title, $body, $data, ['module' => self::MODULE]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Cadastral timer notification failed', ['case' => $case->case_ref, 'stage' => $stage, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Several files at one office reaching one stage together (the backlog when the bells were switched on,
+     * user 2026-11-09: "one summary per office"): one bell listing them, opening that desk.
+     *
+     * @param  array  $alerts  [case, state, stage] rows, all at $desk and $stage
+     */
+    public function timerSummary(string $desk, string $stage, array $alerts): void
+    {
+        try {
+            $def = new WorkflowDefinition();
+            $users = $this->timerRecipients($def, $desk, $stage);
+            if (!$users) {
+                return;
+            }
+            $short = $def->deskShort($desk);
+            $n = count($alerts);
+            $title = match ($stage) {
+                'reminder' => "{$n} files due soon at {$short}",
+                'warning'  => "{$n} files: time nearly up at {$short}",
+                'penalty'  => "{$n} files: penalty at {$short}",
+                default    => "{$n} files over 1 working day at {$short}",
+            };
+            $list = array_map(fn ($a) => $a[0]->file_number, array_slice($alerts, 0, 15));
+            $body = ($stage === 'penalty' ? "Past their working day; a penalty is recorded against {$short} for each. " : '')
+                . 'Files: ' . implode(', ', $list) . ($n > 15 ? ' and ' . ($n - 15) . ' more' : '') . '.';
+            $data = $this->timerData($stage, $desk) + [
+                'count' => $n,
+                'case_ids' => array_map(fn ($a) => $a[0]->id, $alerts),
+                'open_path' => route('cadastral-dept.central-admin.index', ['desk' => $desk], false),
+            ];
+            foreach ($users as $userId) {
+                $this->notifier->create($userId, self::TYPE, $title, $body, $data, ['module' => self::MODULE]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Cadastral timer summary failed', ['desk' => $desk, 'stage' => $stage, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /** The desk's officers and the admins; for a penalty, the unit head too (the line manager). */
+    private function timerRecipients(WorkflowDefinition $def, string $desk, string $stage): array
+    {
+        $users = array_merge($this->without($this->officers($def, $desk), null), $this->admins());
+        if ($stage === 'penalty' && ($head = HeadApproval::headUserId($desk))) {
+            $users[] = $head;
+        }
+
+        return array_values(array_unique(array_map('intval', $users)));
+    }
+
+    private function timerData(string $stage, string $desk): array
+    {
+        return [
+            'module' => self::MODULE,
+            'event' => ['reminder' => 'due_soon', 'warning' => 'warning', 'default' => 'overdue', 'penalty' => 'penalty'][$stage] ?? $stage,
+            'tone' => CadastralCaseTimer::STAGES[$stage]['tone'] ?? null,
+            'desk' => $desk,
+        ];
+    }
+
+    /** " Due to move on by …" for a file reaching an office the clock runs at (Daniel's item 1, processing deadline). */
+    private function dueLine(string $desk): string
+    {
+        try {
+            $timer = app(CadastralCaseTimer::class);
+            if (!CadastralCaseTimer::installed() || !$timer->isTimed($desk)) {
+                return '';
+            }
+
+            return ' Due to move on by ' . $timer->deadlineFrom(now())->format('d/m/Y H:i') . '.';
+        } catch (\Throwable $e) {
+            return '';
+        }
     }
 
     private function send(CadastralCase $case, ?string $fromStep, ?string $toStep, string $outcome, ?string $remarks, ?int $actorId): void

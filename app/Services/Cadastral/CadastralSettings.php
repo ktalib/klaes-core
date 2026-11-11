@@ -242,9 +242,9 @@ class CadastralSettings
     public function jobNumberFormat(): array
     {
         return [
-            'format' => (string) $this->get('job_number.format', 'KN/CAD/{year}/{serial}'),
-            'serial_pad' => (int) $this->get('job_number.serial_pad', 4),
-            'is_placeholder' => (bool) $this->get('job_number.is_placeholder', true),
+            'format' => (string) $this->get('job_number.format', 'SUV-JOB-{year}-{serial}'),
+            'serial_pad' => (int) $this->get('job_number.serial_pad', 3),
+            'is_placeholder' => (bool) $this->get('job_number.is_placeholder', false),
         ];
     }
 

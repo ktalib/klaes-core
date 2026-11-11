@@ -60,7 +60,8 @@ class MapRequestController extends Controller
             'contact_email'    => 'nullable|email:rfc|max:255',
             'mda_id'           => ['required', 'string', 'max:30'],
             'requester_other'  => ['nullable', 'string', 'max:300', Rule::requiredIf(fn () => $r->input('mda_id') === self::MDA_OTHER)],
-            'map_type_id'      => ['required', Rule::exists('sqlsrv.sdi_map_types', 'id')->where('is_active', true)->whereNull('deleted_at')],
+            'map_type_id'      => ['required'],
+            'map_type_other'   => ['nullable', 'string', 'max:150', Rule::requiredIf(fn () => $r->input('map_type_id') === SdiMapType::OTHER)],
             'map_name'         => 'required|string|max:300',
             'map_reference'    => 'nullable|string|max:120',
             'map_description'  => 'nullable|string|max:2000',
@@ -77,6 +78,7 @@ class MapRequestController extends Controller
             'mda_id.required'           => 'Choose the MDA, or Other.',
             'requester_other.required'  => 'Name the requesting body.',
             'map_type_id.required'      => 'Choose the type of map needed.',
+            'map_type_other.required'   => 'Specify the type of map.',
             'map_name.required'         => 'Enter the map name.',
             'output_formats.required'   => 'Tick at least one format.',
             'geometry_geojson.required' => 'Draw the area to be mapped.',
@@ -93,6 +95,14 @@ class MapRequestController extends Controller
         foreach (['contact_name', 'contact_phone', 'map_name', 'map_description', 'map_reference'] as $k) $data[$k] = $one($data[$k] ?? null);
         $data['contact_email'] = trim((string) ($data['contact_email'] ?? '')) ?: null;
         $data['output_formats'] = array_values(array_unique($data['output_formats']));
+
+        // Map type: a listed (active) type, or the type typed under Others. As the staff form.
+        if ($data['map_type_id'] === SdiMapType::OTHER && ! SdiMapRequest::supportsOtherType()) {
+            throw ValidationException::withMessages(['map_type_id' => 'Choose the type of map needed.']);
+        }
+        [$data['map_type_id'], $otherType] = SdiMapType::resolveChoice(is_scalar($data['map_type_id']) ? (string) $data['map_type_id'] : '', $data['map_type_other'] ?? null);
+        unset($data['map_type_other']);
+        if (SdiMapRequest::supportsOtherType()) $data['map_type_other'] = $otherType;
 
         // A listed MDA, or the typed name unless it is a listed MDA typed again. Stored as the staff form stores it.
         if ($data['mda_id'] === self::MDA_OTHER) {

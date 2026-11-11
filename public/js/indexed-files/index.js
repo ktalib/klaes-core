@@ -325,6 +325,8 @@ function renderRows(rows) {
         ${col('plot_number', `<td class="${standardCellClass}">${escapeHtml(row.plot_number)}</td>`)}
         ${col('indexed_date', `<td class="${standardCellClass}">${escapeHtml(row.indexed_at ?? '')}</td>`)}
         ${col('indexed_by', buildIndexedByCell(row, standardCellClass))}
+        ${col('updated_by', `<td class="${standardCellClass}">${escapeHtml(row.updated_by ?? '-')}</td>`)}
+        ${col('updated_at', `<td class="${standardCellClass}">${escapeHtml(row.updated_at ?? '-')}</td>`)}
         ${col('tp_no', `<td class="${standardCellClass}">${escapeHtml(row.tp_no)}</td>`)}
         ${col('lpkn_no', `<td class="${standardCellClass}">${escapeHtml(row.lpkn_no)}</td>`)}
         ${col('land_use_type', `<td class="p-3 whitespace-nowrap">${landUseBadge}</td>`)}
@@ -1365,7 +1367,7 @@ function openRelatedFilesModal(id, options) {
         tbody.innerHTML = data.data.map((file, idx) => `
           <tr class="hover:bg-gray-50 transition-colors related-file-row" data-file-number="${escapeHtml(file.file_number)}">
             <td class="px-4 py-3 text-sm text-gray-600 font-medium">
-              ${isMulti ? `
+              ${isMulti && !file.is_kangis_container ? `
                 <label class="inline-flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" class="related-file-select h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
                     data-file-number="${escapeHtml(file.file_number)}"
@@ -1390,6 +1392,11 @@ function openRelatedFilesModal(id, options) {
                 </div>
             </td>
             <td class="px-4 py-3 text-center">
+              ${file.is_kangis_container ? `
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border" style="background:#fff7ed;color:#c2410c;border-color:#fed7aa;"
+                    title="Linked on the KANGIS file's own record; edit or unlink it from that file">
+                    <i data-lucide="folder-tree" class="w-3 h-3"></i> KANGIS file
+                </span>` : `
                 <button type="button" class="edit-related-file-btn p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     data-id="${file.id}"
                     data-parent-id="${id}"
@@ -1409,7 +1416,7 @@ function openRelatedFilesModal(id, options) {
                     data-file-number="${escapeHtml(file.file_number)}"
                     data-prop-id="${escapeHtml(file.prop_id || '')}">
                     <i data-lucide="unlink" class="w-4 h-4"></i>
-                </button>
+                </button>`}
             </td>
           </tr>
         `).join('');

@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\LoginOtpController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Auth\SecurityQuestionsController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
@@ -36,6 +37,15 @@ Route::middleware('guest')->group(function () {
 
     Route::post('login/verify/cancel', [LoginOtpController::class, 'cancel'])
                 ->name('login.otp.cancel');
+
+    // The code did not arrive: answer the account's security questions instead
+    // (offered once the sign-in has waited; wrong answers lock them, see SecurityQuestionService).
+    Route::get('login/verify/questions', [SecurityQuestionsController::class, 'challenge'])
+                ->name('login.questions');
+
+    Route::post('login/verify/questions', [SecurityQuestionsController::class, 'verify'])
+                ->middleware('throttle:10,1')
+                ->name('login.questions.verify');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
                 ->name('password.request');
@@ -69,4 +79,12 @@ Route::middleware('auth')->group(function () {
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
                 ->name('logout');
+
+    // Set (forced once by RequireSecurityQuestions) or change the security questions.
+    Route::get('account/security-questions', [SecurityQuestionsController::class, 'edit'])
+                ->name('security-questions.edit');
+
+    Route::post('account/security-questions', [SecurityQuestionsController::class, 'update'])
+                ->middleware('throttle:10,1')
+                ->name('security-questions.update');
 });

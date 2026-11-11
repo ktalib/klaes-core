@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', $m->request_ref . ' — KNSSGOF Portal')
+@section('title', $m->request_ref . ' — MLPP-SG Portal')
 @section('heading', 'Map Request ' . $m->request_ref)
 
 @push('styles')
@@ -18,7 +18,7 @@
     @php
         $badge = ['pending' => 'submitted', 'in_progress' => 'issued', 'fulfilled' => 'accepted', 'rejected' => 'rejected'];
         $rows = [
-            'Status' => null, 'Date' => optional($m->received_date)->format('d/m/Y'), 'MDA' => $m->requesterName(), 'Map Name' => $m->map_name, 'Map Type' => $m->mapType?->name,
+            'Status' => null, 'Date' => optional($m->received_date)->format('d/m/Y'), 'MDA' => $m->requesterName(), 'Map Name' => $m->map_name, 'Map Type' => $m->mapTypeLabel(),
             'Map Reference' => $m->map_reference, 'Formats' => $m->formatsLabel(), 'Description' => $m->map_description,
         ];
     @endphp

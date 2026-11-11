@@ -24,7 +24,13 @@ class IndexingDuplicateController extends Controller
         $PageTitle = 'Indexing Duplicates';
         $PageDescription = 'Indexed files removed from the live tables as duplicates.';
 
-        return view('indexing_duplicates.index', compact('PageTitle', 'PageDescription'));
+        // Manual Entry dropdowns: the same LGA / district lookups as /api/reference.
+        $lgaOptions = \App\Models\Lga::query()->where('is_active', true)->orderBy('name')->pluck('name')
+            ->map(fn ($n) => trim((string) $n))->filter()->unique(fn ($n) => mb_strtoupper($n))->values();
+        $districtOptions = \App\Models\District::query()->where('is_active', true)->orderBy('name')->pluck('name')
+            ->map(fn ($n) => trim((string) $n))->filter()->unique(fn ($n) => mb_strtoupper($n))->values();
+
+        return view('indexing_duplicates.index', compact('PageTitle', 'PageDescription', 'lgaOptions', 'districtOptions'));
     }
 
     public function stats(): JsonResponse
@@ -189,6 +195,8 @@ class IndexingDuplicateController extends Controller
                 'mls_file_no_retained' => (bool) $row->mls_file_no_retained,
                 'restored_at'          => $this->formatDate($row->restored_at),
                 'restored_by'          => $row->restored_by,
+                // 'manual' = captured by hand, never indexed: no snapshot, nothing to reverse.
+                'source'               => $row->source,
                 'counts'               => [
                     'file_indexings'    => (int) ($counts['file_indexings'] ?? 0),
                     'fileNumber'        => (int) ($counts['fileNumber'] ?? 0),
@@ -343,6 +351,113 @@ class IndexingDuplicateController extends Controller
             'success' => true,
             'message' => $result['file_number'] . ' is back in the live tables.',
         ] + $result);
+    }
+
+    /**
+     * Manual entry (CR 11112026-2): a duplicate file that was never indexed, captured
+     * straight into the archive. Super Admin only, like the move it stands in for.
+     */
+    public function storeManual(Request $request, IndexingDuplicateService $service): JsonResponse
+    {
+        if (!auth()->user()?->isSuperAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Only a Super Admin can capture an indexing duplicate.'], 403);
+        }
+
+        $data = $request->validate([
+            'file_number' => 'required|string|max:100',
+            'duplicate_of' => 'nullable|string|max:100',
+            'file_title' => 'required|string|max:4000',
+            'plot_number' => 'nullable|string|max:100',
+            'district' => 'nullable|string|max:100',
+            'lga' => 'nullable|string|max:100',
+            'location' => 'nullable|string|max:255',
+            'land_use_type' => 'nullable|string|max:100',
+            'registry' => 'nullable|string|max:50',
+            'reason' => 'required|string|max:500',
+        ], [
+            'file_title.required' => 'Enter the title on the duplicate file.',
+            'reason.required' => 'Say why this file is a duplicate.',
+        ]);
+
+        // Names and places: trimmed and single-spaced, case kept as typed. File numbers exact.
+        foreach (['file_title', 'plot_number', 'district', 'lga', 'location', 'land_use_type', 'reason'] as $field) {
+            if (isset($data[$field])) {
+                $data[$field] = preg_replace('/\s+/', ' ', trim($data[$field]));
+            }
+        }
+
+        // Location is District + LGA + State, never the plot number.
+        $placeParts = array_values(array_filter([$data['district'] ?? null, $data['lga'] ?? null]));
+        $data['location'] = $placeParts ? implode(', ', array_merge($placeParts, ['Kano'])) : null;
+
+        try {
+            $result = $service->captureManual($data);
+        } catch (\Throwable $e) {
+            Log::error('Indexing duplicate manual capture failed', ['file_number' => $data['file_number'], 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Could not save the entry. Please try again.'], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => sprintf('%s captured under Indexing Duplicates as %s.', $data['file_number'], $result['temp_file_no']),
+        ] + $result);
+    }
+
+    /**
+     * The current state of a duplicate's temporary file "X(T)", wherever it is held:
+     * so when the owner calls about it, the officer sees where it is and what it is.
+     */
+    public function tempFileState($id, \App\Services\FileLocationResolver $resolver): JsonResponse
+    {
+        $row = DB::connection('sqlsrv')->table('indexing_duplicates')->where('id', (int) $id)
+            ->first(['id', 'file_number', 'duplicate_of', 'temp_file_no']);
+        if (!$row) {
+            return response()->json(['success' => false, 'message' => 'Record not found.'], 404);
+        }
+
+        $conn = DB::connection('sqlsrv');
+        $forms = [];
+        foreach (array_filter([$row->file_number, $row->duplicate_of]) as $number) {
+            foreach (\App\Services\TemporaryFileNumberResolver::tempForms((string) $number) as $form) {
+                $forms[$form] = true;
+            }
+        }
+        $forms = array_keys($forms);
+
+        $files = [];
+        foreach ($forms as $form) {
+            $indexed = $conn->table('file_indexings')
+                ->where(fn ($q) => $q->where('file_number', $form)->orWhere('temp_file_no', $form))
+                ->orderBy('id')
+                ->first(['file_number', 'temp_file_no', 'file_title']);
+            $register = $conn->table('duplicate_fileno')->where('file_number', $form)
+                ->orderBy('id')->first(['file_title', 'category']);
+            $tracked = $conn->table('file_tracker')->where('file_number', $form)->exists();
+
+            if (!$indexed && !$register && !$tracked) {
+                continue;
+            }
+
+            $location = $resolver->resolve($form);
+            $files[] = [
+                'file_number' => $form,
+                'file_title' => $indexed->file_title ?? $register->file_title ?? null,
+                'indexed' => (bool) $indexed,
+                'problem_files' => $register->category ?? null,
+                'status' => $location['status'] ?? null,
+                'current_location' => $location['current_location'] ?? null,
+                'registry' => $location['registry'] ?? null,
+                'rack_shelf' => $location['rack_shelf'] ?? null,
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'file_number' => $row->file_number,
+            'looked_for' => $forms,
+            'files' => $files,
+        ]);
     }
 
     private function refuseUnlessSuperAdmin(): ?JsonResponse

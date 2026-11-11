@@ -38,7 +38,7 @@ class SurveyBeaconOtherTest extends TestCase
         $page = file_get_contents(resource_path('views/survey_module/beacon_requests/index.blade.php'));
 
         $this->assertSame(1, substr_count($menu, 'data-section="survey-kssgof"'));
-        $this->assertStringContainsString('<span>KNSSGOF Admin</span>', $menu);
+        $this->assertStringContainsString('<span>MLPP-SG Portal Admin</span>', $menu);
         $this->assertSame(1, substr_count($menu, "route('survey-module.beacon-requests.index')"));
         $this->assertSame(1, substr_count($menu, "route('survey-module.beacon-requests.index', ['tab' => 'registrations'])"));
         $this->assertStringContainsString('<span>Registrations</span>', $menu);

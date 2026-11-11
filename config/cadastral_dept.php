@@ -461,7 +461,8 @@ return [
     |   ready: every task of its step is done, so it can be sent on
     | An entry with no rule lists every file at the desk. `group` is the
     | sidebar heading for the desk. `requires` is not a match rule but a gate:
-    | a file stays off the list until these tasks of its step are done.
+    | a file stays off the list until these tasks of its step are done (tasks its
+    | step does not have are ignored).
     */
     'queues' => [
         // Sidebar per the user's KLAES sidebar doc (KLAES_Land_Admin_Enterprise_System-16, 2026-10-15):
@@ -484,9 +485,10 @@ return [
         ]],
         'ad_information' => ['group' => 'Cadastral Information', 'entries' => [
             // 'all' => ['label' => 'All files at AD Cad Info'],   // hidden from the sidebar for now (user, 2026-10-12)
-            'fmc' => ['label' => 'File Movement Card (FMC)', 'tasks' => ['fmc_commissioned']],
-            // After the FMC: both are tasks of one step, so without `requires` every new file shows on both lists (user, 2026-11-05).
-            'first_charting' => ['label' => '1st Charting (Direct Allocation Files)', 'tasks' => ['chart_first'], 'requires' => ['fmc_commissioned']],
+            // Direct Allocation: 1st charting, then the layout check, then the FMC (recording 365, 2026-11-09; was FMC first).
+            // `requires` only gates on tasks the file's step has, so Conversion and Verification files reach the FMC list at once.
+            'first_charting' => ['label' => '1st Charting (Direct Allocation Files)', 'tasks' => ['chart_first']],
+            'fmc' => ['label' => 'File Movement Card (FMC)', 'tasks' => ['fmc_commissioned'], 'requires' => ['chart_first', 'layout_checked']],
             // Doc step 19: AD Cad Info issues the Job No. and assigns the surveyor.
             'job_no' => ['label' => 'Assign to Surveyor (I to S)', 'tasks' => ['job_attached', 'job_its']],
             'approval' => ['label' => 'Approval', 'awaiting_head' => true],
@@ -636,11 +638,13 @@ return [
             'start' => 'registry_intake',
             'steps' => $p1Review('Not recommended', false) + [
                 'info_commission' => [
-                    'phase' => 1, 'desk' => 'ad_information', 'label' => 'Commission FMC, check layout plan, 1st charting',
+                    // Charting first, layout check second, FMC last (recording 365, 2026-11-09). The FMC
+                    // waits for the tasks listed before it (FileMovementCards::blocker).
+                    'phase' => 1, 'desk' => 'ad_information', 'label' => '1st charting, check layout plan, commission FMC',
                     'tasks' => [
-                        'fmc_commissioned' => 'FMC commissioned',
-                        'layout_checked' => 'Layout plan checked against the allocation paper',
                         'chart_first' => '1st charting done',
+                        'layout_checked' => 'Layout plan checked against the allocation paper',
+                        'fmc_commissioned' => 'FMC commissioned',
                     ],
                     'next' => 'report_charting',
                 ],

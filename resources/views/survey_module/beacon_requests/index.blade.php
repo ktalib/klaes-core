@@ -56,13 +56,15 @@
 
 <div class="page-header">
     <div>
+        {{-- Each registration tab adds its own kind in a pop-up form here, not on the portal (user, 2026-11-10). --}}
         @if ($tab === 'registrations')
-            <a class="btn btn-primary" href="{{ route('surveyor-portal.company.register') }}" target="_blank" rel="noopener">
-                <i class="fas fa-plus"></i> Add Company
-            </a>
+            <button type="button" class="btn btn-primary" data-br-open>
+                <i class="fas fa-plus"></i> {{ $registrationTab === 'surveyors' ? 'Add Surveyor' : 'Add Company' }}
+            </button>
+            @include('survey_module.beacon_requests._add_forms')
         @endif
     </div>
-    @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.beacon-requests.export'), 'title' => $tab === 'registrations' ? ($registrationTab === 'companies' ? 'Company Registrations' : 'Surveyor Registrations') : ($tab === 'maps' ? 'KSSGOF Map Requests' : 'Beacon Requests')])
+    @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.beacon-requests.export'), 'title' => $tab === 'registrations' ? ($registrationTab === 'companies' ? 'Company Registrations' : 'Surveyor Registrations') : ($tab === 'maps' ? 'MLPP-SG Map Requests' : 'Beacon Requests')])
 </div>
 
 <form method="GET" class="table-toolbar">
@@ -90,7 +92,7 @@
         <table>
             <thead>
                 <tr>
-                    <th>S/N</th><th>Request No.</th><th>Date</th><th>From</th><th>Beacon Type</th><th>Request Type</th><th>Amount Paid (₦)</th><th>Payment Date</th><th>Company</th><th>Surveyor's Name</th><th>Job</th>
+                    <th>S/N</th><th>Request No.</th><th>Date</th><th>From</th><th>Beacon Type</th><th>Request Type</th><th>Amount Paid (₦)</th><th>Payment Date</th><th>Company</th><th>Surveyor's Name</th><th>Job No.</th><th>Job</th>
                     <th>Beacons</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Status</th><th>Issued Numbers</th><th style="width:48px;"></th>
                 </tr>
             </thead>
@@ -107,6 +109,7 @@
                         <td style="white-space:nowrap;">{{ optional($q->payment_date)->format('d/m/Y') ?: '—' }}</td>
                         <td>{{ $q->company_name ?: '—' }}</td>
                         <td>{{ $q->surveyor_name }}</td>
+                        <td style="white-space:nowrap;font-family:monospace;">{{ $q->job_no ?: '—' }}</td>
                         <td>{{ $q->job_name ?: '—' }}</td>
                         <td>{{ number_format($q->quantity) }}</td>
                         <td>{{ $q->plot_no ?: '—' }}</td>
@@ -157,7 +160,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="19" style="text-align:center;padding:28px;color:var(--gray-500);">No beacon requests{{ $filtered ? ' for this selection' : ' yet' }}.</td></tr>
+                    <tr><td colspan="20" style="text-align:center;padding:28px;color:var(--gray-500);">No beacon requests{{ $filtered ? ' for this selection' : ' yet' }}.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -168,7 +171,7 @@
     </div>
 </div>
 
-{{-- Issue: Public takes the next numbers from the pool; Private is A + serial + letters. --}}
+{{-- Issue: Public takes the next numbers from the pool; Private is the company's letters + serial (B0001), as on Issue Beacon No. --}}
 <form method="POST" id="brqIssue" action="" class="farmer-entry-form" data-sv-modal="Issue Beacons" data-sv-modal-size="sm" data-sv-modal-static>
     @csrf
     <p id="brqIssueHead" style="font-weight:600;margin:0 0 12px;"></p>
@@ -236,17 +239,17 @@
     function pad(n) { n = String(n); while (n.length < 4) n = '0' + n; return n; }
     function preview() {
         var letters = el('brqLetters').value.replace(/[^a-z]/gi, '').toUpperCase(), start = parseInt(el('brqStart').value, 10);
-        el('brqPreview').textContent = letters && start > 0 ? 'A' + pad(start) + letters + (qty > 1 ? ' to A' + pad(start + qty - 1) + letters : '') + ' (' + qty + ')' : '';
+        el('brqPreview').textContent = letters && start > 0 ? letters + pad(start) + (qty > 1 ? ' to ' + letters + pad(start + qty - 1) : '') + ' (' + qty + ')' : '';
     }
     function next() {
         var letters = el('brqLetters').value.replace(/[^a-z]/gi, '').toUpperCase();
         el('brqNextNote').textContent = '';
         if (!letters) { preview(); return; }
-        fetch(nextUrl + '?prefix=A&suffix=' + encodeURIComponent(letters), { headers: { Accept: 'application/json' } })
+        fetch(nextUrl + '?prefix=' + encodeURIComponent(letters), { headers: { Accept: 'application/json' } })
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 el('brqStart').value = d.next;
-                el('brqNextNote').textContent = d.last ? 'Last issued: A' + pad(d.last) + letters + '.' : 'None issued yet with ' + letters + '.';
+                el('brqNextNote').textContent = d.last ? 'Last issued: ' + letters + pad(d.last) + '.' : 'None issued yet with ' + letters + '.';
                 preview();
             }).catch(function () { el('brqNextNote').textContent = 'The last serial could not be checked; type the serial.'; });
     }

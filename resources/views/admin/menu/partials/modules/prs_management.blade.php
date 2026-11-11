@@ -29,6 +29,13 @@
     </div>
 
     <div class="pl-4 mt-1 space-y-0.5 hidden" data-content="prs-management">
+      {{-- Dashboard (KLAES sidebar outline, 2026-11-10): App\Services\ModuleDashboards. Commented out for now (user, 2026-11-10). --}}
+      {{--
+      <a href="{{ route('module-dashboard.show', 'prs') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('module-dashboard.show') && request()->route('module') === 'prs' ? 'active' : '' }}">
+        <i data-lucide="layout-dashboard" class="h-4 w-4 text-emerald-500"></i>
+        <span>Dashboard</span>
+      </a>
+      --}}
       @foreach($prsLinks as $link)
         @php
             // Exactly one item can match: the department must agree, and so must

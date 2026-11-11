@@ -282,8 +282,14 @@
           </a>
           {{-- CR 30102026 item 21 (2026-10-31): a first version of the form; Survey will give its fields. --}}
           <a href="{{ route('survey-module.gkn.passing-checks') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.passing-checks') ? 'active' : '' }}">
-            <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Passing &amp; Checking (Final Survey Plan)</span>
+            <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Checking &amp; Passing (Survey Plan)</span>
           </a>
+          {{-- 1. Uploaded Survey Plan, nested under it (Survey Update 5i, sidebar image 2026-11-10). --}}
+          <div class="pl-3 space-y-0.5">
+            <a href="{{ route('survey-module.gkn.uploaded-plans') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.uploaded-plans') ? 'active' : '' }}">
+              <i data-lucide="file-up" class="h-3.5 w-3.5 text-pink-400"></i><span>Uploaded Survey Plan</span>
+            </a>
+          </div>
           @endif
         </div>
         @endif
@@ -377,6 +383,7 @@
               <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-bd-public">
                 {!! $bdSub('LGA Boundary', \App\Models\Survey\SurveyBoundaryDispute::TYPE_PUBLIC_LGA) !!}
                 {!! $bdSub('Interstate Boundary', \App\Models\Survey\SurveyBoundaryDispute::TYPE_PUBLIC_INTERSTATE) !!}
+                {!! $bdSub('Others', \App\Models\Survey\SurveyBoundaryDispute::TYPE_PUBLIC_OTHER) !!}
               </div>
             </div>
             <a href="{{ route('survey-module.workflow.old-surveys.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.workflow.old-surveys.*') ? 'active' : '' }}">
@@ -402,7 +409,23 @@
             {{-- One page, as under GKN (recording, 2026-11-06). --}}
             {!! $exLink("Surveyor's Report (Private)", route('survey-module.workflow.change-reports.index'), request()->routeIs('survey-module.workflow.change-reports.*', 'survey-module.workflow.private.*'), 'file-check') !!}
             @endif
+            @if($svRecords || $svExaminationVerification)
+            {{-- viii. Checking & Passing (Survey Plan) > Uploaded Survey Plan (Survey Update 5i, sidebar image 2026-11-10). --}}
+            @php $evPlansOn = request()->routeIs('survey-module.workflow.uploaded-plans'); @endphp
+            {!! $exGroup('survey-ev-cp', 'Checking & Passing (Survey Plan)', 'clipboard-check') !!}
+            <div class="pl-6 mt-1 mb-1 space-y-0.5 {{ $evPlansOn ? '' : 'hidden' }}" data-content="survey-ev-cp">
+              {!! $exLink('Uploaded Survey Plan', route('survey-module.workflow.uploaded-plans'), $evPlansOn, 'file-up') !!}
+            </div>
+            @endif
           </div>
+        @endif
+
+        {{-- f. Survey Plan Upload (Survey Update 5g, sidebar image 2026-11-10): the short form, sent to GKN or Examination/Verification. --}}
+        @if($svRecords || $svGkn || $svExaminationVerification || $svPublic || $hasRole('Survey - SG'))
+        <a href="{{ route('survey-module.survey-plans.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.survey-plans.*') ? 'active' : '' }}">
+          <i data-lucide="upload" class="h-4 w-4 text-pink-500"></i>
+          <span>Survey Plan Upload</span>
+        </a>
         @endif
 
         {{-- File Status (user, 2026-10-26): the same pages as Cadastral > Verification > File Status,
@@ -491,6 +514,12 @@
             <i data-lucide="archive" class="h-3.5 w-3.5 text-pink-400"></i>
             <span>File Tracker (Archive)</span>
           </a>
+          {{-- PFL: Survey Print File Labels (user, 2026-11-09). --}}
+          <a href="{{ route('survey-printlabel.index') }}"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-printlabel.*') ? 'active' : '' }}">
+            <i data-lucide="printer" class="h-3.5 w-3.5 text-pink-400"></i>
+            <span>Print File Label</span>
+          </a>
           <a href="{{ route('create-file-tracker.quick-search', ['url' => 'survey']) }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('create-file-tracker.quick-search') && request('url') === 'survey' ? 'active' : '' }}">
             <i data-lucide="search" class="h-3.5 w-3.5 text-pink-400"></i>
@@ -502,21 +531,36 @@
             <span>Log a File</span>
           </a>
 
-          {{-- DMS Update: the shared DMS Scan More and More Pages screens, as Cadastral's Registry uses (2026-10-25). --}}
-          <a href="{{ url('/scanning?url=scmore&survey=1') }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('scanning') && request('url') === 'scmore' && request()->boolean('survey') ? 'active' : '' }}">
-            <i data-lucide="scan" class="h-3.5 w-3.5 text-pink-400"></i>
-            <span>DMS Update · Scan More</span>
-          </a>
-          <a href="{{ url('/pagetyping?url=ptmore&survey=1') }}"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('pagetyping') && request('url') === 'ptmore' && request()->boolean('survey') ? 'active' : '' }}">
-            <i data-lucide="files" class="h-3.5 w-3.5 text-pink-400"></i>
-            <span>DMS Update · More Pages</span>
-          </a>
+          {{-- DMS Update: the shared DMS Scan More and More Pages screens, as Cadastral's Registry uses (2026-10-25).
+               One group with the two under it (user, 2026-11-09). --}}
+          <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-dms-update">
+            <div class="flex items-center gap-2"><i data-lucide="refresh-cw" class="h-3.5 w-3.5 text-pink-400"></i><span>DMS Update</span></div>
+            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-dms-update"></i>
+          </div>
+          <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-dms-update">
+            <a href="{{ url('/scanning?url=scmore&survey=1') }}"
+              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('scanning') && request('url') === 'scmore' && request()->boolean('survey') ? 'active' : '' }}">
+              <i data-lucide="scan" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Scan More</span>
+            </a>
+            <a href="{{ url('/pagetyping?url=ptmore&survey=1') }}"
+              class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('pagetyping') && request('url') === 'ptmore' && request()->boolean('survey') ? 'active' : '' }}">
+              <i data-lucide="files" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>More Pages</span>
+            </a>
+          </div>
         </div>
         @endif
 
-        {{-- KNSSGOF Admin (user, 2026-11-06): the portal's staff page, beacon requests and surveyor registrations. For the SG role, as the page itself is. --}}
+        {{-- h. Survey Reports --}}
+        @if($hasRole('Survey Reports') || $hasRole('Survey - Records') || $hasRole('Supper Admin'))
+        <a href="{{ route('survey-module.reports') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.reports') ? 'active' : '' }}">
+          <i data-lucide="file-bar-chart" class="h-4 w-4 text-pink-500"></i>
+          <span>Survey Reports</span>
+        </a>
+        @endif
+
+        {{-- MLPP-SG Portal Admin (named and placed last as on the KLAES sidebar outline, 2026-11-10; KNSSGOF Admin, user 2026-11-06): the portal's staff page, beacon requests and surveyor registrations. For the SG role, as the page itself is. --}}
         {{-- Its two lists are items here, no tabs on the page (user, 2026-11-06). The only link to them since the one under Other Departments > SG was removed. --}}
         @if($svSg)
         @php
@@ -527,12 +571,12 @@
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-kssgof">
           <div class="flex items-center gap-2">
             <i data-lucide="shield-check" class="h-4 w-4 text-pink-500"></i>
-            <span>KNSSGOF Admin</span>
+            <span>MLPP-SG Portal Admin</span>
           </div>
           <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200 {{ $ksOn ? 'rotate-90' : '' }}" data-chevron="survey-kssgof"></i>
         </div>
         <div class="pl-4 mt-1 mb-1 space-y-0.5 {{ $ksOn ? '' : 'hidden' }}" data-content="survey-kssgof">
-          <a href="{{ route('survey-module.beacon-requests.index', ['tab' => 'registrations']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksReg ? 'active' : '' }}">
+          <a data-tab-card="mlppsg-registrations" href="{{ route('survey-module.beacon-requests.index', ['tab' => 'registrations']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksReg ? 'active' : '' }}">
             <i data-lucide="user-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Registrations</span>
           </a>
           <a href="{{ route('survey-module.beacon-requests.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksOn && ! $ksReg && ! $ksMaps ? 'active' : '' }}">
@@ -542,14 +586,6 @@
             <i data-lucide="map" class="h-3.5 w-3.5 text-pink-400"></i><span>Map Requests</span>
           </a>
         </div>
-        @endif
-
-        {{-- h. Survey Reports --}}
-        @if($hasRole('Survey Reports') || $hasRole('Survey - Records') || $hasRole('Supper Admin'))
-        <a href="{{ route('survey-module.reports') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.reports') ? 'active' : '' }}">
-          <i data-lucide="file-bar-chart" class="h-4 w-4 text-pink-500"></i>
-          <span>Survey Reports</span>
-        </a>
         @endif
 
       </div>

@@ -23,12 +23,15 @@
     /* Kept for any partial that still reads the raw list. */
     $userRoles = auth()->user()->assignedRoleNames();
 @endphp
-{{-- Greyed out and inert while the account has no passport photo, or has not confirmed
-     its phone number. This is the visual half of both rules; RequireProfilePhoto and
-     RequirePhoneVerification block the URLs themselves. --}}
+{{-- Greyed out and inert while the account has no passport photo, has not confirmed
+     its phone number, or owes its security questions. This is the visual half of those
+     rules; RequireProfilePhoto, RequirePhoneVerification and RequireSecurityQuestions
+     block the URLs themselves. --}}
 @php
     $sidebarPhotoLocked = auth()->check()
-        && (auth()->user()->needs_profile_photo || auth()->user()->needs_phone_verification);
+        && !app(\Lab404\Impersonate\Services\ImpersonateManager::class)->isImpersonating()
+        && (auth()->user()->needs_profile_photo || auth()->user()->needs_phone_verification
+            || app(\App\Services\SecurityQuestionService::class)->mustSetUp(request(), auth()->user()));
 @endphp
 <div class="sidebar border-r border-gray-200 bg-white transition-all duration-300 ease-in-out{{ $sidebarPhotoLocked ? ' sidebar-locked' : '' }}"
   @if($sidebarPhotoLocked) aria-disabled="true" @endif>

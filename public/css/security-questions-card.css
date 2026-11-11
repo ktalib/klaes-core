@@ -1,0 +1,531 @@
+/*
+ * Security questions card (profile.partials.security-questions-card).
+ *
+ * Self-contained like css/phone-verification-card.css, whose colours it shares: every
+ * class is prefixed sqc- so the cards can be restyled independently. Two panels sized
+ * to fit a laptop screen without a scrollbar: the steps and rules on the left, the
+ * current step on the right. On a phone the panels stack.
+ */
+
+.sqc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1085;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.sqc-overlay.sqc-open {
+  display: flex;
+}
+
+/* Padding inside the width, whatever the page around the card sets. */
+.sqc-overlay *,
+.sqc-overlay *::before,
+.sqc-overlay *::after {
+  box-sizing: border-box;
+}
+
+.sqc-card {
+  display: flex;
+  width: 100%;
+  max-width: 56rem;
+  max-height: calc(100vh - 2rem);
+  overflow: hidden;
+  background: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.45);
+  animation: sqc-rise 0.25s ease-out;
+}
+
+@keyframes sqc-rise {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* --- left panel ---------------------------------------------------------- */
+
+.sqc-side {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 19.5rem;
+  padding: 1.5rem 1.5rem 1.25rem;
+  background: linear-gradient(165deg, #ecfdf5 0%, #f8fafc 70%);
+  border-right: 1px solid #e2e8f0;
+}
+
+.sqc-logos {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.sqc-logos img {
+  height: 2.1rem;
+  width: auto;
+  object-fit: contain;
+}
+
+.sqc-logo-rule {
+  width: 1px;
+  height: 1.5rem;
+  background: #cbd5e1;
+}
+
+.sqc-eyebrow {
+  margin: 1.1rem 0 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #107c41;
+}
+
+.sqc-side-title {
+  margin: 0.25rem 0 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #0f172a;
+}
+
+.sqc-side-lede {
+  margin: 0.45rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+/* Vertical step list. */
+.sqc-steps {
+  margin: 1.1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sqc-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.sqc-step + .sqc-step {
+  margin-top: 0.7rem;
+}
+
+/* The line joining a step to the one above it. */
+.sqc-step + .sqc-step::before {
+  content: '';
+  position: absolute;
+  left: calc(0.875rem - 1px);
+  top: -0.7rem;
+  width: 2px;
+  height: 0.7rem;
+  background: #cbd5e1;
+}
+
+.sqc-step.sqc-step-done::before,
+.sqc-step.sqc-step-current::before {
+  background: #107c41;
+}
+
+.sqc-step-dot {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #94a3b8;
+  background: #ffffff;
+  border: 2px solid #cbd5e1;
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+
+.sqc-step-dot svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.sqc-step-current .sqc-step-dot {
+  color: #ffffff;
+  background: #107c41;
+  border-color: #107c41;
+  box-shadow: 0 0 0 4px rgba(16, 124, 65, 0.15);
+}
+
+.sqc-step-done .sqc-step-dot {
+  color: #ffffff;
+  background: #107c41;
+  border-color: #107c41;
+}
+
+.sqc-step-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.sqc-step-label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.sqc-step-sub {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+.sqc-step-current .sqc-step-label,
+.sqc-step-done .sqc-step-label {
+  color: #0f172a;
+}
+
+.sqc-step-current .sqc-step-sub {
+  color: #475569;
+}
+
+.sqc-rules {
+  margin: 1.1rem 0 0;
+  padding: 0.65rem 0.8rem 0.65rem 1.6rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #334155;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #107c41;
+  border-radius: 0.5rem;
+  list-style: disc;
+}
+
+.sqc-footnote {
+  margin: auto 0 0;
+  padding-top: 1rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+/* --- right panel --------------------------------------------------------- */
+
+.sqc-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2rem 2rem 1.5rem;
+  overflow-y: auto;
+  /* Only a very short window ever scrolls here, and then without a visible bar. */
+  scrollbar-width: none;
+}
+
+.sqc-main::-webkit-scrollbar {
+  display: none;
+}
+
+.sqc-kicker {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #107c41;
+}
+
+.sqc-title {
+  margin: 0.3rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.sqc-lede {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.sqc-field {
+  margin-top: 1.1rem;
+}
+
+.sqc-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.sqc-input,
+.sqc-select {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.9375rem;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sqc-input:focus,
+.sqc-select:focus {
+  outline: none;
+  border-color: #107c41;
+  box-shadow: 0 0 0 3px rgba(16, 124, 65, 0.15);
+}
+
+.sqc-input.sqc-invalid,
+.sqc-select.sqc-invalid {
+  border-color: #f87171;
+  background: #fef2f2;
+}
+
+.sqc-answer-wrap {
+  position: relative;
+}
+
+.sqc-answer-wrap .sqc-input {
+  padding-right: 4rem;
+}
+
+.sqc-reveal {
+  position: absolute;
+  top: 50%;
+  right: 0.6rem;
+  transform: translateY(-50%);
+  padding: 0.2rem 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #107c41;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+/* Confirm step: the questions, answers hidden until asked for. */
+.sqc-review {
+  margin-top: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.sqc-review-row {
+  padding: 0.6rem 0.85rem;
+}
+
+.sqc-review-row + .sqc-review-row {
+  border-top: 1px solid #e2e8f0;
+}
+
+.sqc-review-q {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.sqc-review-a {
+  margin-top: 0.15rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+  word-break: break-word;
+}
+
+.sqc-review-edit {
+  float: right;
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.sqc-pane-done {
+  text-align: center;
+  margin: auto 0;
+}
+
+.sqc-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin: 0 auto 0.75rem;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #107c41;
+}
+
+.sqc-icon svg {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.sqc-error {
+  margin: 0.75rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #b91c1c;
+}
+
+/* --- navigation ---------------------------------------------------------- */
+
+.sqc-nav {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding-top: 1.5rem;
+}
+
+.sqc-submit {
+  flex: 1 1 auto;
+  padding: 0.75rem 1rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: #107c41;
+  border: 0;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.sqc-submit:hover:not(:disabled) {
+  background: #0d6635;
+}
+
+.sqc-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sqc-back {
+  flex: 0 0 auto;
+  padding: 0.75rem 1.1rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #334155;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.sqc-back:hover {
+  background: #f8fafc;
+}
+
+.sqc-link {
+  padding: 0;
+  font-size: inherit;
+  font-weight: 600;
+  color: #107c41;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.sqc-hidden {
+  display: none !important;
+}
+
+/* --- phones: the panels stack, the step list runs across ------------------ */
+
+@media (max-width: 760px) {
+  .sqc-overlay {
+    padding: 0.5rem;
+  }
+
+  .sqc-card {
+    flex-direction: column;
+    max-height: calc(100vh - 1rem);
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .sqc-card::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sqc-side {
+    flex: 0 0 auto;
+    padding: 1rem 1.1rem 0.9rem;
+    border-right: 0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .sqc-logos img {
+    height: 1.8rem;
+  }
+
+  .sqc-eyebrow {
+    margin-top: 0.75rem;
+  }
+
+  .sqc-side-title {
+    font-size: 1.05rem;
+  }
+
+  .sqc-steps {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.8rem;
+  }
+
+  .sqc-step {
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 0.25rem;
+    text-align: center;
+  }
+
+  .sqc-step + .sqc-step {
+    margin-top: 0;
+  }
+
+  .sqc-step + .sqc-step::before {
+    left: auto;
+    right: calc(50% + 0.875rem + 0.2rem);
+    top: 0.875rem;
+    width: calc(100% - 1.75rem);
+    height: 2px;
+  }
+
+  .sqc-step-label {
+    font-size: 0.65rem;
+  }
+
+  .sqc-step-sub,
+  .sqc-rules {
+    display: none;
+  }
+
+  .sqc-footnote {
+    margin-top: 0.6rem;
+    padding-top: 0;
+  }
+
+  .sqc-main {
+    flex: 0 0 auto;
+    padding: 1.1rem 1.1rem 1.1rem;
+    overflow: visible;
+  }
+
+  .sqc-title {
+    font-size: 1.15rem;
+  }
+}

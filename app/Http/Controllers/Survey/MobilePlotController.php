@@ -66,17 +66,29 @@ class MobilePlotController extends Controller
         ]);
     }
 
-    /** Find an OP: serial, allottee, plot no., file no. or registration no. */
+    /**
+     * Find an OP as on the web Record Plot Showing (user, 2026-11-09: "the form is not the same as the web"):
+     * the TP No. first, then the plot in that layout; an OP with no TP No. on it by its serial number only.
+     */
     public function ops(Request $r)
     {
         $q = trim((string) $r->query('q', ''));
         $for = $r->query('for') === 'check' ? 'check' : 'show';
+        $groups = app(\App\Services\Survey\OpTpGroups::class)->options();
+        $group = (int) $r->query('group');
+        $group = $groups->contains('id', $group) ? $group : 0;
+        $plot = trim((string) $r->query('plot', ''));
+        $results = $group ? $this->ops->inGroup($group, $plot) : ($q !== '' ? $this->ops->searchSerial($q) : []);
 
         return view('survey_module.mobile.plots.ops', [
-            'q'       => $q,
-            'for'     => $for,
-            'results' => $q !== '' ? $this->ops->search($q) : [],
-            'counts'  => $q !== '' ? $this->showingCounts() : collect(),
+            'q'        => $q,
+            'for'      => $for,
+            'tpGroups' => $groups,
+            'group'    => $group,
+            'plot'     => $plot,
+            'searched' => $group > 0 || $q !== '',
+            'results'  => $results,
+            'counts'   => $results ? $this->showingCounts() : collect(),
         ]);
     }
 
@@ -87,6 +99,8 @@ class MobilePlotController extends Controller
         $showings = Showing::with('photos')->where('op_source', $record['source'])->where('op_source_id', $record['id'])
             ->orderByDesc('showing_no')->get();
 
+        $group = app(\App\Services\Survey\OpTpGroups::class)->forRaw($record['tp_no']);
+
         return view('survey_module.mobile.plots.op', [
             'op'        => $record,
             'showings'  => $showings,
@@ -94,7 +108,41 @@ class MobilePlotController extends Controller
             'checks'    => Check::where('op_source', $record['source'])->where('op_source_id', $record['id'])->orderByDesc('id')->limit(5)->get(),
             'surveyors' => $this->surveyors(),
             'me'        => $this->myStaffId(),
+            // As the web Record Plot Showing (user, 2026-11-09): the OP's TP No., and TP No. (Layout) from
+            // Public Layout Plans, picked for you when the OP's layout is in the register.
+            'tpLabel'   => $this->tpLabel($record),
+            'tpNumbers' => $this->tpNumbers(),
+            'tpPicked'  => $group->survey_tp_number_id ?? null,
         ]);
+    }
+
+    /** The OP's TP No. as the web lists it (its layout group), else as written on the OP. */
+    public function tpLabel(array $op): ?string
+    {
+        return app(\App\Services\Survey\OpTpGroups::class)->forRaw($op['tp_no'] ?? null)->label ?? ($op['tp_no'] ?? null);
+    }
+
+    /** TP No. (Layout) options: Public Layout Plans, each number once (as PlotConfirmationController::index). */
+    private function tpNumbers()
+    {
+        return \App\Models\Survey\SurveyTpNumber::listed()->whereNotNull('tp_no')->where('tp_no', '<>', '')->serialOrder()->get(['id', 'tp_no'])
+            ->groupBy(fn ($t) => mb_strtoupper(str_replace(' ', '', $t->tp_no)))->map(fn ($g) => $g->sortBy('id')->first())->values();
+    }
+
+    /** A picked TP No. (Layout), or Other with the number typed (as PlotConfirmationController::tpValue). */
+    private function tpValue(?string $tp, ?string $other): array
+    {
+        if ($tp === null || $tp === '') return ['survey_tp_number_id' => null, 'tp_no' => null];
+        if ($tp === self::OTHER) {
+            $typed = trim(preg_replace('/\s+/', ' ', (string) $other));
+            $match = \App\Models\Survey\SurveyTpNumber::listed()->whereRaw("UPPER(REPLACE(tp_no, ' ', '')) = ?", [mb_strtoupper(str_replace(' ', '', $typed))])->orderBy('id')->first();
+
+            return ['survey_tp_number_id' => $match?->id, 'tp_no' => $match?->tp_no ?? $typed];
+        }
+        $row = ctype_digit($tp) ? \App\Models\Survey\SurveyTpNumber::listed()->find((int) $tp) : null;
+        if (! $row) throw ValidationException::withMessages(['tp' => 'Choose the TP No. from the list, or Other and type it.']);
+
+        return ['survey_tp_number_id' => $row->id, 'tp_no' => $row->tp_no];
     }
 
     /** One showing. JSON for the offline queue; photos follow to the returned URL. */
@@ -117,12 +165,16 @@ class MobilePlotController extends Controller
             'reason'           => [Rule::requiredIf($count > 0), 'nullable', Rule::in(Showing::REASONS)],
             'notes'            => 'nullable|string|max:2000',
             'requester_is_allottee' => 'nullable|in:0,1',
+            // TP No. (Layout), as on the web (user, 2026-11-09). Optional: a showing queued before it was asked syncs.
+            'tp'               => 'nullable|string|max:20',
+            'tp_other'         => ['nullable', 'string', 'max:100', Rule::requiredIf(fn () => $r->input('tp') === self::OTHER)],
             'latitude'         => 'nullable|numeric|between:-90,90',
             'longitude'        => 'nullable|numeric|between:-180,180|required_with:latitude',
             'accuracy_m'       => 'nullable|numeric|min:0|max:100000',
         ], [
             'surveyor.required'         => 'Choose the surveyor who showed the plot.',
             'surveyor_other.required'   => "Type the surveyor's name.",
+            'tp_other.required'         => 'Specify the TP No.',
             'shown_at.regex'            => 'Give the time as HH:MM.',
             'allottee_present.required' => 'Say whether the allottee was there.',
             'reason.required'           => 'This OP has been shown before: say why (Change of Ownership or Verification).',
@@ -131,7 +183,9 @@ class MobilePlotController extends Controller
         // Who asked for the showing (user, 2026-11-02). Not required of a showing queued on a phone
         // before the app asked for it, so the offline queue still syncs.
         $requester = \App\Services\Survey\ShowingRequester::resolve($r, $record, false);
-        $tp = app(\App\Services\Survey\OpTpGroups::class)->showingValues($record['tp_no']);
+        $tp = $this->tpValue($data['tp'] ?? null, $data['tp_other'] ?? null);
+        // Nobody picked one: the layout written on the OP, so the showing still groups by TP No.
+        if (! $tp['tp_no']) $tp = app(\App\Services\Survey\OpTpGroups::class)->showingValues($record['tp_no']);
 
         try {
             $showing = DB::connection('sqlsrv')->transaction(function () use ($record, $data, $staffId, $name, $uuid, $requester, $tp) {
@@ -198,6 +252,7 @@ class MobilePlotController extends Controller
 
         return view('survey_module.mobile.plots.check_form', [
             'op'        => $op,
+            'tpLabel'   => $op ? $this->tpLabel($op) : null,
             'opShowings' => $opShowings,
             'showingId' => (int) $r->query('showing') ?: $opShowings->first()?->id,
             'layouts'   => SurveyLpkn::orderBy('lpkn_number')->get(['id', 'lpkn_number', 'layout_name', 'prop_district', 'prop_lga']),

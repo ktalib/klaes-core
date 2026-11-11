@@ -32,6 +32,8 @@ class FmcController extends Controller
             'location' => 'nullable|string|max:255',
             'block_no' => 'nullable|string|max:50',
             'layout_no' => 'nullable|string|max:50',
+            'layout_no_other' => 'nullable|string|max:50',
+            'district_other' => 'nullable|string|max:100',
         ]);
         $case = CadastralCase::findOrFail($case);
 
@@ -48,6 +50,44 @@ class FmcController extends Controller
             ->with('success', "{$fmc->fmc_no} commissioned. Print it and keep it with the file.");
     }
 
+    /**
+     * Correct the card's header from the edit modal; the record fields go back to the
+     * file's records too (recording 365, 2026-11-09). FMC roles only, wherever the file is.
+     */
+    public function update(Request $request, int $case)
+    {
+        $this->mayView();
+        abort_unless(\App\Services\CadastralDept\DeskAccess::can($request->user(), 'edit'), 403, 'Editing the File Movement Card needs the edit permission.');
+        $data = $request->validate([
+            'allottee_name' => 'nullable|string|max:255',
+            'block_no' => 'nullable|string|max:50',
+            'layout_no' => 'nullable|string|max:50',
+            'layout_no_other' => 'nullable|string|max:50',
+            'district_other' => 'nullable|string|max:100',
+            'plot_no' => 'nullable|string|max:50',
+            'district' => 'nullable|string|max:100',
+            'lga' => 'nullable|string|max:100',
+            'location' => 'nullable|string|max:255',
+        ]);
+        $case = CadastralCase::findOrFail($case);
+        $fmc = $case->fmc;
+        abort_unless($fmc, 404);
+
+        try {
+            $result = $this->cards->edit($fmc, $data, $request->user());
+        } catch (WorkflowGuardException $e) {
+            return back()->withInput()->with('error', $e->getMessage())->with('fmc_edit_open', true);
+        }
+
+        $where = array_filter([
+            isset($result['sources']['file_indexings']) ? 'the indexing record' : null,
+            isset($result['sources']['fileNumber']) ? $result['sources']['fileNumber'] . ' file number row(s)' : null,
+        ]);
+
+        return redirect()->route('cadastral-dept.cases.fmc.show', $case->id)
+            ->with('success', "{$fmc->fmc_no} updated" . ($where ? '; also corrected on ' . implode(' and ', $where) : '') . '.');
+    }
+
     public function show(int $case, WorkflowDefinition $def, QrRenderer $qr)
     {
         $this->mayView();
@@ -55,7 +95,8 @@ class FmcController extends Controller
         $fmc = $case->fmc;
         abort_unless($fmc, 404);
 
-        return view('cadastral_dept.fmc.show', $this->cardData($fmc, $def, $qr) + ['case' => $case]);
+        // The edit modal fills a blank card field from the file's records (development standard 5).
+        return view('cadastral_dept.fmc.show', $this->cardData($fmc, $def, $qr) + ['case' => $case, 'recordValues' => $this->cards->backfill($case)]);
     }
 
     public function print(int $case, WorkflowDefinition $def, QrRenderer $qr)
@@ -130,6 +171,8 @@ class FmcController extends Controller
             'qrLabel' => $qrLabel,
             'qrValue' => $qrValue,
             'timeline' => $this->cards->timeline($fmc),
+            // OP No., File Type and File No.: shown, never edited from the card (2026-11-10).
+            'fixed' => $this->cards->fixedDetails($fmc->case, (string) $fmc->file_number),
             'loggedIn' => $this->cards->loggedIn($fmc),
         ];
     }

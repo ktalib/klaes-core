@@ -24,7 +24,41 @@ class PropertyIndexCardController extends Controller
 
         $pageLength = 20; // Pagination default matching DataTables config
 
-        return view('property_index_card.index', compact('pageLength', 'PageTitle', 'PageDescription', 'featuredRecord'));
+        // The cards Cadastral Registry generates (cadastral_property_index_cards) are listed here
+        // too, read only, on their own tab (user, 2026-11-11); they are not copied into pic.
+        $cardsSearch = trim((string) request()->query('cards_q', ''));
+        $cadastralCards = null;
+        if (\App\Services\CadastralDept\PropertyIndexCards::installed()) {
+            $cadastralCards = DB::connection('sqlsrv')
+                ->table(\App\Services\CadastralDept\PropertyIndexCards::TABLE . ' as c')
+                ->leftJoin('users as u', 'u.id', '=', 'c.generated_by')
+                ->when($cardsSearch !== '', fn ($q) => $q->where(fn ($w) => $w
+                    ->whereRaw('UPPER(c.file_number) LIKE ?', ['%' . strtoupper($cardsSearch) . '%'])
+                    ->orWhereRaw('UPPER(c.file_title) LIKE ?', ['%' . strtoupper($cardsSearch) . '%'])))
+                ->orderByDesc('c.generated_at')->orderByDesc('c.id')
+                ->select('c.*', 'u.first_name as generated_by_first', 'u.last_name as generated_by_last')
+                ->paginate(20, ['*'], 'cards_page')->withQueryString();
+        }
+
+        return view('property_index_card.index', compact('pageLength', 'PageTitle', 'PageDescription', 'featuredRecord', 'cadastralCards', 'cardsSearch'));
+    }
+
+    /** A Cadastral-generated card's filed PDF (?file=), for anyone on this page. */
+    public function cadastralCard(Request $request)
+    {
+        $file = trim((string) $request->query('file', ''));
+        $card = $file !== '' && \App\Services\CadastralDept\PropertyIndexCards::installed()
+            ? app(\App\Services\CadastralDept\PropertyIndexCards::class)->find($file)
+            : null;
+        if (! $card || ! $card->path || ! \Illuminate\Support\Facades\Storage::disk('public')->exists($card->path)) {
+            return redirect()->route('property_index_card.index', ['tab' => 'cadastral', 'cards_q' => $file])
+                ->with('error', $file !== '' ? "No Property Index Card has been filed for {$file} yet." : 'Choose a file.');
+        }
+
+        return response()->file(\Illuminate\Support\Facades\Storage::disk('public')->path($card->path), [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . basename($card->path) . '"',
+        ]);
     }
 
     public function getData(Request $request)

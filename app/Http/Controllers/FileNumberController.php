@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 use Yajra\DataTables\Facades\DataTables;
 use App\Models\AllocationSourceLookup;
 use App\Models\FileNumber;
@@ -562,7 +563,7 @@ class FileNumberController extends Controller
                 SELECT
                     fn.id, fn.kangisFileNo, fn.mlsfNo, fn.NewKANGISFileNo, fn.FileName,
                     fn.st_file_no, fn.plot_no, fn.tp_no, fn.location, fn.tracking_id,
-                    fn.type, fn.created_at, fn.SOURCE, fn.deleted_numbers,
+                    fn.type, fn.created_at, fn.updated_at, fn.updated_by, fn.SOURCE, fn.deleted_numbers,
                     -- The Edit modal's file-number field lands in one of two places
                     -- depending on its \"Old File Number\" checkbox, so the column has to
                     -- read both: related_fileno is a JSON array on fileNumber, old_fileno
@@ -823,6 +824,9 @@ class FileNumberController extends Controller
                     'tracking_id' => trim($row->tracking_id ?? '') ?: 'N/A',
                     'type' => trim($row->type ?? '') ?: 'N/A',
                     'created_by' => trim($row->derived_created_by ?? '') ?: 'System',
+                    'updated_by' => $this->hasLaterUpdate($row->created_at, $row->updated_at)
+                        ? (trim((string) ($row->updated_by ?? '')) ?: 'N/A')
+                        : 'N/A',
                     // An RC number is a recertification whatever the allocation route
                     // recorded, and most RC files are legacy rows with no source at all —
                     // so the label is derived here rather than read from the column.
@@ -846,6 +850,10 @@ class FileNumberController extends Controller
                     'created_at' => ($row->derived_created_at ?? null)
                         ? date('Y-m-d H:i:s', strtotime($row->derived_created_at))
                         : ($row->created_at ? date('Y-m-d H:i:s', strtotime($row->created_at)) : 'N/A'),
+                    'updated_at' => $this->hasLaterUpdate($row->created_at, $row->updated_at)
+                        && trim((string) ($row->updated_by ?? '')) !== ''
+                        ? Carbon::parse($row->updated_at)->format('Y-m-d H:i:s')
+                        : 'N/A',
                     'action' => $this->buildCaptureActionColumn($row, $row->SOURCE),
                 ];
             })->all();
@@ -857,9 +865,12 @@ class FileNumberController extends Controller
                 $tempRows = DB::connection('sqlsrv')->select(
                     "SELECT m.id, m.full_file_number, m.file_name, m.land_use, m.customer_type,
                             m.plot_no, m.tp_no, m.location, m.lga, m.district, m.tracking_id,
-                            m.created_by, m.commissioning_date, m.created_at, m.source,
+                            m.created_by, m.commissioning_date, m.created_at, m.updated_at, m.source,
                             m.batch_no, m.old_fileno, m.phone_no, m.rep_phone_no, p.name AS purpose_name,
                             rot.root_of_title,
+                            audit.updated_by AS indexed_updated_by,
+                            audit.created_at AS indexed_created_at,
+                            audit.updated_at AS indexed_updated_at,
                             geo.latitude, geo.longitude
                      FROM mls_file_no m
                      LEFT JOIN purposes p ON p.id = m.purpose_id
@@ -871,6 +882,12 @@ class FileNumberController extends Controller
                            AND LTRIM(RTRIM(fi.root_of_title)) != ''
                          ORDER BY fi.id DESC
                      ) AS rot
+                     OUTER APPLY (
+                         SELECT TOP 1 fi.updated_by, fi.created_at, fi.updated_at
+                         FROM file_indexings fi
+                         WHERE fi.file_number = m.full_file_number
+                         ORDER BY fi.id DESC
+                     ) AS audit
                      OUTER APPLY (
                          SELECT TOP 1 fi.latitude, fi.longitude
                          FROM file_indexings fi
@@ -886,6 +903,16 @@ class FileNumberController extends Controller
 
                 foreach ($tempRows as $row) {
                     $fileNo = trim($row->full_file_number ?? '');
+                    $indexedWasUpdated = $this->hasLaterUpdate($row->indexed_created_at, $row->indexed_updated_at);
+                    $tempWasUpdated = $this->hasLaterUpdate($row->created_at, $row->updated_at);
+                    $indexedUpdateIsLatest = $indexedWasUpdated
+                        && (!$tempWasUpdated || Carbon::parse($row->indexed_updated_at)->greaterThanOrEqualTo(Carbon::parse($row->updated_at)));
+                    $updatedBy = $indexedUpdateIsLatest
+                        ? trim((string) ($row->indexed_updated_by ?? ''))
+                        : '';
+                    $updatedAt = $updatedBy !== ''
+                        ? $row->indexed_updated_at
+                        : null;
                     // Build a fake action column for temp files (view only, no batch)
                     $id = (int) $row->id;
                     $actionHtml = '
@@ -939,6 +966,7 @@ class FileNumberController extends Controller
                                 : null,
                         ])),
                         'created_by'                  => trim($row->created_by ?? '') ?: 'System',
+                        'updated_by'                  => $updatedBy !== '' ? $updatedBy : 'N/A',
                         'source'                      => trim($row->source ?? '') ?: 'Temporary File',
                         'source_instrument_capture_id'=> null,
                         'source_pra_id'               => null,
@@ -952,6 +980,7 @@ class FileNumberController extends Controller
                         'latitude'                    => $this->formatCoordinate($row->latitude ?? null),
                         'longitude'                   => $this->formatCoordinate($row->longitude ?? null),
                         'created_at'                  => $row->created_at ? date('Y-m-d H:i:s', strtotime($row->created_at)) : 'N/A',
+                        'updated_at'                  => $updatedAt ? Carbon::parse($updatedAt)->format('Y-m-d H:i:s') : 'N/A',
                         'action'                      => $actionHtml,
                     ];
                 }
@@ -1009,6 +1038,15 @@ class FileNumberController extends Controller
         }
 
         return number_format((float) $value, 6, '.', '');
+    }
+
+    private function hasLaterUpdate($createdAt, $updatedAt): bool
+    {
+        return $createdAt !== null
+            && $updatedAt !== null
+            && Carbon::parse($updatedAt)->startOfSecond()->greaterThan(
+                Carbon::parse($createdAt)->startOfSecond()
+            );
     }
 
     /**
@@ -1102,11 +1140,20 @@ class FileNumberController extends Controller
         $rows = DB::connection('sqlsrv')->select(
             "SELECT pe.id, pe.original_file_no, pe.file_name, pe.land_use, pe.customer_type,
                     pe.plot_no, pe.tp_no, pe.location, pe.lga, pe.district, pe.tracking_id,
-                    pe.created_by, pe.created_at, p.name AS purpose_name,
+                    pe.created_by, pe.created_at, pe.updated_at, p.name AS purpose_name,
+                    audit.updated_by AS indexed_updated_by,
+                    audit.created_at AS indexed_created_at,
+                    audit.updated_at AS indexed_updated_at,
                     rot.root_of_title,
                     geo.latitude, geo.longitude
              FROM plot_extensions pe
              LEFT JOIN purposes p ON p.id = pe.purpose_id
+             OUTER APPLY (
+                 SELECT TOP 1 fi.updated_by, fi.created_at, fi.updated_at
+                 FROM file_indexings fi
+                 WHERE fi.file_number = pe.original_file_no
+                 ORDER BY fi.id DESC
+             ) AS audit
              OUTER APPLY (
                  SELECT TOP 1 fi.root_of_title
                  FROM file_indexings fi
@@ -1134,6 +1181,16 @@ class FileNumberController extends Controller
         return collect($rows)->map(function ($row) use ($passportService) {
             $fileNo = trim($row->original_file_no ?? '');
             $actionHtml = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800" title="Plot Extension transaction">Plot Extension</span>';
+            $plotWasUpdated = $this->hasLaterUpdate($row->created_at, $row->updated_at);
+            $indexedWasUpdated = $this->hasLaterUpdate($row->indexed_created_at, $row->indexed_updated_at);
+            $indexedUpdateIsLatest = $indexedWasUpdated
+                && (!$plotWasUpdated || Carbon::parse($row->indexed_updated_at)->greaterThanOrEqualTo(Carbon::parse($row->updated_at)));
+            $updatedBy = $indexedUpdateIsLatest
+                ? trim((string) ($row->indexed_updated_by ?? ''))
+                : '';
+            $updatedAt = $updatedBy !== ''
+                ? $row->indexed_updated_at
+                : null;
 
             return [
                 'id'                          => (int) $row->id,
@@ -1170,6 +1227,7 @@ class FileNumberController extends Controller
                 'latitude'                    => $this->formatCoordinate($row->latitude ?? null),
                 'longitude'                   => $this->formatCoordinate($row->longitude ?? null),
                 'created_by'                  => trim($row->created_by ?? '') ?: 'System',
+                'updated_by'                  => $updatedBy !== '' ? $updatedBy : 'N/A',
                 'source'                      => 'Plot Extension',
                 'source_instrument_capture_id'=> null,
                 'source_pra_id'               => null,
@@ -1181,6 +1239,7 @@ class FileNumberController extends Controller
                 'commissioning_date'          => $row->created_at ? date('Y-m-d', strtotime($row->created_at)) : 'N/A',
                 'has_commissioning_sheet'     => false,
                 'created_at'                  => $row->created_at ? date('Y-m-d H:i:s', strtotime($row->created_at)) : 'N/A',
+                'updated_at'                  => $updatedAt ? Carbon::parse($updatedAt)->format('Y-m-d H:i:s') : 'N/A',
                 'action'                      => $actionHtml,
             ];
         });

@@ -11,7 +11,7 @@
                     <td style="white-space:nowrap;"><a href="{{ route('surveyor-portal.map-requests.show', $m) }}" style="color:var(--ks-blue);font-weight:600;">{{ $m->request_ref }}</a></td>
                     <td style="white-space:nowrap;">{{ optional($m->received_date)->format('d/m/Y') }}</td>
                     <td>{{ $m->map_name }}</td>
-                    <td>{{ $m->mapType?->name ?: '—' }}</td>
+                    <td>{{ $m->mapTypeLabel() ?: '—' }}</td>
                     <td>{{ $m->formatsLabel() }}</td>
                     <td><span class="ks-badge {{ $badge[$m->status] ?? '' }}">{{ $m->statusLabel() }}</span></td>
                 </tr>

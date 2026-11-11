@@ -289,6 +289,50 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | MLPP-SG Portal sign-in code (surveyors; formerly KSSGOF)
+    |--------------------------------------------------------------------------
+    |
+    | The LAAS shape on its own keys (user, 2026-11-10). SMS to the phone the
+    | surveyor registered with, email one click away and first during the quiet
+    | hours. When the code is late, the security questions take over after
+    | config/security_questions.php fallback_after_minutes.
+    |
+    */
+    'surveyor_login_otp' => [
+
+        // Off: surveyors sign in on username and password alone, as before.
+        'enabled' => env('SURVEYOR_LOGIN_OTP_ENABLED', true),
+
+        // Which route the FIRST code takes: 'sms' (default) or 'email'.
+        'channel' => env('SURVEYOR_LOGIN_OTP_CHANNEL', 'sms'),
+
+        // Blank follows the staff sign-in code's sender, which the gateway delivers (see laas_login_otp.sender).
+        'sender' => env('SURVEYOR_LOGIN_OTP_SENDER'),
+
+        'ttl_minutes' => env('SURVEYOR_LOGIN_OTP_TTL_MINUTES', 10),
+
+        // How long the half-finished sign-in is held; longer than the 10-minute question fallback.
+        'challenge_minutes' => env('SURVEYOR_LOGIN_OTP_CHALLENGE_MINUTES', 30),
+
+        'reuse_minutes' => env('SURVEYOR_LOGIN_OTP_REUSE_MINUTES', 5),
+
+        'max_sms_per_hour' => env('SURVEYOR_LOGIN_OTP_MAX_SMS_PER_HOUR', 6),
+
+        'quiet_hours_email_first' => env('SURVEYOR_LOGIN_OTP_QUIET_HOURS_EMAIL_FIRST', true),
+
+        // Tokens {code} and {minutes}; the fallback says almost nothing for the gateway's keyword filters.
+        'message' => env(
+            'SURVEYOR_LOGIN_OTP_MESSAGE',
+            'MLPP-SG: {code} is your sign-in number. It is valid for {minutes} minutes. Do not share it with anyone.'
+        ),
+
+        'message_fallback' => env('SURVEYOR_LOGIN_OTP_MESSAGE_FALLBACK', 'MLPP-SG: {code}'),
+
+        'email_subject' => env('SURVEYOR_LOGIN_OTP_EMAIL_SUBJECT', 'Your MLPP-SG Portal sign-in code'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | PHS Portal sign-in code (institutional members)
     |--------------------------------------------------------------------------
     |

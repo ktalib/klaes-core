@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', $request->request_no . ' — KNSSGOF Portal')
+@section('title', $request->request_no . ' — MLPP-SG Portal')
 @section('heading', 'Request ' . $request->request_no)
 
 @section('main')
@@ -10,7 +10,7 @@
             'Request Type' => $request->request_type ? ucfirst($request->request_type) : null,
             'Amount Paid (₦)' => $request->amount_paid !== null ? number_format((float) $request->amount_paid, 2) : null,
             'Date Paid' => optional($request->payment_date)->format('d/m/Y'),
-            'Company' => $request->company_name, "Surveyor's Name" => $request->surveyor_name, 'Name of Survey' => $request->job_name,
+            'Company' => $request->company_name, "Surveyor's Name" => $request->surveyor_name, 'Job No.' => $request->job_no, 'Name of Survey' => $request->job_name,
             'Number of Beacons' => $request->quantity, 'Plot No.' => $request->plot_no, 'District' => $request->district,
             'LGA' => $request->lga ? mb_strtoupper($request->lga) : null, 'Location' => $request->location,
             'Map Pin' => $request->latitude !== null ? round($request->latitude, 6) . ', ' . round($request->longitude, 6) : null, 'Remarks' => $request->remarks,

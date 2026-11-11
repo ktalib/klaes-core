@@ -16,6 +16,11 @@
           <i data-lucide="printer" class="w-4 h-4"></i> Print FMC
         </a>
       @endcadCan
+      @cadCan('edit')
+        <button type="button" onclick="document.getElementById('cd-fmc-edit-modal').classList.remove('hidden')" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700">
+          <i data-lucide="pencil" class="w-4 h-4"></i> Edit FMC
+        </button>
+      @endcadCan
       <span class="text-xs text-gray-500">Printed {{ $fmc->print_count }} time(s)</span>
     </div>
 
@@ -40,6 +45,9 @@
       </div>
     </div>
   </div>
+  @cadCan('edit')
+    @include('cadastral_dept.fmc._edit_modal')
+  @endcadCan
   @include('admin.footer')
 </div>
 @endsection

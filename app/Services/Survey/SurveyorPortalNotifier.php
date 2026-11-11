@@ -76,7 +76,41 @@ class SurveyorPortalNotifier
                 ['dedupe_key' => 'kssgof-reg:' . $a->id, 'phone_confirmed' => true]);
             $path = parse_url(route('survey-module.beacon-requests.index', ['tab' => 'registrations']), PHP_URL_PATH) . '?tab=registrations';
             $this->toSg('New surveyor registration', "{$a->holder_name} ({$a->type_label}) registered on the portal and is waiting for approval. {$a->registration_id}.", $path);
+            $this->sms->queue(SmsSetting::KEY_SURVEY_PORTAL_REGISTERED_SG, $this->sgPhone(), ['Name' => $a->holder_name, 'Ref' => $a->registration_id],
+                ['dedupe_key' => 'kssgof-reg-sg:' . $a->id, 'phone_confirmed' => true]);
         });
+    }
+
+    /** A company submitted on the portal: the SG's bell and a text to the SG phone (user, 2026-11-09). */
+    public function companyRegistered(\stdClass $company): void
+    {
+        $this->afterCommit(function () use ($company) {
+            $path = parse_url(route('survey-module.beacon-requests.index', ['tab' => 'registrations', 'registration_tab' => 'companies']), PHP_URL_PATH)
+                . '?tab=registrations&registration_tab=companies';
+            $rc = trim((string) ($company->company_rc_no ?? ''));
+            $this->toSg('New company registration', "{$company->name}" . ($rc !== '' ? " ({$rc})" : '') . ' registered as a survey company and is waiting for approval.', $path);
+            $this->sms->queue(SmsSetting::KEY_SURVEY_COMPANY_REGISTERED_SG, $this->sgPhone(), [
+                'Company' => $company->name,
+                'Rc' => $rc,
+            ], ['dedupe_key' => 'kssgof-company-sg:' . $company->id, 'phone_confirmed' => true]);
+        });
+    }
+
+    /** A Surveyor's Report submitted on the portal: the SG's bell, opening the report (user, 2026-11-09). */
+    public function reportSubmitted(\App\Models\Survey\SurveyChangeReport $r, SurveyorPortalAccount $a): void
+    {
+        $this->afterCommit(function () use ($r, $a) {
+            $path = parse_url(route('survey-module.workflow.change-reports.edit', $r), PHP_URL_PATH);
+            $where = $r->location ?: trim(implode(', ', array_filter([$r->district, $r->lga])));
+            $this->toSg("Surveyor's Report {$r->report_ref} submitted",
+                "{$a->holder_name} submitted Surveyor's Report {$r->report_ref}" . ($where ? " for {$where}" : '') . ' on the portal.', $path);
+        });
+    }
+
+    /** The SG phone from Configurable Entries > Surveyor Portal, the one beacon requests go to. */
+    private function sgPhone(): ?string
+    {
+        return $this->portalSettings->values()['beacon_request_sms_phone'] ?? null;
     }
 
     public function accountApproved(SurveyorPortalAccount $a): void
@@ -114,7 +148,7 @@ class SurveyorPortalNotifier
             $path = parse_url(route('survey-module.beacon-requests.index'), PHP_URL_PATH);
             $from = $q->company_name ?: $q->surveyor_name;
             $this->toSg("Beacon request {$q->request_no}", "{$from} asked for {$q->quantity} beacon(s) ({$q->type_label}, {$q->source_label}).", $path);
-            $this->sms->queue(SmsSetting::KEY_SURVEY_BEACON_REQUEST, $this->portalSettings->values()['beacon_request_sms_phone'] ?? null, [
+            $this->sms->queue(SmsSetting::KEY_SURVEY_BEACON_REQUEST, $this->sgPhone(), [
                 'Ref' => $q->request_no,
                 'Name' => $from,
                 'Qty' => (string) $q->quantity,

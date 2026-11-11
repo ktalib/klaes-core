@@ -404,6 +404,7 @@
     <script>
         window.fileSearchConfig = {
             listUrl: @json(route('file-search-db.records')),
+            mainFileUrl: @json(route('file-search-db.main-file')),
             importUrl: @json(route('file-search-db.import')),
             templateUrl: @json(route('file-search-db.import-template')),
             exportUrl: @json(route('file-search-db.export')),

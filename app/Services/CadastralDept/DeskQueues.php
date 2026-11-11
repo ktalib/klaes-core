@@ -22,12 +22,20 @@ class DeskQueues
     /** True when the file belongs on the list. A list with no rules takes every file. */
     public function matches(CadastralCase $case, array $rules): bool
     {
-        // Not on this list until these tasks of its step are done, whatever the rules below say.
-        if (!empty($rules['requires']) && array_diff((array) $rules['requires'], $case->doneTaskKeys())) {
-            return false;
-        }
-
         $def = $this->engine->definition();
+
+        // Not on this list until these tasks of its step are done, whatever the rules below say.
+        // Tasks the step does not have are skipped (the FMC list waits for charting on Direct Allocation only).
+        if (!empty($rules['requires'])) {
+            try {
+                $stepTasks = array_keys((array) ($def->step((string) $case->workflow, (string) $case->current_step)['tasks'] ?? []));
+            } catch (\InvalidArgumentException $e) {
+                $stepTasks = [];
+            }
+            if (array_diff(array_intersect((array) $rules['requires'], $stepTasks), $case->doneTaskKeys())) {
+                return false;
+            }
+        }
         $hasRule = false;
 
         if (!empty($rules['steps'])) {

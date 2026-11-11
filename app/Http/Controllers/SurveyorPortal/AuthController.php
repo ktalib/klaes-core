@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyorPortalAccount as Account;
 use App\Services\Cadastral\CadastralAddress;
 use App\Services\Survey\SurveyorAccounts;
+use App\Services\Survey\SurveyorLoginOtpService;
+use App\Services\Survey\SurveyorSecurityQuestions;
 use App\Services\Survey\SurveySettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,7 +22,7 @@ use Illuminate\Validation\ValidationException;
  */
 class AuthController extends Controller
 {
-    public function __construct(private SurveyorAccounts $accounts)
+    public function __construct(private SurveyorAccounts $accounts, private SurveyorLoginOtpService $otp)
     {
     }
 
@@ -35,32 +37,77 @@ class AuthController extends Controller
         return view('surveyor_portal.landing', ['signedIn' => $this->guard()->check()]);
     }
 
-    public function showLogin()
+    /** /login asks "company or surveyor?"; /login/company and /login/surveyor are the two sign-in pages (user, 2026-11-11). */
+    public function showLogin(?string $as = null)
     {
-        return $this->guard()->check() ? redirect()->route('surveyor-portal.dashboard') : view('surveyor_portal.auth.login');
+        if ($this->guard()->check()) {
+            return redirect()->route('surveyor-portal.dashboard');
+        }
+
+        return $as === null
+            ? view('surveyor_portal.auth.login_choice')
+            : view('surveyor_portal.auth.login', ['as' => $as]);
     }
 
     public function login(Request $r)
     {
-        $data = $r->validate(['login' => 'required|string|max:150', 'password' => 'required|string'],
-            ['login.required' => 'Enter your phone number, email or Surveyor ID.']);
+        // Username and password (user, 2026-11-09), on the company's or the surveyor's page (2026-11-11).
+        $data = $r->validate([
+            'username' => 'required|string|max:150',
+            'password' => 'required|string',
+            'as'       => 'required|in:company,surveyor',
+        ], ['username.required' => 'Enter your username.', 'as.*' => 'Choose whether you are signing in as a company or a surveyor.']);
 
-        $account = $this->find($data['login']);
+        $username = trim($data['username']);
+        $account = $username === '' ? null : Account::whereRaw('LOWER(username) = ?', [mb_strtolower($username)])->first();
         if (! $account || ! Hash::check($data['password'], $account->password)) {
-            throw ValidationException::withMessages(['login' => 'These details do not match our records.']);
+            throw ValidationException::withMessages(['username' => 'The username or password is wrong.']);
+        }
+
+        // Each page lets in its own kind of login only; said once the password is right, so it never tells a
+        // stranger which usernames exist.
+        if ($data['as'] === 'company' && ! $account->isCompany()) {
+            throw ValidationException::withMessages(['username' => 'This is a surveyor\'s login. Use "Sign in as a surveyor".']);
+        }
+        if ($data['as'] === 'surveyor' && $account->isCompany()) {
+            throw ValidationException::withMessages(['username' => 'This is a company\'s login. Use "Sign in as a company".']);
         }
 
         if (! $account->isActive()) {
-            throw ValidationException::withMessages(['login' => match ($account->status) {
+            throw ValidationException::withMessages(['username' => match ($account->status) {
                 Account::PENDING  => "Your registration {$account->registration_id} is waiting for the Surveyor General. We will text you when you can sign in.",
                 Account::REJECTED => 'Your registration was not approved. Please contact the Office of the Surveyor General.',
                 default           => 'This account is not active. Please contact the Office of the Surveyor General.',
             }]);
         }
 
-        $this->guard()->login($account, $r->boolean('remember'));
+        // The password is right; a sign-in code comes next (user, 2026-11-10). Not signed in until it is typed.
+        if ($this->otp->requiredFor($account)) {
+            $result = $this->otp->begin($r, $account, $r->boolean('remember'));
+
+            return redirect()->route('surveyor-portal.login.otp')->with($result['sent'] ? 'status' : 'error', $result['message']);
+        }
+        if ($this->otp->enabled()) {
+            // Nowhere to send a code: the password alone, rather than an account nobody can ever open again.
+            \Illuminate\Support\Facades\Log::warning('MLPP-SG sign-in without a code: no usable phone or email', ['account_id' => $account->id]);
+        }
+
+        return $this->completeLogin($r, $account, $r->boolean('remember'));
+    }
+
+    /**
+     * Sign the surveyor in: after the password when no code is needed, otherwise from
+     * LoginOtpController (code typed) or SecurityQuestionsController (questions answered).
+     */
+    public function completeLogin(Request $r, Account $account, bool $remember)
+    {
+        $this->guard()->login($account, $remember);
         $account->forceFill(['last_login_at' => now()])->save();
         $r->session()->regenerate();
+        $this->otp->markPassed($r, $account);
+        // From this sign-in on, the security questions card holds the portal until answers are set.
+        $r->session()->put(SurveyorSecurityQuestions::CHECK_KEY, true);
+        $r->session()->forget(SurveyorSecurityQuestions::DONE_KEY);
 
         return redirect()->intended(route('surveyor-portal.dashboard'));
     }
@@ -94,6 +141,8 @@ class AuthController extends Controller
             'phone'          => 'required|string|max:30',
             'email'          => 'required|email|max:150',
             'surcon_number'  => 'nullable|string|max:50',
+            // Signs in with this (user, 2026-11-09). Letters, digits and . _ - @ so an email works too.
+            'username'       => ['required', 'string', 'min:3', 'max:150', 'regex:/^[A-Za-z0-9._@-]+$/'],
             'password'       => 'required|string|min:8|confirmed',
             // Passport photograph (user, 2026-11-05). 2 MB, as at MLPP commissioning.
             'passport'       => 'required|file|image|mimes:jpg,jpeg,png|max:2048',
@@ -102,6 +151,9 @@ class AuthController extends Controller
             'addr_district'  => 'nullable|string|max:255',
         ] + CadastralAddress::rules('addr_'), CadastralAddress::messages('addr_') + [
             'company_choice.required' => 'Choose your approved surveying company.',
+            'username.required' => 'Choose a username.',
+            'username.min' => 'The username must be at least 3 characters.',
+            'username.regex' => 'Use only letters, numbers and . _ - @ in the username (no spaces).',
             'passport.required' => 'Upload your passport photograph.',
             'passport.image' => 'The passport photograph must be a JPG or PNG picture.',
             'passport.mimes' => 'The passport photograph must be a JPG or PNG picture.',
@@ -118,11 +170,15 @@ class AuthController extends Controller
             throw ValidationException::withMessages(['phone' => 'Enter a valid Nigerian phone number, e.g. 08031234567.']);
         }
         $email = mb_strtolower(trim($data['email']));
-        if (Account::where('phone', $phone)->exists()) {
+        if (Account::surveyors()->where('phone', $phone)->exists()) {
             throw ValidationException::withMessages(['phone' => 'An account already exists for this phone number.']);
         }
-        if (Account::where('email', $email)->exists()) {
+        if (Account::surveyors()->where('email', $email)->exists()) {
             throw ValidationException::withMessages(['email' => 'An account already exists for this email address.']);
+        }
+        $username = trim($data['username']);
+        if (Account::whereRaw('LOWER(username) = ?', [mb_strtolower($username)])->exists()) {
+            throw ValidationException::withMessages(['username' => 'That username is taken. Choose another.']);
         }
 
         $data['surveyor_type'] = 'Private';
@@ -144,6 +200,7 @@ class AuthController extends Controller
                 'name'          => preg_replace('/\s+/', ' ', trim($data['name'])),
                 'phone'         => $phone,
                 'email'         => $email,
+                'username'      => $username,
                 'surcon_number' => trim((string) ($data['surcon_number'] ?? '')) ?: null,
                 'password'      => $data['password'],
             ]);
@@ -187,6 +244,7 @@ class AuthController extends Controller
     public function logout(Request $r)
     {
         $this->guard()->logout();
+        $r->session()->forget([SurveyorLoginOtpService::PASSED_KEY, SurveyorSecurityQuestions::CHECK_KEY, SurveyorSecurityQuestions::DONE_KEY]);
         $r->session()->regenerateToken();
 
         return redirect()->route('surveyor-portal.login');
@@ -228,17 +286,24 @@ class AuthController extends Controller
         return redirect()->route('surveyor-portal.login')->with('status', 'Your password has been changed. Please sign in.');
     }
 
-    /** By Surveyor ID, then email, then phone. */
+    /**
+     * By Surveyor ID, then email, then phone, then username. A company login shares its phone and email with its
+     * principal surveyor, so those find the surveyor; the company resets by its username (user, 2026-11-10).
+     */
     private function find(string $login): ?Account
     {
         $login = trim($login);
         if ($login === '') return null;
 
         if ($found = Account::whereRaw('UPPER(surveyor_id_no) = ?', [mb_strtoupper($login)])->first()) return $found;
-        if (str_contains($login, '@')) return Account::where('email', mb_strtolower($login))->first();
+        $byUsername = fn () => Account::whereRaw('LOWER(username) = ?', [mb_strtolower($login)])->first();
+        if (str_contains($login, '@')) {
+            return Account::where('email', mb_strtolower($login))->orderByRaw("CASE WHEN surveyor_type = 'Company' THEN 1 ELSE 0 END")->first() ?: $byUsername();
+        }
 
         $phone = Account::normalizePhone($login);
+        $found = $phone ? Account::where('phone', $phone)->orderByRaw("CASE WHEN surveyor_type = 'Company' THEN 1 ELSE 0 END")->first() : null;
 
-        return $phone ? Account::where('phone', $phone)->first() : null;
+        return $found ?: $byUsername();
     }
 }

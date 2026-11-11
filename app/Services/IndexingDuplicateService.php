@@ -1011,6 +1011,74 @@ class IndexingDuplicateService
         return $snapshot;
     }
 
+    /**
+     * Manual capture (CR 11112026-2, item 3): a duplicate physical file that was never
+     * indexed -- its number is held by the main file's indexed record, so there is
+     * nothing to move -- is entered straight into indexing_duplicates.
+     *
+     * Only what the officer typed is stored: the main file's indexed details are NOT
+     * copied in, because they describe the other file. No live table is touched, the
+     * row has no snapshot and source 'manual', so Reverse Duplicate does not apply.
+     *
+     * @param  array{file_number:string, duplicate_of:?string, file_title:string, plot_number:?string,
+     *               district:?string, lga:?string, location:?string, land_use_type:?string,
+     *               registry:?string, reason:string}  $data
+     * @return array{id:int, temp_file_no:string}
+     */
+    public function captureManual(array $data): array
+    {
+        $conn = DB::connection('sqlsrv');
+        $actor = $this->resolveActorName();
+        $now = now();
+
+        $result = $conn->transaction(function () use ($conn, $data, $actor, $now) {
+            $tempNo = $this->nextMoveTempNo($conn);
+
+            $id = $conn->table('indexing_duplicates')->insertGetId([
+                'file_indexing_id' => null,
+                'file_number' => $this->clip($data['file_number'], 100),
+                'duplicate_of' => $this->clip($data['duplicate_of'] ?? null, 100) ?? $this->clip($data['file_number'], 100),
+                'file_title' => $this->clip($data['file_title'], 4000),
+                'plot_number' => $this->clip($data['plot_number'] ?? null, 100),
+                'district' => $this->clip($data['district'] ?? null, 100),
+                'lga' => $this->clip($data['lga'] ?? null, 100),
+                'location' => $this->clip($data['location'] ?? null, 255),
+                'land_use_type' => $this->clip($data['land_use_type'] ?? null, 100),
+                'physical_registry' => $this->clip($data['registry'] ?? null, 50),
+                'reason' => $this->clip($data['reason'], 500),
+                'is_duplicate' => '1',
+                'has_temp_file' => 1,
+                'temp_file_no' => $tempNo,
+                'status' => 'Manual Entry',
+                'source' => 'manual',
+                'mls_file_no_retained' => 0,
+                'created_by' => $this->clip($actor, 50),
+                'created_at' => $now,
+                'updated_at' => $now,
+                'moved_by' => $this->clip($actor, 150),
+                'moved_by_id' => Auth::id(),
+                'moved_at' => $now,
+            ]);
+
+            return ['id' => (int) $id, 'temp_file_no' => $tempNo];
+        });
+
+        try {
+            app(AuditService::class)->logAction(
+                'CREATED',
+                'indexing_duplicate',
+                $result['id'],
+                null,
+                ['file_number' => $data['file_number'], 'temp_file_no' => $result['temp_file_no'], 'reason' => $data['reason'], 'source' => 'manual'],
+                sprintf('Captured duplicate file %s manually under Indexing Duplicates', $data['file_number'])
+            );
+        } catch (\Throwable $e) {
+            Log::warning('IndexingDuplicateService: audit write failed', ['error' => $e->getMessage()]);
+        }
+
+        return $result;
+    }
+
     private function writeAudit(int $archiveId, object $row, array $counts, ?string $reason, ?string $tempFileNo = null): void
     {
         try {

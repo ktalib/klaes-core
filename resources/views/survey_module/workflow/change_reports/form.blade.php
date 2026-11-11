@@ -8,8 +8,9 @@
       ? ('From Register File ' . $line->register_ref . ' · ' . $line->file_number)
       : 'Complete the standard Surveyor’s Report using a selected file number.';
   $privateReport = true;
-  $key = '';
-  $choices = [];
+  // The Instruction to Survey the report answers (user, 2026-11-09), from ChangeReportController.
+  $key = $key ?? '';
+  $choices = $choices ?? [];
   $fromLine = (bool) $line;
 @endphp
 

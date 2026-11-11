@@ -42,8 +42,29 @@
                     @endif
                 </div>
 
+                {{-- Two tabs (user, 2026-11-11): the captured PIC records (pic table), and the cards Cadastral
+                     Registry generates (cadastral_property_index_cards), listed here read only. --}}
+                @php
+                    $picTab = (request('tab') === 'cadastral' || request()->filled('cards_q') || request()->filled('cards_page')) ? 'cadastral' : 'captured';
+                @endphp
+                <div class="flex gap-1 border-b border-gray-200" role="tablist">
+                    <button type="button" role="tab" data-pic-tab="captured" aria-selected="{{ $picTab === 'captured' ? 'true' : 'false' }}"
+                            class="pic-tab px-4 py-2 text-sm font-semibold border-b-2 -mb-px {{ $picTab === 'captured' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
+                        Captured Records
+                    </button>
+                    <button type="button" role="tab" data-pic-tab="cadastral" aria-selected="{{ $picTab === 'cadastral' ? 'true' : 'false' }}"
+                            class="pic-tab px-4 py-2 text-sm font-semibold border-b-2 -mb-px {{ $picTab === 'cadastral' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700' }}">
+                        Cadastral Generated Cards
+                        @if ($cadastralCards)<span class="ml-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{{ number_format($cadastralCards->total()) }}</span>@endif
+                    </button>
+                </div>
+
+                <div id="pic-tab-cadastral" class="{{ $picTab === 'cadastral' ? '' : 'hidden' }}">
+                    @include('property_index_card.partials.cadastral_cards')
+                </div>
+
                 <!-- Manual Property Details Content -->
-                <div id="manual-assistant">
+                <div id="manual-assistant" class="{{ $picTab === 'captured' ? '' : 'hidden' }}">
                     @include('propertycard.partials.property_details', [
                         'featuredRecord' => $featuredRecord ?? null,
                         'dataRoute' => route('property_index_card.getData'),
@@ -73,4 +94,24 @@
     <!-- Include JavaScript after all DOM elements -->
     @include('propertycard.js.javascript')
     @include('propertycard.partials.property_form_sweetalert')
+    <script>
+        // Captured Records | Cadastral Generated Cards. The tab is kept in ?tab= so a reload stays on it.
+        document.querySelectorAll('.pic-tab').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var tab = btn.getAttribute('data-pic-tab');
+                document.querySelectorAll('.pic-tab').forEach(function (b) {
+                    var on = b === btn;
+                    b.setAttribute('aria-selected', on ? 'true' : 'false');
+                    b.classList.toggle('border-blue-600', on); b.classList.toggle('text-blue-700', on);
+                    b.classList.toggle('border-transparent', !on); b.classList.toggle('text-gray-500', !on);
+                });
+                document.getElementById('manual-assistant').classList.toggle('hidden', tab !== 'captured');
+                document.getElementById('pic-tab-cadastral').classList.toggle('hidden', tab !== 'cadastral');
+                try { var u = new URL(window.location.href); u.searchParams.set('tab', tab); history.replaceState(null, '', u); } catch (e) {}
+                if (tab === 'captured' && window.jQuery && jQuery.fn.dataTable) {
+                    jQuery.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
+                }
+            });
+        });
+    </script>
 @endsection
