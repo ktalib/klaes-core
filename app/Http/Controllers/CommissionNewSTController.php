@@ -1008,15 +1008,31 @@ class CommissionNewSTController extends Controller
                         ? array_values(array_unique(array_filter([$conversionFileNo, $appliedFileNo ?: null])))
                         : array_values(array_filter([$appliedFileNo ?: null]));
 
+                    $stParentPropId = $isConversion
+                        ? ($motherPropId ?? ($sourceIndexing->prop_id ?? null))
+                        : ($sourceIndexing->prop_id ?? null);
+
+                    // The ST primary gets its OWN new prop_id; the land file's id is its
+                    // parent_prop_id (user, 2026-11-12). Never reuse the parent's id.
+                    $stPropId = null;
+                    try {
+                        $allocator = app(\App\Services\PropertyIdAllocationService::class);
+                        $stPropId = $allocator->allocateOrRetrievePropId($npFileNo, $npFileNo, null, null, ['allow_temp_only' => true]);
+                        if ($stParentPropId !== null && (string) $stPropId === (string) $stParentPropId) {
+                            $stPropId = $allocator->allocateOrRetrievePropId($npFileNo, $npFileNo, null, null, ['allow_temp_only' => true, 'skip_lookup' => true]);
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning('Could not allocate prop_id for ST primary', ['file_number' => $npFileNo, 'error' => $e->getMessage()]);
+                    }
+
                     $stIndexingId = $connection->table('file_indexings')->insertGetId(array_merge($indexingRow, [
                         'file_number'    => $npFileNo,
                         'mls_file_no'    => $isConversion ? $conversionFileNo : null,
                         'related_fileno' => $isConversion
                             ? (!empty($relatedForSt) ? json_encode($relatedForSt) : null)
                             : ($appliedFileNo ?: null),
-                        'parent_prop_id' => $isConversion
-                            ? ($motherPropId ?? ($sourceIndexing->prop_id ?? null))
-                            : ($sourceIndexing->prop_id ?? null),
+                        'prop_id'        => $stPropId,
+                        'parent_prop_id' => $stParentPropId,
                     ]));
 
                     Log::info('file_indexings record created for Primary NPFN', [

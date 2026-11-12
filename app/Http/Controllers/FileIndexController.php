@@ -4001,7 +4001,8 @@ class FileIndexController extends Controller
             }
 
             $entries = array_map(function (array $record) {
-                $fileTitle = trim(($record['applicant_name'] ?? '') . ' • ' . ($record['land_use'] ?? 'Land Record'));
+                // The title is the holder's name only: no "(RC: …)" and no "• Land use" (user, 2026-11-12).
+                $fileTitle = trim(preg_replace('/\s*\(RC:[^)]*\)\s*$/', '', (string) ($record['applicant_name'] ?? '')));
 
                 return [
                     'file_number' => $record['file_number'],
