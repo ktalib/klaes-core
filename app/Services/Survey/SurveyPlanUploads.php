@@ -179,7 +179,28 @@ class SurveyPlanUploads
             }
         }
 
-        return array_slice(array_values($out), 0, $limit);
+        $out = array_slice($out, 0, $limit, true);
+
+        // X / Y from the Beacon Register (then the Control Point Register) where the beacon has a valid pair:
+        // X a six-digit Easting, Y a seven-digit Northing (user, 2026-11-12, after the item 10 switch-back).
+        // A pair that is still wrong is not offered; the officer types the plan's own X / Y.
+        $need = array_keys(array_filter($out, fn ($b) => $b['x'] === null || $b['y'] === null));
+        if ($need) {
+            foreach (['survey_beacon_register', 'survey_control_point_register'] as $table) {
+                $rows = $db->table($table)->whereNull('deleted_at')->whereNotNull('coord_x')->whereNotNull('coord_y')
+                    ->whereIn(DB::raw("REPLACE(UPPER(beacon_from), ' ', '')"), $need)
+                    ->orderBy('id')->get(['beacon_from', 'coord_x', 'coord_y']);
+                foreach ($rows as $r) {
+                    $k = strtoupper(str_replace(' ', '', (string) $r->beacon_from));
+                    if (! isset($out[$k]) || $out[$k]['x'] !== null) continue;
+                    if (! SurveyCoordinates::isEasting((float) $r->coord_x) || ! SurveyCoordinates::isNorthing((float) $r->coord_y)) continue;
+                    $out[$k]['x'] = (string) $r->coord_x;
+                    $out[$k]['y'] = (string) $r->coord_y;
+                }
+            }
+        }
+
+        return array_values($out);
     }
 
     /**

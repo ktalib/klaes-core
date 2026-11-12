@@ -1109,7 +1109,8 @@ class PlanningRecommendationController extends Controller
             'applied_land_use' => 'nullable|string|max:255',
             'shared_utilities' => 'nullable|array',
             'shared_utilities.*' => 'nullable|string|max:255',
-            'compliance_status' => 'nullable|string|in:obtainable,not_obtainable',
+            // obtainable / not_obtainable, or the text typed in the form's "Other (Specify)" box
+            'compliance_status' => 'nullable|string|max:191',
             'additional_observations' => 'nullable|string',
             'inspection_officer' => 'nullable|string|max:255',
             'existing_site_measurement_summary' => 'nullable|string',

@@ -198,9 +198,9 @@ class VfsFolioPresenter
      *
      * @return array{label:string,class:string}
      */
-    public function registryBadge($registry): array
+    public function registryBadge($registry, ?string $fileNumber = null): array
     {
-        $label = $this->registryLabel($registry);
+        $label = $this->registryLabel($registry, $fileNumber);
 
         return [
             'label' => $label,
@@ -381,8 +381,13 @@ class VfsFolioPresenter
     }
 
     /** Canonical registry display name; the column stores ids, short forms and names. */
-    public function registryLabel($registry): string
+    public function registryLabel($registry, ?string $fileNumber = null): string
     {
+        // An ST file with no registry stored is in the ST Registry, never the Lands default (user, 2026-11-12).
+        if (trim((string) $registry) === '' && $fileNumber !== null && stripos(trim($fileNumber), 'ST-') === 0) {
+            return $this->paths->registryName('ST Registry');
+        }
+
         return $this->paths->registryName($registry);
     }
 
@@ -728,9 +733,9 @@ class VfsFolioPresenter
             // way is visible on the register.
             $row->vfs_state = $this->activeState($events) ?: $this->stateFromStamp($row);
             $row->vfs_is_temporary = $this->isTemporary($row);
-            $row->vfs_registry_label = $this->registryLabel($row->registry);
+            $row->vfs_registry_label = $this->registryLabel($row->registry, $row->file_number);
             $row->vfs_display_number = $this->displayNumber($row);
-            $row->vfs_registry_badge = $this->registryBadge($row->registry);
+            $row->vfs_registry_badge = $this->registryBadge($row->registry, $row->file_number);
         }
     }
 
@@ -745,8 +750,8 @@ class VfsFolioPresenter
             'temp_file_no' => $file->temp_file_no,
             'display_number' => $this->displayNumber($file),
             'file_title' => $file->file_title,
-            'registry' => $this->registryLabel($file->registry),
-            'registry_badge' => $this->registryBadge($file->registry),
+            'registry' => $this->registryLabel($file->registry, $file->file_number),
+            'registry_badge' => $this->registryBadge($file->registry, $file->file_number),
             'prop_id' => $file->prop_id,
             'parent_prop_id' => $file->parent_prop_id,
             'plot_no' => $file->plot_number,
@@ -1372,8 +1377,8 @@ class VfsFolioPresenter
                 'id' => $row->id,
                 'file_number' => $row->file_number,
                 'holder' => $row->current_holder ?: $row->original_holder ?: $row->file_title,
-                'registry' => $this->registryLabel($row->registry),
-                'registry_badge' => $this->registryBadge($row->registry),
+                'registry' => $this->registryLabel($row->registry, $row->file_number),
+                'registry_badge' => $this->registryBadge($row->registry, $row->file_number),
                 'prop_id' => $row->prop_id,
                 // Where the parcel IS, not just what it is for. A card showing only
                 // "Commercial" tells a searcher nothing they can act on, and these

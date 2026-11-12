@@ -333,6 +333,10 @@
                         <option value="Merger">Merger</option>
                         <option value="Private Layout">Private Layout</option>
                     </select>
+                    <div id="conversionPurposeOtherWrapper" class="hidden mt-2">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Service (Specify) <span class="text-red-500">*</span></label>
+                        <input type="text" id="conversionPurposeOther" maxlength="50" autocomplete="off" disabled class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" placeholder="Specify service">
+                    </div>
                 </div>
                 <div id="privateLayoutWrapper" class="hidden">
                     <label class="block text-xs font-medium text-gray-700 mb-1">Private Layout Number <span class="text-red-500">*</span></label>
@@ -427,12 +431,7 @@
                 <div id="reservationDetailsWrapper" class="hidden grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">Existing Reservation <span class="text-red-500">*</span></label>
-                        <select id="conversionRightOfWay" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" data-jsi-validate>
-                            <option value="">Select existing reservation</option>
-                            @foreach($jsiReservations as $reservation)
-                                <option value="{{ $reservation->name }}">{{ $reservation->name }}</option>
-                            @endforeach
-                        </select>
+                        <input type="text" id="conversionRightOfWay" maxlength="100" autocomplete="off" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" placeholder="Type the existing reservation on site" data-jsi-validate>
                     </div>
 
                     <div>
@@ -443,6 +442,10 @@
                                 <option value="{{ $reservation->name }}">{{ $reservation->name }}</option>
                             @endforeach
                         </select>
+                        <div id="conversionRecommendedReservationOtherWrapper" class="hidden mt-2">
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Recommended Reservation (Specify) <span class="text-red-500">*</span></label>
+                            <input type="text" id="conversionRecommendedReservationOther" maxlength="100" autocomplete="off" disabled class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" placeholder="Specify recommended reservation">
+                        </div>
                     </div>
 
                     <div>
@@ -453,6 +456,10 @@
                                 <option value="Adequate">Adequate</option>
                                 <option value="Not Adequate">Not Adequate</option>
                             </select>
+                            <div id="recommendedCommentStatusOtherWrapper" class="hidden mt-2">
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Comment (Specify) <span class="text-red-500">*</span></label>
+                                <input type="text" id="recommendedCommentStatusOther" maxlength="100" autocomplete="off" disabled class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" placeholder="Specify comment">
+                            </div>
                         </div>
                     </div>
 
@@ -642,6 +649,10 @@
                         @endforeach
                     @endif
                 </select>
+                <div id="jointInspectionPrevailingLandUseOtherWrapper" class="hidden mt-2">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Prevailing Land Use (Specify) <span class="text-red-500">*</span></label>
+                    <input type="text" id="jointInspectionPrevailingLandUseOther" maxlength="191" autocomplete="off" disabled class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500" placeholder="Specify prevailing land use">
+                </div>
             </div>
             <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Applied Land Use <span class="text-red-500">*</span></label>
@@ -658,6 +669,10 @@
                         <option value="Mixed Use">Mixed Use</option>
                     @endif
                 </select>
+                <div id="jointInspectionAppliedLandUseOtherWrapper" class="hidden mt-2">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Applied Land Use (Specify) <span class="text-red-500">*</span></label>
+                    <input type="text" id="jointInspectionAppliedLandUseOther" maxlength="191" autocomplete="off" disabled class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500" placeholder="Specify applied land use">
+                </div>
             </div>
         </div>
 
@@ -674,6 +689,10 @@
                     <option value="obtainable">Obtainable</option>
                     <option value="not_obtainable">Not Obtainable</option>
                 </select>
+                <div id="jointInspectionComplianceOtherWrapper" class="hidden mt-2">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Compliance Status (Specify) <span class="text-red-500">*</span></label>
+                    <input type="text" id="jointInspectionComplianceOther" maxlength="191" autocomplete="off" disabled class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-green-500" placeholder="Specify compliance status">
+                </div>
             </div>
             <div class="space-y-2">
                 <div>

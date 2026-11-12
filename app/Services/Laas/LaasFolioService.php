@@ -210,6 +210,22 @@ class LaasFolioService
         $mls = $this->mlsRow($fileNumber);
         $docs = [];
 
+        // An ST file (Primary, PUA or SUA) is commissioned on the ST screen, not the MLS register: its
+        // commissioning sheet comes from st_file_numbers; a conversion's LGA sheet is its CON land file's
+        // (user, 2026-11-12). An SUA has no land file, so it has the commissioning sheet only.
+        if (!$mls && ($st = $this->stRow($fileNumber))) {
+            $docs[] = $this->entry('commissioning-sheet', 'Commissioning Sheet', 'Commissioning',
+                $st->date_commissioned ?? $st->created_at ?? null);
+            $mother = $this->stConversionMother($st);
+            if ($mother !== null) {
+                $docs[] = $this->issuedConversionApplication($mother)
+                    ? $this->entry('lga-confirmation', 'LGA Confirmation Sheet (' . $mother . ')', 'Commissioning', $this->issuedConversionApplication($mother)->created_at ?? null)
+                    : $this->entry('lga-confirmation', 'LGA Confirmation Sheet (' . $mother . ')', 'Commissioning', null, false, 'Not yet issued by the Lands office.');
+            }
+
+            return $docs;
+        }
+
         if ($mls) {
             $docs[] = $this->entry('commissioning-sheet', 'Commissioning Sheet', 'Commissioning',
                 $mls->commissioning_date ?? $mls->created_at ?? null);
@@ -304,7 +320,9 @@ class LaasFolioService
     {
         $mls = $this->mlsRow($fileNumber);
         if (!$mls) {
-            return null;
+            $st = $this->stRow($fileNumber);
+
+            return $st ? $this->stCommissioningSheet($fileNumber, $st) : null;
         }
 
         $controller = app(CommissioningSheetController::class);
@@ -367,8 +385,149 @@ class LaasFolioService
         });
     }
 
+    /**
+     * The ST commissioning row of an ST file number: the Primary by its ST number (np_fileno), a unit
+     * (PUA / SUA) by its own number (fileno).
+     */
+    private function stRow(string $fileNumber): ?object
+    {
+        if (stripos($fileNumber, 'ST-') !== 0) {
+            return null;
+        }
+
+        return DB::connection('sqlsrv')->table('st_file_numbers')
+            ->where(function ($q) use ($fileNumber) {
+                $q->where(fn ($p) => $p->where('file_no_type', 'PRIMARY')->where('np_fileno', $fileNumber))
+                    ->orWhere(fn ($u) => $u->where('file_no_type', '<>', 'PRIMARY')->where('fileno', $fileNumber));
+            })
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
+     * The CON land file an ST conversion was made from, or null for a direct allocation. The same rule as the
+     * ST screen's resolveConversionMother(): the first CON- number among the row's MLS number, its Primary's
+     * MLS number (a unit carries none of its own) and its ST mother number.
+     */
+    private function stConversionMother(object $st): ?string
+    {
+        $parentMls = $st->parent_id
+            ? DB::connection('sqlsrv')->table('st_file_numbers')->where('id', $st->parent_id)->value('mls_fileno')
+            : null;
+        foreach ([$st->mls_fileno ?? null, $parentMls, $st->np_fileno ?? null] as $v) {
+            $v = trim((string) $v);
+            if ($v !== '' && stripos($v, 'CON-') === 0) {
+                return $v;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The ST commissioning sheet, as the ST screen prints it (printStCommissioningSheet): a conversion is filed
+     * under its CON mother with the ST number as the related file, a direct allocation under the ST number, and
+     * the sheet says DEPARTMENT OF SECTIONAL TITLING (source=st). The office's own printed sheet is used when
+     * there is one; otherwise it is drawn from the ST record and the saved row is rolled back.
+     */
+    private function stCommissioningSheet(string $fileNumber, object $st): ?string
+    {
+        $mother = $this->stConversionMother($st);
+        // Drawn under the ST number with the CON land file as the related one, as the office's own ST sheets
+        // read (New ST FileNo = the ST number, ST FileNo = the land file). An office print filed the other way
+        // round (under the CON number, related = the ST number) is still found and shown as printed.
+        $sheetFileNo = $fileNumber;
+        $controller = app(CommissioningSheetController::class);
+        $sheetId = DB::connection('sqlsrv')->table('file_commissioning_sheets')
+            ->where(function ($q) use ($fileNumber, $mother) {
+                $q->where('file_number', $fileNumber);
+                if ($mother !== null) {
+                    $q->orWhere(fn ($c) => $c->where('file_number', $mother)->where('related_file_number', $fileNumber));
+                }
+            })
+            ->orderByDesc('id')
+            ->value('id');
+
+        $name = trim((string) ($st->corporate_name ?? '')) ?: trim(implode(' ', array_filter([
+            $st->first_name ?? null, $st->middle_name ?? null, $st->surname ?? null,
+        ])));
+        $commissionedAt = ($st->date_commissioned ?? null) ?: ($st->created_at ?? null);
+        // users holds first_name / last_name (no name column); the model's name accessor joins them.
+        $creator = is_numeric($st->created_by ?? null) ? \App\Models\User::find($st->created_by) : null;
+        $createdBy = $creator
+            ? (trim((string) $creator->name) ?: trim(($creator->first_name ?? '') . ' ' . ($creator->last_name ?? '')))
+            : (is_numeric($st->created_by ?? null) ? '' : (string) ($st->created_by ?? ''));
+
+        // Plot / district / location: the ST record's own, else its land file's (the CON mother, or the land
+        // file a direct-allocation Primary / its unit came from) in the MLS register.
+        $landNo = $mother;
+        if ($landNo === null) {
+            $primary = ($st->file_no_type ?? '') === 'PRIMARY' ? $st
+                : ($st->parent_id ? DB::connection('sqlsrv')->table('st_file_numbers')->where('id', $st->parent_id)->first() : null);
+            $landNo = $primary ? (trim((string) ($primary->mls_fileno ?: $primary->fileno)) ?: null) : null;
+            if ($landNo !== null && stripos($landNo, 'ST-') === 0) {
+                $landNo = null;   // an SUA's "mother" is an ST number with no land file behind it
+            }
+        }
+        $land = $landNo !== null ? $this->mlsRow($landNo) : null;
+        // A land file outside the MLS register is read from its indexing (plot, district, LGA; location is the
+        // district, never the plot number).
+        $landIdx = $landNo !== null && !$land
+            ? DB::connection('sqlsrv')->table('file_indexings')->where('file_number', $landNo)
+                ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))->orderBy('id')->first(['plot_number', 'district', 'lga'])
+            : null;
+        $plot = trim((string) ($st->property_plot_no ?? '')) ?: (string) ($land->plot_no ?? $landIdx->plot_number ?? '');
+        $location = trim((string) (($st->property_street_name ?? '') ?: ($st->property_district ?? '')))
+            ?: (string) ($land->location ?? $landIdx->district ?? '');
+        $lga = trim((string) ($st->property_lga ?? '')) ?: (string) ($land->lga ?? $landIdx->lga ?? '');
+
+        $query = request()->query;
+        $previousSource = $query->get('source');
+        $previousTime = $query->get('commissioning_time');
+        $query->set('source', 'st');
+        if ($commissionedAt && $previousTime === null) {
+            $query->set('commissioning_time', \Illuminate\Support\Carbon::parse($commissionedAt)->format('g:i:s A'));
+        }
+
+        try {
+            return $this->readOnly(function () use ($controller, $sheetId, $sheetFileNo, $landNo, $name, $commissionedAt, $createdBy, $plot, $location, $lga) {
+                if (!$sheetId) {
+                    $response = $controller->generateAndPrint(Request::create('/', 'POST', [
+                        'file_number'         => $sheetFileNo,
+                        'file_name'           => $name,
+                        'name_or_allottee'    => $name,
+                        'plot_number'         => $plot,
+                        'location'            => $location,
+                        'lga'                 => $lga,
+                        'date_created'        => (string) ($commissionedAt ?? ''),
+                        'created_by'          => $createdBy,
+                        'related_file_number' => $landNo ?? '',   // the land file (CON mother or the direct allocation's land file)
+                    ]));
+                    $sheetId = $response->getData(true)['data']['id'] ?? null;
+                    if (!$sheetId) {
+                        return null;
+                    }
+                }
+
+                return $controller->print($sheetId);
+            });
+        } finally {
+            $previousSource === null ? $query->remove('source') : $query->set('source', $previousSource);
+            $previousTime === null ? $query->remove('commissioning_time') : $query->set('commissioning_time', $previousTime);
+        }
+    }
+
     private function lgaConfirmation(string $fileNumber): ?string
     {
+        // An ST conversion's LGA sheet is its CON land file's.
+        if (!$this->mlsRow($fileNumber) && ($st = $this->stRow($fileNumber))) {
+            $mother = $this->stConversionMother($st);
+            if ($mother === null) {
+                return null;
+            }
+            $fileNumber = $mother;
+        }
+
         if (!$this->issuedConversionApplication($fileNumber)) {
             return null;
         }

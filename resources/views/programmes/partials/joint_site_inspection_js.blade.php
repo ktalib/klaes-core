@@ -724,9 +724,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const roadCategoryOption = roadCategoryField ? String(roadCategoryField.value || '').trim() : '';
         const observedRoadCategory = roadCategoryOtherField ? String(roadCategoryOtherField.value || '').trim() : '';
         const roadCategory = observedRoadCategory || roadCategoryOption;
-        const existingReservation = existingReservationField ? String(existingReservationField.value || '').trim() : '';
-        const recommendedReservation = recommendedReservationField ? String(recommendedReservationField.value || '').trim() : '';
-        const recommendedCommentStatus = recommendedCommentStatusField ? String(recommendedCommentStatusField.value || '').trim() : '';
+        const existingReservation = existingReservationField ? normalizeSpecifiedText(existingReservationField.value) : '';
+        const recommendedReservationOption = recommendedReservationField ? String(recommendedReservationField.value || '').trim() : '';
+        const recommendedReservation = getSpecifiedSelectValue('conversionRecommendedReservation');
+        const recommendedCommentStatus = recommendedCommentStatusField ? getSpecifiedSelectValue('recommendedCommentStatus') : '';
         const howManyMeters = howManyMetersField ? String(howManyMetersField.value || '').trim() : '';
 
         return {
@@ -738,6 +739,7 @@ document.addEventListener('DOMContentLoaded', function() {
             right_of_way: existingReservation,
             right_of_way_other: recommendedReservation,
             recommended_reservation: recommendedReservation,
+            recommended_reservation_option: recommendedReservationOption,
             recommended_comment_status: recommendedCommentStatus,
             how_many_meters: howManyMeters
         };
@@ -756,6 +758,7 @@ document.addEventListener('DOMContentLoaded', function() {
             right_of_way: payload.right_of_way || '',
             right_of_way_other: payload.right_of_way_other || '',
             recommended_reservation: payload.recommended_reservation || '',
+            recommended_reservation_option: payload.recommended_reservation_option || '',
             recommended_comment_status: payload.recommended_comment_status || '',
             how_many_meters: payload.how_many_meters || ''
         };
@@ -805,6 +808,123 @@ document.addEventListener('DOMContentLoaded', function() {
     function isPurposeOtherOption(value) {
         const normalized = String(value || '').trim().toUpperCase();
         return normalized === 'OTHER' || normalized === 'OTHERS';
+    }
+
+    // Dropdowns where picking "Other" opens a required "Specify" box; the typed text is what gets saved.
+    const JSI_SPECIFY_FIELDS = {
+        conversionRecommendedReservation: { wrapperId: 'conversionRecommendedReservationOtherWrapper', inputId: 'conversionRecommendedReservationOther', label: 'recommended reservation' },
+        jointInspectionPrevailingLandUse: { wrapperId: 'jointInspectionPrevailingLandUseOtherWrapper', inputId: 'jointInspectionPrevailingLandUseOther', label: 'prevailing land use' },
+        jointInspectionAppliedLandUse: { wrapperId: 'jointInspectionAppliedLandUseOtherWrapper', inputId: 'jointInspectionAppliedLandUseOther', label: 'applied land use' },
+        conversionPurpose: { wrapperId: 'conversionPurposeOtherWrapper', inputId: 'conversionPurposeOther', label: 'service' },
+        recommendedCommentStatus: { wrapperId: 'recommendedCommentStatusOtherWrapper', inputId: 'recommendedCommentStatusOther', label: 'comment' },
+        jointInspectionCompliance: { wrapperId: 'jointInspectionComplianceOtherWrapper', inputId: 'jointInspectionComplianceOther', label: 'compliance status' }
+    };
+
+    function normalizeSpecifiedText(value) {
+        return String(value || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function ensureSelectOtherOption(select) {
+        if (!select) {
+            return null;
+        }
+
+        const existing = Array.from(select.options || []).find(option => isPurposeOtherOption(option.value));
+        if (existing) {
+            return existing;
+        }
+
+        const otherOption = new Option('Other', 'Other');
+        select.add(otherOption);
+        return otherOption;
+    }
+
+    function syncSpecifyField(selectId) {
+        const config = JSI_SPECIFY_FIELDS[selectId];
+        const select = document.getElementById(selectId);
+        const wrapper = config ? document.getElementById(config.wrapperId) : null;
+        const input = config ? document.getElementById(config.inputId) : null;
+        if (!select || !wrapper || !input) {
+            return;
+        }
+
+        const showSpecify = isPurposeOtherOption(select.value);
+        wrapper.classList.toggle('hidden', !showSpecify);
+        input.disabled = !showSpecify;
+        if (!showSpecify) {
+            input.value = '';
+        }
+    }
+
+    function syncAllSpecifyFields() {
+        Object.keys(JSI_SPECIFY_FIELDS).forEach(selectId => {
+            ensureSelectOtherOption(document.getElementById(selectId));
+            syncSpecifyField(selectId);
+        });
+    }
+
+    // Value to save: the typed text when "Other" is picked, otherwise the picked option.
+    function getSpecifiedSelectValue(selectId) {
+        const config = JSI_SPECIFY_FIELDS[selectId];
+        const select = document.getElementById(selectId);
+        if (!select) {
+            return '';
+        }
+
+        const selected = String(select.value || '').trim();
+        if (!isPurposeOtherOption(selected)) {
+            return selected;
+        }
+
+        const input = config ? document.getElementById(config.inputId) : null;
+        return input ? normalizeSpecifiedText(input.value) : '';
+    }
+
+    // Show a saved value: pick the matching option, or "Other" with the saved text in the Specify box.
+    function applySpecifiedSelectValue(selectId, rawValue, knownOptions = []) {
+        const config = JSI_SPECIFY_FIELDS[selectId];
+        const select = document.getElementById(selectId);
+        if (!select) {
+            return;
+        }
+
+        const otherOption = ensureSelectOtherOption(select);
+        const input = config ? document.getElementById(config.inputId) : null;
+        const value = String(rawValue || '').trim();
+        const key = value.toLowerCase();
+
+        let typedText = '';
+        if (value === '') {
+            select.value = '';
+        } else if (isPurposeOtherOption(value)) {
+            select.value = otherOption.value;
+        } else {
+            let match = Array.from(select.options || []).find(option =>
+                option.value !== '' && String(option.value).trim().toLowerCase() === key
+            );
+
+            if (!match) {
+                const known = (knownOptions || []).find(option =>
+                    String(option && option.value ? option.value : '').trim().toLowerCase() === key
+                );
+                if (known) {
+                    match = new Option(known.label || known.value, known.value);
+                    select.insertBefore(match, otherOption);
+                }
+            }
+
+            if (match) {
+                select.value = match.value;
+            } else {
+                select.value = otherOption.value;
+                typedText = value;
+            }
+        }
+
+        syncSpecifyField(selectId);
+        if (input && isPurposeOtherOption(select.value)) {
+            input.value = typedText;
+        }
     }
 
     function hasSelectOption(select, value) {
@@ -901,7 +1021,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const selectedValue = String(prevailingSelect.value || '').trim();
-        if (!selectedValue) {
+        if (!selectedValue || isPurposeOtherOption(selectedValue)) {
             return '';
         }
 
@@ -923,18 +1043,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         appliedSelect.innerHTML = markup.join('');
+        const appliedOtherOption = ensureSelectOtherOption(appliedSelect);
 
         if (!preservedValue) {
+            syncSpecifyField('jointInspectionAppliedLandUse');
             return;
         }
 
-        if (filteredOptions.some(option => option.value === preservedValue)) {
+        if (isPurposeOtherOption(preservedValue)) {
+            appliedSelect.value = appliedOtherOption.value;
+        } else if (filteredOptions.some(option => option.value === preservedValue)) {
             appliedSelect.value = preservedValue;
-            return;
+        } else {
+            const fallback = filteredOptions.find(option => normalizeLandUseKey(option.value || option.label) === normalizeLandUseKey(preservedValue));
+            appliedSelect.value = fallback ? fallback.value : '';
         }
 
-        const fallback = filteredOptions.find(option => normalizeLandUseKey(option.value || option.label) === normalizeLandUseKey(preservedValue));
-        appliedSelect.value = fallback ? fallback.value : '';
+        syncSpecifyField('jointInspectionAppliedLandUse');
     }
 
     function getSelectedPrevailingDetailedLandUseId() {
@@ -1184,15 +1309,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (recommendedReservationField) {
-            recommendedReservationField.value = detail.recommended_reservation
+            applySpecifiedSelectValue('conversionRecommendedReservation', detail.recommended_reservation
                 ? String(detail.recommended_reservation)
-                : (detail.right_of_way_other ? String(detail.right_of_way_other) : '');
+                : (detail.right_of_way_other ? String(detail.right_of_way_other) : ''));
         }
 
         if (recommendedCommentStatusField) {
-            recommendedCommentStatusField.value = detail.recommended_comment_status
+            applySpecifiedSelectValue('recommendedCommentStatus', detail.recommended_comment_status
                 ? String(detail.recommended_comment_status)
-                : '';
+                : '');
         }
 
         if (howManyMetersField) {
@@ -1259,21 +1384,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (existingReservationField) {
-            const matchedExisting = Array.from(existingReservationField.options || []).find(option =>
-                String(option.value || '').trim().toLowerCase() === existingReservation.toLowerCase()
-            );
-            existingReservationField.value = matchedExisting ? matchedExisting.value : '';
+            existingReservationField.value = existingReservation;
         }
 
         if (recommendedReservationField) {
-            const matchedRecommended = Array.from(recommendedReservationField.options || []).find(option =>
-                String(option.value || '').trim().toLowerCase() === recommendedReservation.toLowerCase()
-            );
-            recommendedReservationField.value = matchedRecommended ? matchedRecommended.value : '';
+            applySpecifiedSelectValue('conversionRecommendedReservation', recommendedReservation);
         }
 
         if (recommendedCommentStatusField) {
-            recommendedCommentStatusField.value = recommendedCommentStatus;
+            applySpecifiedSelectValue('recommendedCommentStatus', recommendedCommentStatus);
         }
 
         if (howManyMetersField) {
@@ -2508,17 +2627,36 @@ document.addEventListener('DOMContentLoaded', function() {
         const prevailingSelect = document.getElementById('jointInspectionPrevailingLandUse');
         if (prevailingSelect && prevailingSelect.value.trim() === '') {
             pushError(prevailingSelect, 'Select the prevailing land use.');
+        } else if (prevailingSelect && isPurposeOtherOption(prevailingSelect.value)
+            && getSpecifiedSelectValue('jointInspectionPrevailingLandUse') === '') {
+            pushError(document.getElementById('jointInspectionPrevailingLandUseOther'), 'Please specify the prevailing land use.');
         }
 
         const appliedSelect = document.getElementById('jointInspectionAppliedLandUse');
         if (appliedSelect && appliedSelect.value.trim() === '') {
             pushError(appliedSelect, 'Select the applied land use.');
+        } else if (appliedSelect && isPurposeOtherOption(appliedSelect.value)
+            && getSpecifiedSelectValue('jointInspectionAppliedLandUse') === '') {
+            pushError(document.getElementById('jointInspectionAppliedLandUseOther'), 'Please specify the applied land use.');
         }
 
         const complianceSelect = document.getElementById('jointInspectionCompliance');
         if (complianceSelect && complianceSelect.value.trim() === '') {
             pushError(complianceSelect, 'Select the compliance status.');
         }
+
+        const conversionReservationYes = document.querySelector('input[name="reservation_required"]:checked')?.value === '1';
+        [
+            'jointInspectionCompliance',
+            ...(isConversion ? ['conversionPurpose'] : []),
+            ...(isConversion && conversionReservationYes ? ['recommendedCommentStatus'] : [])
+        ].forEach(selectId => {
+            const select = document.getElementById(selectId);
+            const config = JSI_SPECIFY_FIELDS[selectId];
+            if (select && config && isPurposeOtherOption(select.value) && getSpecifiedSelectValue(selectId) === '') {
+                pushError(document.getElementById(config.inputId), `Please specify the ${config.label}.`);
+            }
+        });
 
         const boundarySegments = context.boundarySegments || {};
         const boundaryValues = Object.values(boundarySegments)
@@ -2668,6 +2806,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (recommendedReservationField && recommendedReservationField.value.trim() === '') {
                     pushError(recommendedReservationField, 'Recommended reservation is required when reservation is Yes.');
+                }
+
+                if (recommendedReservationField && isPurposeOtherOption(recommendedReservationField.value)
+                    && getSpecifiedSelectValue('conversionRecommendedReservation') === '') {
+                    pushError(document.getElementById('conversionRecommendedReservationOther'), 'Please specify the recommended reservation.');
                 }
 
                 if (recommendedReservationField && ['Recommended', 'Comment', 'Recommended Comment'].includes(String(recommendedReservationField.value || '').trim())) {
@@ -2851,6 +2994,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Reset form and clear previous data before loading new data
         if (jointInspectionForm && options.preserveValues !== true) {
             jointInspectionForm.reset();
+            syncAllSpecifyFields();
             resetFieldValidationState();
             unlockPrefilledFields();
             enforcePageStepOneLocks();
@@ -2936,6 +3080,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (jointInspectionForm && options.preserveValues !== true) {
             jointInspectionForm.reset();
+            syncAllSpecifyFields();
             resetFieldValidationState();
             unlockPrefilledFields();
         }
@@ -3474,7 +3619,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const purposeField = document.getElementById('conversionPurpose');
         if (purposeField && typeof report.purpose !== 'undefined') {
-            purposeField.value = report.purpose || '';
+            applySpecifiedSelectValue('conversionPurpose', report.purpose || '');
             syncPrivateLayoutVisibility();
         }
 
@@ -3685,6 +3830,18 @@ document.addEventListener('DOMContentLoaded', function() {
             resetMeasurementEntriesUI();
         }
 
+        if ('prevailing_land_use' in report) {
+            applySpecifiedSelectValue('jointInspectionPrevailingLandUse', report.prevailing_land_use);
+            populateAppliedLandUseByDetailedLandUse();
+        }
+        if ('applied_land_use' in report) {
+            applySpecifiedSelectValue('jointInspectionAppliedLandUse', report.applied_land_use, getAppliedLandUseOptionSource());
+        }
+        if (report.compliance_status) {
+            applySpecifiedSelectValue('jointInspectionCompliance', report.compliance_status);
+        }
+        syncAllSpecifyFields();
+
         syncConversionFileSelect();
     }
 
@@ -3756,6 +3913,13 @@ document.addEventListener('DOMContentLoaded', function() {
         prevailingLandUseSelect.addEventListener('change', populateAppliedLandUseByDetailedLandUse);
     }
 
+    Object.keys(JSI_SPECIFY_FIELDS).forEach(selectId => {
+        const specifySelect = document.getElementById(selectId);
+        if (specifySelect) {
+            specifySelect.addEventListener('change', () => syncSpecifyField(selectId));
+        }
+    });
+
     const conversionPurposeLutSelect = document.getElementById('conversionPurposeLut');
     if (conversionPurposeLutSelect) {
         conversionPurposeLutSelect.addEventListener('change', syncConversionPurposeOtherVisibility);
@@ -3800,6 +3964,7 @@ document.addEventListener('DOMContentLoaded', function() {
     syncRoadCategoryOtherVisibility();
     syncRightOfWayOtherVisibility();
     populateAppliedLandUseByDetailedLandUse();
+    syncAllSpecifyFields();
     syncNonConversionReservationVisibility();
     syncNonConversionReservationOtherVisibility();
     syncConversionPurposeByDetailedLandUse();
@@ -3860,6 +4025,10 @@ document.addEventListener('DOMContentLoaded', function() {
         syncAllSiteMeasurementFields();
 
         const formData = new FormData(jointInspectionForm);
+        formData.set('prevailing_land_use', getSpecifiedSelectValue('jointInspectionPrevailingLandUse'));
+        formData.set('applied_land_use', getSpecifiedSelectValue('jointInspectionAppliedLandUse'));
+        formData.set('purpose', getSpecifiedSelectValue('conversionPurpose'));
+        formData.set('compliance_status', getSpecifiedSelectValue('jointInspectionCompliance'));
         const csrfTokenInput = jointInspectionForm.querySelector('input[name="_token"]');
 
         if (!csrfTokenInput) {

@@ -60,26 +60,10 @@ class SurveyorPortalSettings
          | general reminders only; the SG's office replaces them with the bodies' current notices and links.
          */
         'flash_banners_on' => '1',
+        // For now only the bodies' full names, no notice text (user, 2026-11-12: "just the full title of the logos").
         'flash_banners' => [
-            [
-                'org' => 'SURCON',
-                'title' => 'Surveyors Council of Nigeria (SURCON)',
-                'text' => 'Only surveyors registered with SURCON may sign and submit survey plans. Keep your SURCON registration and annual practising licence current.',
-                'link' => '',
-            ],
-            [
-                'org' => 'NIS',
-                'title' => 'Nigerian Institution of Surveyors (NIS)',
-                'text' => 'Keep your NIS membership and continuing professional development (CPD) up to date.',
-                'link' => '',
-            ],
-            // Third notice (user, 2026-11-12: three logos, three flashes); shows the second SURCON logo.
-            [
-                'org' => 'SURCON',
-                'title' => 'SURCON: Seal and Signature',
-                'text' => 'Every survey plan must carry the SURCON seal and signature of the registered surveyor who made it.',
-                'link' => '',
-            ],
+            ['org' => 'SURCON', 'title' => 'Surveyors Council of Nigeria (SURCON)', 'text' => '', 'link' => ''],
+            ['org' => 'NIS', 'title' => 'Nigerian Institution of Surveyors (NIS)', 'text' => '', 'link' => ''],
         ],
         'ready_title' => 'Have these ready',
         'ready_items' => [
