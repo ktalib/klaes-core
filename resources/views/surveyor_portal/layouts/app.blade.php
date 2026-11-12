@@ -53,10 +53,22 @@
             background-image: linear-gradient(rgba(11,58,126,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(11,58,126,.06) 1px, transparent 1px);
             background-size: 40px 40px; -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%); mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%); }
         .ks-guest-banner::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: linear-gradient(90deg, var(--ks-blue) 0 33.3%, var(--ks-green) 33.3% 66.6%, var(--ks-gold) 66.6% 100%); }
+        /* Preloader (user, 2026-11-12): the MLPP-SG seal while the page loads. */
+        #ks-preloader { position: fixed; inset: 0; z-index: 9999; background: #fff; display: flex; align-items: center; justify-content: center; transition: opacity .35s ease, visibility .35s ease; }
+        #ks-preloader img { width: 180px; height: auto; }
+        #ks-preloader.done { opacity: 0; visibility: hidden; }
     </style>
     @stack('styles')
 </head>
 <body>
+    <div id="ks-preloader" aria-hidden="true"><img src="{{ asset('assets/logo/mlppsg-preloader.webp') }}" alt=""></div>
+    <script>
+        (function () {
+            var hide = function () { var p = document.getElementById('ks-preloader'); if (p) { p.classList.add('done'); setTimeout(function () { p.remove(); }, 400); } };
+            window.addEventListener('load', hide);
+            setTimeout(hide, 6000); // never block the page if something keeps loading
+        })();
+    </script>
     @yield('body')
     @if($portalSettings['support_email'] || $portalSettings['support_phone'])
         <footer class="ks-help" style="padding:18px 16px;text-align:center;border-top:1px solid var(--ks-line);background:#fff;">
