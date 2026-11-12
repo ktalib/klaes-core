@@ -12,6 +12,10 @@
         .ks-dash-eyebrow { color:rgba(255,255,255,.75); font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
         .ks-dash-hero h2 { margin:8px 0; color:#fff; font-size:clamp(22px,3vw,30px); font-weight:800; line-height:1.15; }
         .ks-dash-hero p { margin:0; max-width:640px; color:rgba(255,255,255,.85); font-size:14px; line-height:1.6; }
+        .ks-co-prefix { display:inline-flex; align-items:center; gap:8px; margin:2px 0 12px; padding:7px 14px; border-radius:999px;
+            background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.28); color:var(--ks-gold); font-weight:800; }
+        .ks-co-prefix-label { color:#fff; font-size:14px; letter-spacing:.06em; text-transform:uppercase; }
+        .ks-co-prefix-value { color:var(--ks-gold); font-size:22px; letter-spacing:.08em; line-height:1; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
         .ks-co-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin:20px 0 26px; }
         .ks-co-stat { display:flex; align-items:center; gap:14px; min-height:104px; padding:18px; color:inherit; text-decoration:none; transition:border-color .15s ease,box-shadow .15s ease; }
         .ks-co-stat:hover { border-color:#B8C6D9; box-shadow:0 10px 24px rgba(20,23,26,.08); }
@@ -34,6 +38,14 @@
     <section class="ks-dash-hero" aria-labelledby="coWelcome">
         <div class="ks-dash-eyebrow">Company workspace</div>
         <h2 id="coWelcome">{{ $me->company_name }}</h2>
+        {{-- The company's system-assigned beacon prefix (user, 2026-11-12): bold, gold, with an icon. --}}
+        @if ($prefix !== '')
+            <div class="ks-co-prefix" aria-label="Beacon prefix {{ $prefix }}">
+                <i data-lucide="tag" class="w-5 h-5"></i>
+                <span class="ks-co-prefix-label">Prefix:</span>
+                <span class="ks-co-prefix-value">{{ $prefix }}</span>
+            </div>
+        @endif
         <p>See your company's surveyors, the beacons issued to your company and where they were used, and your surveyors' reports.</p>
     </section>
 

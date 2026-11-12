@@ -62,6 +62,10 @@
                 <i class="fas fa-plus"></i> {{ $registrationTab === 'surveyors' ? 'Add Surveyor' : 'Add Company' }}
             </button>
             @include('survey_module.beacon_requests._add_forms')
+            {{-- A row's Edit (user, 2026-11-12): the same form, filled in, opened with ?edit=<id>. --}}
+            @if ($brEdit)
+                @include('survey_module.beacon_requests._add_forms', ['brMode' => 'edit', 'brEdit' => $brEdit])
+            @endif
         @endif
     </div>
     @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.beacon-requests.export'), 'title' => $tab === 'registrations' ? ($registrationTab === 'companies' ? 'Company Registrations' : 'Surveyor Registrations') : ($tab === 'maps' ? 'MLPP-SG Map Requests' : 'Beacon Requests')])
@@ -152,8 +156,6 @@
                                         <a href="{{ route('survey-module.beacon-requests.slip', $q) }}" target="_blank" class="{{ $item }}">
                                             <i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Print Slip
                                         </a>
-                                    @else
-                                        <div class="px-3 py-2 text-xs text-gray-500">No actions available.</div>
                                     @endif
                                 </div>
                             </div>
@@ -318,7 +320,7 @@
                             <td>{{ $c->phone ?: '—' }}</td>
                             <td>{{ $c->email ?: '—' }}</td>
                             <td style="min-width:180px;">{{ \App\Services\Cadastral\CadastralAddress::personAddress($c, 'addr_') ?: '—' }}</td>
-                            <td style="white-space:nowrap;">{{ optional($c->created_at)->format('d/m/Y') ?: '—' }}</td>
+                            <td style="white-space:nowrap;">{{ $c->created_at ? \Illuminate\Support\Carbon::parse($c->created_at)->format('d/m/Y H:i') : '—' }}</td>
                             <td style="white-space:nowrap;">
                                 <span class="status-badge {{ $badge($companyStatus) }}"><span class="dot"></span>{{ ['pending' => 'Waiting', 'approved' => 'Approved', 'rejected' => 'Not approved'][$companyStatus] ?? $companyStatus }}</span>
                                 @if ($c->review_note)<div class="helper-text" style="margin:2px 0 0;white-space:normal;">{{ $c->review_note }}</div>@endif
@@ -333,6 +335,7 @@
                                     <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                          :style="'top:' + top + 'px; left:' + left + 'px'"
                                          class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                        <a href="{{ request()->fullUrlWithQuery(['edit' => $c->id]) }}" class="{{ $item }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit company</a>
                                         @if ($c->status === 'pending')
                                             <form method="POST" action="{{ route('survey-module.beacon-requests.companies.approve', $c->id) }}" data-company-approve data-name="{{ $c->name }}">
                                                 @csrf
@@ -342,8 +345,6 @@
                                                     data-company-reject data-url="{{ route('survey-module.beacon-requests.companies.reject', $c->id) }}" data-name="{{ $c->name }}">
                                                 <i data-lucide="x-circle" class="w-4 h-4 text-red-500"></i> Do Not Approve
                                             </button>
-                                        @else
-                                            <div class="px-3 py-2 text-xs text-gray-500">No actions available.</div>
                                         @endif
                                     </div>
                                 </div>
@@ -413,6 +414,7 @@
                                 <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                      :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                    <a href="{{ request()->fullUrlWithQuery(['edit' => $a->id]) }}" class="{{ $item }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit account</a>
                                     @if ($a->status === 'pending')
                                         <form method="POST" action="{{ route('survey-module.beacon-requests.accounts.approve', $a) }}" onsubmit="return confirm('Approve {{ addslashes($a->name) }}? They will be able to sign in.');">
                                             @csrf
@@ -422,8 +424,6 @@
                                                 data-acc-reject data-url="{{ route('survey-module.beacon-requests.accounts.reject', $a) }}" data-name="{{ $a->name }}">
                                             <i data-lucide="x-circle" class="w-4 h-4 text-red-500"></i> Do Not Approve
                                         </button>
-                                    @else
-                                        <div class="px-3 py-2 text-xs text-gray-500">No actions available.</div>
                                     @endif
                                 </div>
                             </div>

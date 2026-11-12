@@ -30,7 +30,11 @@ class IndexingDuplicateController extends Controller
         $districtOptions = \App\Models\District::query()->where('is_active', true)->orderBy('name')->pluck('name')
             ->map(fn ($n) => trim((string) $n))->filter()->unique(fn ($n) => mb_strtoupper($n))->values();
 
-        return view('indexing_duplicates.index', compact('PageTitle', 'PageDescription', 'lgaOptions', 'districtOptions'));
+        // Physical Registry: the File Indexing create form's list (physical_registries).
+        $physicalRegistries = \App\Models\PhysicalRegistry::orderBy('name')->pluck('name')
+            ->map(fn ($n) => trim((string) $n))->filter()->unique(fn ($n) => mb_strtoupper($n))->values();
+
+        return view('indexing_duplicates.index', compact('PageTitle', 'PageDescription', 'lgaOptions', 'districtOptions', 'physicalRegistries'));
     }
 
     public function stats(): JsonResponse
@@ -384,6 +388,12 @@ class IndexingDuplicateController extends Controller
             if (isset($data[$field])) {
                 $data[$field] = preg_replace('/\s+/', ' ', trim($data[$field]));
             }
+        }
+
+        // Land use follows the file number, in full (RES -> Residential); the typed value only when it carries none.
+        $code = \App\Support\FileNumberLandUse::codeFor($data['file_number']);
+        if (isset(\App\Support\FileNumberLandUse::LABELS[$code])) {
+            $data['land_use_type'] = \App\Support\FileNumberLandUse::LABELS[$code];
         }
 
         // Location is District + LGA + State, never the plot number.

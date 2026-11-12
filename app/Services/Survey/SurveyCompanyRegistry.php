@@ -2,6 +2,7 @@
 
 namespace App\Services\Survey;
 
+use App\Models\Survey\SurveyorPortalAccount;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -20,11 +21,15 @@ class SurveyCompanyRegistry
         return DB::connection('sqlsrv');
     }
 
+    /**
+     * The next company beacon prefix: the first unused one from AA (AA, AB … ZZ, then AAA …). The single
+     * letters already given stay with their companies, but their gaps (F, J …) are held, not filled (user, 2026-11-12).
+     */
     public static function nextBeaconLetters(array $used): string
     {
         $used = array_fill_keys(array_map(fn ($value) => mb_strtoupper(trim((string) $value)), $used), true);
 
-        for ($serial = 1; $serial <= 18278; $serial++) {
+        for ($serial = 27; $serial <= 18278; $serial++) {   // 27 = AA
             $candidate = self::lettersFor($serial);
             if (! isset($used[$candidate])) {
                 return $candidate;
@@ -62,6 +67,48 @@ class SurveyCompanyRegistry
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
+
+            return $this->db()->table('survey_companies')->where('id', $id)->first();
+        });
+    }
+
+    /**
+     * Edit a company (user, 2026-11-12): name, RC No., phone, email and address. Its surveyors' accounts and its own
+     * login carry the company name / RC No., so they follow; the company login also takes the new phone, email and
+     * address (where its sign-in codes go). Status and beacon prefix are untouched. Before/after go to the log.
+     */
+    public function update(int $id, array $data): object
+    {
+        $this->assertInstalled();
+
+        return $this->db()->transaction(function () use ($id, $data) {
+            $before = $this->db()->table('survey_companies')->where('id', $id)->lockForUpdate()->first();
+            abort_unless($before, 404);
+
+            $nameKey = self::duplicateKey($data['name'] ?? '');
+            $rcKey = self::duplicateKey($data['company_rc_no'] ?? '');
+            foreach ($this->db()->table('survey_companies')->where('id', '<>', $id)->get(['name', 'company_rc_no']) as $other) {
+                if ($nameKey !== '' && $nameKey === self::duplicateKey($other->name)) {
+                    throw ValidationException::withMessages(['name' => "Another company is already registered as {$other->name}."]);
+                }
+                if ($rcKey !== '' && $rcKey === self::duplicateKey($other->company_rc_no)) {
+                    throw ValidationException::withMessages(['company_rc_no' => "This RC number already belongs to {$other->name}."]);
+                }
+            }
+
+            $this->db()->table('survey_companies')->where('id', $id)->update($data + ['updated_by' => Auth::id(), 'updated_at' => now()]);
+            $accounts = $this->db()->table('surveyor_portal_accounts')->where('company_id', $id);
+            (clone $accounts)->update(['company_name' => $data['name'], 'company_rc_no' => $data['company_rc_no'], 'updated_at' => now()]);
+
+            $login = (clone $accounts)->where('surveyor_type', SurveyorPortalAccount::COMPANY)->first();
+            if ($login) {
+                $phone = SurveyorPortalAccount::normalizePhone((string) $data['phone']) ?: trim((string) $data['phone']);
+                $address = array_intersect_key($data, array_flip(SurveyorPortalAccount::addressColumns('addr_')));
+                $this->db()->table('surveyor_portal_accounts')->where('id', $login->id)
+                    ->update($address + ['name' => $data['name'], 'phone' => $phone, 'email' => $data['email'], 'updated_at' => now()]);
+            }
+
+            Log::info('MLPP-SG company edited', ['company' => $id, 'by' => Auth::id(), 'before' => (array) $before, 'after' => $data]);
 
             return $this->db()->table('survey_companies')->where('id', $id)->first();
         });

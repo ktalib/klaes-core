@@ -103,6 +103,7 @@
       <div class="f"><span class="k">Signature:</span><span class="v {{ $sig($form, 'compensation_head_signed') ? 'signed' : '' }}">{{ $sig($form, 'compensation_head_signed') ? 'Signed on the paper form' : '' }}</span></div>
       <div class="f"><span class="k">Date:</span><span class="v">{{ $v($form, 'compensation_head_date') }}</span></div>
     </div>
+    @include('partials._klaes_print_logo')
   </div>
 @endforeach
 </body>

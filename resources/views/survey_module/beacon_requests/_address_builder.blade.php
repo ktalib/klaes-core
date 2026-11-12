@@ -11,7 +11,9 @@
 
     $prefix = 'addr_';
     $legend = $legend ?? 'Address';
-    $val = fn (string $suffix) => old($prefix . $suffix, $suffix === 'state' ? 'Kano' : '');
+    // $fill: a record's values for an Edit pop-up (2026-11-12); a failed save's old() input wins.
+    $fill = $fill ?? [];
+    $val = fn (string $suffix) => old($prefix . $suffix, ($fill[$prefix . $suffix] ?? null) ?: ($suffix === 'state' ? 'Kano' : ''));
     $states = LookupController::options('states');
 @endphp
 

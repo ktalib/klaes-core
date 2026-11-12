@@ -103,6 +103,36 @@ class SurveyorAccounts
         return ['account' => $account, 'password' => $password];
     }
 
+    /**
+     * Edit a surveyor's portal account from MLPP-SG Portal Admin (user, 2026-11-12). The Surveyor ID, status and
+     * password stay; no login is sent. A linked directory row (cadastral_surveyors) takes the licence status and
+     * Active tick, as on Add. Before/after go to the log.
+     */
+    public function updateByAdmin(SurveyorPortalAccount $account, array $data, array $licence): SurveyorPortalAccount
+    {
+        try {
+            $account = $this->db()->transaction(function () use ($account, $data, $licence) {
+                $a = SurveyorPortalAccount::query()->lockForUpdate()->findOrFail($account->id);
+                $before = $a->only(array_keys($data));
+                $a->update($data);
+                if ($a->cadastral_surveyor_id) {
+                    $this->db()->table('cadastral_surveyors')->where('id', $a->cadastral_surveyor_id)
+                        ->update($licence + ['updated_by' => Auth::id(), 'updated_at' => now()]);
+                }
+                Log::info('MLPP-SG surveyor account edited', ['account' => $a->id, 'by' => Auth::id(), 'before' => $before, 'after' => $data, 'licence' => $licence]);
+
+                return $a;
+            });
+        } catch (QueryException $e) {
+            if (str_contains($e->getMessage(), 'ux_surveyor_portal_username')) {
+                throw ValidationException::withMessages(['username' => 'That username is taken. Choose another.']);
+            }
+            throw $e;
+        }
+
+        return $account;
+    }
+
     public function approve(SurveyorPortalAccount $account): SurveyorPortalAccount
     {
         if ($account->status !== SurveyorPortalAccount::PENDING) {

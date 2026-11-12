@@ -53,6 +53,9 @@
     <a href="{{ route('vfs.index') }}" class="text-xs font-semibold border border-gray-300 text-gray-700 rounded-md py-2 px-4">Back to register</a>
 </div>
 
+{{-- ST family: Land File > Primary ST > Unit(s) (CR-11112026-2 item 15). Absent for a file outside any ST family. --}}
+@include('vfs.partials.st_family', ['stFamily' => $stFamily ?? null, 'file' => $file])
+
 {{-- Temporary file explanation --}}
 @if($summary['is_temporary'])
     <div class="bg-blue-50 border-b border-blue-200 px-6 py-3 flex gap-3">

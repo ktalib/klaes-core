@@ -170,6 +170,7 @@
         <span>Commissioned {{ optional($card->commissioned_at)->format('d M Y') ?: '—' }}</span>
         <span>Printed {{ now()->format('d M Y H:i') }} · copy {{ $card->print_count }}</span>
     </div>
+    @include('partials._klaes_print_logo')
 </div>
 </body>
 </html>

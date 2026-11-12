@@ -154,6 +154,7 @@
         Printed {{ now()->format('d M Y H:i') }}
 
     </div>
+    @include('partials._klaes_print_logo')
 </div>
 </body>
 </html>

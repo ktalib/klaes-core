@@ -142,6 +142,52 @@
         </div>
     </section>
 
+    {{-- NIS / SURCON flash banners (CR 11112026-2, item 11). --}}
+    @php
+      $fbRows = old('flash_banners', $portalSettings['flash_banners'] ?? []);
+      $fbRows = array_values(array_pad((array) $fbRows, max(count((array) $fbRows) + 1, 3), ['org' => '', 'title' => '', 'text' => '', 'link' => '']));
+    @endphp
+    <section class="iw-card">
+        <div class="iw-card-head">
+            <div class="iw-card-title"><i data-lucide="megaphone" class="h-4 w-4"></i> Flash banners (NIS / SURCON)</div>
+            <div class="iw-card-sub">Notices that rotate in a strip at the top of the portal's homepage and signed-in pages. Leave a title blank to remove that banner. Up to 10.</div>
+        </div>
+        <div class="iw-card-body space-y-4">
+            <label class="inline-flex items-center gap-2 text-sm font-medium">
+                <input type="hidden" name="flash_banners_on" value="0">
+                <input type="checkbox" name="flash_banners_on" value="1" @checked(old('flash_banners_on', $portalSettings['flash_banners_on'] ?? '1') === '1')>
+                Show the flash banners on the portal
+            </label>
+            <div class="grid grid-cols-1 gap-3" id="fbRows">
+                @foreach ($fbRows as $i => $b)
+                    <div class="rounded-lg border border-gray-200 p-4 grid grid-cols-1 md:grid-cols-6 gap-3">
+                        <div class="iw-field md:col-span-1">
+                            <label class="iw-label" for="fb_{{ $i }}_org">Body</label>
+                            <select class="iw-input" id="fb_{{ $i }}_org" name="flash_banners[{{ $i }}][org]">
+                                @foreach (\App\Services\SurveyorPortalSettings::BANNER_ORGS as $org)
+                                    <option value="{{ $org }}" @selected(($b['org'] ?? '') === $org)>{{ $org }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="iw-field md:col-span-2">
+                            <label class="iw-label" for="fb_{{ $i }}_title">Title</label>
+                            <input class="iw-input" id="fb_{{ $i }}_title" name="flash_banners[{{ $i }}][title]" maxlength="120" value="{{ $b['title'] ?? '' }}" placeholder="e.g. SURCON annual practising licence">
+                        </div>
+                        <div class="iw-field md:col-span-3">
+                            <label class="iw-label" for="fb_{{ $i }}_link">Link (optional)</label>
+                            <input class="iw-input" id="fb_{{ $i }}_link" name="flash_banners[{{ $i }}][link]" maxlength="255" value="{{ $b['link'] ?? '' }}" placeholder="https://…">
+                        </div>
+                        <div class="iw-field md:col-span-6">
+                            <label class="iw-label" for="fb_{{ $i }}_text">Text</label>
+                            <textarea class="iw-input" id="fb_{{ $i }}_text" name="flash_banners[{{ $i }}][text]" maxlength="300" rows="2">{{ $b['text'] ?? '' }}</textarea>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+            <p class="text-xs text-gray-500">To add more than one new banner at a time, save, and an empty row appears again.</p>
+        </div>
+    </section>
+
     <section class="iw-card">
         <div class="iw-card-head">
             <div class="iw-card-title"><i data-lucide="list-ordered" class="h-4 w-4"></i> Homepage information section</div>

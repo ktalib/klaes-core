@@ -1,0 +1,274 @@
+# Cadastral file register, 8 photos sent by the user on 2026-11-12 (CR-11112026-2 item 12).
+# Transcribed by hand from the photos, in page order. One line per register line:
+#   file no. as written (dittos filled in) | LF (1/0/blank) | destination | flags | note
+# A "@ dd/mm/yyyy" line is a date heading on the page; "@~ dd/mm/yyyy" = no heading, date carried over from the page before.
+# Flags: X = struck through on the page, ? = hard to read, check against the photo.
+# "= page N imgK" starts a new photo page.
+
+= 1 img1
+@ 23/09/2026
+RES/89/303 | 1 | AD/Report | | signed 30/09/26
+RES/89/4368 | 1 | AD/Report | |
+@ 28/09/2026
+CON/RES/2026/1195 | 1 | D/CIS | ? | destination hard to read
+@ 30/09/2026
+RES/97/386 | 1 | AD/Report | |
+@ 05/10/2026
+RES/2026/3239 | 1 | AD/Report | |
+RES/2009/1891 | 1 | AD/Report | |
+RES/2019/1110 | 1 | AD/Report | |
+RES/2019/1111 | 1 | AD/Report | |
+RES/2026/3238 | 1 | AD/Report | |
+CON/COM/2026/106 | 1 | AD/Report | |
+RES/2026/3200 | 1 | AD/Report | |
+RES/2026/3079 | 1 | AD/Report | |
+RES/2026/2971 | 1 | AD/Report | |
+RES/2026/2968 | 1 | AD/Report | |
+RES/2026/2964 | 1 | AD/Report | |
+RES/2026/2972 | 1 | AD/Report | |
+RES/2026/2531 | 1 | AD/Report | |
+RES/2026/2655 | 1 | AD/Report | |
+RES/2026/2663 | 1 | AD/Report | |
+RES/2026/3367 | 1 | AD/Report | |
+RES/2026/3368 | 1 | AD/Report | |
+RES/2026/3366 | 1 | AD/Report | |
+RES/2026/3364 | 1 | AD/Report | |
+RES/2026/3363 | 1 | AD/Report | |
+RES/2026/3365 | 1 | AD/Report | |
+RES/2026/3369 | 1 | AD/Report | |
+RES/2026/2851 | 1 | AD/Report | |
+RES/2026/2291 | 1 | AD/Report | |
+RES/2026/2220 | 1 | AD/Report | |
+RES/2023/1313 | 1 | AD/Report | |
+
+= 2 img5
+@ 06/10/2026
+CON/COM/2026/544 | 1 | AD/Report | |
+@ 07/10/2026
+RES/2017/302 | 1 | AD/Report | | note in margin: "through Abdullahi S. ..." (name unclear)
+@ 08/10/2026
+CON/COM/2026/82 | 1 | AD/Report | |
+CON/COM/2026/329 | 1 | AD/Report | |
+CON/RES/2023/5977 | 1 | AD/Report | |
+CON/RES/2023/6023 | 1 | AD/Report | |
+CON/RES/2023/5965 | 1 | AD/Report | ? | could be 5915
+CON/RES/2023/6021 | 1 | AD/Report | |
+CON/RES/2023/5888 | 1 | AD/Report | |
+CON/RES/2023/6020 | 1 | AD/Report | |
+CON/RES/2023/6162 | 1 | AD/Report | |
+CON/RES/2023/6163 | 1 | AD/Report | |
+CON/RES/2023/5988 | 1 | AD/Report | |
+CON/RES/2023/5985 | 1 | AD/Report | |
+CON/RES/2023/5881 | 1 | AD/Report | |
+CON/RES/2023/5889 | 1 | AD/Report | | signed 08/10/2026
+@ 12/10/2026
+IND/2026/113 | 1 | AD/Report | |
+IND/2026/114 | 1 | AD/Report | |
+IND/2026/115 | 1 | AD/Report | |
+IND/2026/116 | 1 | AD/Report | |
+IND/2026/117 | 1 | AD/Report | |
+IND/2026/118 | 1 | AD/Report | |
+IND/2026/119 | 1 | AD/Report | |
+IND/2026/120 | 1 | AD/Report | |
+IND/2026/121 | 1 | AD/Report | |
+IND/2026/122 | 1 | AD/Report | |
+IND/2026/123 | 1 | AD/Report | |
+@ 13/10/2026
+CON/IND/2024/23 | 1 | AD/Report | |
+
+= 3 img7
+@ 14/10/2026
+RES/2026/3357 | 1 | AD/Report | |
+SLTR/221568 | 1 | AD/Report | |
+SLTR/216737 | 1 | AD/Report | |
+SLTR/216783 | 1 | AD/Report | |
+@ 21/10/2026
+RES/2026/3656 | 1 | D/Cad | | margin: "through ..." (name unclear)
+RES/2026/3657 | 1 | D/Cad | |
+IND/2026/208 | 1 | D/Cad | |
+RES/2026/3881 | 1 | D/Cad | |
+RES/2026/3882 | 1 | D/Cad | |
+RES/2026/3880 | 1 | D/Cad | |
+RES/2026/3879 | 1 | D/Cad | |
+RES/2026/3883 | 1 | D/Cad | |
+RES/2026/3251 | 1 | AD/Report | | margin: "through Ibrahim Lawan" (unclear)
+RES/2017/1876 | 1 | AD/Report | | margin: "through ..." (unclear)
+@ 22/10/2026
+RES/2025/6398 | 1 | OSS-C | | margin: "through ... OSS-C"
+RES/2025/6399 | 1 | OSS-C | |
+@ 26/10/2026
+SLTR/215639 | 1 | GA&I SLTR | X? | whole block struck through; destination unclear
+SLTR/203208 | 1 | GA&I SLTR | X |
+SLTR/22939 | 1 | GA&I SLTR | X? | only 5 digits written
+SLTR/221960 | 1 | GA&I SLTR | X |
+SLTR/206071 | 1 | GA&I SLTR | X? | last digit unclear
+SLTR/203519 | 1 | GA&I SLTR | X |
+SLTR/203523 | 1 | GA&I SLTR | X |
+SLTR/203524 | 1 | GA&I SLTR | X |
+SLTR/203525 | 1 | GA&I SLTR | X |
+@ 27/10/2026
+RES/2022/7732 | 1 | AD/PDLD | ? | destination unclear ("AD/POLD"?)
+RES/2026/3370 | 1 | AD/Report | |
+RES/2026/3362 | 1 | AD/Report | ? | could be 3382
+RES/2026/3371 | 1 | AD/Report | |
+RES/2026/3372 | 1 | AD/Report | |
+
+= 4 img6
+@ 29/10/2026
+CON/IND/2026/790 | 1 | AD/Report | |
+CON/IND/2026/789 | 1 | AD/Report | |
+CON/IND/2026/788 | 1 | AD/Report | |
+RES/2025/4303 | 1 | AD/Report | |
+RES/2026/3166 | 1 | AD/Report | |
+RES/2026/3124 | 1 | AD/Report | |
+RES/2026/3171 | 1 | AD/Report | |
+RES/2026/3358 | 1 | AD/Report | |
+RES/2026/3240 | 1 | AD/Report | |
+RES/2026/3179 | 1 | AD/Report | |
+RES/2022/7085 | 1 | AD/Report | |
+RES/2026/2969 | 1 | AD/Report | |
+RES/2026/3156 | 1 | AD/Report | |
+RES/2026/2707 | 1 | AD/Report | |
+RES/2026/3217 | 1 | AD/Report | |
+RES/2026/2850 | 1 | AD/Report | |
+RES/2026/3178 | 1 | AD/Report | |
+RES/2026/3182 | 1 | AD/Report | |
+RES/2026/3176 | 1 | AD/Report | |
+RES/2026/1768 | 1 | AD/Report | |
+RES/2026/3172 | 1 | AD/Report | |
+RES/2026/3174 | 1 | AD/Report | |
+RES/2026/3173 | 1 | AD/Report | |
+RES/2025/5344 | 1 | AD/Report | |
+COM/2026/126 | 1 | AD/Report | |
+COM/2026/125 | 1 | AD/Report | |
+RES/2026/3072 | 1 | AD/Report | |
+RES/2026/2558 | 1 | AD/Report | |
+RES/2026/2556 | 1 | AD/Report | |
+RES/2025/3207 | 1 | AD/Report | |
+RES/2026/2527 | 1 | AD/Report | |
+RES/2026/2853 | 1 | AD/Report | |
+RES/2026/3158 | 1 | AD/Report | |
+RES/2026/2128 | 1 | AD/Report | |
+
+= 5 img2
+@~ 29/10/2026
+RES/2026/1928 | 1 | AD/Report | |
+RES/2026/3175 | 1 | AD/Report | |
+IND/2026/54 | 1 | AD/Report | |
+RES/2026/1575 | 1 | AD/Report | |
+RES/2026/2816 | 1 | AD/Report | |
+RES/2026/3177 | 1 | AD/Report | |
+RES/2026/2150 | 1 | AD/Report | |
+RES/2026/2151 | 1 | AD/Report | |
+RES/2026/2925 | 1 | AD/Report | |
+RES/2026/3170 | 1 | AD/Report | |
+RES/2026/2923 | 1 | AD/Report | |
+RES/2026/3159 | 1 | AD/Report | |
+RES/2026/3508 | 1 | AD/Report | |
+RES/2026/2852 | 1 | AD/Report | |
+@ 29/10/2026
+RES/2025/6386 | 1 | DSG | |
+@ 02/11/2026
+SLTR/213284 | 0 | AD/Report | | margin: "GA&I SLTR" + signature
+SLTR/213286 | 0 | AD/Report | |
+SLTR/213287 | 0 | AD/Report | |
+SLTR/213288 | 0 | AD/Report | |
+RES/2026/3871 | 1 | AD/Report | |
+RES/2026/3872 | 1 | AD/Report | |
+@ 03/11/2026
+RES/2022/1340 | 1 | AD/Report | |
+RES/2022/1342 | 1 | AD/Report | |
+CON/IND/2026/38 | 1 | AD/Report | |
+CON/COM/2026/594 | 1 | AD/Report | |
+CON/IND/2026/802 | 1 | AD/Report | |
+CON/RES/2026/833 | 1 | AD/Report | |
+RES/2023/5573 | 1 | AD/Report | |
+IND/2026/24 | 1 | AD/Report | |
+IND/2026/51 | 1 | AD/Report | |
+IND/2026/50 | 1 | AD/Report | |
+
+= 6 img4
+@~ 03/11/2026
+IND/2026/49 | 1 | AD/Report | |
+IND/2026/53 | 1 | AD/Report | |
+IND/2026/48 | 1 | AD/Report | |
+RES/93/3750 | 1 | AD/Report | |
+COM/2018/722 | 1 | AD/Report | |
+@ 04/11/2026
+RES/2025/3408 | 1 | AD/Report | |
+RES/2025/3409 | 1 | AD/Report | |
+CON/COM/2026/445 | 1 | AD/Report | |
+RES/2021/698 | 1 | AD/Report | |
+RES/2021/699 | 1 | AD/Report | |
+RES/2026/1567 | 1 | AD/Report | |
+@ 05/11/2026
+CON/COM/2026/498 | 1 | AD/Report | |
+CON/COM/2026/571 | 1 | SG | | margin: "SG ... 5/11"
+CON/COM/2026/494 | 1 | AD/Report | ? | destination is a ditto; could be SG
+RES/2026/2859 | 1 | AD/Report | |
+CON/RES/88/224 | 1 | AD/Report | | written "Ron/RES/88/224"
+RES/2026/4063 | 1 | AD/Report | |
+RES/2026/4006 | 1 | AD/Report | |
+RES/2026/3993 | 1 | AD/Report | |
+RES/2026/4064 | 1 | AD/Report | |
+RES/2026/3999 | 1 | AD/Report | |
+RES/2026/4065 | 1 | AD/Report | |
+RES/2026/1802 | 1 | AD/Report | |
+RES/2026/1801 | 1 | AD/Report | |
+RES/2026/1917 | 1 | AD/Report | |
+RES/2026/1804 | 1 | AD/Report | |
+RES/2026/1803 | 1 | AD/Report | |
+RES/2026/2252 | 1 | AD/Report | |
+RES/2026/2248 | 1 | AD/Report | |
+RES/2026/2254 | 1 | AD/Report | |
+RES/2026/2250 | 1 | AD/Report | |
+RES/2026/2251 | 1 | AD/Report | |
+
+= 7 img3
+@~ 05/11/2026
+RES/2026/2253 | 1 | AD/Report | |
+RES/2026/2246 | 1 | AD/Report | |
+RES/2026/1934 | 1 | AD/Report | ? | could be 1937
+RES/2026/3849 | 1 | AD/Report | |
+RES/2026/3326 | 1 | AD/Report | ? | digits overwritten
+RES/2026/2245 | 1 | AD/Report | |
+RES/2026/1842 | 1 | AD/Report | |
+RES/2026/2072 | 1 | AD/Report | |
+RES/2026/3068 | 1 | AD/Report | |
+RES/2026/3064 | 1 | AD/Report | |
+RES/2026/3035 | 1 | AD/Report | |
+RES/2026/3063 | 1 | AD/Report | |
+RES/2026/2459 | 1 | AD/Report | |
+RES/2026/3061 | 1 | AD/Report | |
+RES/2026/3255 | 1 | AD/Report | |
+RES/2026/3209 | 1 | AD/Report | | signed 05/11/2026
+RES/2026/4056 | 1 | AD/Report | |
+RES/2026/3504 | 1 | AD/Report | |
+SLTR/219437 | | AD/Report | | signed 3/11/26 (?)
+SLTR/131057 | | AD/Report | |
+RES/2026/4120 | | AD/Report | ? | question mark beside it in the register
+@ 09/11/2026
+SLTR/212075 | | AD/Report | | signed
+RES/2024/3451 | 1 | AD/Report | | signed 09/11/26
+RES/2026/3067 | 1 | AD/Report | |
+RES/2026/4035 | 1 | AD/Report | |
+RES/2026/3168 | 1 | AD/Report | |
+RES/2026/2267 | 1 | AD/Report | |
+RES/2025/4302 | 1 | AD/Report | |
+RES/2026/2594 | 1 | AD/Report | |
+RES/2026/3146 | 1 | AD/Report | |
+RES/2026/3062 | 1 | AD/Report | |
+RES/2026/3060 | 1 | AD/Report | |
+RES/2026/3974 | 1 | AD/Report | |
+
+= 8 img8
+@~ 09/11/2026
+RES/2026/2948 | 1 | AD/Report | |
+RES/2026/1636 | 1 | AD/Report | |
+RES/2026/3426 | 1 | AD/Report | |
+RES/2026/3526 | 1 | AD/Report | ? | overwritten: 3526 or 3426
+RES/2026/3073 | 1 | AD/Report | |
+RES/2026/3241 | 1 | AD/Report | |
+RES/2026/2242 | 1 | AD/Report | | signed 09/11/2026
+@ 09/11/2026
+CON/COM/2024/601 | 1 | AD/Report | |

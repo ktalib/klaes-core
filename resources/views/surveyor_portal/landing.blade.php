@@ -31,6 +31,12 @@
     .ks-slide-text { font-size: clamp(15px, 1.8vw, 18px); line-height: 1.6; opacity: .9; margin-top: 12px; }
     .ks-slide-seal { background: radial-gradient(ellipse at 72% 50%, #1D1C18 0%, #0B0B0B 62%); padding: 40px 0 76px; }
     .ks-seal-img { width: 100%; max-width: 440px; justify-self: center; -webkit-mask-image: radial-gradient(circle at 50% 46%, #000 44%, transparent 58%); mask-image: radial-gradient(circle at 50% 46%, #000 44%, transparent 58%); }
+    .ks-slide-body { display: flex; align-items: center; background: linear-gradient(120deg, #F8FAFC 0%, #EEF3F9 60%, #E6EDF6 100%); color: #0F172A; padding: 40px 0 76px; }
+    .ks-body-eyebrow { background: #fff; border-color: var(--hb); color: var(--hb); }
+    .ks-slide-body .ks-slide-title { color: var(--hb); }
+    .ks-slide-body .ks-slide-text { color: #334155; opacity: 1; }
+    .ks-body-logo-wrap { display: grid; place-items: center; }
+    .ks-body-logo { width: 240px; height: 240px; object-fit: contain; border-radius: 28px; background: #fff; padding: 16px; box-shadow: 0 18px 40px -18px rgba(15,23,42,.35); }
     .ks-slide-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 5; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center;
         background: rgba(255,255,255,.92); color: var(--ks-blue); border: 1px solid var(--ks-line); box-shadow: 0 4px 14px rgba(0,0,0,.15); cursor: pointer; }
     .ks-slide-nav:hover { background: #fff; }
@@ -44,6 +50,8 @@
         .ks-slide-shade { background: linear-gradient(0deg, rgba(6,18,38,.94) 0%, rgba(6,18,38,.72) 55%, rgba(6,18,38,.15) 100%); }
         .ks-slide-copy { padding: 140px 16px 76px; }
         .ks-seal-img { max-width: 240px; grid-row: 1; }
+        .ks-body-logo-wrap { grid-row: 1; }
+        .ks-body-logo { width: 150px; height: 150px; }
         .ks-slide-nav { display: none; }
     }
     @media (prefers-reduced-motion: reduce) { .ks-slide, .ks-dot { transition: none; } }
@@ -97,12 +105,38 @@
 
 @section('body')
 @include('surveyor_portal.partials.public_nav')
+{{-- NIS / SURCON flash banners (CR 11112026-2, item 11). --}}
+@include('surveyor_portal.partials.flash_banners')
 
 {{-- The hero is a slideshow (user, 2026-11-05: "add images slides"): the wordmark banner first, then the field
      photo and the seal. Every 7 s; pauses on hover or focus, and never moves by itself under reduced motion. --}}
+@php
+    // Then one slide per SURCON / NIS notice (user, 2026-11-12), from the flash banner notices; a second notice
+    // from the same body shows that body's second logo.
+    $hbOn = (string) ($portalSettings['flash_banners_on'] ?? '1') === '1';
+    $hbLogos = [
+        'SURCON' => ['assets/logo/surcon-logo.png', 'assets/logo/surcon-logo-2.png'],
+        'NIS' => ['assets/logo/nis-logo.png'],
+        'MLPP-SG' => [$portalSettings['logo_seal'] ?? 'assets/logo/mlppsg-logo.png'],
+    ];
+    $hbColour = ['SURCON' => '#0B3A7E', 'NIS' => '#15803D', 'MLPP-SG' => '#8A6A12'];
+    $hbNames = ['SURCON' => 'Surveyors Council of Nigeria (SURCON) logo', 'NIS' => 'Nigerian Institution of Surveyors (NIS) logo', 'MLPP-SG' => 'MLPP-SG seal'];
+    $hbSeen = [];
+    $heroBodySlides = [];
+    foreach ($hbOn ? (array) ($portalSettings['flash_banners'] ?? []) : [] as $b) {
+        $org = $b['org'] ?? '';
+        if (! isset($hbLogos[$org])) continue;
+        $nth = $hbSeen[$org] = ($hbSeen[$org] ?? 0) + 1;
+        $heroBodySlides[] = [
+            'org' => $org, 'title' => $b['title'] ?? '', 'text' => $b['text'] ?? '', 'link' => $b['link'] ?? '',
+            'logo' => $hbLogos[$org][($nth - 1) % count($hbLogos[$org])], 'alt' => $hbNames[$org], 'colour' => $hbColour[$org],
+        ];
+    }
+    $heroTotal = 3 + count($heroBodySlides);
+@endphp
 <section class="ks-hero" id="ksSlides" aria-roledescription="carousel" aria-label="About the MLPP-SG portal">
     <div class="ks-slide-stack">
-        <div class="ks-slide is-on" role="group" aria-roledescription="slide" aria-label="1 of 3">
+        <div class="ks-slide is-on" role="group" aria-roledescription="slide" aria-label="1 of {{ $heroTotal }}">
         {{-- A traverse between beacons, drawn behind the banner. Decoration only. --}}
         <svg class="ks-traverse" viewBox="0 0 1200 560" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
             <g fill="none" stroke-width="1.5" stroke-dasharray="6 6">
@@ -155,7 +189,7 @@
         </div>
         </div>
 
-        <div class="ks-slide ks-slide-photo" role="group" aria-roledescription="slide" aria-label="2 of 3" aria-hidden="true">
+        <div class="ks-slide ks-slide-photo" role="group" aria-roledescription="slide" aria-label="2 of {{ $heroTotal }}" aria-hidden="true">
             <img src="{{ asset('assets/portal/kssgof-field-survey.jpg') }}" alt="" width="1024" height="572" loading="lazy" class="ks-slide-bg" style="object-position:72% center;">
             <div class="ks-slide-shade"></div>
             <div class="ks-slide-copy">
@@ -173,7 +207,7 @@
             </div>
         </div>
 
-        <div class="ks-slide ks-slide-seal" role="group" aria-roledescription="slide" aria-label="3 of 3" aria-hidden="true">
+        <div class="ks-slide ks-slide-seal" role="group" aria-roledescription="slide" aria-label="3 of {{ $heroTotal }}" aria-hidden="true">
             <div class="mx-auto px-4 grid md:grid-cols-2 items-center gap-6 w-full" style="max-width:1120px;">
                 <div class="ks-slide-copy" style="padding:0;max-width:none;">
                     <span class="ks-eyebrow" style="background:rgba(201,154,30,.14);border-color:rgba(201,154,30,.45);color:#E7C66A;"><i data-lucide="shield-check" class="w-4 h-4"></i> Official portal</span>
@@ -187,12 +221,29 @@
                 <img src="{{ asset($portalSettings['logo_seal']) }}" alt="{{ $portalSettings['brand_name'] }} seal" width="1200" height="900" loading="lazy" class="ks-seal-img">
             </div>
         </div>
+
+        {{-- SURCON / NIS slides: the body's logo large, its notice beside it. --}}
+        @foreach ($heroBodySlides as $k => $hs)
+            <div class="ks-slide ks-slide-body" role="group" aria-roledescription="slide" aria-label="{{ $k + 4 }} of {{ $heroTotal }}" aria-hidden="true" style="--hb:{{ $hs['colour'] }};">
+                <div class="mx-auto px-4 grid md:grid-cols-2 items-center gap-6 w-full" style="max-width:1120px;">
+                    <div class="ks-slide-copy" style="padding:0;max-width:none;">
+                        <span class="ks-eyebrow ks-body-eyebrow"><i data-lucide="badge-check" class="w-4 h-4"></i> {{ $hs['org'] }}</span>
+                        <h2 class="ks-slide-title">{{ $hs['title'] }}</h2>
+                        <p class="ks-slide-text">{{ $hs['text'] }}</p>
+                        @if ($hs['link'])
+                            <div style="margin-top:24px;"><a class="ks-btn" style="background:var(--hb);color:#fff;padding:12px 22px;" href="{{ $hs['link'] }}" target="_blank" rel="noopener">Read more</a></div>
+                        @endif
+                    </div>
+                    <div class="ks-body-logo-wrap"><img src="{{ asset($hs['logo']) }}" alt="{{ $hs['alt'] }}" width="240" height="240" loading="lazy" class="ks-body-logo"></div>
+                </div>
+            </div>
+        @endforeach
     </div>
 
     <button type="button" class="ks-slide-nav" data-step="-1" aria-label="Previous slide" style="left:12px;"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
     <button type="button" class="ks-slide-nav" data-step="1" aria-label="Next slide" style="right:12px;"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
     <div class="ks-slide-dots">
-        @foreach ([1, 2, 3] as $n)
+        @foreach (range(1, $heroTotal) as $n)
             <button type="button" class="ks-dot {{ $n === 1 ? 'on' : '' }}" data-go="{{ $n - 1 }}" aria-label="Show slide {{ $n }}" @if ($n === 1) aria-current="true" @endif></button>
         @endforeach
         <button type="button" class="ks-slide-pause" aria-label="Pause the slides"><i data-lucide="pause" class="w-3.5 h-3.5"></i></button>

@@ -115,6 +115,7 @@
         <span>{{ $case->case_ref }} · {{ $def->workflows()[$case->workflow]['label'] ?? $case->workflow }}</span>
         <span>Printed {{ now()->format('d M Y H:i') }} · copy {{ $fmc->print_count }}</span>
     </div>
+    @include('partials._klaes_print_logo')
 </div>
 </body>
 </html>

@@ -420,5 +420,5 @@
             readOnly: @json($fsReadOnly),
         };
     </script>
-    <script type="module" src="{{ asset('js/file_search_db.js') }}"></script>
+    <script type="module" src="{{ asset('js/file_search_db.js') }}?v={{ filemtime(public_path('js/file_search_db.js')) }}"></script>
 @endsection

@@ -22,6 +22,7 @@
         'timeline' => $timeline,
         'sources' => $sources,
         'pagesUrl' => $pagesUrl,
+        'stFamily' => $stFamily ?? null,
     ])
 </div>
 @endsection
@@ -88,6 +89,14 @@
                     fileNumber: @json($file->file_number),
                     startPageId: el.getAttribute('data-page-id') || null
                 });
+            });
+        });
+
+        // ST family: the Land File's pages, read-only in the same viewer (CR-11112026-2 item 15).
+        document.querySelectorAll('[data-vfs-open-land]').forEach(function (el) {
+            el.addEventListener('click', function () {
+                if (typeof window.openDocumentViewer !== 'function') return;
+                window.openDocumentViewer(el.getAttribute('data-url'), false, { fileNumber: el.getAttribute('data-file') });
             });
         });
 

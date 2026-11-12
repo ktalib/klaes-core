@@ -220,7 +220,12 @@ class FilearchiveController extends Controller
             $search = $request->get('search');
             $field = $request->get('field', 'all');
 
-            $completedFiles->where(function ($query) use ($search, $field) {
+            // An ST file number also finds its Land File, Primary ST and Unit(s) (CR-11112026-2 item 15).
+            $stFamily = in_array($field, ['all', 'fileNumber'], true) ? app(\App\Services\Vfs\StFamily::class)->numbers($search) : [];
+            $completedFiles->where(function ($query) use ($search, $field, $stFamily) {
+                if ($stFamily) {
+                    $query->orWhereIn('file_number', $stFamily);
+                }
                 if ($field === 'all' || $field === 'fileName') {
                     $query->orWhere('file_title', 'like', "%{$search}%");
                 }
@@ -1770,8 +1775,14 @@ class FilearchiveController extends Controller
         // Apply filters
         if ($request->filled('search')) {
             $search = $request->get('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('file_title', 'like', "%{$search}%")
+            // An ST file number also finds its Land File, Primary ST and Unit(s); an SUA only itself
+            // (CR-11112026-2 item 15, user 2026-11-12).
+            $stFamily = app(\App\Services\Vfs\StFamily::class)->numbers($search);
+            $query->where(function ($q) use ($search, $stFamily) {
+                if ($stFamily) {
+                    $q->whereIn('file_number', $stFamily);
+                }
+                $q->orWhere('file_title', 'like', "%{$search}%")
                     ->orWhere('file_number', 'like', "%{$search}%")
                     ->orWhereHas('pagetypings', function ($subQ) use ($search) {
                         $subQ->where('page_type', 'like', "%{$search}%");

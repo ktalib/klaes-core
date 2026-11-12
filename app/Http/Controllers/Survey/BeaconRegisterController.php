@@ -833,6 +833,9 @@ class BeaconRegisterController extends Controller
                   'coord_x', 'coord_y'] as $f) {
             $r->merge([$f => $clean($r->input($f))]);
         }
+        // X = Easting, Y = Northing; a reversed pair is put right on save (CR 11112026-2 item 10).
+        [$cx, $cy] = \App\Services\Survey\SurveyCoordinates::orient($r->input('coord_x'), $r->input('coord_y'));
+        $r->merge(['coord_x' => $cx, 'coord_y' => $cy]);
         // Beacon numbers: upper case, no spaces, so "c 9302b" and "C9302B" are one number.
         foreach (['beacon_from', 'beacon_to'] as $f) {
             $r->merge([$f => SurveyBeaconRegister::normalise($r->input($f))]);

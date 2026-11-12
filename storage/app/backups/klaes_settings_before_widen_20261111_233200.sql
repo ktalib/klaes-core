@@ -1,0 +1,44 @@
+CREATE TABLE `settings` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(191) NOT NULL,
+  `value` varchar(191) NOT NULL,
+  `type` varchar(191) DEFAULT NULL,
+  `parent_id` int(11) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `settings_name_parent_id_unique` (`name`,`parent_id`)
+) ENGINE=MyISAM AUTO_INCREMENT=35 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('1','bank_transfer_payment','on','payment','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('2','bank_name','Bank of America','payment','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('3','bank_holder_name','SmartWeb Infotech','payment','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('4','bank_account_number','4242 4242 4242 4242','payment','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('5','bank_ifsc_code','BOA45678','payment','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('6','bank_other_details','','payment','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('7','landing_page','on','common','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('8','register_page','on','common','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('9','owner_email_verification','off','common','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('10','pricing_feature','on','common','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('11','meta_seo_image','WhatsApp Image 2025-02-21 at 5.25.59 AM_1740128591.jpeg','SEO','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('12','meta_seo_title','KLAS (KANGIS Land Admin System)','SEO','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('13','meta_seo_keyword','KLAS (KANGIS Land Admin System)','SEO','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('14','meta_seo_description','KLAS (KANGIS Land Admin System)','SEO','1',NULL,NULL);
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('15','sltr_approval_open','on','sltr','1','2026-09-24 16:36:00','2026-09-24 16:49:44');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('17','surveyor_portal_brand_name','MLPP-SG','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('18','surveyor_portal_portal_name','MLPP - Surveyor General Portal','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('19','surveyor_portal_office_name','Ministry of Land and Physical Planning – Surveyor General\'s Office','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('20','surveyor_portal_ministry_line','Under the Kano State Ministry of Land and Physical Planning','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('21','surveyor_portal_ministry_address','No. 2 Dr Bala Mohammed Road, Kano State, Nigeria','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('22','surveyor_portal_support_email','','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('23','surveyor_portal_support_phone','','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('24','surveyor_portal_primary_color','#0B3A7E','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('25','surveyor_portal_primary_dark_color','#082B5E','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('26','surveyor_portal_green_color','#15803D','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('27','surveyor_portal_gold_color','#C99A1E','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('28','surveyor_portal_how_title','How it works','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('29','surveyor_portal_how_subtitle','Four steps from registration to a printed slip.','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('30','surveyor_portal_private_title','Private surveyors','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('31','surveyor_portal_private_description','For surveys by a registered company. Numbers carry your company\'s letters and continue its own series.','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('32','surveyor_portal_private_example','B0001','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('33','surveyor_portal_ready_title','Have these ready','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');
+INSERT INTO settings (`id`,`name`,`value`,`type`,`parent_id`,`created_at`,`updated_at`) VALUES ('34','surveyor_portal_beacon_request_sms_phone','+234 803 073 3666','system','1','2026-11-11 23:23:13','2026-11-11 23:23:13');

@@ -66,6 +66,8 @@ class SurveyPlanUploads
             'plan_file.max'           => 'The plan can be at most 25 MB.',
         ]);
 
+        $beacons = $this->validatedBeacons($r);
+
         $one = fn ($v) => ($v = trim(preg_replace('/\s+/u', ' ', (string) $v))) === '' ? null : $v;
         $district = $d['district'] === self::OTHER ? $one($d['district_other'] ?? null) : $d['district'];
         // A listed district typed under Other becomes that district.
@@ -96,7 +98,88 @@ class SurveyPlanUploads
             'surveyors_list_id' => $surveyorId,
             'drawn_by'          => $drawnBy,
             'remarks'           => \App\Services\CadastralDept\Normalise::text($d['remarks'] ?? null) ?: null,
+            'beacons'           => $beacons,
         ];
+    }
+
+    /**
+     * Reference beacons (CR 11112026-2, item 4): one row or more, each a beacon number (picked from the
+     * captured / extant lists or typed when it is not there) with its X and Y as written on the plan.
+     * Blank rows are dropped; a row with a number needs both coordinates.
+     *
+     * @return array<int, array{beacon_no:string, coord_x:string, coord_y:string, source:string}>
+     */
+    public function validatedBeacons(Request $r): array
+    {
+        $rows = [];
+        $errors = [];
+        foreach ((array) $r->input('beacons', []) as $i => $b) {
+            $no = strtoupper(trim(preg_replace('/\s+/', ' ', (string) ($b['beacon_no'] ?? ''))));
+            $x = trim(str_replace([',', ' '], '', (string) ($b['x'] ?? '')));
+            $y = trim(str_replace([',', ' '], '', (string) ($b['y'] ?? '')));
+            if ($no === '' && $x === '' && $y === '') {
+                continue;
+            }
+            [$x, $y] = SurveyCoordinates::orient($x, $y);   // X = Easting, Y = Northing (item 10)
+            $n = count($rows) + 1;
+            if ($no === '') $errors["beacons.$i.beacon_no"] = "Reference beacon {$n}: enter the beacon number.";
+            if (! is_numeric($x)) $errors["beacons.$i.x"] = "Reference beacon {$n}: X must be a number.";
+            if (! is_numeric($y)) $errors["beacons.$i.y"] = "Reference beacon {$n}: Y must be a number.";
+            $rows[] = [
+                'beacon_no' => mb_substr($no, 0, 60),
+                'coord_x'   => mb_substr($x, 0, 40),
+                'coord_y'   => mb_substr($y, 0, 40),
+                'source'    => in_array($b['source'] ?? '', ['captured', 'extant'], true) ? $b['source'] : 'typed',
+            ];
+        }
+        if (! $rows) {
+            $errors['beacons'] = 'Enter at least one reference beacon with its X and Y.';
+        }
+        if (count($rows) > 30) {
+            $errors['beacons'] = 'Up to 30 reference beacons can be entered.';
+        }
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Beacon numbers for the reference beacon dropdown: captured in KLAES (Beacon Register, with X / Y
+     * when it holds them) first, then the Extant Beacons list. Each name once.
+     *
+     * @return array<int, array{beacon_no:string, x:?string, y:?string, source:string}>
+     */
+    public function searchBeacons(string $term, int $limit = 30): array
+    {
+        $key = strtoupper(str_replace(' ', '', trim($term)));
+        if (strlen($key) < 2) {
+            return [];
+        }
+        $like = str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $key) . '%';
+        $db = DB::connection('sqlsrv');
+        $out = [];
+
+        $captured = $db->table('survey_beacon_numbers')->whereNull('deleted_at')
+            ->whereRaw("REPLACE(UPPER(beacon_no), ' ', '') LIKE ?", [$like])
+            ->orderBy('beacon_no')->limit($limit)->get(['beacon_no', 'coord_x', 'coord_y']);
+        foreach ($captured as $c) {
+            $k = strtoupper(str_replace(' ', '', (string) $c->beacon_no));
+            $out[$k] ??= ['beacon_no' => (string) $c->beacon_no, 'x' => $c->coord_x !== null ? (string) $c->coord_x : null,
+                'y' => $c->coord_y !== null ? (string) $c->coord_y : null, 'source' => 'captured'];
+        }
+
+        if (count($out) < $limit && \Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasTable('survey_extant_beacons')) {
+            $extant = $db->table('survey_extant_beacons')->where('name_key', 'like', $like)
+                ->select('name_key', DB::raw('MIN(beacon_name) AS beacon_name'))->groupBy('name_key')
+                ->orderBy('name_key')->limit($limit)->get();
+            foreach ($extant as $e) {
+                $out[$e->name_key] ??= ['beacon_no' => (string) $e->beacon_name, 'x' => null, 'y' => null, 'source' => 'extant'];
+            }
+        }
+
+        return array_slice(array_values($out), 0, $limit);
     }
 
     /**
@@ -106,8 +189,10 @@ class SurveyPlanUploads
     public function store(array $fields, UploadedFile $file, ?User $staff, ?SurveyorPortalAccount $account = null): Plan
     {
         $stored = null;
+        $beacons = $fields['beacons'] ?? [];
+        unset($fields['beacons']);
         try {
-            $plan = DB::connection('sqlsrv')->transaction(function () use ($fields, $file, $staff, $account, &$stored) {
+            $plan = DB::connection('sqlsrv')->transaction(function () use ($fields, $beacons, $file, $staff, $account, &$stored) {
                 $ext = strtolower($file->getClientOriginalExtension() ?: ($file->extension() ?: 'pdf'));
                 $stored = Storage::disk(Plan::DISK)->putFileAs('app/survey/survey-plans/' . now()->format('Y/m'), $file, Str::uuid() . '.' . $ext);
                 if (! $stored) {
@@ -133,6 +218,9 @@ class SurveyPlanUploads
                         // Two uploads at the same moment can take one ref; the unique index refuses the second.
                         if ($try >= 3 || ! str_contains($e->getMessage(), 'upload_ref')) throw $e;
                     }
+                }
+                foreach (array_values($beacons) as $i => $b) {
+                    \App\Models\Survey\SurveyPlanReferenceBeacon::create($b + ['survey_plan_upload_id' => $plan->id, 'sort' => $i + 1]);
                 }
                 $this->notifyUnit($plan, $staff?->id);
 

@@ -280,16 +280,11 @@
           <a data-tab-card="survey-plot-showing" href="{{ route('survey-module.gkn.plot-showing') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.plot-showing') ? 'active' : '' }}">
             <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Plot Showing Register</span>
           </a>
-          {{-- CR 30102026 item 21 (2026-10-31): a first version of the form; Survey will give its fields. --}}
-          <a href="{{ route('survey-module.gkn.passing-checks') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.passing-checks') ? 'active' : '' }}">
-            <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Checking &amp; Passing (Survey Plan)</span>
+          {{-- The old Checking & Passing (Survey Plan) form (CR 30102026 item 21) is switched off: "no longer required"
+               (CR 11112026-2). Checking now happens on each uploaded plan's page (stages 1-2). --}}
+          <a href="{{ route('survey-module.gkn.uploaded-plans') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.uploaded-plans') ? 'active' : '' }}">
+            <i data-lucide="file-up" class="h-3.5 w-3.5 text-pink-400"></i><span>Uploaded Survey Plan</span>
           </a>
-          {{-- 1. Uploaded Survey Plan, nested under it (Survey Update 5i, sidebar image 2026-11-10). --}}
-          <div class="pl-3 space-y-0.5">
-            <a href="{{ route('survey-module.gkn.uploaded-plans') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.uploaded-plans') ? 'active' : '' }}">
-              <i data-lucide="file-up" class="h-3.5 w-3.5 text-pink-400"></i><span>Uploaded Survey Plan</span>
-            </a>
-          </div>
           @endif
         </div>
         @endif
@@ -428,6 +423,33 @@
         </a>
         @endif
 
+        {{-- g. SG/DSG (CR 11112026-2): Beacon Requests, Signing and Upload (Survey Plan), Map Requests. --}}
+        @php
+          $sgdsg = $hasRole('Survey - SG') || $hasRole('Survey - DSG') || $hasRole('Supper Admin');
+          $sgBr = request()->routeIs('survey-module.beacon-requests.*') && request('from') === 'sgdsg';
+          $sgOn = $sgBr || request()->routeIs('survey-module.survey-plans.signing');
+        @endphp
+        @if($sgdsg)
+        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-sgdsg">
+          <div class="flex items-center gap-2">
+            <i data-lucide="award" class="h-4 w-4 text-pink-500"></i>
+            <span>SG/DSG</span>
+          </div>
+          <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200 {{ $sgOn ? 'rotate-90' : '' }}" data-chevron="survey-sgdsg"></i>
+        </div>
+        <div class="pl-4 mt-1 mb-1 space-y-0.5 {{ $sgOn ? '' : 'hidden' }}" data-content="survey-sgdsg">
+          <a href="{{ route('survey-module.beacon-requests.index', ['from' => 'sgdsg']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $sgBr && request('tab') !== 'maps' ? 'active' : '' }}">
+            <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i><span>Beacon Requests</span>
+          </a>
+          <a href="{{ route('survey-module.survey-plans.signing') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.survey-plans.signing') ? 'active' : '' }}">
+            <i data-lucide="pen-tool" class="h-3.5 w-3.5 text-pink-400"></i><span>Signing and Upload (Survey Plan)</span>
+          </a>
+          <a href="{{ route('survey-module.beacon-requests.index', ['tab' => 'maps', 'from' => 'sgdsg']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $sgBr && request('tab') === 'maps' ? 'active' : '' }}">
+            <i data-lucide="map" class="h-3.5 w-3.5 text-pink-400"></i><span>Map Requests</span>
+          </a>
+        </div>
+        @endif
+
         {{-- File Status (user, 2026-10-26): the same pages as Cadastral > Verification > File Status,
              right after Examination/Verification. ?url=survey opens each one view only and keeps
              the other modules' entries for these pages unlit. One entry since 2026-10-30: the lists
@@ -564,7 +586,8 @@
         {{-- Its two lists are items here, no tabs on the page (user, 2026-11-06). The only link to them since the one under Other Departments > SG was removed. --}}
         @if($svSg)
         @php
-          $ksOn = request()->routeIs('survey-module.beacon-requests.*');
+          $ksOn = request()->routeIs('survey-module.beacon-requests.*') && request('from') !== 'sgdsg' || request()->routeIs('survey-module.survey-plans.portal');
+          $ksPlans = request()->routeIs('survey-module.survey-plans.portal');
           $ksReg = $ksOn && request('tab') === 'registrations';
           $ksMaps = $ksOn && request('tab') === 'maps';
         @endphp
@@ -579,8 +602,11 @@
           <a data-tab-card="mlppsg-registrations" href="{{ route('survey-module.beacon-requests.index', ['tab' => 'registrations']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksReg ? 'active' : '' }}">
             <i data-lucide="user-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Registrations</span>
           </a>
-          <a href="{{ route('survey-module.beacon-requests.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksOn && ! $ksReg && ! $ksMaps ? 'active' : '' }}">
+          <a href="{{ route('survey-module.beacon-requests.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksOn && ! $ksReg && ! $ksMaps && ! $ksPlans ? 'active' : '' }}">
             <i data-lucide="map-pin" class="h-3.5 w-3.5 text-pink-400"></i><span>Beacon Requests</span>
+          </a>
+          <a href="{{ route('survey-module.survey-plans.portal') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksPlans ? 'active' : '' }}">
+            <i data-lucide="file-up" class="h-3.5 w-3.5 text-pink-400"></i><span>Uploaded Survey</span>
           </a>
           <a href="{{ route('survey-module.beacon-requests.index', ['tab' => 'maps']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $ksMaps ? 'active' : '' }}">
             <i data-lucide="map" class="h-3.5 w-3.5 text-pink-400"></i><span>Map Requests</span>

@@ -336,6 +336,8 @@
             <strong>Date:</strong> <span class="signature-line" style="width: 140px;">{{ optional($form?->completed_at)->format('d/m/Y') }}</span><br>
             <strong style="margin-left: 65px; display: inline-block; margin-top: 5px;">KCAD</strong>
         </div>
+        {{-- KLAES logo (CR 11112026-2, item 14): in the footer row, as the form fills its sheet. --}}
+        <div style="align-self:flex-end;">@include('partials._klaes_print_logo', ['klaesLogoHeight' => '9mm', 'klaesLogoStyle' => 'padding-top:0;text-align:center;'])</div>
         <div class="footer-right">
             <strong>For:</strong> <span class="signature-line" style="width: 170px;"></span><br>
             <strong style="display: inline-block; margin-top: 5px; padding-right: 15px;">Director Cadastral</strong>

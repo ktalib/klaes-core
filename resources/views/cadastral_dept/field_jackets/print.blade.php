@@ -79,6 +79,7 @@
         <span>Printed {{ now()->format('d M Y H:i') }}</span>
         <span>{{ $jacket->field_jacket_no }} · {{ $job->job_number }}</span>
     </div>
+    @include('partials._klaes_print_logo')
 </div>
 </body>
 </html>

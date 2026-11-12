@@ -377,13 +377,16 @@
         Promise.all([
             loadImage('/assets/logo/ministry1.jpg'),
             loadImage('/assets/logo/ministry2.jpeg'),
-            loadImage('/assets/logo/Nigerian-Coat-of-Arms.png')
+            loadImage('/assets/logo/Nigerian-Coat-of-Arms.png'),
+            // KLAES logo at the foot of every page (CR 11112026-2, item 14).
+            loadImage('/assets/logo/klaes-print.jpg')
         ]).then(function (logos) {
             if (guardEmpty()) return;
             try {
                 var headerLeftLogo = logos[0];
                 var headerRightLogo = logos[1];
                 var watermarkLogo = logos[2];
+                var klaesLogo = logos[3];
 
                 var jsPDF = window.jspdf.jsPDF;
                 var doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -499,6 +502,11 @@
                     doc.setTextColor(100, 100, 100);
                     doc.text('Page ' + p + ' of ' + totalPages, pageWidth - 10, pageHeight - 5, { align: 'right' });
                     doc.text('Total Records: ' + window.recordsExportData.length, 10, pageHeight - 5);
+                    if (klaesLogo) {
+                        // 480 x 173 px source: 6 mm high, centred in the footer.
+                        var klaesH = 6, klaesW = klaesH * 480 / 173;
+                        doc.addImage(klaesLogo, 'JPEG', pageCenter - klaesW / 2, pageHeight - 4 - klaesH, klaesW, klaesH);
+                    }
                 }
 
                 doc.save(filenameFor('pdf'));

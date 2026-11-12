@@ -79,8 +79,15 @@ Route::prefix('mlpp-sg')->name('surveyor-portal.')->group(function () {
             // Survey Plan Upload (Survey Update 5g/5h, 2026-11-10): the short form and the surveyor's own uploads.
             Route::prefix('survey-plans')->name('survey-plans.')->group(function () {
                 Route::get('/', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'index'])->name('index');
+                // Survey Plan Upload > Signed (user, 2026-11-12): the surveyor's signed plans.
+                Route::get('signed', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'signed'])->name('signed');
                 Route::post('/', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'store'])->middleware('throttle:20,1')->name('store');
                 Route::get('{plan}/file', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'file'])->whereNumber('plan')->name('file');
+                // CR 11112026-2: beacon search, the plan page, the final copy and the stage files.
+                Route::get('beacons', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'beacons'])->middleware('throttle:120,1')->name('beacons');
+                Route::get('{plan}', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'show'])->whereNumber('plan')->name('show');
+                Route::post('{plan}/final', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'final'])->whereNumber('plan')->middleware('throttle:20,1')->name('final');
+                Route::get('{plan}/files/{file}', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'stageFile'])->whereNumber(['plan', 'file'])->name('stage-file');
             });
 
             // Requested Beacons > Beacon Register and Surveyor's Report (user, 2026-11-09): sidebar items, not tabs.
@@ -114,6 +121,9 @@ Route::prefix('mlpp-sg')->name('surveyor-portal.')->group(function () {
             Route::get('beacons/{which}', [\App\Http\Controllers\SurveyorPortal\CompanyController::class, 'beacons'])->whereIn('which', ['issued', 'used'])->name('beacons');
             Route::get('surveyors-report', [\App\Http\Controllers\SurveyorPortal\CompanyController::class, 'reports'])->name('reports');
             Route::get('surveyors-report/{report}/print', [\App\Http\Controllers\SurveyorPortal\CompanyController::class, 'printReport'])->whereNumber('report')->name('reports.print');
+            // Uploaded Survey Plans > Original / Signed (user, 2026-11-12): the plans the company's surveyors uploaded.
+            Route::get('survey-plans/{which}', [\App\Http\Controllers\SurveyorPortal\CompanyController::class, 'plans'])->whereIn('which', ['original', 'signed'])->name('plans');
+            Route::get('survey-plans/{plan}/file/{which}', [\App\Http\Controllers\SurveyorPortal\CompanyController::class, 'planFile'])->whereNumber('plan')->whereIn('which', ['original', 'signed'])->name('plans.file');
         });
     });
 });

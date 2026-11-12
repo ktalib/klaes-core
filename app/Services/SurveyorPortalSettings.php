@@ -54,6 +54,33 @@ class SurveyorPortalSettings
         'private_title' => 'Private surveyors',
         'private_description' => "For surveys by a registered company. Numbers carry your company's letters and continue its own series.",
         'private_example' => 'B0001',
+        /*
+         | Flash banners (CR 11112026-2, item 11): NIS and SURCON notices rotating at the top of the portal's
+         | landing page and signed-in pages. Edited in Configurable Entries > Surveyor Portal. The defaults are
+         | general reminders only; the SG's office replaces them with the bodies' current notices and links.
+         */
+        'flash_banners_on' => '1',
+        'flash_banners' => [
+            [
+                'org' => 'SURCON',
+                'title' => 'Surveyors Council of Nigeria (SURCON)',
+                'text' => 'Only surveyors registered with SURCON may sign and submit survey plans. Keep your SURCON registration and annual practising licence current.',
+                'link' => '',
+            ],
+            [
+                'org' => 'NIS',
+                'title' => 'Nigerian Institution of Surveyors (NIS)',
+                'text' => 'Keep your NIS membership and continuing professional development (CPD) up to date.',
+                'link' => '',
+            ],
+            // Third notice (user, 2026-11-12: three logos, three flashes); shows the second SURCON logo.
+            [
+                'org' => 'SURCON',
+                'title' => 'SURCON: Seal and Signature',
+                'text' => 'Every survey plan must carry the SURCON seal and signature of the registered surveyor who made it.',
+                'link' => '',
+            ],
+        ],
         'ready_title' => 'Have these ready',
         'ready_items' => [
             'Your SURCON registration number',
@@ -73,11 +100,10 @@ class SurveyorPortalSettings
 
         $defaults = $this->defaults();
         $names = array_map(fn (string $key) => $this->settingName($key), array_keys($defaults));
-        $stored = Setting::query()
-            ->where('parent_id', 1)
-            ->whereIn('name', $names)
-            ->get(['name', 'value'])
-            ->pluck('value', 'name');
+        // SQL Server since 2026-11-11 (user: configurable entries belong there, not in MySQL).
+        $stored = $this->installed()
+            ? DB::connection('sqlsrv')->table(self::TABLE)->whereIn('key', $names)->pluck('value', 'key')
+            : collect();
 
         $values = $defaults;
         foreach (array_keys($defaults) as $key) {
@@ -124,32 +150,43 @@ class SurveyorPortalSettings
             $values['ready_items'] = $defaults['ready_items'];
         }
 
+        $values['flash_banners'] = $this->cleanBanners($values['flash_banners']);
+
         return $this->cachedValues = $values;
     }
 
     public function save(array $values): void
     {
         $defaults = $this->defaults();
-        DB::transaction(function () use ($values, $defaults) {
+        $db = DB::connection('sqlsrv');
+        $db->transaction(function () use ($db, $values, $defaults) {
             foreach ($values as $key => $value) {
                 if (!array_key_exists($key, $defaults)) {
                     continue;
                 }
 
-                $setting = Setting::query()->firstOrNew([
-                    'parent_id' => 1,
-                    'name' => $this->settingName($key),
-                ]);
-                $setting->value = is_array($value)
+                $name = $this->settingName($key);
+                $text = is_array($value)
                     ? json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)
                     : (string) $value;
-                if (!$setting->exists) {
-                    $setting->type = 'system';
+                $row = ['value' => $text, 'updated_by' => auth()->id(), 'updated_at' => now()];
+                if ($db->table(self::TABLE)->where('key', $name)->exists()) {
+                    $db->table(self::TABLE)->where('key', $name)->update($row);
+                } else {
+                    $db->table(self::TABLE)->insert($row + ['key' => $name, 'created_at' => now()]);
                 }
-                $setting->save();
             }
         });
         $this->cachedValues = null;
+    }
+
+    public const TABLE = 'surveyor_portal_settings';
+
+    private function installed(): bool
+    {
+        static $has;
+
+        return $has ??= \Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasTable(self::TABLE);
     }
 
     private function settingName(string $key): string
@@ -171,6 +208,30 @@ class SurveyorPortalSettings
         }
 
         return $defaults;
+    }
+
+    /** Banner bodies the portal shows a badge for. */
+    public const BANNER_ORGS = ['SURCON', 'NIS', 'MLPP-SG'];
+
+    /** Only well-formed banners: a known body, a title, text, and an http(s) link or none. */
+    public function cleanBanners($banners): array
+    {
+        if (!is_array($banners)) {
+            return [];
+        }
+        $out = [];
+        foreach ($banners as $b) {
+            if (!is_array($b)) continue;
+            $org = (string) ($b['org'] ?? '');
+            $title = trim((string) ($b['title'] ?? ''));
+            $text = trim((string) ($b['text'] ?? ''));
+            $link = trim((string) ($b['link'] ?? ''));
+            if (!in_array($org, self::BANNER_ORGS, true) || $title === '') continue;
+            if ($link !== '' && !preg_match('#^https?://#i', $link)) $link = '';
+            $out[] = ['org' => $org, 'title' => mb_substr($title, 0, 120), 'text' => mb_substr($text, 0, 300), 'link' => mb_substr($link, 0, 255)];
+        }
+
+        return array_slice($out, 0, 10);
     }
 
     private function hasValidSteps($steps): bool

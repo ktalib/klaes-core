@@ -4,12 +4,15 @@ namespace App\Http\Controllers\SurveyorPortal;
 
 use App\Http\Controllers\Controller;
 use App\Models\Survey\SurveyorPortalAccount as Account;
+use App\Models\Survey\SurveyPlanFile as PlanFile;
+use App\Models\Survey\SurveyPlanUpload as Plan;
 use App\Models\Survey\SurveyorPortalNotification as Note;
 use App\Services\Survey\CompanyPortal;
 use App\Services\Survey\PortalSurveyorReports;
 use App\Services\Survey\ReportRecords;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * A company's pages on the MLPP-SG portal (user, 2026-11-10): Dashboard, Our Surveyors, Our Beacons (Issued
@@ -31,6 +34,8 @@ class CompanyController extends Controller
         $me = $this->me();
 
         return view('surveyor_portal.company.dashboard', [
+            // The company's beacon prefix, shown on the dashboard (user, 2026-11-12).
+            'prefix' => trim((string) \Illuminate\Support\Facades\DB::connection('sqlsrv')->table('survey_companies')->where('id', $me->company_id)->value('beacon_letters')),
             'stats' => $this->portal->stats($me),
             'latest' => $this->portal->beacons($me)->orderByDesc('survey_beacon_register_id')->orderByDesc('beacon_seq')->limit(5)->get(),
             'notes' => Note::visibleTo($me)->with('account:id,name')->orderByDesc('id')->limit(3)->get(),
@@ -82,6 +87,44 @@ class CompanyController extends Controller
             ->orderByDesc('id')->paginate(25)->withQueryString();
 
         return view('surveyor_portal.company.reports', ['rows' => $rows, 'search' => $term]);
+    }
+
+    /**
+     * Uploaded Survey Plans > Original (every plan the company's surveyors uploaded) or Signed (those with a
+     * signed copy). User, 2026-11-12. Read only.
+     */
+    public function plans(Request $r, string $which)
+    {
+        abort_unless(Plan::installed(), 404);
+        $term = trim((string) $r->query('q', ''));
+        $rows = Plan::with('files')->whereIn('surveyor_portal_account_id', $this->portal->surveyors($this->me())->select('id'))
+            ->when($which === 'signed', fn ($q) => $q->where('stage', Plan::STAGE_SIGNED))
+            ->when($term !== '', fn ($q) => $q->where(fn ($w) => $w->where('upload_ref', 'like', "%{$term}%")->orWhere('drawn_by', 'like', "%{$term}%")
+                ->orWhere('plot_no', 'like', "%{$term}%")->orWhere('district', 'like', "%{$term}%")->orWhere('lga', 'like', "%{$term}%")
+                ->orWhere('location', 'like', "%{$term}%")->orWhereHas('portalAccount', fn ($a) => $a->where('name', 'like', "%{$term}%"))))
+            ->with('portalAccount:id,name,surveyor_id_no')
+            ->orderByDesc('id')->paginate(25)->withQueryString();
+
+        return view('surveyor_portal.company.survey_plans', ['which' => $which, 'rows' => $rows, 'search' => $term]);
+    }
+
+    /** A company surveyor's plan file: the original upload or the signed copy. */
+    public function planFile(int $plan, string $which)
+    {
+        $p = Plan::with('files')->whereIn('surveyor_portal_account_id', $this->portal->surveyors($this->me())->select('id'))->findOrFail($plan);
+        $path = $p->file_path;
+        $name = $p->file_name;
+        if ($which === 'signed') {
+            $f = $p->latestFile(PlanFile::KIND_SIGNED);
+            abort_unless($f, 404);
+            [$path, $name] = [$f->file_path, $f->file_name];
+        }
+        abort_unless($path && Storage::disk(Plan::DISK)->exists($path), 404);
+
+        return Storage::disk(Plan::DISK)->response($path, $name ?: basename($path), [
+            'Cache-Control' => 'private, max-age=3600',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     /** The report as printed, read only. A draft prints without a Submitted date. */

@@ -36,7 +36,9 @@ class BeaconRequestController extends Controller
 
     private function authorizeSg(): void
     {
-        abort_unless((bool) optional(Auth::user())->canDo(SurveyorPortalNotifier::SG_ROLE, 'view'), 403, 'This page is for the Surveyor General.');
+        // The DSG works these lists too, from the SG/DSG sidebar group (CR 11112026-2).
+        $u = Auth::user();
+        abort_unless($u && ($u->canDo(SurveyorPortalNotifier::SG_ROLE, 'view') || $u->canDo('Survey - DSG', 'view')), 403, 'This page is for the Surveyor General and the DSG.');
     }
 
     public function index(Request $r)
@@ -52,6 +54,7 @@ class BeaconRequestController extends Controller
         $accounts = $this->accountsQuery($r)->paginate(20, ['*'], 'page')->withQueryString();
 
         return view('survey_module.beacon_requests.index', [
+            'brEdit' => $tab === 'registrations' ? $this->editValues($registrationTab, (int) ($r->old('br_edit') ?: $r->query('edit'))) : null,
             'tab' => $tab, 'registrationTab' => $registrationTab, 'requests' => $requests, 'accounts' => $accounts, 'status' => $status,
             'companyApplications' => $this->companyApplicationsQuery($r)->paginate(20, ['*'], 'company_page')->withQueryString(),
             'maps' => $this->mapsQuery($r)->paginate(20, ['*'], 'page')->withQueryString(),
@@ -225,6 +228,108 @@ class BeaconRequestController extends Controller
 
         return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations', 'registration_tab' => 'surveyors'])
             ->with('success', "{$a->name} added under {$a->company_name}, Surveyor ID {$a->surveyor_id_no}." . $this->loginLine($a->username, $sent));
+    }
+
+    /**
+     * Edit on Company / Surveyor Registrations (user, 2026-11-12): the record's current values for the Add form,
+     * opened as an edit. Null when there is nothing to edit.
+     */
+    private function editValues(string $registrationTab, int $id): ?array
+    {
+        if ($id <= 0) return null;
+        // The form has one box each for street and district: "Other" shows the name typed with it.
+        $addr = function ($row) {
+            $v = collect(SurveyorPortalAccount::addressColumns('addr_'))->mapWithKeys(fn ($c) => [$c => $row->{$c} ?? null])->all();
+            foreach (['addr_street', 'addr_district'] as $c) {
+                if (strcasecmp(trim((string) ($v[$c] ?? '')), 'Other') === 0) $v[$c] = $row->{$c . '_other'} ?? null;
+            }
+
+            return $v;
+        };
+
+        if ($registrationTab === 'companies') {
+            $c = DB::connection('sqlsrv')->table('survey_companies')->where('id', $id)->first();
+
+            return $c ? $addr($c) + ['id' => $c->id, 'name' => $c->name, 'company_rc_no' => $c->company_rc_no, 'phone' => $c->phone, 'email' => $c->email] : null;
+        }
+
+        $a = SurveyorPortalAccount::query()->surveyors()->find($id);
+        if (! $a) return null;
+        $dir = $a->cadastral_surveyor_id
+            ? DB::connection('sqlsrv')->table('cadastral_surveyors')->where('id', $a->cadastral_surveyor_id)->first(['licence_status', 'is_active'])
+            : null;
+
+        return $addr($a) + [
+            'id' => $a->id, 'company_id' => $a->company_id, 'full_name' => $a->name, 'surcon_number' => $a->surcon_number,
+            'phone' => $a->phone, 'email' => $a->email, 'username' => $a->username,
+            'licence_status' => $dir->licence_status ?? 'Active', 'is_active' => $dir ? (bool) $dir->is_active : true,
+            'has_directory' => (bool) $dir,
+        ];
+    }
+
+    /** Edit a company (user, 2026-11-12). Its name, RC No., phone, email and address; its logins follow. */
+    public function updateCompany(Request $r, int $company)
+    {
+        $this->authorizeSg();
+        $data = \App\Http\Controllers\SurveyorPortal\CompanyRegistrationController::input($r);
+        $done = $this->companies->update($company, $data);
+
+        return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations', 'registration_tab' => 'companies'])
+            ->with('success', "{$done->name} updated.");
+    }
+
+    /** Edit a surveyor's portal account (user, 2026-11-12): the Add Surveyor fields. No new login is sent. */
+    public function updateSurveyor(Request $r, int $account)
+    {
+        $this->authorizeSg();
+        $a = SurveyorPortalAccount::query()->surveyors()->findOrFail($account);
+        $data = $r->validate([
+            'company_id' => 'required|integer',
+            'full_name' => 'required|string|max:255',
+            'surcon_number' => 'nullable|string|max:50',
+            'phone' => 'required|string|max:30',
+            'email' => 'nullable|email|max:150',
+            'username' => ['required', 'string', 'min:3', 'max:150', 'regex:/^[A-Za-z0-9._@-]+$/'],
+            'licence_status' => ['required', \Illuminate\Validation\Rule::in(\App\Models\Cadastral\CadastralSurveyor::LICENCE_STATUSES)],
+            'is_active' => 'nullable|boolean',
+            'addr_district' => 'nullable|string|max:255',
+        ] + \App\Services\Cadastral\CadastralAddress::rules('addr_'), \App\Services\Cadastral\CadastralAddress::messages('addr_') + [
+            'company_id.required' => 'Choose the surveyor\'s company.',
+            'full_name.required' => 'Enter the surveyor\'s full name.',
+            'username.required' => 'Choose a username for the portal sign-in.',
+            'username.regex' => 'Use only letters, numbers and . _ - @ in the username (no spaces).',
+        ]);
+        $fail = fn (string $field, string $message) => throw \Illuminate\Validation\ValidationException::withMessages([$field => $message]);
+
+        $company = SurveySettings::companies()->firstWhere('id', (int) $data['company_id']) ?? $fail('company_id', 'Choose an approved company from the list.');
+        if (! \App\Services\Cadastral\CadastralAddress::lgaBelongsToState($data['addr_lga'] ?? null, $data['addr_state'] ?? null)) {
+            $fail('addr_lga', 'Choose an LGA that belongs to the selected state.');
+        }
+        $phone = SurveyorPortalAccount::normalizePhone($data['phone']) ?? $fail('phone', 'Enter a valid Nigerian phone number, e.g. 08031234567.');
+        $email = mb_strtolower(trim((string) ($data['email'] ?? ''))) ?: null;
+        $username = trim($data['username']);
+        $others = fn () => SurveyorPortalAccount::query()->where('id', '<>', $a->id);
+        if ($others()->surveyors()->where('phone', $phone)->exists()) $fail('phone', 'Another surveyor account already uses this phone number.');
+        if ($email && $others()->surveyors()->where('email', $email)->exists()) $fail('email', 'Another surveyor account already uses this email address.');
+        if ($others()->whereRaw('LOWER(username) = ?', [mb_strtolower($username)])->exists()) $fail('username', 'That username is taken. Choose another.');
+
+        $address = array_intersect_key(\App\Services\Cadastral\CadastralAddress::normalise($data, 'addr_'), array_flip(SurveyorPortalAccount::addressColumns('addr_')));
+        $done = $this->accounts->updateByAdmin($a, $address + [
+            'company_id' => $company->id,
+            'company_name' => $company->name,
+            'company_rc_no' => $company->company_rc_no ?? null,
+            'name' => preg_replace('/\s+/', ' ', trim($data['full_name'])),
+            'phone' => $phone,
+            'email' => $email,
+            'surcon_number' => ($s = mb_strtoupper(trim((string) ($data['surcon_number'] ?? '')))) !== '' ? $s : null,
+            'username' => $username,
+        ], [
+            'licence_status' => $data['licence_status'],
+            'is_active' => $r->boolean('is_active'),
+        ]);
+
+        return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations', 'registration_tab' => 'surveyors'])
+            ->with('success', "{$done->name}'s account updated.");
     }
 
     /** Approve a company, make its portal login in the same transaction, send the login after commit. */

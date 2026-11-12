@@ -66,6 +66,16 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/export', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'export'])->name('export');
         Route::post('/', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'store'])->name('store');
         Route::get('/{plan}/file', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'file'])->whereNumber('plan')->name('file');
+        // CR 11112026-2 (items 4-7): reference beacon search, the four stages, SG/DSG signing list, portal uploads.
+        Route::get('/beacons', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'beacons'])->name('beacons');
+        Route::get('/signing', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'signing'])->name('signing');
+        Route::get('/portal', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'portalPlans'])->name('portal');
+        Route::get('/{plan}', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'show'])->whereNumber('plan')->name('show');
+        Route::post('/{plan}/corrections', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'corrections'])->whereNumber('plan')->name('corrections');
+        Route::post('/{plan}/pass', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'pass'])->whereNumber('plan')->name('pass');
+        Route::post('/{plan}/final', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'final'])->whereNumber('plan')->name('final');
+        Route::post('/{plan}/sign', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'sign'])->whereNumber('plan')->name('sign');
+        Route::get('/{plan}/files/{file}', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'stageFile'])->whereNumber(['plan', 'file'])->name('stage-file');
     });
 
     /* ------------------------------ Compensation ------------------------------ */
@@ -502,6 +512,9 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Add Company / Add Surveyor on Registrations (user, 2026-11-10): the SG's own forms, approved at once.
         Route::post('/companies', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'storeCompany'])->name('companies.store');
         Route::post('/accounts', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'storeSurveyor'])->name('accounts.store');
+        // Edit on Company / Surveyor Registrations (user, 2026-11-12).
+        Route::put('/companies/{company}', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'updateCompany'])->whereNumber('company')->name('companies.update');
+        Route::put('/accounts/{account}', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'updateSurveyor'])->whereNumber('account')->name('accounts.update');
         Route::post('/companies/{company}/reject', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'rejectCompany'])->whereNumber('company')->name('companies.reject');
     });
 

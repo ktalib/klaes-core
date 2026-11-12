@@ -93,6 +93,8 @@ class VirtualFileExplorerController extends Controller
             // the folder the document was opened from rather than the whole folio.
             'pagesUrl' => route('filearchive.document-pages', $fileIndexing->id)
                 . ($folder ? '?page_type=' . urlencode($folder) : ''),
+            // Land File > Primary ST > Unit(s) ST, when this file is in an ST family (CR-11112026-2 item 15).
+            'stFamily' => app(\App\Services\Vfs\StFamily::class)->of($fileIndexing->file_number),
         ]);
     }
 

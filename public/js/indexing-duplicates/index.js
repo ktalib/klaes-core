@@ -717,6 +717,41 @@ function attachManualEntry() {
   const hide = () => { modal.classList.add('hidden'); modal.classList.remove('flex'); };
   const fail = (message) => { error.textContent = message; error.classList.toggle('hidden', !message); };
 
+  /*
+   | Land use comes from the file number, in full (RES-2023-5062 -> Residential), the
+   | same reading as FileNumberLandUse::codeFor; the server sets it again on save.
+   | A number with no land-use code (a KANGIS number) leaves the box open to type.
+   */
+  const landUse = document.getElementById('dup-manual-landuse');
+  const landUseLabels = config.landUseLabels || {};
+  const landUseCode = (number) => {
+    const first = String(number || '').split(',')[0].trim().toUpperCase();
+    if (first === '' || first.startsWith('DPX-') || /^(MLKNGP|KNGP|MLKN|KNML)\s*\d+$/.test(first)) return '';
+    const parts = first.split('-').filter(Boolean);
+    if (!parts.length) return '';
+    if (['CON', 'ST', 'SLTR', 'KN'].includes(parts[0]) && parts[1] && !/^\d+$/.test(parts[1])) return parts[1];
+    return /^\d+$/.test(parts[0]) ? '' : parts[0];
+  };
+  const setLandUse = (number) => {
+    const full = landUseLabels[landUseCode(number)] || '';
+    landUse.value = full;
+    landUse.readOnly = full !== '';
+    landUse.classList.toggle('bg-slate-50', full !== '');
+    landUse.placeholder = full !== '' || !number ? 'Select a file number' : 'No land use in this file number: type it';
+  };
+
+  // Physical Registry: the File Indexing list, with one "Other" that opens a required box.
+  const registry = document.getElementById('dup-manual-registry');
+  const registryOther = document.getElementById('dup-manual-registry-other');
+  const syncRegistry = () => {
+    const isOther = registry.value === '__other';
+    registryOther.classList.toggle('hidden', !isOther);
+    registryOther.disabled = !isOther;
+    if (!isOther) registryOther.value = '';
+    else registryOther.focus();
+  };
+  registry.addEventListener('change', syncRegistry);
+
   // Picked from the global selector, never typed -- and nothing is backfilled: the
   // indexed record behind the number is the OTHER file.
   const pick = () => {
@@ -733,6 +768,7 @@ function attachManualEntry() {
         if (picked) {
           fileNo.value = picked;
           dupOf.value = picked;
+          setLandUse(picked);
           fail('');
         }
       },
@@ -779,7 +815,7 @@ function attachManualEntry() {
     });
   };
 
-  openBtn.addEventListener('click', () => { form.reset(); resetPlaces(); fail(''); show(); });
+  openBtn.addEventListener('click', () => { form.reset(); resetPlaces(); setLandUse(''); syncRegistry(); fail(''); show(); });
   document.getElementById('dup-manual-close').addEventListener('click', hide);
   document.getElementById('dup-manual-cancel').addEventListener('click', hide);
   fileNo.addEventListener('click', pick);
@@ -797,6 +833,10 @@ function attachManualEntry() {
       data[p.select.name] = placeValue(p);
     }
     data.location = locationInput.value;
+    if (registry.value === '__other') {
+      data.registry = registryOther.value.replace(/\s+/g, ' ').trim();
+      if (!data.registry) { fail('Specify the physical registry, or pick one from the list.'); registryOther.focus(); return; }
+    }
     if (!data.file_number) { fail('Select the file number.'); return; }
     if (!String(data.file_title || '').trim()) { fail('Enter the title on the duplicate file.'); return; }
     if (!String(data.reason || '').trim()) { fail('Say why this file is a duplicate.'); return; }

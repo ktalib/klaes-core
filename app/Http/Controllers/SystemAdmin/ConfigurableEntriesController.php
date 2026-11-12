@@ -2301,7 +2301,15 @@ class ConfigurableEntriesController extends Controller
             'logos.favicon' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:4096',
             'restore_logo' => 'sometimes|array',
             'restore_logo.*' => 'boolean',
+            // NIS / SURCON flash banners (CR 11112026-2, item 11).
+            'flash_banners_on' => 'sometimes|boolean',
+            'flash_banners' => 'sometimes|array|max:10',
+            'flash_banners.*.org' => ['nullable', \Illuminate\Validation\Rule::in(\App\Services\SurveyorPortalSettings::BANNER_ORGS)],
+            'flash_banners.*.title' => 'nullable|string|max:120',
+            'flash_banners.*.text' => 'nullable|string|max:300',
+            'flash_banners.*.link' => 'nullable|url:http,https|max:255',
         ], [
+            'flash_banners.*.link.url' => 'A banner link must be a full web address starting with https://.',
             'primary_color.regex' => 'Use a valid six-digit hex colour, for example #0B3A7E.',
             'primary_dark_color.regex' => 'Use a valid six-digit hex colour, for example #082B5E.',
             'green_color.regex' => 'Use a valid six-digit hex colour, for example #15803D.',
@@ -2324,6 +2332,11 @@ class ConfigurableEntriesController extends Controller
             'text' => trim($step['text']),
         ], $validated['how_steps']);
         $values['ready_items'] = array_map('trim', $validated['ready_items']);
+        // Flash banners: blank rows dropped; a row needs its body and a title.
+        $values['flash_banners_on'] = $request->boolean('flash_banners_on') ? '1' : '0';
+        $values['flash_banners'] = app(\App\Services\SurveyorPortalSettings::class)->cleanBanners(
+            array_values(array_filter((array) ($validated['flash_banners'] ?? []), fn ($b) => trim((string) ($b['title'] ?? '')) !== ''))
+        );
 
         $logoDefaults = \App\Services\SurveyorPortalSettings::DEFAULT_LOGO_PATHS;
         $directory = public_path('assets/logo/surveyor-portal');

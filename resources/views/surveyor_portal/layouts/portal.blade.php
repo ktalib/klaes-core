@@ -109,7 +109,7 @@
         <nav class="ks-sidebar-nav">
             <a class="{{ request()->routeIs('surveyor-portal.dashboard') ? 'on' : '' }}" href="{{ route('surveyor-portal.dashboard') }}" @if (request()->routeIs('surveyor-portal.dashboard')) aria-current="page" @endif><i data-lucide="layout-dashboard" class="w-[18px] h-[18px]"></i> Dashboard</a>
             @if ($isCompany)
-            {{-- The company's sidebar (user, 2026-11-10): Dashboard, Our Surveyors, Our Beacons (Issued Beacons, Used Beacons, Surveyors Report), Notifications. --}}
+            {{-- The company's sidebar (user, 2026-11-10/12): Dashboard, Our Surveyors, Our Beacons (Issued Beacons, Used Beacons, Surveyors Report), Uploaded Survey Plans (Original, Signed), Notifications. --}}
             <a class="{{ request()->routeIs('surveyor-portal.company.surveyors') ? 'on' : '' }}" href="{{ route('surveyor-portal.company.surveyors') }}" @if (request()->routeIs('surveyor-portal.company.surveyors')) aria-current="page" @endif><i data-lucide="users" class="w-[18px] h-[18px]"></i> Our Surveyors</a>
             @php
                 $ourBeaconPages = [
@@ -122,6 +122,19 @@
             <div class="ks-side-group {{ $inOurBeacons ? 'in' : '' }}"><i data-lucide="map-pin" class="w-[18px] h-[18px]"></i> Our Beacons</div>
             <div class="ks-side-sub">
                 @foreach ($ourBeaconPages as [$here, $url, $icon, $label])
+                    <a class="{{ $here ? 'on' : '' }}" href="{{ $url }}" @if ($here) aria-current="page" @endif><i data-lucide="{{ $icon }}" class="w-4 h-4"></i> {{ $label }}</a>
+                @endforeach
+            </div>
+            {{-- Uploaded Survey Plans > Original / Signed (user, 2026-11-12). --}}
+            @php
+                $coPlanPages = [
+                    [request()->routeIs('surveyor-portal.company.plans') && request()->route('which') === 'original', route('surveyor-portal.company.plans', 'original'), 'file-text', 'Original'],
+                    [request()->routeIs('surveyor-portal.company.plans') && request()->route('which') === 'signed', route('surveyor-portal.company.plans', 'signed'), 'file-check-2', 'Signed'],
+                ];
+            @endphp
+            <div class="ks-side-group {{ request()->routeIs('surveyor-portal.company.plans') ? 'in' : '' }}"><i data-lucide="upload" class="w-[18px] h-[18px]"></i> Uploaded Survey Plans</div>
+            <div class="ks-side-sub">
+                @foreach ($coPlanPages as [$here, $url, $icon, $label])
                     <a class="{{ $here ? 'on' : '' }}" href="{{ $url }}" @if ($here) aria-current="page" @endif><i data-lucide="{{ $icon }}" class="w-4 h-4"></i> {{ $label }}</a>
                 @endforeach
             </div>
@@ -142,8 +155,16 @@
                     <a class="{{ $here ? 'on' : '' }}" href="{{ $url }}" @if ($here) aria-current="page" @endif><i data-lucide="{{ $icon }}" class="w-4 h-4"></i> {{ $label }}</a>
                 @endforeach
             </div>
-            {{-- Survey Plan Upload (Survey Update 5g, 2026-11-10). --}}
-            <a class="{{ request()->routeIs('surveyor-portal.survey-plans.*') ? 'on' : '' }}" href="{{ route('surveyor-portal.survey-plans.index') }}" @if (request()->routeIs('surveyor-portal.survey-plans.*')) aria-current="page" @endif><i data-lucide="upload" class="w-[18px] h-[18px]"></i> Survey Plan Upload</a>
+            {{-- Survey Plan Upload (Survey Update 5g, 2026-11-10) > Original (the upload form and every upload) / Signed (user, 2026-11-12). --}}
+            @php
+                $onSigned = request()->routeIs('surveyor-portal.survey-plans.signed');
+                $onOriginal = request()->routeIs('surveyor-portal.survey-plans.*') && ! $onSigned;
+            @endphp
+            <div class="ks-side-group {{ $onSigned || $onOriginal ? 'in' : '' }}"><i data-lucide="upload" class="w-[18px] h-[18px]"></i> Survey Plan Upload</div>
+            <div class="ks-side-sub">
+                <a class="{{ $onOriginal ? 'on' : '' }}" href="{{ route('surveyor-portal.survey-plans.index') }}" @if ($onOriginal) aria-current="page" @endif><i data-lucide="file-text" class="w-4 h-4"></i> Original</a>
+                <a class="{{ $onSigned ? 'on' : '' }}" href="{{ route('surveyor-portal.survey-plans.signed') }}" @if ($onSigned) aria-current="page" @endif><i data-lucide="file-check-2" class="w-4 h-4"></i> Signed</a>
+            </div>
             @endif
             <a class="{{ request()->routeIs('surveyor-portal.notifications') ? 'on' : '' }}" href="{{ route('surveyor-portal.notifications') }}" @if (request()->routeIs('surveyor-portal.notifications')) aria-current="page" @endif><i data-lucide="bell" class="w-[18px] h-[18px]"></i><span>Notifications</span> @if ($unread)<span class="ks-badge issued">{{ $unread }}</span>@endif</a>
         </nav>
@@ -172,6 +193,8 @@
                 </div>
             </div>
         </header>
+        {{-- NIS / SURCON flash banners (CR 11112026-2, item 11). --}}
+        @include('surveyor_portal.partials.flash_banners')
         <main class="ks-portal-content">
             @if (session('status'))<div class="ks-flash ok">{{ session('status') }}</div>@endif
             @if ($errors->any())

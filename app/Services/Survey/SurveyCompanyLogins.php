@@ -7,6 +7,7 @@ use App\Models\Survey\SurveyorPortalAccount as Account;
 use App\Services\BulkSmsNgService;
 use App\Services\PhoneOtpService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -106,9 +107,14 @@ class SurveyCompanyLogins
 
         if ($phone = BulkSmsNgService::normalizeNumber((string) ($toPhone ?? $account->phone))) {
             // A surveyor added by the SG (2026-11-10) gets the same once-only details, worded for a surveyor.
+            // The approval SMS carries the company's beacon prefix (user, 2026-11-12).
+            $prefix = $account->isCompany() && $account->company_id
+                ? trim((string) DB::connection('sqlsrv')->table('survey_companies')->where('id', $account->company_id)->value('beacon_letters'))
+                : '';
+            $prefixLine = $prefix !== '' ? " Beacon prefix: {$prefix}." : '';
             $sms = $this->gateway->sendFirstAccepted($phone, $account->isCompany() ? [
-                "MLPP-SG Portal: {$account->company_name} is approved. Sign in at {$url} Username: {$account->username} Password: {$password} You will choose a new password at first sign-in.",
-                "MLPP-SG company sign-in. Username {$account->username} Password {$password} Site {$url}",
+                "MLPP-SG Portal: {$account->company_name} is approved.{$prefixLine} Sign in at {$url} Username: {$account->username} Password: {$password} You will choose a new password at first sign-in.",
+                "MLPP-SG company sign-in.{$prefixLine} Username {$account->username} Password {$password} Site {$url}",
             ] : [
                 "MLPP-SG Portal: your surveyor account is ready, Surveyor ID {$account->surveyor_id_no}. Sign in at {$url} Username: {$account->username} Password: {$password} You will choose a new password at first sign-in.",
                 "MLPP-SG surveyor sign-in. Username {$account->username} Password {$password} Site {$url}",

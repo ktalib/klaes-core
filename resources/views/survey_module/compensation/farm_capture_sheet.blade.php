@@ -93,6 +93,7 @@
         <div>Farmer's signature or thumbprint, and date</div>
         <div>Surveyor's signature and date</div>
     </div>
+    @include('partials._klaes_print_logo')
 </div>
 </body>
 </html>

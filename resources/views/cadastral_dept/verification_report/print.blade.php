@@ -153,6 +153,7 @@
             <tr><td class="sn">{{ $i + 1 }}</td><td>{{ $s['role'] }}</td><td class="v">{{ $s['name'] }}</td><td class="v">{{ $s['date'] }}</td></tr>
         @endforeach
     </table>
+    @include('partials._klaes_print_logo')
 </div>
 </body>
 </html>

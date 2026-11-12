@@ -186,6 +186,8 @@ class PortalSurveyorReports
         foreach ($lines as $n => $line) {
             $k = $this->key($line['beacon_id']);
             $at = 'lines.' . $n . '.beacon_id';
+            // Easting / Northing typed the wrong way round are put right (CR 11112026-2 item 10).
+            [$line['easting'], $line['northing']] = SurveyCoordinates::orient($line['easting'], $line['northing']);
             if (isset($seen[$k]) || $onList->has($k)) throw ValidationException::withMessages([$at => "{$line['beacon_id']} is already on this list."]);
             if ($onOthers->has($k)) throw ValidationException::withMessages([$at => "{$line['beacon_id']} is on another of your reports."]);
             if ($line['is_beacon'] && ! $own->has($k)) throw ValidationException::withMessages([$at => "Beacon {$line['beacon_id']} was not issued to you."]);

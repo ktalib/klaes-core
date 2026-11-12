@@ -49,5 +49,6 @@
         <div>Surveyor General</div>
         <div>Received by</div>
     </div>
+@include('partials._klaes_print_logo')
 </body>
 </html>

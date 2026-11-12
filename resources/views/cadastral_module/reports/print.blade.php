@@ -177,6 +177,7 @@
         {{ $progress['done'] }} of {{ $progress['total'] }} stages complete ·
         printed {{ now()->format('d M Y H:i') }}
     </div>
+    @include('partials._klaes_print_logo')
 </div>
 </body>
 </html>

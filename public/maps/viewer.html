@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>KLAES Kano Map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/maps/vendor/maplibre-gl.css">
+<style>
+html, body, #map { height: 100%; margin: 0; }
+#switcher { position: absolute; top: 10px; left: 10px; z-index: 5; display: flex; gap: 6px; font-family: system-ui, sans-serif; }
+#switcher button { padding: 6px 12px; border: 0; border-radius: 4px; background: #fff; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+#switcher button.active { background: #1a73e8; color: #fff; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="switcher">
+  <button id="btn-street" class="active">Street map</button>
+  <button id="btn-satellite">Satellite</button>
+</div>
+<script src="/maps/vendor/maplibre-gl.js"></script>
+<script src="/maps/vendor/pmtiles.js"></script>
+<script>
+const protocol = new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles", protocol.tile);
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: "/maps/style-light.json",
+  center: [8.5, 11.9],
+  zoom: 7,
+  maxBounds: [[6.9, 9.6], [10.2, 13.6]]
+});
+map.addControl(new maplibregl.NavigationControl());
+
+let ready = false;
+const btnStreet = document.getElementById("btn-street");
+const btnSatellite = document.getElementById("btn-satellite");
+
+map.on("load", () => {
+  map.addSource("satellite", {
+    type: "raster",
+    tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+    tileSize: 256,
+    maxzoom: 19,
+    attribution: "Imagery &copy; Esri, Maxar, Earthstar Geographics"
+  });
+  map.addLayer({ id: "satellite", type: "raster", source: "satellite", layout: { visibility: "none" } });
+  ready = true;
+});
+
+function setMode(mode) {
+  if (!ready) return;
+  const satellite = mode === "satellite";
+  map.getStyle().layers.forEach(layer => {
+    if (layer.id === "satellite") return;
+    map.setLayoutProperty(layer.id, "visibility", satellite ? "none" : "visible");
+  });
+  map.setLayoutProperty("satellite", "visibility", satellite ? "visible" : "none");
+  btnStreet.classList.toggle("active", !satellite);
+  btnSatellite.classList.toggle("active", satellite);
+}
+
+btnStreet.addEventListener("click", () => setMode("street"));
+btnSatellite.addEventListener("click", () => setMode("satellite"));
+</script>
+</body>
+</html>

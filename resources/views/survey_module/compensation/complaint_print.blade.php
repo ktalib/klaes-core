@@ -230,7 +230,9 @@
     <p style="margin-top:18px;"><strong>Signature of Receiving Officer:</strong> <span class="line" style="min-width:70mm;">&nbsp;</span>
         <strong>Date:</strong> <span class="line" style="min-width:30mm;">&nbsp;</span></p>
 
-    <div class="foot">KANO STATE MINISTRY OF LAND AND PHYSICAL PLANNING · COMPENSATION COMPLAINT FORM · Page 2 of 2</div>
+    {{-- KLAES logo (CR 11112026-2, item 14): on the footer line at the right, out of the flow, as page 2 fills its sheet. --}}
+    <div style="margin-top:auto;position:relative;">@include('partials._klaes_print_logo', ['klaesLogoHeight' => '5mm', 'klaesLogoStyle' => 'position:absolute;right:0;bottom:0;padding-top:0;'])
+    <div class="foot">KANO STATE MINISTRY OF LAND AND PHYSICAL PLANNING · COMPENSATION COMPLAINT FORM · Page 2 of 2</div></div>
     </div>
 </div>
 </body>

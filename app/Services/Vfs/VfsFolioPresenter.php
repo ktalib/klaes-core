@@ -513,8 +513,13 @@ class VfsFolioPresenter
 
         if ($term = trim((string) ($filters['q'] ?? ''))) {
             $like = '%' . $term . '%';
-            $query->where(function ($q) use ($like) {
-                $q->where('file_number', 'like', $like)
+            // An ST file number brings its family: Land File, Primary ST and Unit(s) (CR-11112026-2 item 15).
+            $family = app(StFamily::class)->numbers($term);
+            $query->where(function ($q) use ($like, $family) {
+                if ($family) {
+                    $q->whereIn('file_number', $family);
+                }
+                $q->orWhere('file_number', 'like', $like)
                     ->orWhere('temp_file_no', 'like', $like)
                     ->orWhere('file_title', 'like', $like)
                     ->orWhere('plot_number', 'like', $like)

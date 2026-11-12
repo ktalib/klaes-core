@@ -99,6 +99,7 @@
             <tr><td>REVIEWED BY</td><td>{{ $reviewed->map(fn ($r) => $who($r->reviewer))->filter()->unique()->implode(', ') }}</td><td>{{ optional($reviewed->max('reviewed_at'))->format('d/m/Y') }}</td><td></td></tr>
             <tr><td>AUDITED BY</td><td>{{ $audited->map(fn ($r) => $who($r->auditor))->filter()->unique()->implode(', ') }}</td><td>{{ optional($audited->max('audited_at'))->format('d/m/Y') }}</td><td></td></tr>
         </table>
+    @include('partials._klaes_print_logo')
     </div>
 @empty
     <p style="margin:20px;">No register lines match these filters.</p>

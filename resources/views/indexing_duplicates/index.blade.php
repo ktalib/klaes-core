@@ -213,12 +213,23 @@
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Land Use</label>
-                        <input type="text" name="land_use_type" maxlength="100" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                        {{-- Land use comes from the file number, in full (RES = Residential); typed only when the number carries none. --}}
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Land Use <span class="font-normal text-slate-400">(from File No.)</span></label>
+                        <input type="text" id="dup-manual-landuse" name="land_use_type" maxlength="100" readonly placeholder="Select a file number"
+                               class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-slate-50">
                     </div>
                     <div>
+                        {{-- The same Physical Registry list as File Indexing's create form, plus one "Other". --}}
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Physical Registry</label>
-                        <input type="text" name="registry" maxlength="50" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                        <select id="dup-manual-registry" name="registry" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                            <option value="">Select Registry</option>
+                            @foreach ($physicalRegistries as $registryName)
+                                <option value="{{ $registryName }}">{{ $registryName }}</option>
+                            @endforeach
+                            <option value="__other">Other</option>
+                        </select>
+                        <input type="text" id="dup-manual-registry-other" maxlength="50" placeholder="Specify registry" disabled
+                               class="hidden mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
                     </div>
                 </div>
                 <div>
@@ -245,6 +256,7 @@
             // Reverse Duplicate is Super Admin only, like the move; the controller re-checks.
             canReverse: @json((bool) auth()->user()?->isSuperAdmin()),
             manualUrl: @json(route('indexing-duplicates.api.manual')),
+            landUseLabels: @json(\App\Support\FileNumberLandUse::LABELS),
             tempFileUrlTemplate: @json(route('indexing-duplicates.api.temp-file', ['id' => '__ID__'])),
             csrfToken: @json(csrf_token()),
         };

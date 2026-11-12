@@ -4,16 +4,29 @@
   use App\Models\Survey\SurveyPlanUpload as Plan;
 
   // Survey Update 5g-5i (user, 2026-11-10): one view for Survey Plan Upload and each unit's Uploaded Survey Plan.
-  $scope = $unit === Plan::UNIT_GKN ? 'gkn' : ($unit === Plan::UNIT_EV ? 'ev' : null);
-  $listRoute = match ($scope) { 'gkn' => 'survey-module.gkn.uploaded-plans', 'ev' => 'survey-module.workflow.uploaded-plans', default => 'survey-module.survey-plans.index' };
-  $PageTitle = $unit ? 'Uploaded Survey Plan' : 'Survey Plan Upload';
-  $PageDescription = $unit
-      ? 'Survey plans sent to ' . $unit . ' for Checking & Passing, from KLAES and the MLPP-SG portal.'
-      : 'Upload a survey plan and send it to GKN (public / government) or Examination/Verification (private) for checking.';
+  // CR 11112026-2: also SG/DSG > Signing and Upload (listScope 'signing') and MLPP-SG Portal Admin > Uploaded Survey ('portal').
+  $listScope = $listScope ?? null;
+  $scope = $unit === Plan::UNIT_GKN ? 'gkn' : ($unit === Plan::UNIT_EV ? 'ev' : $listScope);
+  $listRoute = match ($scope) { 'gkn' => 'survey-module.gkn.uploaded-plans', 'ev' => 'survey-module.workflow.uploaded-plans',
+      'signing' => 'survey-module.survey-plans.signing', 'portal' => 'survey-module.survey-plans.portal', default => 'survey-module.survey-plans.index' };
+  $isList = $unit || $listScope;
+  $PageTitle = match (true) {
+      $listScope === 'signing' => 'Signing and Upload (Survey Plan)',
+      $listScope === 'portal' => 'Uploaded Survey (MLPP-SG Portal)',
+      (bool) $unit => 'Uploaded Survey Plan',
+      default => 'Survey Plan Upload',
+  };
+  $PageDescription = match (true) {
+      $listScope === 'signing' => 'Final copies waiting for the SG/DSG to sign (stage 3), and the signed plans (stage 4).',
+      $listScope === 'portal' => 'Survey plans private surveyors sent from the MLPP-SG portal, at every stage.',
+      (bool) $unit => 'Survey plans sent to ' . $unit . ' for Checking & Passing, from KLAES and the MLPP-SG portal.',
+      default => 'Upload a survey plan and send it to GKN (public) or Examination/Verification (private) for checking.',
+  };
+  $stageTone = [1 => 'pending', 2 => 'rejected', 3 => 'review', 4 => 'approved'];
   $field = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;';
   $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
-  $open = ! $unit && $errors->any();
-  $filtered = request()->hasAny(['q', 'type', 'source', 'unit']);
+  $open = ! $isList && $errors->any();
+  $filtered = request()->hasAny(['q', 'type', 'source', 'unit', 'stage']);
   $typeTone = ['Final Survey Plan' => 'completed', 'Application Plan' => 'pending'];
 @endphp
 
@@ -30,21 +43,34 @@
 </div>
 
 <div class="page-header">
-    <div style="font-size:13px;color:var(--gray-500);">{{ $unit ? 'Sent to ' . $unit . '.' : 'Every upload, with the unit it went to.' }}</div>
+    <div style="font-size:13px;color:var(--gray-500);">{{ $listScope ? $PageDescription : ($unit ? 'Sent to ' . $unit . '.' : 'Every upload, with the unit it went to.') }}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.survey-plans.export', array_filter(['scope' => $scope])), 'title' => $unit ? 'Uploaded Survey Plan - ' . $unit : 'Survey Plan Uploads', 'dateLabel' => 'Date Uploaded'])
-        @unless ($unit)
+        @unless ($isList)
             <button type="button" class="btn btn-primary" onclick="document.getElementById('spuForm').classList.add('open')"><i class="fas fa-upload"></i> Upload Survey Plan</button>
         @endunless
     </div>
 </div>
 
-@unless ($unit)
+@unless ($isList)
 {{-- The very short form (Survey Update 5h): where the plan is, who drew it, its type and the unit it goes to. --}}
 <form method="POST" id="spuForm" action="{{ route('survey-module.survey-plans.store') }}" enctype="multipart/form-data"
       class="farmer-entry-form {{ $open ? 'open' : '' }}" data-sv-modal="Upload Survey Plan">
     @csrf
-    <div class="form-grid cols-3">
+    {{-- Two tabs (CR 11112026-2, item 4): the plan's details, and its reference beacons. --}}
+    @php $spuBeaconErr = collect($errors->keys())->contains(fn ($k) => str_starts_with($k, 'beacons')); @endphp
+    <div class="spu-tabs" role="tablist" style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--gray-200,#e5e7eb);">
+        <button type="button" role="tab" data-spu-tab="details" class="spu-tab" aria-selected="{{ $spuBeaconErr ? 'false' : 'true' }}">Plan Details</button>
+        <button type="button" role="tab" data-spu-tab="beacons" class="spu-tab" aria-selected="{{ $spuBeaconErr ? 'true' : 'false' }}">Reference Beacons <span class="required">*</span></button>
+    </div>
+    <style>
+        .spu-tab { padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; background: none; font-weight: 600; color: var(--gray-500,#6b7280); cursor: pointer; }
+        .spu-tab[aria-selected="true"] { color: var(--primary,#1d4ed8); border-bottom-color: var(--primary,#1d4ed8); }
+    </style>
+    <div data-spu-panel="beacons" @unless ($spuBeaconErr) hidden @endunless style="margin-bottom:12px;">
+        @include('survey_module.survey_plans._reference_beacons', ['searchUrl' => route('survey-module.survey-plans.beacons')])
+    </div>
+    <div class="form-grid cols-3" data-spu-panel="details" @if ($spuBeaconErr) hidden @endif>
         <div class="sv-group"><i class="fas fa-file-upload"></i><span>Survey Plan</span></div>
         <div class="form-group">
             <label>Type <span class="required">*</span></label>
@@ -59,7 +85,7 @@
                 <option value="">— Select unit —</option>
                 @foreach (Plan::UNITS as $u => $label)<option value="{{ $u }}" @selected(old('unit') === $u)>{{ $label }}</option>@endforeach
             </select>
-            <p class="helper-text">GKN for public / government plans, Examination/Verification for private.</p>
+            <p class="helper-text">GKN for public plans, Examination/Verification for private.</p>
         </div>
         <div class="form-group">
             <label>Plan File <span class="required">*</span></label>
@@ -134,6 +160,10 @@
                 @foreach (Plan::UNITS as $u => $label)<option value="{{ $u }}" @selected(request('unit') === $u)>{{ $u }}</option>@endforeach
             </select>
         @endunless
+        <select name="stage" style="{{ $field }}">
+            <option value="">All stages</option>
+            @foreach (Plan::STAGES as $n => $label)<option value="{{ $n }}" @selected(request('stage') === (string) $n)>{{ $n }} · {{ $label }}</option>@endforeach
+        </select>
         <select name="source" style="{{ $field }}">
             <option value="">KLAES and portal</option>
             <option value="klaes" @selected(request('source') === 'klaes')>KLAES</option>
@@ -149,7 +179,7 @@
         <table>
             <thead><tr>
                 <th>S/N</th><th>Upload Ref</th><th>Type</th>@unless ($unit)<th>Sent To</th>@endunless
-                <th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Drawn By</th><th>From</th><th>Uploaded</th><th></th>
+                <th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Drawn By</th><th>From</th><th>Uploaded By</th><th>Uploaded</th><th>Stage</th><th></th>
             </tr></thead>
             <tbody>
                 @forelse ($rows as $row)
@@ -164,7 +194,10 @@
                         <td>{{ $row->location ?: '—' }}</td>
                         <td>{{ $row->drawn_by }}</td>
                         <td>{{ $row->source_label }}</td>
-                        <td style="white-space:nowrap;">{{ $row->created_at?->format('d M Y') }}<div style="font-size:12px;color:var(--gray-500);">{{ $row->uploaded_by_name }}</div></td>
+                        <td>{{ $row->uploaded_by_name ?: '—' }}</td>
+                        <td style="white-space:nowrap;">{{ $row->created_at?->format('d M Y') }}</td>
+                        <td style="white-space:nowrap;"><span class="status-badge {{ $stageTone[$row->stage_no] ?? 'pending' }}"><span class="dot"></span>{{ $row->stage_no }} · {{ $row->stage_label }}</span>
+                            <div style="font-size:12px;color:var(--gray-500);">{{ $row->stage_status }}</div></td>
                         <td>
                             <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
                                 <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
@@ -175,6 +208,9 @@
                                 <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                      :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                    <a href="{{ route('survey-module.survey-plans.show', $row) }}" class="{{ $svItem }}" @click="open = false">
+                                        <i data-lucide="layers" class="w-4 h-4 text-gray-500"></i> Open (stages)
+                                    </a>
                                     <a href="{{ route('survey-module.survey-plans.file', $row) }}" target="_blank" rel="noopener" class="{{ $svItem }}" @click="open = false">
                                         <i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i> Open Plan
                                     </a>
@@ -183,7 +219,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="{{ $unit ? 11 : 12 }}" style="text-align:center;padding:28px;color:var(--gray-500);">
+                    <tr><td colspan="{{ $unit ? 13 : 14 }}" style="text-align:center;padding:28px;color:var(--gray-500);">
                         <i class="fas fa-folder-open" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
                         {{ $filtered ? 'No upload matches the search.' : ($unit ? 'No survey plan has been sent to ' . $unit . ' yet.' : 'No survey plans yet. Use Upload Survey Plan.') }}
                     </td></tr>
@@ -200,6 +236,26 @@
 
 @push('scripts')
 <script>
+// Plan Details | Reference Beacons tabs. Submitting with the beacons empty opens their tab.
+(function () {
+    var tabs = document.querySelectorAll('[data-spu-tab]');
+    var show = function (key) {
+        tabs.forEach(function (t) { t.setAttribute('aria-selected', t.dataset.spuTab === key ? 'true' : 'false'); });
+        document.querySelectorAll('[data-spu-panel]').forEach(function (p) { p.hidden = p.dataset.spuPanel !== key; });
+    };
+    tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.dataset.spuTab); }); });
+    var form = document.getElementById('spuForm');
+    if (form) form.addEventListener('submit', function (e) {
+        var filled = Array.prototype.some.call(form.querySelectorAll('.rb-no'), function (i) { return i.value.trim() !== ''; });
+        if (!filled) { e.preventDefault(); show('beacons'); var rb = form.querySelector('.rb-no'); if (window.jQuery && jQuery(rb).data('select2')) jQuery(rb).select2('open'); else rb.focus(); return; }
+    }, true);
+    // A required field on the hidden tab cannot be shown by the browser: open its tab first.
+    if (form) form.addEventListener('invalid', function (e) {
+        var panel = e.target.closest('[data-spu-panel]');
+        if (panel && panel.hidden) show(panel.dataset.spuPanel);
+    }, true);
+})();
+
 // "Other (specify)" reveals a required box; any other choice hides, clears and disables it.
 (function () {
     [['spuDistrict', 'spuDistrictOther'], ['spuDrawn', 'spuDrawnOther']].forEach(function (pair) {

@@ -146,6 +146,7 @@
     @endif
     </div>
 @endforeach
+    @include('partials._klaes_print_logo')
 </div>
 </body>
 </html>

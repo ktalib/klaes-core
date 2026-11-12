@@ -124,6 +124,7 @@
         <p>Name:- <strong>{{ $r->surveyor_name }}</strong></p>
         <p>Date:- <strong>{{ $d($r->report_date) }}</strong></p>
     </div>
+    @include('partials._klaes_print_logo')
 </div>
 </body>
 </html>

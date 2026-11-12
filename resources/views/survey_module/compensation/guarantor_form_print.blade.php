@@ -116,6 +116,7 @@
       <div class="ln" style="flex:0 0 40mm;"><span class="k">Date:</span><span class="fill line">{{ $d($form->guarantor_verified_date) }}</span></div>
     </div>
   </div>
+    @include('partials._klaes_print_logo')
 </div>
 </body>
 </html>
