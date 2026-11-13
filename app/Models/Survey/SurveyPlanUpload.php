@@ -32,6 +32,19 @@ class SurveyPlanUpload extends SurveyModel
 
     public const FILE_TYPES = ['pdf', 'jpg', 'jpeg', 'png', 'tif', 'tiff'];
 
+    /** The coordinate systems a plan's X / Y can be in (Survey Plan Check, user 2026-11-12), by EPSG code. */
+    public const COORD_SYSTEMS = [
+        '26391' => 'NTM West Belt (Minna)',
+        '26392' => 'NTM Mid Belt (Minna)',
+        '26393' => 'NTM East Belt (Minna)',
+        '32632' => 'UTM 32N (WGS 84)',
+    ];
+
+    public function getCoordSystemLabelAttribute(): ?string
+    {
+        return $this->coord_system ? (self::COORD_SYSTEMS[$this->coord_system] ?? $this->coord_system) : null;
+    }
+
     protected $casts = ['file_size' => 'integer'];
 
     public static function installed(): bool

@@ -3,7 +3,7 @@
 @section('title', 'Our Surveyors — MLPP-SG Portal')
 @section('heading', 'Our Surveyors')
 
-{{-- The surveyors registered on the portal under this company (user, 2026-11-10). Read only. --}}
+{{-- The surveyors registered on the portal under this company (user, 2026-11-10); Add Surveyor since 2026-11-13. --}}
 @push('styles')
     <style>
         .ks-co-top { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
@@ -14,13 +14,18 @@
 @endpush
 
 @section('main')
+    @if (session('success'))<div class="ks-flash ok">{{ session('success') }}</div>@endif
     <div class="ks-co-top">
-        <p class="ks-help" style="margin:0;">Surveyors register on the portal under your company; the Surveyor General approves each one.</p>
+        <p class="ks-help" style="margin:0;">Surveyors register on the portal under your company, or you add them here; the Surveyor General approves each one.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <form method="GET" class="ks-co-search" role="search">
             <label class="sr-only" for="coSearch">Search surveyors</label>
             <input class="ks-input" id="coSearch" name="q" value="{{ $search }}" placeholder="Name, Surveyor ID, SURCON…">
             <button class="ks-btn ks-btn-light"><i data-lucide="search" class="w-4 h-4"></i><span class="sr-only">Search</span></button>
         </form>
+        {{-- Add Surveyor (user, 2026-11-13): the registration form under this company. --}}
+        <a class="ks-btn ks-btn-primary" href="{{ route('surveyor-portal.company.surveyors.create') }}"><i data-lucide="user-plus" class="w-4 h-4"></i> Add Surveyor</a>
+        </div>
     </div>
 
     <div class="ks-card overflow-x-auto">

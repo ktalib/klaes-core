@@ -1,0 +1,162 @@
+/*
+ | Survey Plan Check card (CR 11112026-2 item 8; user, 2026-11-12), shared by KLAES (Upload Survey Plan pop-up and the
+ | Check Survey Plan page) and the MLPP-SG portal upload page. Everything is scoped under .spc so the host page's own
+ | styles are not touched. Built from the approved prototype /maps/survey-plan-check.html.
+ */
+.spc { --spc-ink: #1f2937; --spc-muted: #6b7280; --spc-line: #e5e7eb; --spc-field: #d1d5db; --spc-accent: #0f3b5e; --spc-accent-50: #e8f0f8;
+  --spc-blue: #1d4ed8; --spc-ref: #ea580c; --spc-sv: #0891b2; --spc-reg: #2563eb; --spc-ctl: #7c3aed; --spc-draw: #16a34a;
+  --spc-ok: #166534; --spc-ok-bg: #dcfce7; --spc-warn: #92400e; --spc-warn-bg: #fef3c7; --spc-bad: #991b1b; --spc-bad-bg: #fee2e2;
+  display: grid; grid-auto-rows: max-content; gap: 16px; color: var(--spc-ink); font-size: 14px; line-height: 1.45; min-width: 0; }
+.spc [hidden] { display: none !important; }
+.spc *, .spc *::before, .spc *::after { box-sizing: border-box; }
+.spc .spc-group { display: flex; align-items: center; gap: 10px; color: var(--spc-accent); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-top: 6px; flex-wrap: wrap; }
+.spc .spc-group::after { content: ""; flex: 1; height: 1px; background: var(--spc-line); min-width: 20px; }
+.spc .spc-group .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--spc-accent); color: #fff; font-size: 11px; letter-spacing: 0; }
+.spc .spc-group .aside { order: 3; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--spc-muted); font-size: 12px; }
+.spc .spc-note { font-size: 12.5px; color: var(--spc-muted); margin: 0; }
+.spc .spc-req { color: #ef4444; }
+.spc .spc-prefill { border: 1px solid #bfdbfe; background: #eff6ff; color: #1e3a8a; border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+.spc .spc-err { border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+
+/* buttons */
+.spc .spc-btn { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-weight: 600; font-size: 13px; border-radius: 8px; padding: 7px 12px; cursor: pointer; border: 1.5px solid transparent; text-decoration: none; line-height: 1.3; transition: background .15s, color .15s, transform .1s; }
+.spc .spc-btn:disabled { opacity: .5; cursor: default; }
+.spc .spc-add { border: 1.5px dashed #93c5fd; background: #eff6ff; color: var(--spc-blue); }
+.spc .spc-add:hover { background: #dbeafe; }
+.spc .spc-plot { background: #e0f2fe; color: #0369a1; border-color: #bae6fd; }
+.spc .spc-plot:hover { background: #0369a1; color: #fff; }
+.spc .spc-poly { background: linear-gradient(135deg, #0f3b5e, #2563eb); color: #fff; }
+.spc .spc-poly:disabled { background: #94a3b8; }
+.spc .spc-clear { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
+.spc .spc-clear:hover { background: #be123c; color: #fff; }
+.spc .spc-ib { width: 34px; height: 38px; display: inline-grid; place-items: center; border-radius: 8px; border: 1px solid var(--spc-line); background: #fff; color: var(--spc-muted); cursor: pointer; font-size: 13px; margin-left: 2px; }
+.spc .spc-ib:hover { background: var(--spc-accent-50); color: var(--spc-accent); }
+.spc .spc-go { height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--spc-ref); color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 6px rgba(234,88,12,.3); }
+.spc .spc-go:hover { background: #c2410c; }
+
+/* coordinate system: two radio cards */
+.spc .spc-sys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 760px) { .spc .spc-sys { grid-template-columns: minmax(0, 1fr); } }
+.spc .spc-opt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: start; padding: 12px 14px; border: 1.5px solid var(--spc-line); border-radius: 12px; cursor: pointer; background: #fff; }
+.spc .spc-opt:hover { border-color: #93c5fd; }
+.spc .spc-opt:has(input[data-sys]:checked) { border-color: var(--spc-blue); background: #eff6ff; box-shadow: 0 0 0 3px #dbeafe; }
+.spc .spc-opt input[type=radio] { margin: 3px 0 0; accent-color: var(--spc-blue); width: 16px; height: 16px; }
+.spc .spc-opt .t { font-weight: 700; cursor: pointer; margin: 0; }
+.spc .spc-opt .d { grid-column: 2; font-size: 12px; color: var(--spc-muted); }
+.spc .spc-belt { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.spc .spc-belt label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border: 1px solid var(--spc-field); border-radius: 999px; background: #fff; cursor: pointer; margin: 0; }
+.spc .spc-belt label:has(input:checked) { background: var(--spc-blue); color: #fff; border-color: var(--spc-blue); }
+.spc .spc-belt input { position: absolute; opacity: 0; pointer-events: none; }
+.spc .spc-opt:not(:has(input[data-sys]:checked)) .spc-belt { opacity: .5; }
+
+/* beacon tables */
+.spc .spc-bt { overflow-x: auto; border: 1px solid var(--spc-line); border-radius: 10px; background: #fff; }
+.spc .spc-bt table { border-collapse: collapse; width: 100%; margin: 0; }
+.spc .spc-bt th { text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--spc-muted); padding: 10px 8px; background: #f9fafb; border-bottom: 1px solid var(--spc-line); white-space: nowrap; }
+.spc .spc-bt td { padding: 6px 6px 2px; vertical-align: top; border: 0; }
+.spc .spc-bt td input[type=text] { width: 100%; min-width: 110px; height: 38px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; padding: 8px 10px; border: 1px solid var(--spc-field); border-radius: 8px; background: #fff; color: var(--spc-ink); }
+.spc .spc-bt td input[type=text]:focus { outline: none; border-color: var(--spc-blue); box-shadow: 0 0 0 3px #dbeafe; }
+.spc .spc-bt td.n { color: var(--spc-muted); font-weight: 700; font-size: 12px; width: 34px; text-align: center; padding-top: 15px; }
+.spc .spc-bt td.b { min-width: 190px; }
+.spc .spc-bt td.act { white-space: nowrap; width: 1%; }
+.spc .spc-bt tr.hint td { padding: 0 6px 8px; font-size: 11.5px; color: var(--spc-muted); border-bottom: 1px solid #f3f4f6; }
+.spc .chip { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; margin: 2px 4px 0 0; }
+.spc .chip.ok { background: var(--spc-ok-bg); color: var(--spc-ok); }
+.spc .chip.warn { background: var(--spc-warn-bg); color: var(--spc-warn); }
+.spc .chip.bad { background: var(--spc-bad-bg); color: var(--spc-bad); }
+.spc .chip.info { background: #e0f2fe; color: #075985; }
+.spc .spc-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.spc .spc-verdict { border-radius: 10px; padding: 10px 14px; border: 1px solid var(--spc-line); display: grid; gap: 4px; }
+.spc .spc-verdict b { font-size: 14px; }
+.spc .spc-verdict.ok { background: var(--spc-ok-bg); color: var(--spc-ok); border-color: #bbf7d0; }
+.spc .spc-verdict.bad { background: var(--spc-bad-bg); color: var(--spc-bad); border-color: #fecaca; }
+.spc .spc-verdict.warn { background: var(--spc-warn-bg); color: var(--spc-warn); border-color: #fde68a; }
+.spc .spc-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 0; font-weight: 400; }
+.spc details.spc-opts summary { cursor: pointer; font-size: 12.5px; color: var(--spc-muted); }
+.spc details.spc-opts textarea, .spc details.spc-opts input[type=number] { width: 100%; padding: 8px 10px; border: 1px solid var(--spc-field); border-radius: 8px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.spc .spc-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.spc .spc-stat { border: 1px solid var(--spc-line); border-radius: 10px; padding: 10px 12px; background: linear-gradient(180deg, #fff, #f9fafb); }
+.spc .spc-stat span { display: block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--spc-muted); font-weight: 700; }
+.spc .spc-stat b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.spc .spc-feat { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; padding: 6px 8px; border: 1px solid var(--spc-line); border-radius: 8px; font-size: 12px; }
+.spc .spc-feat input { padding: 4px 8px; font-size: 12px; border: 1px solid var(--spc-field); border-radius: 6px; }
+.spc .spc-feat .meta { grid-column: 1 / -1; color: var(--spc-muted); }
+.spc .spc-legend { display: inline-flex; flex-wrap: wrap; gap: 12px; }
+.spc .spc-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+
+/* export: one colour per format */
+.spc .spc-exports { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 900px) { .spc .spc-exports { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.spc .spc-exports .spc-btn { justify-content: center; font-weight: 700; padding: 8px 6px; }
+.spc .spc-exports .spc-btn:hover { transform: translateY(-1px); color: #fff; }
+.spc [data-export=geojson] { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+.spc [data-export=geojson]:hover { background: #4338ca; border-color: #4338ca; }
+.spc [data-export=kml] { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
+.spc [data-export=kml]:hover { background: #0e7490; border-color: #0e7490; }
+.spc [data-export=shp] { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.spc [data-export=shp]:hover { background: #c2410c; border-color: #c2410c; }
+.spc [data-export=dxf] { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
+.spc [data-export=dxf]:hover { background: #7e22ce; border-color: #7e22ce; }
+.spc [data-export=csv] { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.spc [data-export=csv]:hover { background: #15803d; border-color: #15803d; }
+.spc [data-export=sql] { background: #f1f5f9; color: #0f3b5e; border-color: #cbd5e1; }
+.spc [data-export=sql]:hover { background: #0f3b5e; border-color: #0f3b5e; }
+
+/* map, with full screen as the correction board */
+.spc .spc-mapbox { border: 1px solid var(--spc-line); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: auto auto; background: #0f172a; }
+.spc .spc-mapbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; background: #0f172a; color: #e2e8f0; }
+.spc .spc-mapbar .grp { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: rgba(255,255,255,.08); }
+.spc .spc-mapbar .mb { height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 8px; background: transparent; color: #cbd5e1; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.spc .spc-mapbar .mb:hover { background: rgba(255,255,255,.14); color: #fff; }
+.spc .spc-mapbar .mb.active { background: #2563eb; color: #fff; }
+.spc .spc-mapbar .snap { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 0 8px; cursor: pointer; margin: 0; color: #e2e8f0; }
+.spc .spc-mapbar .grow { flex: 1; }
+.spc .spc-mapbar .gridtag { font-size: 12px; font-weight: 600; color: #93c5fd; }
+.spc .spc-mapbar .full { height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: #f8fafc; color: #0f172a; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.spc .spc-map { position: relative; height: 62vh; min-height: 460px; }
+.spc .spc-drawinfo { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 5; background: rgba(15,23,42,.88); color: #fff; font-size: 12px; padding: 7px 12px; border-radius: 8px; max-width: calc(100% - 24px); text-align: center; }
+.spc .spc-fullstats { position: absolute; left: 12px; bottom: 34px; z-index: 5; background: rgba(15,23,42,.88); color: #fff; font-size: 12px; padding: 8px 12px; border-radius: 10px; display: none; gap: 2px; }
+.spc .spc-mapbox.full { position: fixed; inset: 0; z-index: 3000; border-radius: 0; border: 0; grid-template-rows: auto minmax(0, 1fr); }
+.spc .spc-mapbox.full .spc-map { height: auto; min-height: 0; }
+.spc .spc-mapbox.full .spc-fullstats:not(:empty) { display: grid; }
+.spc .maplibregl-popup-content { font: 12px/1.4 system-ui, sans-serif; color: #1d2320; }
+.spc .maplibregl-popup-content b { font-size: 13px; }
+
+/* Beacon No.: searchable dropdown (select2) styled as the other fields */
+.spc .spc-bt .select2-container { width: 100% !important; }
+.spc .spc-bt .select2-container--default .select2-selection--single { height: 38px; border: 1px solid var(--spc-field); border-radius: 8px; }
+.spc .spc-bt .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px; padding-left: 10px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; color: var(--spc-ink); }
+.spc .spc-bt .select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px; }
+.select2-results__option .spc-dist { color: #6b7280; font-size: 12px; }
+.select2-results__option .spc-new { color: #ea580c; font-weight: 600; }
+.select2-container--default .select2-results__option--highlighted .spc-dist, .select2-container--default .select2-results__option--highlighted .spc-new { color: #fff; }
+body.spc-noscroll { overflow: hidden; }
+
+/* NTM vs UTM chart (Check Survey Plan; user, 2026-11-12): a banner under the systems, full size in a lightbox. */
+.spc .spc-guide { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 10px 12px; border: 1px solid #bae6fd; border-radius: 12px; background: linear-gradient(135deg, #f0f9ff, #ffffff); }
+@media (max-width: 700px) { .spc .spc-guide { grid-template-columns: auto minmax(0, 1fr); } .spc .spc-guide > .spc-btn { grid-column: 1 / -1; justify-self: start; } }
+.spc .spc-guide-thumb { width: 120px; height: 80px; padding: 0; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #fff; cursor: zoom-in; }
+.spc .spc-guide-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top left; display: block; transition: transform .2s; }
+.spc .spc-guide-thumb:hover img { transform: scale(1.06); }
+.spc .spc-guide-text { display: grid; gap: 2px; }
+.spc .spc-guide-text b { color: #0f3b5e; font-size: 14px; }
+.spc .spc-guide-text span { color: #6b7280; font-size: 12.5px; }
+.spc .spc-lightbox { position: fixed; inset: 0; z-index: 3500; background: rgba(15,23,42,.88); display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.spc .spc-lightbox-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #0f172a; color: #fff; flex-wrap: wrap; }
+.spc .spc-lightbox-bar b { font-size: 15px; }
+.spc .spc-lightbox-body { overflow: auto; display: grid; place-items: center; padding: 16px; cursor: zoom-out; }
+.spc .spc-lightbox-body img { max-width: 100%; max-height: calc(100vh - 100px); width: auto; height: auto; border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,.4); background: #fff; cursor: default; }
+
+/* Section 1 in two halves (user, 2026-11-12): systems stacked on the left, the chart card on the right. */
+.spc .spc-sysrow { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+@media (max-width: 900px) { .spc .spc-sysrow { grid-template-columns: minmax(0, 1fr); } }
+.spc .spc-sysrow .spc-sys { grid-template-columns: minmax(0, 1fr); align-content: start; }
+.spc .spc-sysrow .spc-guide { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr) auto; align-items: end; padding: 12px; }
+.spc .spc-sysrow .spc-guide-thumb { grid-column: 1 / -1; width: 100%; height: 100%; min-height: 150px; }
+.spc .spc-sysrow .spc-guide-thumb img { object-fit: contain; object-position: center; }
+.spc .spc-sysrow .spc-guide > .spc-btn { grid-column: auto; justify-self: end; }
+/* Keep the chart card about as tall as the two systems: a cropped preview; the full chart opens on click. */
+.spc .spc-sysrow .spc-guide-thumb { height: 128px; min-height: 0; }
+.spc .spc-sysrow .spc-guide-thumb img { object-fit: cover; object-position: center top; }
+/* Beacon No. "Other (specify)" box (user, 2026-11-12). */
+.spc .spc-bt td input.spc-other { margin-top: 6px; border-color: #fdba74; background: #fff7ed; text-transform: uppercase; }

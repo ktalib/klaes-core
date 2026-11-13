@@ -46,6 +46,8 @@
     <div style="font-size:13px;color:var(--gray-500);">{{ $listScope ? $PageDescription : ($unit ? 'Sent to ' . $unit . '.' : 'Every upload, with the unit it went to.') }}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
         @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.survey-plans.export', array_filter(['scope' => $scope])), 'title' => $unit ? 'Uploaded Survey Plan - ' . $unit : 'Survey Plan Uploads', 'dateLabel' => 'Date Uploaded'])
+        {{-- A blank check: the coordinate system and the reference coordinate entered by hand (user, 2026-11-12). --}}
+        <a class="btn btn-secondary" href="{{ route('survey-module.survey-plans.check') }}"><i class="fas fa-map-location-dot"></i> Check Survey Plan</a>
         @unless ($isList)
             <button type="button" class="btn btn-primary" onclick="document.getElementById('spuForm').classList.add('open')"><i class="fas fa-upload"></i> Upload Survey Plan</button>
         @endunless
@@ -55,22 +57,13 @@
 @unless ($isList)
 {{-- The very short form (Survey Update 5h): where the plan is, who drew it, its type and the unit it goes to. --}}
 <form method="POST" id="spuForm" action="{{ route('survey-module.survey-plans.store') }}" enctype="multipart/form-data"
-      class="farmer-entry-form {{ $open ? 'open' : '' }}" data-sv-modal="Upload Survey Plan">
+      class="farmer-entry-form {{ $open ? 'open' : '' }}" data-sv-modal="Upload Survey Plan" data-sv-modal-size="xl">
     @csrf
-    {{-- Two tabs (CR 11112026-2, item 4): the plan's details, and its reference beacons. --}}
-    @php $spuBeaconErr = collect($errors->keys())->contains(fn ($k) => str_starts_with($k, 'beacons')); @endphp
-    <div class="spu-tabs" role="tablist" style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--gray-200,#e5e7eb);">
-        <button type="button" role="tab" data-spu-tab="details" class="spu-tab" aria-selected="{{ $spuBeaconErr ? 'false' : 'true' }}">Plan Details</button>
-        <button type="button" role="tab" data-spu-tab="beacons" class="spu-tab" aria-selected="{{ $spuBeaconErr ? 'true' : 'false' }}">Reference Beacons <span class="required">*</span></button>
-    </div>
-    <style>
-        .spu-tab { padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; background: none; font-weight: 600; color: var(--gray-500,#6b7280); cursor: pointer; }
-        .spu-tab[aria-selected="true"] { color: var(--primary,#1d4ed8); border-bottom-color: var(--primary,#1d4ed8); }
-    </style>
-    <div data-spu-panel="beacons" @unless ($spuBeaconErr) hidden @endunless style="margin-bottom:12px;">
-        @include('survey_module.survey_plans._reference_beacons', ['searchUrl' => route('survey-module.survey-plans.beacons')])
-    </div>
-    <div class="form-grid cols-3" data-spu-panel="details" @if ($spuBeaconErr) hidden @endif>
+    {{-- One card, no tabs (user, 2026-11-12, Survey Plan Check): 1 coordinate system, 2 reference coordinate,
+         3 map, 4 other beacons, 5 plan details, 6 export. --}}
+    @include('survey_module.survey_plans._plan_check', ['spcMode' => 'upload', 'spcSearchUrl' => route('survey-module.survey-plans.beacons')])
+    <div class="spc" style="margin:18px 0 12px;"><div class="spc-group"><span class="n">5</span><span>Plan details</span></div></div>
+    <div class="form-grid cols-3">
         <div class="sv-group"><i class="fas fa-file-upload"></i><span>Survey Plan</span></div>
         <div class="form-group">
             <label>Type <span class="required">*</span></label>
@@ -140,6 +133,7 @@
             <textarea name="remarks" rows="2" maxlength="1000">{{ old('remarks') }}</textarea>
         </div>
     </div>
+    <div style="margin-top:18px;">@include('survey_module.survey_plans._plan_check_export', ['spcExportNo' => 6])</div>
     <div class="form-actions">
         <div class="left"><a class="btn btn-secondary" href="{{ route('survey-module.survey-plans.index') }}"><i class="fas fa-times"></i> Close</a></div>
         <div class="right"><button class="btn btn-success" type="submit"><i class="fas fa-paper-plane"></i> Upload and Send</button></div>
@@ -211,6 +205,9 @@
                                     <a href="{{ route('survey-module.survey-plans.show', $row) }}" class="{{ $svItem }}" @click="open = false">
                                         <i data-lucide="layers" class="w-4 h-4 text-gray-500"></i> Open (stages)
                                     </a>
+                                    <a href="{{ route('survey-module.survey-plans.check-plan', $row) }}" class="{{ $svItem }}" @click="open = false">
+                                        <i data-lucide="map-pinned" class="w-4 h-4 text-gray-500"></i> Check survey plan
+                                    </a>
                                     <a href="{{ route('survey-module.survey-plans.file', $row) }}" target="_blank" rel="noopener" class="{{ $svItem }}" @click="open = false">
                                         <i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i> Open Plan
                                     </a>
@@ -236,23 +233,16 @@
 
 @push('scripts')
 <script>
-// Plan Details | Reference Beacons tabs. Submitting with the beacons empty opens their tab.
+// The reference coordinate is required: submitting without it opens its Beacon No. list.
 (function () {
-    var tabs = document.querySelectorAll('[data-spu-tab]');
-    var show = function (key) {
-        tabs.forEach(function (t) { t.setAttribute('aria-selected', t.dataset.spuTab === key ? 'true' : 'false'); });
-        document.querySelectorAll('[data-spu-panel]').forEach(function (p) { p.hidden = p.dataset.spuPanel !== key; });
-    };
-    tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.dataset.spuTab); }); });
     var form = document.getElementById('spuForm');
     if (form) form.addEventListener('submit', function (e) {
-        var filled = Array.prototype.some.call(form.querySelectorAll('.rb-no'), function (i) { return i.value.trim() !== ''; });
-        if (!filled) { e.preventDefault(); show('beacons'); var rb = form.querySelector('.rb-no'); if (window.jQuery && jQuery(rb).data('select2')) jQuery(rb).select2('open'); else rb.focus(); return; }
-    }, true);
-    // A required field on the hidden tab cannot be shown by the browser: open its tab first.
-    if (form) form.addEventListener('invalid', function (e) {
-        var panel = e.target.closest('[data-spu-panel]');
-        if (panel && panel.hidden) show(panel.dataset.spuPanel);
+        var no = form.querySelector('#spc-refRows select.spc-b'), val = form.querySelector('input[name="beacons[0][beacon_no]"]');
+        if (no && val && !val.value && no.value !== '__other') {
+            e.preventDefault();
+            no.closest('.spc-bt').scrollIntoView({ block: 'center' });
+            if (window.jQuery && jQuery(no).data('select2')) jQuery(no).select2('open');
+        }
     }, true);
 })();
 

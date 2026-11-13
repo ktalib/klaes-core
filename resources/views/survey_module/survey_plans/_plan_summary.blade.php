@@ -4,6 +4,8 @@
 @php
   use App\Models\Survey\SurveyPlanUpload as SpPlan;
   $spNow = $plan->stage_no;
+  // KLAES plan page shows Details / Reference Beacons / Files as tabs (user, 2026-11-12); the portal keeps cards.
+  $spTabs = $spTabs ?? false;
   $spSize = fn ($b) => $b ? ($b >= 1048576 ? number_format($b / 1048576, 1) . ' MB' : max(1, round($b / 1024)) . ' KB') : '';
 @endphp
 <style>
@@ -27,9 +29,24 @@
   .sp-h { font-size: 15px; font-weight: 700; margin: 0 0 10px; color: #111827; }
   .sp-link { color: #1d4ed8; font-weight: 600; text-decoration: none; }
   .sp-link:hover { text-decoration: underline; }
+  .sp-tabin { position: absolute; opacity: 0; pointer-events: none; }
+  .sp-tabbar { display: flex; gap: 4px; border-bottom: 2px solid #e5e7eb; flex-wrap: wrap; }
+  .sp-tabbar label { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; margin-bottom: -2px; border-bottom: 2px solid transparent; font-weight: 700; font-size: 13px; color: #64748b; cursor: pointer; border-radius: 8px 8px 0 0; }
+  .sp-tabbar label:hover { color: #1d4ed8; background: #f8fafc; }
+  .sp-tabbar .c { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #e2e8f0; color: #334155; }
+  .sp-pane { display: none; }
+  #spTab1:checked ~ .sp-pane-1, #spTab2:checked ~ .sp-pane-2, #spTab3:checked ~ .sp-pane-3 { display: grid; gap: 12px; }
+  #spTab1:checked ~ .sp-tabbar label[for=spTab1], #spTab2:checked ~ .sp-tabbar label[for=spTab2], #spTab3:checked ~ .sp-tabbar label[for=spTab3] { color: #1d4ed8; border-bottom-color: #1d4ed8; background: #eff6ff; }
+  #spTab1:checked ~ .sp-tabbar label[for=spTab1] .c, #spTab2:checked ~ .sp-tabbar label[for=spTab2] .c, #spTab3:checked ~ .sp-tabbar label[for=spTab3] .c { background: #1d4ed8; color: #fff; }
+  #spTab1:focus-visible ~ .sp-tabbar label[for=spTab1], #spTab2:focus-visible ~ .sp-tabbar label[for=spTab2], #spTab3:focus-visible ~ .sp-tabbar label[for=spTab3] { outline: 2px solid #93c5fd; }
 </style>
 
 <div class="sp-card" style="display:grid;gap:14px;">
+  @if ($spTabs)
+    <input type="radio" name="sp_tab" id="spTab1" class="sp-tabin" checked>
+    <input type="radio" name="sp_tab" id="spTab2" class="sp-tabin">
+    <input type="radio" name="sp_tab" id="spTab3" class="sp-tabin">
+  @endif
   <div class="sp-track" aria-label="Stages">
     @foreach (SpPlan::STAGES as $n => $label)
       <div class="sp-step {{ $n < $spNow || $spNow === SpPlan::STAGE_SIGNED ? 'done' : ($n === $spNow ? 'now' : '') }}" @if ($n === $spNow) aria-current="step" @endif>
@@ -39,6 +56,14 @@
     @endforeach
   </div>
   <div style="font-size:13px;color:#374151;"><strong>Now:</strong> {{ $plan->stage_status }}@if ($plan->signing_method) · signed {{ $plan->signing_method === SpPlan::SIGN_DIGITAL ? 'digitally' : 'by hand' }}@endif</div>
+  @if ($spTabs)
+    <div class="sp-tabbar" role="tablist">
+      <label for="spTab1" role="tab"><i class="fas fa-circle-info"></i> Details</label>
+      <label for="spTab2" role="tab"><i class="fas fa-location-crosshairs"></i> Reference Coordinate <span class="c">{{ $plan->referenceBeacons->count() }}</span></label>
+      <label for="spTab3" role="tab"><i class="fas fa-folder-open"></i> Files <span class="c">{{ $plan->files->count() + 1 }}</span></label>
+    </div>
+    <div class="sp-pane sp-pane-1">
+  @endif
   <div class="sp-kv">
     <div><span>Upload Ref</span><strong class="sp-mono">{{ $plan->upload_ref }}</strong></div>
     <div><span>Type</span><strong>{{ $plan->plan_type }}</strong></div>
@@ -48,13 +73,18 @@
     <div><span>LGA</span><strong>{{ $plan->lga ?: '—' }}</strong></div>
     <div><span>Location</span><strong>{{ $plan->location ?: '—' }}</strong></div>
     <div><span>Drawn By</span><strong>{{ $plan->drawn_by }}</strong></div>
+    <div><span>Coordinate System</span><strong>{{ $plan->coord_system_label ?: '—' }}</strong></div>
     <div><span>Uploaded</span><strong>{{ $plan->created_at?->format('d M Y H:i') }} · {{ $plan->uploaded_by_name }} ({{ $plan->source_label }})</strong></div>
   </div>
   @if ($plan->remarks)<div style="font-size:13px;color:#374151;"><strong>Remarks:</strong> {{ $plan->remarks }}</div>@endif
+@if ($spTabs)
+  </div>
+@else
 </div>
+@endif
 
-<div class="sp-card">
-  <h3 class="sp-h">Reference Beacons</h3>
+<div class="{{ $spTabs ? 'sp-pane sp-pane-2' : 'sp-card' }}">
+  @unless ($spTabs)<h3 class="sp-h">Reference Coordinate</h3>@endunless
   <div style="overflow-x:auto;">
     <table class="sp-tbl">
       <thead><tr><th>S/N</th><th>Beacon No.</th><th>X (Easting)</th><th>Y (Northing)</th><th>From</th></tr></thead>
@@ -75,8 +105,8 @@
   </div>
 </div>
 
-<div class="sp-card">
-  <h3 class="sp-h">Files</h3>
+<div class="{{ $spTabs ? 'sp-pane sp-pane-3' : 'sp-card' }}">
+  @unless ($spTabs)<h3 class="sp-h">Files</h3>@endunless
   <div style="overflow-x:auto;">
     <table class="sp-tbl">
       <thead><tr><th>S/N</th><th>Stage</th><th>File</th><th>Note</th><th>By</th><th>Date</th><th></th></tr></thead>
@@ -102,3 +132,6 @@
     </table>
   </div>
 </div>
+@if ($spTabs)
+</div>
+@endif

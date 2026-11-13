@@ -144,6 +144,35 @@ class SurveyPlanUploadController extends Controller
      | The plan's own page and its four stages (CR 11112026-2, item 5).
      * ------------------------------------------------------------------------------------------------ */
 
+    /** Survey Plan Check, blank: the coordinate system and reference coordinate entered by hand (user, 2026-11-12). */
+    public function check()
+    {
+        return view('survey_module.survey_plans.check', ['plan' => null, 'prefill' => null]);
+    }
+
+    /**
+     * Survey Plan Check filled in from an upload: its coordinate system and reference coordinate. Plans uploaded
+     * before one reference was asked for bring their first beacon as the reference and the rest as other beacons.
+     */
+    public function checkPlan(Plan $plan)
+    {
+        $plan->load('referenceBeacons');
+        $row = fn ($b) => ['beacon_no' => (string) $b->beacon_no, 'x' => (string) $b->coord_x, 'y' => (string) $b->coord_y, 'source' => (string) $b->source];
+        $beacons = $plan->referenceBeacons->values();
+        $place = collect([$plan->plot_no ? 'plot ' . $plan->plot_no : null, $plan->district, $plan->lga])->filter()->implode(', ');
+        $note = 'Filled in from upload <b>' . e($plan->upload_ref) . '</b> (' . e($plan->plan_type) . ($place !== '' ? ', ' . e($place) : '') . ')'
+            . ($plan->coord_system
+                ? ': the coordinate system and the reference coordinate are as the uploader entered them. Add the other beacons under the map.'
+                : '. It was uploaded before the coordinate system was asked for: choose the system its X / Y are in.');
+
+        return view('survey_module.survey_plans.check', ['plan' => $plan, 'prefill' => [
+            'sys'    => $plan->coord_system,
+            'ref'    => $beacons->isNotEmpty() ? $row($beacons->first()) : null,
+            'others' => $beacons->slice(1)->map($row)->values()->all(),
+            'note'   => $note,
+        ]]);
+    }
+
     public function show(Plan $plan)
     {
         $plan->load(['files', 'referenceBeacons']);

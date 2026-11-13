@@ -135,6 +135,48 @@ class AuthController extends Controller
 
     public function register(Request $r)
     {
+        $account = $this->registerSurveyor($r, null);
+
+        return redirect()->route('surveyor-portal.registered')->with('registration_id', $account->registration_id);
+    }
+
+    /**
+     * Our Surveyors > Add Surveyor (user, 2026-11-13): a company signs a surveyor up with the same form. The company
+     * is its own and cannot be changed; the account waits for the SG's approval like any registration.
+     */
+    public function companyCreateSurveyor()
+    {
+        $me = $this->companyAccount();
+        $company = DB::connection('sqlsrv')->table('survey_companies')->where('id', $me->company_id)->first();
+        abort_unless($company, 404);
+
+        return view('surveyor_portal.company.surveyor_create', ['company' => $company]);
+    }
+
+    public function companyStoreSurveyor(Request $r)
+    {
+        $me = $this->companyAccount();
+        $account = $this->registerSurveyor($r, (int) $me->company_id);
+
+        return redirect()->route('surveyor-portal.company.surveyors')->with('success',
+            "{$account->name} is registered under your company (Registration ID {$account->registration_id}). The Surveyor General approves the account; "
+            . 'the surveyor is texted when they can sign in.');
+    }
+
+    private function companyAccount(): Account
+    {
+        $me = $this->guard()->user();
+        abort_unless($me && $me->isCompany() && $me->company_id, 403);
+
+        return $me;
+    }
+
+    /** The surveyor registration, from the public form or a company's Add Surveyor ($lockedCompanyId). */
+    private function registerSurveyor(Request $r, ?int $lockedCompanyId): Account
+    {
+        if ($lockedCompanyId) {
+            $r->merge(['company_choice' => (string) $lockedCompanyId]);
+        }
         $data = $r->validate([
             'company_choice' => ['required', 'string', 'max:30'],
             'name'           => 'required|string|max:255',
@@ -209,7 +251,7 @@ class AuthController extends Controller
             throw $e;
         }
 
-        return redirect()->route('surveyor-portal.registered')->with('registration_id', $account->registration_id);
+        return $account;
     }
 
     public function registered()

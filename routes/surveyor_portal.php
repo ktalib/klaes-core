@@ -118,6 +118,9 @@ Route::prefix('mlpp-sg')->name('surveyor-portal.')->group(function () {
         // A company's own login (user, 2026-11-10): Dashboard (above), Our Surveyors, Our Beacons, Notifications (above).
         Route::middleware('surveyor.kind:company')->prefix('company')->name('company.')->group(function () {
             Route::get('surveyors', [\App\Http\Controllers\SurveyorPortal\CompanyController::class, 'surveyors'])->name('surveyors');
+            // Add Surveyor (user, 2026-11-13): the registration form, under the company; the SG approves it.
+            Route::get('surveyors/create', [AuthController::class, 'companyCreateSurveyor'])->name('surveyors.create');
+            Route::post('surveyors', [AuthController::class, 'companyStoreSurveyor'])->middleware('throttle:10,1')->name('surveyors.store');
             Route::get('beacons/{which}', [\App\Http\Controllers\SurveyorPortal\CompanyController::class, 'beacons'])->whereIn('which', ['issued', 'used'])->name('beacons');
             Route::get('surveyors-report', [\App\Http\Controllers\SurveyorPortal\CompanyController::class, 'reports'])->name('reports');
             Route::get('surveyors-report/{report}/print', [\App\Http\Controllers\SurveyorPortal\CompanyController::class, 'printReport'])->whereNumber('report')->name('reports.print');

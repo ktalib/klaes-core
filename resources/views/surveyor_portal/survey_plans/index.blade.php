@@ -13,15 +13,9 @@
     <form method="POST" id="spPortalForm" action="{{ route('surveyor-portal.survey-plans.store') }}" enctype="multipart/form-data" class="ks-card p-6 space-y-4">
         @csrf
         <p class="ks-help" style="margin:0;">Send a survey plan for checking: GKN for public plans, Examination/Verification for private.</p>
-        {{-- Two tabs (CR 11112026-2, item 4): the plan's details, and its reference beacons. --}}
-        @php $spBeaconErr = collect($errors->keys())->contains(fn ($k) => str_starts_with($k, 'beacons')); @endphp
-        <div role="tablist" style="display:flex;gap:6px;border-bottom:1px solid #e5e7eb;">
-            <button type="button" role="tab" data-sp-tab="details" class="sp-ptab" aria-selected="{{ $spBeaconErr ? 'false' : 'true' }}">Plan Details</button>
-            <button type="button" role="tab" data-sp-tab="beacons" class="sp-ptab" aria-selected="{{ $spBeaconErr ? 'true' : 'false' }}">Reference Beacons <span class="ks-req">*</span></button>
-        </div>
+        {{-- One card, no tabs (user, 2026-11-12, Survey Plan Check): 1 coordinate system, 2 reference coordinate, 3 map,
+             4 other beacons, 5 plan details, 6 export. --}}
         <style>
-            .sp-ptab { padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; background: none; font-weight: 700; color: #6b7280; cursor: pointer; }
-            .sp-ptab[aria-selected="true"] { color: var(--ks-blue, #1d4ed8); border-bottom-color: var(--ks-blue, #1d4ed8); }
             .ks-searchable + .select2-container { width: 100% !important; }
             .ks-searchable + .select2-container .select2-selection--single { height: 44px; border: 1px solid #B8BEC5; border-radius: 8px; }
             .ks-searchable + .select2-container .select2-selection__rendered { line-height: 42px; padding-left: 12px; color: var(--ks-ink); font-size: 14px; }
@@ -35,10 +29,9 @@
             .sp-preview-note { padding: 18px; color: var(--ks-soft); font-size: 13px; text-align: center; }
             @media (max-width: 640px) { .sp-preview-body iframe { height: 380px; } }
         </style>
-        <div data-sp-panel="beacons" @unless ($spBeaconErr) hidden @endunless>
-            @include('survey_module.survey_plans._reference_beacons', ['searchUrl' => route('surveyor-portal.survey-plans.beacons')])
-        </div>
-        <div data-sp-panel="details" class="space-y-4" @if ($spBeaconErr) hidden @endif>
+        @include('survey_module.survey_plans._plan_check', ['spcMode' => 'upload', 'spcSearchUrl' => route('surveyor-portal.survey-plans.beacons')])
+        <div class="spc"><div class="spc-group"><span class="n">5</span><span>Plan details</span></div></div>
+        <div class="space-y-4">
         <div class="grid sm:grid-cols-2 gap-4">
             <div>
                 <label class="ks-label" for="plan_type">Type <span class="ks-req">*</span></label>
@@ -110,6 +103,7 @@
             <textarea class="ks-input" id="remarks" name="remarks" rows="2" maxlength="1000">{{ old('remarks') }}</textarea>
         </div>
         </div>
+        @include('survey_module.survey_plans._plan_check_export', ['spcExportNo' => 6])
         <div class="flex justify-end">
             <button class="ks-btn ks-btn-primary"><i data-lucide="send" class="w-4 h-4"></i> Upload and Send</button>
         </div>
@@ -154,18 +148,12 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-// Plan Details | Reference Beacons tabs; a missing field on the hidden tab opens it.
+// The reference coordinate is required: submitting without it opens its Beacon No. list.
 (function () {
-    var form = document.getElementById('spPortalForm'), tabs = document.querySelectorAll('[data-sp-tab]');
-    var show = function (key) {
-        tabs.forEach(function (t) { t.setAttribute('aria-selected', t.dataset.spTab === key ? 'true' : 'false'); });
-        document.querySelectorAll('[data-sp-panel]').forEach(function (p) { p.hidden = p.dataset.spPanel !== key; });
-    };
-    tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.dataset.spTab); }); });
-    form.addEventListener('invalid', function (e) { var p = e.target.closest('[data-sp-panel]'); if (p && p.hidden) show(p.dataset.spPanel); }, true);
+    var form = document.getElementById('spPortalForm');
     form.addEventListener('submit', function (e) {
-        var filled = Array.prototype.some.call(form.querySelectorAll('.rb-no'), function (i) { return i.value.trim() !== ''; });
-        if (!filled) { e.preventDefault(); show('beacons'); var rb = form.querySelector('.rb-no'); if (window.jQuery && jQuery(rb).data('select2')) jQuery(rb).select2('open'); else rb.focus(); }
+        var no = form.querySelector('#spc-refRows select.spc-b'), val = form.querySelector('input[name="beacons[0][beacon_no]"]');
+        if (no && val && !val.value && no.value !== '__other') { e.preventDefault(); no.closest('.spc-bt').scrollIntoView({ block: 'center' }); if (window.jQuery && jQuery(no).data('select2')) jQuery(no).select2('open'); }
     });
 })();
 // District: a searchable list (user, 2026-11-12). "Other (specify)" reveals a required box; any other choice hides, clears and disables it.

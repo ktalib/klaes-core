@@ -1,0 +1,1454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Survey Plan Check</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/maps/vendor/maplibre-gl.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Survey Plan Check, prototype v4 (CR 11112026-2 item 8; user, 2026-11-12): public, no login, not in KLAES yet.
+   Laid out as KLAES's "Upload Survey Plan" pop-up so it moves in as one piece: the check sits in the Reference
+   Beacons tab. Order from the recordings: coordinate system, reference beacons (they drive the map), map,
+   the plan's other beacons in survey order joined into a polygon, export. */
+:root {
+  --bg: #f3f4f6; --panel: #ffffff; --ink: #1f2937; --muted: #6b7280; --line: #e5e7eb; --field: #d1d5db;
+  --accent: #0f3b5e; --accent-light: #1a5276; --accent-50: #e8f0f8; --blue: #1d4ed8; --green: #16a34a;
+  --ref: #ea580c; --sv: #0891b2; --reg: #2563eb; --ctl: #7c3aed; --draw: #16a34a;
+  --ok: #166534; --ok-bg: #dcfce7; --warn: #92400e; --warn-bg: #fef3c7; --bad: #991b1b; --bad-bg: #fee2e2;
+  color-scheme: light;
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+body.lock { overflow: hidden; }
+
+/* ---------- KLAES shell (static preview) ---------- */
+.shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 100vh; }
+.side { background: #fff; border-right: 1px solid var(--line); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+.side-logo { display: grid; place-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(135deg, #eef2ff, #f5f3ff); }
+.side-logo img { width: 150px; height: auto; display: block; }
+.side-nav { padding: 12px 10px; display: grid; gap: 4px; align-content: start; flex: 1; }
+.side-label { font-size: 10px; font-weight: 800; letter-spacing: .12em; color: var(--muted); padding: 6px 10px; }
+.side-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; color: #374151; text-decoration: none; font-size: 13px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+.side-item i { width: 18px; text-align: center; color: #64748b; }
+.side-item.on { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); color: #1e40af; border-left: 2px solid #3b82f6; }
+.side-item.on i { color: #1e40af; }
+.side-item.off { opacity: .55; cursor: default; }
+.side-note { margin: 10px; padding: 10px; border: 1px dashed var(--line); border-radius: 8px; font-size: 11px; color: var(--muted); }
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar { display: flex; align-items: center; gap: 12px; padding: 16px 28px; background: #fff; border-bottom: 1px solid var(--line); }
+.topbar h1 { font-size: 22px; margin: 0; color: #111827; }
+.topbar .sub { color: var(--muted); margin: 2px 0 0; font-size: 13px; }
+.topbar .grow { flex: 1; }
+.pill { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #92400e; background: #fef3c7; border: 1px solid #f39c12; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+.content { padding: 24px 28px; display: grid; gap: 16px; align-content: start; flex: 1; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.kpi { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.kpi span { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.kpi b { display: block; font-size: 26px; margin-top: 4px; }
+.listcard { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 12px; }
+.listcard .head { display: flex; align-items: center; gap: 10px; }
+.listcard p { margin: 0; color: var(--muted); }
+.footer { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--line); background: #fff; font-size: 12px; color: var(--muted); }
+.footer img { width: 30px; height: 30px; }
+@media (max-width: 900px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .side { position: static; height: auto; flex-direction: row; align-items: center; }
+  .side-logo { padding: 8px 12px; } .side-logo img { width: 96px; }
+  .side-nav, .side-note { display: none; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .content, .topbar { padding: 14px 16px; }
+}
+
+/* ---------- buttons, fields (KLAES look) ---------- */
+.btn { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-weight: 600; font-size: 14px; border-radius: 8px; padding: 9px 16px; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-light); }
+.btn-secondary { background: #f3f4f6; color: #374151; border-color: #e5e7eb; }
+.btn-secondary:hover { background: #e5e7eb; }
+.btn-success { background: #22c55e; color: #fff; }
+.btn-success:hover { background: #16a34a; }
+.btn-ref { background: var(--ref); color: #fff; }
+.btn-ref:hover { background: #c2410c; }
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+.btn:disabled { opacity: .5; cursor: default; }
+.ib { width: 32px; height: 32px; display: inline-grid; place-items: center; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--muted); cursor: pointer; font-size: 13px; }
+.ib:hover { background: var(--accent-50); color: var(--accent); }
+select, input[type=text], input[type=number], input[type=file], textarea { font: inherit; color: var(--ink); background: #fff; border: 1px solid var(--field); border-radius: 8px; padding: 9px 12px; width: 100%; min-width: 0; }
+input[type=file] { padding: 7px 10px; }
+textarea { min-height: 72px; resize: vertical; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px #dbeafe; }
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 28px; }
+@media (max-width: 800px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
+.form-group { display: grid; gap: 6px; align-content: start; }
+.form-group > label, .lbl { font-size: 13px; font-weight: 500; color: #374151; }
+.required { color: #ef4444; }
+.helper-text { font-size: 12px; color: #9ca3af; margin: 0; }
+.sv-group { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-top: 6px; }
+.sv-group::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.sv-group .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 11px; letter-spacing: 0; }
+.sv-group .aside { order: 3; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted); font-size: 12px; }
+.note { font-size: 12.5px; color: var(--muted); margin: 0; }
+
+/* ---------- the modal ---------- */
+.ovl { position: fixed; inset: 0; z-index: 100; background: rgba(17,24,39,.55); display: grid; place-items: center; padding: 2vh 2vw; }
+/* Wider and taller than KLAES's pop-up today (user, 2026-11-12), to fit the map and the check. */
+.modal { width: min(1500px, 96vw); height: 96vh; background: #fff; border-radius: 14px; box-shadow: 0 24px 60px rgba(0,0,0,.3); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+@media (max-width: 700px) { .ovl { padding: 0; } .modal { width: 100vw; height: 100vh; border-radius: 0; } }
+.modal-h { display: flex; align-items: center; gap: 10px; padding: 16px 22px; border-bottom: 1px solid var(--line); }
+.modal-h h2 { margin: 0; font-size: 17px; font-weight: 700; color: #111827; }
+.modal-h .x { margin-left: auto; border: 0; background: none; font-size: 20px; color: #9ca3af; cursor: pointer; }
+.modal-b { padding: 20px 26px 26px; display: grid; grid-auto-rows: max-content; gap: 16px; align-content: start; overflow-y: auto; min-height: 0; }
+.modal-f { display: flex; justify-content: space-between; gap: 10px; padding: 14px 22px; border-top: 1px solid var(--line); background: #f9fafb; border-radius: 0 0 14px 14px; }
+.tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff; z-index: 6; padding-top: 12px; }
+.tab { padding: 10px 14px; border: 0; border-bottom: 2px solid transparent; background: none; font: inherit; font-weight: 600; font-size: 15px; color: #9ca3af; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.tab[aria-selected=true] { color: var(--blue); border-bottom-color: var(--blue); }
+.tab .c { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #e5e7eb; color: #374151; }
+.tab[aria-selected=true] .c { background: var(--blue); color: #fff; }
+/* Two sections in one card (user, 2026-11-12). */
+.sec { display: grid; gap: 16px; border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+.sec + .sec { margin-top: 4px; }
+.sec-h { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid #eef2f7; }
+.sec-h h3 { margin: 0; font-size: 17px; font-weight: 800; color: #0f172a; }
+.sec-h p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.sec-ic { width: 38px; height: 38px; border-radius: 10px; display: inline-grid; place-items: center; background: linear-gradient(135deg, var(--accent), #2563eb); color: #fff; font-size: 16px; flex: none; }
+.sec-count { margin-left: auto; font-size: 12px; color: var(--muted); background: #f1f5f9; border-radius: 999px; padding: 4px 12px; }
+.sec-count b { color: var(--blue); font-size: 14px; }
+.modepill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #eff6ff; color: var(--blue); border: 1px solid #bfdbfe; }
+.prefill { border: 1px solid #bfdbfe; background: #eff6ff; color: #1e3a8a; border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+.prefill i { margin-right: 6px; }
+.sv-sub { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+.list td { padding: 10px 8px; border-bottom: 1px solid #f3f4f6; font-size: 13px; vertical-align: middle; }
+.list .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+.sys-tag { font-family: Inter, sans-serif; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: #e0f2fe; color: #075985; margin-left: 4px; }
+.stage { font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: #fef3c7; color: #92400e; white-space: nowrap; }
+.kebab { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #475569; cursor: pointer; }
+.kebab:hover { background: var(--accent-50); color: var(--accent); }
+.rowmenu { position: fixed; z-index: 200; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,.15); padding: 6px; min-width: 200px; }
+.rowmenu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: 0; background: none; border-radius: 8px; font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer; text-align: left; }
+.rowmenu button:hover { background: var(--accent-50); color: var(--accent); }
+.rowmenu i { width: 16px; color: var(--blue); }
+/* Coloured buttons (user, 2026-11-12): one colour per export format; tinted, solid on hover. */
+.exports .btn { border-width: 1.5px; font-weight: 700; transition: background .15s, color .15s, transform .1s; }
+.exports .btn:hover { transform: translateY(-1px); color: #fff; }
+.exports [data-export=geojson] { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+.exports [data-export=geojson]:hover { background: #4338ca; border-color: #4338ca; }
+.exports [data-export=kml] { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
+.exports [data-export=kml]:hover { background: #0e7490; border-color: #0e7490; }
+.exports [data-export=shp] { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.exports [data-export=shp]:hover { background: #c2410c; border-color: #c2410c; }
+.exports [data-export=dxf] { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
+.exports [data-export=dxf]:hover { background: #7e22ce; border-color: #7e22ce; }
+.exports [data-export=csv] { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.exports [data-export=csv]:hover { background: #15803d; border-color: #15803d; }
+.exports [data-export=sql] { background: #f1f5f9; color: #0f3b5e; border-color: #cbd5e1; }
+.exports [data-export=sql]:hover { background: #0f3b5e; border-color: #0f3b5e; }
+#svPlot { background: #e0f2fe; color: #0369a1; border-color: #bae6fd; }
+#svPlot:hover { background: #0369a1; color: #fff; }
+#svClear { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
+#svClear:hover { background: #be123c; color: #fff; }
+#sample { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+#sample:hover { background: #6d28d9; color: #fff; }
+#openCheck { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
+#openCheck:hover { background: #0e7490; color: #fff; }
+#closeBtn { background: #fff; color: #b91c1c; border: 1.5px solid #fecaca; }
+#closeBtn:hover { background: #fef2f2; }
+#svPoly:not(:disabled) { background: linear-gradient(135deg, #0f3b5e, #2563eb); }
+.sysrow { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+@media (max-width: 900px) { .sysrow { grid-template-columns: minmax(0, 1fr); } }
+.sysrow .sys { grid-template-columns: minmax(0, 1fr); align-content: start; }
+.guide { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 10px 14px; align-items: end; padding: 12px; border: 1px solid #bae6fd; border-radius: 12px; background: linear-gradient(135deg, #f0f9ff, #ffffff); }
+.guide-thumb { grid-column: 1 / -1; width: 100%; height: 128px; padding: 0; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #fff; cursor: zoom-in; }
+.guide-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; transition: transform .2s; }
+.guide-thumb:hover img { transform: scale(1.04); }
+.guide-text { display: grid; gap: 2px; }
+.guide-text b { color: var(--accent); font-size: 14px; }
+.guide-text span { color: var(--muted); font-size: 12.5px; }
+.guide-btn { background: #e0f2fe; color: #0369a1; border: 1.5px solid #bae6fd; }
+.guide-btn:hover { background: #0369a1; color: #fff; }
+.lightbox { position: fixed; inset: 0; z-index: 3500; background: rgba(15,23,42,.88); display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.lightbox-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #0f172a; color: #fff; flex-wrap: wrap; }
+.lightbox-body { overflow: auto; display: grid; place-items: center; padding: 16px; cursor: zoom-out; }
+.lightbox-body img { max-width: 100%; max-height: calc(100vh - 100px); width: auto; height: auto; border-radius: 8px; background: #fff; box-shadow: 0 12px 40px rgba(0,0,0,.4); cursor: default; }
+.bt td input.other { margin-top: 6px; border-color: #fdba74; background: #fff7ed; text-transform: uppercase; }
+/* Bearing and distance (traverse) entry */
+.entry-mode { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 4px; border-radius: 12px; background: #f1f5f9; justify-self: start; }
+.entry-mode label { cursor: pointer; }
+.entry-mode input { position: absolute; opacity: 0; pointer-events: none; }
+.entry-mode span { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 9px; font-size: 13px; font-weight: 700; color: #475569; }
+.entry-mode label:has(input:checked) span { background: #fff; color: var(--blue); box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+.trav { display: grid; gap: 12px; }
+.trav-start { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 10px 12px; border: 1px solid #fed7aa; border-radius: 10px; background: #fff7ed; }
+.trav-start b { color: #9a3412; font-size: 13px; white-space: nowrap; }
+.trav-start input { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+@media (max-width: 900px) { .trav-start { grid-template-columns: minmax(0, 1fr); } }
+.trav-ref { background: #fff; color: #c2410c; border: 1.5px solid #fdba74; }
+.trav-ref:hover { background: #c2410c; color: #fff; }
+.trav-table td { vertical-align: middle; }
+.trav-table td.ln { white-space: nowrap; font-size: 13px; padding-left: 10px; }
+.trav-table td.mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; white-space: nowrap; color: #0f3b5e; }
+.trav-table .brg { display: flex; align-items: center; gap: 3px; }
+.trav-table .brg select { width: 52px; padding: 8px 4px; font-weight: 700; }
+.trav-table .brg input { width: 62px; padding: 8px 6px; font-family: ui-monospace, Consolas, monospace; }
+.trav-table .brg span { color: #64748b; font-weight: 700; }
+.trav-pick { display: grid; gap: 6px; min-width: 170px; }
+.trav-pick .select2-container--default .select2-selection--single { height: 38px; border: 1px solid var(--field); border-radius: 8px; }
+.trav-pick .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px; padding-left: 10px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.trav-pick .select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px; }
+.trav-pick input.other { border-color: #fdba74; background: #fff7ed; text-transform: uppercase; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.trav-table input.tb { min-width: 110px; text-transform: uppercase; font-family: ui-monospace, Consolas, monospace; }
+.trav-table input.dist { width: 110px; font-family: ui-monospace, Consolas, monospace; }
+.trav-table tr.bad td { background: #fef2f2; }
+/* Phones (user, 2026-11-13): each line as a card, labels on the left, nothing hidden off to the side. */
+@media (max-width: 700px) {
+  .trav-table thead { display: none; }
+  .trav-table, .trav-table tbody { display: block; }
+  .trav-table tr { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 10px; border-bottom: 1px solid var(--line); }
+  .trav-table tr:nth-child(odd) { background: #fafcff; }
+  .trav-table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: center; gap: 8px; padding: 0 !important; border: 0; }
+  .trav-table td::before { content: attr(data-label); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .trav-table td.act { display: flex; justify-content: flex-end; gap: 4px; width: 100% !important; justify-self: stretch; }
+  .trav-table td.act::before { content: none; }
+  .trav-table td.ln { font-size: 14px; }
+  .trav-table .brg { flex-wrap: wrap; }
+  .trav-table .brg { flex-wrap: nowrap; }
+  .trav-table .brg select { width: 46px; padding: 8px 2px; }
+  .trav-table .brg input { width: 42px; padding: 8px 4px; }
+  .trav-table input.dist { width: 100%; }
+  .trav-pick { min-width: 0; }
+}
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 4000; background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+
+/* preview of the chosen plan file */
+#spuPreview { border: 1px solid var(--line); border-radius: 10px; background: #f9fafb; padding: 10px 12px; grid-column: 1 / -1; }
+#spuPreviewBody img, #spuPreviewBody iframe { display: block; width: 100%; max-height: 420px; object-fit: contain; border: 0; border-radius: 6px; background: #fff; }
+#spuPreviewBody iframe { height: 420px; }
+
+/* coordinate system: two radio cards */
+.sys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 760px) { .sys { grid-template-columns: minmax(0, 1fr); } }
+.sys .opt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: start; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 12px; cursor: pointer; background: #fff; transition: border-color .15s, box-shadow .15s; }
+.sys .opt:hover { border-color: #93c5fd; }
+.sys .opt:has(input[name=sys]:checked) { border-color: var(--blue); background: #eff6ff; box-shadow: 0 0 0 3px #dbeafe; }
+.sys input[type=radio] { margin: 3px 0 0; accent-color: var(--blue); width: 16px; height: 16px; }
+.sys .t { font-weight: 700; cursor: pointer; }
+.sys .d { grid-column: 2; font-size: 12px; color: var(--muted); }
+.sys .belt { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.sys .belt label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border: 1px solid var(--field); border-radius: 999px; background: #fff; cursor: pointer; }
+.sys .belt label:has(input:checked) { background: var(--blue); color: #fff; border-color: var(--blue); }
+.sys .belt input { position: absolute; opacity: 0; pointer-events: none; }
+.sys .opt:not(:has(input[name=sys]:checked)) .belt { opacity: .5; }
+
+/* beacon tables */
+table { border-collapse: collapse; width: 100%; }
+.bt { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.bt th { text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 10px 8px; background: #f9fafb; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.bt td { padding: 6px 6px 2px; vertical-align: top; }
+.bt td input { font-family: ui-monospace, Consolas, monospace; font-size: 13px; padding: 8px 10px; }
+.bt td.n { color: var(--muted); font-weight: 700; font-size: 12px; width: 34px; text-align: center; padding-top: 15px; }
+.bt td.act { white-space: nowrap; width: 1%; }
+.bt td.act .ib { margin-left: 2px; }
+.bt tr.hint td { padding: 0 6px 8px; font-size: 11.5px; color: var(--muted); border-bottom: 1px solid #f3f4f6; }
+.chip { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; margin: 2px 4px 0 0; }
+.chip.ok { background: var(--ok-bg); color: var(--ok); }
+.chip.warn { background: var(--warn-bg); color: var(--warn); }
+.chip.bad { background: var(--bad-bg); color: var(--bad); }
+.chip.info { background: #e0f2fe; color: #075985; }
+.bt .go { height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--ref); color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 6px rgba(234,88,12,.3); }
+.bt .go:hover { background: #c2410c; }
+.bt td.act .ib { height: 38px; width: 34px; }
+/* Beacon No.: searchable dropdown (select2, as KLAES), styled as the other fields. */
+.bt .select2-container--default .select2-selection--single { height: 38px; border: 1px solid var(--field); border-radius: 8px; }
+.bt .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px; padding-left: 10px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; color: var(--ink); }
+.bt .select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px; }
+.select2-container--default.select2-container--focus .select2-selection--single, .select2-container--open .select2-selection--single { border-color: var(--blue) !important; box-shadow: 0 0 0 3px #dbeafe; }
+.select2-dropdown { border-color: var(--field); border-radius: 8px; overflow: hidden; z-index: 3500; }
+.select2-search--dropdown .select2-search__field { border-radius: 6px; padding: 6px 8px; }
+.select2-results__option { font-size: 13px; padding: 7px 10px; }
+.select2-results__option .dist { color: var(--muted); font-size: 12px; }
+.select2-results__option .new { color: var(--ref); font-weight: 600; }
+.select2-container--default .select2-results__option--highlighted[aria-selected] { background: var(--blue); }
+.select2-container--default .select2-results__option--highlighted .dist, .select2-container--default .select2-results__option--highlighted .new { color: #fff; }
+.add-dashed { border: 1.5px dashed #93c5fd; background: #eff6ff; color: var(--blue); }
+.add-dashed:hover { background: #dbeafe; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.verdict { border-radius: 10px; padding: 10px 14px; border: 1px solid var(--line); display: grid; gap: 4px; }
+.verdict b { font-size: 14px; }
+.verdict.ok { background: var(--ok-bg); color: var(--ok); border-color: #bbf7d0; }
+.verdict.bad { background: var(--bad-bg); color: var(--bad); border-color: #fecaca; }
+.verdict.warn { background: var(--warn-bg); color: var(--warn); border-color: #fde68a; }
+.verdict ul { margin: 0; padding-left: 18px; font-size: 13px; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; }
+details.opts summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.stat { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: linear-gradient(180deg, #fff, #f9fafb); }
+.stat span { display: block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.stat b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.feat { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
+.feat input { padding: 4px 8px; font-size: 12px; }
+.feat .meta { grid-column: 1 / -1; color: var(--muted); }
+.exports { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 900px) { .exports { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.exports .btn { justify-content: center; font-size: 13px; padding: 8px 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+
+/* ---------- map, with full screen (as the correction board) ---------- */
+.mapbox { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: auto auto; background: #0f172a; }
+.mapbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; background: #0f172a; color: #e2e8f0; }
+.mapbar .grp { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: rgba(255,255,255,.08); }
+.mapbar .mb { height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 8px; background: transparent; color: #cbd5e1; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.mapbar .mb:hover { background: rgba(255,255,255,.14); color: #fff; }
+.mapbar .mb.active { background: #2563eb; color: #fff; }
+.mapbar .snap { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 0 8px; cursor: pointer; }
+.mapbar .grow { flex: 1; }
+.mapbar .gridtag { font-size: 12px; font-weight: 600; color: #93c5fd; }
+.mapbar .full { height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: #f8fafc; color: #0f172a; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+#map { position: relative; height: 62vh; min-height: 460px; }
+#drawinfo { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 5; background: rgba(15,23,42,.88); color: #fff; font-size: 12px; padding: 7px 12px; border-radius: 8px; max-width: calc(100% - 24px); text-align: center; }
+#fullStats { position: absolute; left: 12px; bottom: 34px; z-index: 5; background: rgba(15,23,42,.88); color: #fff; font-size: 12px; padding: 8px 12px; border-radius: 10px; display: none; gap: 2px; }
+.mapbox.full { position: fixed; inset: 0; z-index: 3000; border-radius: 0; border: 0; grid-template-rows: auto minmax(0, 1fr); }
+.mapbox.full #map { height: auto; }
+/* Phones (user, 2026-11-12, prototype only): a square map, about half the old height; full screen still fills the screen. */
+@media (max-width: 700px) { #map { height: auto; min-height: 0; aspect-ratio: 1 / 1; } .mapbox.full #map { aspect-ratio: auto; } }
+.mapbox.full #fullStats:not(:empty) { display: grid; }
+.maplibregl-popup-content { font: 12px/1.4 system-ui, sans-serif; color: #1d2320; }
+.maplibregl-popup-content b { font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="side" aria-label="KLAES (preview)">
+    <div class="side-logo"><img src="/assets/logo/klas_core_logo.png" alt="KLAES CORE" width="634" height="394"></div>
+    <div class="side-nav">
+      <div class="side-label">SURVEY</div>
+      <a class="side-item on" href="/maps/survey-plan-check.html" id="navUpload"><i class="fas fa-file-upload"></i> Survey Plan Upload</a>
+      <a class="side-item" href="/maps/check-survey-plan.html" id="navCheck"><i class="fas fa-map-location-dot"></i> Uploaded Survey Plan</a>
+      <span class="side-item off" title="In KLAES, not in this preview"><i class="fas fa-map-pin"></i> Beacon Register</span>
+    </div>
+    <p class="side-note">Layout preview. The full KLAES menu is left out on purpose.</p>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h1 id="pageTitle">Survey Plan Upload</h1>
+        <p class="sub" id="pageSub">Upload a survey plan, or check one on the map from its reference coordinate.</p>
+      </div>
+      <div class="grow"></div>
+      <span class="pill">Prototype · not connected to KLAES</span>
+    </header>
+    <div class="content">
+      <div class="kpis">
+        <div class="kpi"><span>Uploaded</span><b>—</b></div>
+        <div class="kpi"><span>Awaiting check</span><b>—</b></div>
+        <div class="kpi"><span>Signed</span><b>—</b></div>
+        <div class="kpi"><span>From the MLPP-SG portal</span><b>—</b></div>
+      </div>
+      <div class="listcard">
+        <div class="head"><b id="listTitle">Survey Plan Uploads</b><span style="flex:1"></span>
+          <!-- A blank check (recording, 2026-11-12): enter the coordinate system and reference coordinate yourself. -->
+          <button type="button" class="btn btn-secondary" id="openCheck"><i class="fas fa-map-location-dot"></i> Check Survey Plan</button>
+          <button type="button" class="btn btn-primary" id="openUpload"><i class="fas fa-upload"></i> Upload Survey Plan</button></div>
+        <p class="note">Sample rows for this preview, made from Beacon Register beacons. In KLAES these are the uploaded plans: <b>Check survey plan</b> in a row's <i class="fas fa-ellipsis-vertical"></i> menu opens the check filled in from that upload.</p>
+        <div class="bt">
+          <table class="list">
+            <thead><tr><th>S/N</th><th>Upload Ref</th><th>Type</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Reference Coordinate</th><th>Drawn By</th><th>Stage</th><th></th></tr></thead>
+            <tbody id="planRows"><tr><td colspan="11" class="note" style="padding:14px">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <footer class="footer">
+      <img src="/assets/logo/vmal-logo-yellow.png" alt="VMAL logo" width="30" height="30">
+      <span>Powered by VALUE MAPS &amp; APPS LIMITED (VMAL)</span>
+    </footer>
+  </div>
+</div>
+
+<!-- ======================= Upload / Check Survey Plan: one card (as in KLAES) ======================= -->
+<!-- Order from the recording (2026-11-12): 1 coordinate system, 2 reference coordinate, 3 map, 4 other beacons,
+     5 plan details, 6 export. Opened from a plan's Check action, 1, 2 and 5 are filled in from the upload. -->
+<div class="ovl" id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="up-h" hidden>
+  <div class="modal">
+    <div class="modal-h"><h2 id="up-h">Upload Survey Plan</h2><span class="modepill" id="modePill" hidden></span><button type="button" class="x" id="closeX" aria-label="Close">×</button></div>
+    <div class="modal-b">
+      <div class="prefill" id="prefillNote" hidden></div>
+
+      <div class="sv-group"><span class="n">1</span><span>Reference coordinate system</span><span class="aside">Chosen by the uploader. Filled in when the check is opened from an uploaded plan.</span></div>
+      <!-- Two halves (user, 2026-11-12): the systems on the left, the NTM vs UTM chart on the right. -->
+      <div class="sysrow">
+      <div class="sys" role="radiogroup" aria-label="Coordinate system">
+        <div class="opt">
+          <input type="radio" name="sys" value="ntm" id="sysNtm" checked>
+          <label class="t" for="sysNtm">NTM · Nigerian Transverse Mercator (Minna datum)</label>
+          <span class="d">Clarke 1880 ellipsoid, three 4° belts. Kano is in the Mid Belt.</span>
+          <span class="belt" role="radiogroup" aria-label="NTM belt">
+            <label><input type="radio" name="belt" value="26391">West Belt · CM 4.5° E</label>
+            <label><input type="radio" name="belt" value="26392" checked>Mid Belt · CM 8.5° E</label>
+            <label><input type="radio" name="belt" value="26393">East Belt · CM 12.5° E</label>
+          </span>
+        </div>
+        <div class="opt">
+          <input type="radio" name="sys" value="utm" id="sysUtm">
+          <label class="t" for="sysUtm">UTM · Universal Transverse Mercator (WGS 84)</label>
+          <span class="d">WGS 84 ellipsoid, zone 32N, central meridian 9° E (EPSG:32632). GPS / GNSS coordinates.</span>
+        </div>
+      </div>
+        <div class="guide">
+          <button type="button" class="guide-thumb" data-guide aria-label="View the NTM vs UTM chart"><img src="/assets/survey/ntm-vs-utm.webp" alt="" loading="lazy"></button>
+          <div class="guide-text"><b>NTM vs UTM: Nigeria's two Transverse Mercator grids</b>
+            <span>How the NTM belts (Minna) line up with the UTM zones (WGS 84). Kano is in the NTM Mid Belt and UTM zone 32N. Never convert one to the other by adding constants.</span></div>
+          <button type="button" class="btn btn-sm guide-btn" data-guide><i class="fas fa-book-atlas"></i> View chart</button>
+        </div>
+      </div>
+      <div class="lightbox" id="guideBox" hidden role="dialog" aria-modal="true" aria-label="NTM vs UTM chart">
+        <div class="lightbox-bar"><b>NTM vs UTM: Nigeria's two Transverse Mercator grids</b><span style="flex:1"></span>
+          <a class="btn btn-sm guide-btn" href="/assets/survey/ntm-vs-utm.webp" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Open full size</a>
+          <button type="button" class="btn btn-sm" id="guideClose" style="background:#fff1f2;color:#be123c;border:1.5px solid #fecdd3"><i class="fas fa-xmark"></i> Close</button></div>
+        <div class="lightbox-body" id="guideBody"><img src="/assets/survey/ntm-vs-utm.webp" alt="NTM vs UTM: comparison of Nigeria's two Transverse Mercator grids"></div>
+      </div>
+
+      <div class="sv-group"><span class="n">2</span><span>Reference coordinate <span class="required">*</span></span><span class="aside" id="data-note">Loading the Beacon Register…</span></div>
+      <p class="note">One reference beacon. Search the Beacon No. list: a beacon in the Beacon Register fills X and Y for you. If it is not listed, type the number, pick <b>Not listed</b>, and enter X (Easting) and Y (Northing) as on the plan. <b>Go to point</b> takes the map there.</p>
+      <div class="bt">
+        <table>
+          <thead><tr><th style="text-align:center">#</th><th>Beacon No.</th><th>X (Easting)</th><th>Y (Northing)</th><th></th></tr></thead>
+          <tbody id="refRows"></tbody>
+        </table>
+      </div>
+      <div class="verdict" id="refVerdict" hidden></div>
+
+      <div class="sv-group"><span class="n">3</span><span>Map</span>
+        <span class="aside legend">
+          <span><span class="dot" style="background:var(--ref)"></span>Reference coordinate</span>
+          <span><span class="dot" style="background:var(--sv)"></span>Other beacon</span>
+          <span><span class="dot" style="background:var(--reg)"></span>Beacon Register</span>
+          <span><span class="dot" style="background:var(--ctl)"></span>Control point</span>
+          <span><span class="dot" style="background:var(--draw)"></span>Drawn</span>
+        </span></div>
+      <div class="mapbox" id="mapbox">
+        <div class="mapbar" role="toolbar" aria-label="Map tools">
+          <div class="grp" id="switcher">
+            <button type="button" class="mb" id="btn-street"><i class="fas fa-road"></i> Street</button>
+            <button type="button" class="mb active" id="btn-satellite"><i class="fas fa-satellite"></i> Satellite</button>
+          </div>
+          <div class="grp" id="tools">
+            <button type="button" class="mb" data-tool="point" title="Add a point"><i class="fas fa-location-dot"></i> Point</button>
+            <button type="button" class="mb" data-tool="line" title="Draw a line"><i class="fas fa-bezier-curve"></i> Line</button>
+            <button type="button" class="mb" data-tool="polygon" title="Mark out a parcel"><i class="fas fa-draw-polygon"></i> Parcel</button>
+            <label class="snap" title="Snap to beacons and lines"><input type="checkbox" id="snap" checked> Snap</label>
+          </div>
+          <div class="grp">
+            <button type="button" class="mb" id="mapFit" title="Zoom to the beacons"><i class="fas fa-expand"></i> Fit</button>
+          </div>
+          <span class="grow"></span>
+          <span class="gridtag" id="gridtag"></span>
+          <button type="button" class="full" id="mapFull" title="Full screen (F)"><i class="fas fa-up-right-and-down-left-from-center"></i> <span>Full screen</span></button>
+        </div>
+        <div id="map">
+          <div id="drawinfo" hidden></div>
+          <div id="fullStats"></div>
+        </div>
+      </div>
+
+      <div class="sv-group"><span class="n">4</span><span>Other Beacons (in order of the traverse)</span><span class="aside">Point 1, 2, 3… as surveyed. Each is joined to the one before.</span></div>
+      <!-- Two ways to enter the other beacons (recording, 2026-11-12): X / Y of each point, or a traverse from a
+           start point by bearing and distance, line by line (X1 to X2, X2 to X3 ... back to X1). -->
+      <div class="entry-mode" role="radiogroup" aria-label="How the other beacons are entered">
+        <label><input type="radio" name="svmode" value="xy" checked><span><i class="fas fa-table-cells"></i> X / Y coordinates</span></label>
+        <label><input type="radio" name="svmode" value="brg"><span><i class="fas fa-compass"></i> Bearing and distance (traverse)</span></label>
+      </div>
+      <div id="svBrg" class="trav" hidden>
+        <div class="trav-start">
+          <b>Start point (X1)</b>
+          <div class="trav-pick"><select id="trStartB" aria-label="Start beacon number"></select>
+            <input type="text" id="trStartOther" class="other" maxlength="60" placeholder="Specify the beacon number" aria-label="Specify the start beacon number" hidden></div>
+          <input type="text" id="trStartX" inputmode="decimal" placeholder="X (Easting)" aria-label="Start X (Easting)">
+          <input type="text" id="trStartY" inputmode="decimal" placeholder="Y (Northing)" aria-label="Start Y (Northing)">
+          <button type="button" class="btn btn-sm trav-ref" id="trUseRef"><i class="fas fa-location-crosshairs"></i> Use the reference coordinate</button>
+        </div>
+        <div class="bt">
+          <table class="trav-table">
+            <thead><tr><th>Line</th><th>To Beacon</th><th>Bearing</th><th>Distance (m)</th><th>X (Easting)</th><th>Y (Northing)</th><th></th></tr></thead>
+            <tbody id="travRows"></tbody>
+          </table>
+        </div>
+        <div class="row">
+          <button type="button" class="btn btn-sm add-dashed" id="trAdd"><i class="fas fa-plus"></i> Add line</button>
+          <label class="check" for="trClose" style="margin-left:6px"><input type="checkbox" id="trClose" checked><span>Last line closes on the start point (X1)</span></label>
+          <span class="note" style="margin-left:auto">Bearing: N or S, degrees, minutes, seconds, then E or W (e.g. N 45° 30′ 20″ E).</span>
+        </div>
+        <div class="verdict" id="trVerdict" hidden></div>
+      </div>
+      <div id="svXY">
+      <div class="bt">
+        <table>
+          <thead><tr><th style="text-align:center">#</th><th>Beacon No.</th><th>X (Easting)</th><th>Y (Northing)</th><th></th></tr></thead>
+          <tbody id="svRows"></tbody>
+        </table>
+      </div>
+      </div>
+      <div class="row">
+        <button type="button" class="btn btn-sm add-dashed" id="svAdd"><i class="fas fa-plus"></i> Add beacon</button>
+        <button type="button" class="btn btn-sm btn-secondary" id="svPlot"><i class="fas fa-location-crosshairs"></i> Plot and zoom</button>
+        <button type="button" class="btn btn-sm btn-primary" id="svPoly"><i class="fas fa-draw-polygon"></i> Create polygon</button>
+        <button type="button" class="btn btn-sm btn-secondary" id="svClear"><i class="fas fa-eraser"></i> Clear</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn-sm btn-secondary" id="sample"><i class="fas fa-flask"></i> Try a sample</button>
+      </div>
+      <div class="row" style="align-items:flex-start">
+        <details class="opts">
+          <summary>Paste from Excel</summary>
+          <label class="lbl" for="paste" style="display:grid;gap:6px;margin-top:8px;min-width:min(520px,80vw)">One beacon per line, in survey order: number, X, Y
+            <textarea id="paste" placeholder="A0876A	669007.00	912420.35" style="font-family:ui-monospace,Consolas,monospace;font-size:12px"></textarea></label>
+          <div class="row" style="margin-top:8px"><button type="button" class="btn btn-sm btn-secondary" id="usepaste">Use these rows</button></div>
+        </details>
+        <details class="opts" style="margin-left:auto">
+          <summary>Check options</summary>
+          <div style="display:grid;gap:8px;margin-top:8px;max-width:360px">
+            <label class="lbl" for="tol">Register tolerance (m)<input type="number" id="tol" value="1" min="0.01" step="0.1" style="margin-top:4px"></label>
+            <label class="check" for="autofix"><input type="checkbox" id="autofix" checked><span>Switch X and Y back when they were typed the wrong way round</span></label>
+          </div>
+        </details>
+      </div>
+      <div class="stats" id="svStats" hidden></div>
+
+      <!-- 5. Plan details: the same fields as KLAES; filled in from the upload when opened by Check. -->
+      <div class="sv-group" id="pdGroup"><span class="n">5</span><span>Plan details</span><span class="aside">Filled in from the upload when opened by Check; blank otherwise.</span></div>
+      <div class="form-grid" data-panel="details">
+        <div class="sv-sub"><i class="fas fa-file-upload"></i> Survey plan</div>
+        <div class="form-group"><label for="pdType">Type <span class="required">*</span></label>
+          <select id="pdType"><option value="">— Select —</option><option>Final Survey Plan</option><option>Application Plan</option></select></div>
+        <div class="form-group"><label for="pdUnit">Send To <span class="required">*</span></label>
+          <select id="pdUnit"><option value="">— Select unit —</option><option>GKN (Public)</option><option>Examination/Verification</option></select>
+          <p class="helper-text">GKN for public plans, Examination/Verification for private.</p></div>
+        <div class="form-group"><label for="spuFile">Plan File <span class="required">*</span></label>
+          <input type="file" id="spuFile" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff">
+          <p class="helper-text" id="pdFileNote">PDF, JPG, PNG or TIFF, up to 25 MB.</p></div>
+        <div id="spuPreview" hidden>
+          <div class="row" style="justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:13px;font-weight:600"><i class="fas fa-eye" style="color:var(--muted);margin-right:6px"></i>Preview: <span id="spuPreviewName"></span></span>
+            <button type="button" class="btn btn-secondary btn-sm" id="spuPreviewClear"><i class="fas fa-times"></i> Remove file</button>
+          </div>
+          <div id="spuPreviewBody"></div>
+        </div>
+        <div class="sv-sub"><i class="fas fa-map-marker-alt"></i> Location of the plan</div>
+        <div class="form-group"><label for="pdPlot">Plot No.</label><input type="text" id="pdPlot"></div>
+        <div class="form-group"><label for="pdDistrict">District <span class="required">*</span></label>
+          <select id="pdDistrict"><option value="">— Select district —</option><option>KANO</option><option>Other (specify)</option></select></div>
+        <div class="form-group"><label for="pdLga">LGA <span class="required">*</span></label>
+          <select id="pdLga"><option value="">— Select LGA —</option><option>Kano Municipal</option><option>Nassarawa</option><option>Ungogo</option></select></div>
+        <div class="sv-sub"><i class="fas fa-user-edit"></i> Drawn by</div>
+        <div class="form-group"><label for="pdDrawn">Who drew the plan <span class="required">*</span></label>
+          <select id="pdDrawn"><option value="">— Select surveyor —</option><option>Other (specify)</option></select></div>
+        <div class="form-group" style="grid-column:span 2"><label for="pdRemarks">Remarks</label><textarea id="pdRemarks" rows="2"></textarea></div>
+      </div>
+
+      <div class="sv-group"><span class="n" id="exNum">6</span><span>Export</span><span class="aside" id="ex-grid"></span></div>
+      <div id="feats" class="note">Shapes drawn with the map tools appear here.</div>
+      <label class="check" for="incplan"><input type="checkbox" id="incplan" checked><span>Include the reference coordinate, other beacons and polygon</span></label>
+      <div class="exports">
+        <button type="button" class="btn btn-secondary" data-export="geojson" title="GeoJSON, latitude / longitude (WGS 84)"><i class="fas fa-code"></i> GeoJSON</button>
+        <button type="button" class="btn btn-secondary" data-export="kml" title="KML for Google Earth"><i class="fas fa-earth-africa"></i> KML</button>
+        <button type="button" class="btn btn-secondary" data-export="shp" title="Shapefile (.zip), latitude / longitude (WGS 84)"><i class="fas fa-file-zipper"></i> Shapefile</button>
+        <button type="button" class="btn btn-secondary" data-export="dxf" title="DXF for CAD, X / Y in the chosen system"><i class="fas fa-compass-drafting"></i> DXF</button>
+        <button type="button" class="btn btn-secondary" data-export="csv" title="Every point: X / Y in the chosen system and latitude / longitude"><i class="fas fa-file-csv"></i> CSV</button>
+        <button type="button" class="btn btn-secondary" data-export="sql" title="SQL Server INSERTs with geometry in the chosen system"><i class="fas fa-database"></i> SQL</button>
+      </div>
+      <p class="note" id="export-note"></p>
+      <p class="note">The map is latitude / longitude (WGS 84). NTM X / Y are converted with the Minna → WGS 84 datum shift (−92, −93, +122 m), never by adding constants. "In Kano" means 10.3°–12.9° N, 7.6°–9.5° E.</p>
+    </div>
+    <div class="modal-f">
+      <button type="button" class="btn btn-secondary" id="closeBtn"><i class="fas fa-times"></i> Close</button>
+      <button type="button" class="btn btn-success" id="sendBtn"><i class="fas fa-paper-plane"></i> Upload and Send</button>
+    </div>
+  </div>
+</div>
+<div class="rowmenu" id="rowMenu" hidden role="menu">
+  <button type="button" role="menuitem" id="rmCheck"><i class="fas fa-map-location-dot"></i> Check survey plan</button>
+</div>
+
+<script src="/maps/vendor/maplibre-gl.js"></script>
+<script src="/maps/vendor/pmtiles.js"></script>
+<script src="/maps/vendor/proj4.js"></script>
+<script src="/maps/vendor/shpwrite.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+<script>
+/* ---------- coordinate systems ---------- */
+// NTM belts (EPSG 26391-26393) and UTM 32N on WGS 84 (user, 2026-11-12). Minna / UTM 32N (26332) is only how the
+// Beacon Register is stored; it is converted, never offered.
+const MINNA = '+ellps=clrk80 +towgs84=-92,-93,122,0,0,0,0 +units=m +no_defs';
+proj4.defs('EPSG:26391', '+proj=tmerc +lat_0=4 +lon_0=4.5 +k=0.99975 +x_0=230738.26 +y_0=0 ' + MINNA);
+proj4.defs('EPSG:26392', '+proj=tmerc +lat_0=4 +lon_0=8.5 +k=0.99975 +x_0=670553.98 +y_0=0 ' + MINNA);
+proj4.defs('EPSG:26393', '+proj=tmerc +lat_0=4 +lon_0=12.5 +k=0.99975 +x_0=1110369.7 +y_0=0 ' + MINNA);
+proj4.defs('EPSG:26332', '+proj=utm +zone=32 ' + MINNA);
+proj4.defs('EPSG:32632', '+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
+const GRID_NAME = { 26391: 'NTM West Belt, Minna (EPSG:26391)', 26392: 'NTM Mid Belt, Minna (EPSG:26392)', 26393: 'NTM East Belt, Minna (EPSG:26393)', 32632: 'UTM 32N, WGS 84 (EPSG:32632)' };
+const $ = id => document.getElementById(id);
+const gridCode = () => document.querySelector('input[name=sys]:checked').value === 'utm' ? '32632' : document.querySelector('input[name=belt]:checked').value;
+const KANO = { s: 10.3, n: 12.9, w: 7.6, e: 9.5 };
+const inKano = ([lon, lat]) => lat >= KANO.s && lat <= KANO.n && lon >= KANO.w && lon <= KANO.e;
+const toLL = (code, x, y) => proj4('EPSG:' + code, 'EPSG:4326', [x, y]);
+const toXY = (code, lon, lat) => proj4('EPSG:4326', 'EPSG:' + code, [lon, lat]);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const key = s => String(s ?? '').toUpperCase().replace(/\s+/g, '');
+const fmt = (n, d = 3) => Number(n).toLocaleString('en-GB', { minimumFractionDigits: d, maximumFractionDigits: d });
+function metres(a, b) {
+  const r = Math.PI / 180, lat = (a[1] + b[1]) / 2 * r;
+  return Math.hypot((b[0] - a[0]) * r * Math.cos(lat) * 6378137, (b[1] - a[1]) * r * 6378137);
+}
+function areaOf(ring, code = gridCode()) {
+  const p = ring.map(c => toXY(code, c[0], c[1]));
+  return Math.abs(p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0) / 2);
+}
+const lengthOf = coords => coords.slice(1).reduce((s, c, i) => s + metres(coords[i], c), 0);
+// Grid bearing from north, clockwise, as D° M' S".
+function bearing(a, b) {
+  let d = Math.atan2(b.x - a.x, b.y - a.y) * 180 / Math.PI; if (d < 0) d += 360;
+  let deg = Math.floor(d), m = Math.floor((d - deg) * 60), s = Math.round(((d - deg) * 60 - m) * 60);
+  if (s === 60) { s = 0; m++; } if (m === 60) { m = 0; deg++; }
+  return `${deg}° ${String(m).padStart(2, '0')}' ${String(s).padStart(2, '0')}"`;
+}
+const median = a => { const s = [...a].sort((p, q) => p - q), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+/* ---------- map ---------- */
+const protocol = new pmtiles.Protocol();
+maplibregl.addProtocol('pmtiles', protocol.tile);
+const empty = { type: 'FeatureCollection', features: [] };
+const OUR = ['register', 'register-label', 'links', 'poly-fill', 'sv-line', 'sides', 'sv', 'sv-label', 'ref', 'ref-label',
+  'drawn-fill', 'drawn-line', 'drawn-point', 'drawn-label', 'draft-line', 'draft-point', 'snap'];
+let map, mapReady = false;
+initMap();
+
+async function initMap() {
+  const style = await fetch('/maps/style-light.json').then(r => r.json());
+  if (style.sprite?.startsWith('/')) style.sprite = location.origin + style.sprite;
+  if (style.glyphs?.startsWith('/')) style.glyphs = location.origin + style.glyphs;
+  Object.values(style.sources).forEach(s => { if (s.attribution) s.attribution = s.attribution.replace(/Â©/g, '©'); });
+  map = new maplibregl.Map({ container: 'map', style, center: [8.52, 12.0], zoom: 10, maxBounds: [[6.9, 9.6], [10.2, 13.6]], attributionControl: false });
+  map.addControl(new maplibregl.NavigationControl(), 'top-right');
+  map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+  map.once('idle', () => document.querySelectorAll('.maplibregl-ctrl-attrib.maplibregl-compact-show').forEach(el => { el.classList.remove('maplibregl-compact-show'); el.removeAttribute('open'); }));
+  map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }));
+
+  map.on('load', () => {
+    map.addSource('satellite', { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, maxzoom: 19, attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics' });
+    const firstLabel = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
+    map.addLayer({ id: 'satellite', type: 'raster', source: 'satellite' }, firstLabel);
+    ['register', 'ref', 'sv', 'svline', 'poly', 'sides', 'links', 'drawn', 'draft', 'snap'].forEach(id => map.addSource(id, { type: 'geojson', data: empty }));
+    map.addLayer({ id: 'register', type: 'circle', source: 'register', paint: {
+      'circle-color': ['match', ['get', 'kind'], 'C', '#7c3aed', '#2563eb'],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 16, 6], 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } });
+    map.addLayer({ id: 'register-label', type: 'symbol', source: 'register', minzoom: 16, layout: {
+      'text-field': ['get', 'beacon'], 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-offset': [0, 1.1], 'text-anchor': 'top' },
+      paint: { 'text-color': '#fff', 'text-halo-color': '#1e3a8a', 'text-halo-width': 1.5 } });
+    map.addLayer({ id: 'links', type: 'line', source: 'links', paint: { 'line-color': '#dc2626', 'line-width': 2, 'line-dasharray': [2, 1] } });
+    map.addLayer({ id: 'poly-fill', type: 'fill', source: 'poly', paint: { 'fill-color': '#06b6d4', 'fill-opacity': 0.18 } });
+    map.addLayer({ id: 'sv-line', type: 'line', source: 'svline', paint: { 'line-color': '#22d3ee', 'line-width': 3 } });
+    map.addLayer({ id: 'sides', type: 'symbol', source: 'sides', layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Medium'], 'text-size': 11,
+      'symbol-placement': 'point', 'text-allow-overlap': false }, paint: { 'text-color': '#fff', 'text-halo-color': '#0e7490', 'text-halo-width': 1.6 } });
+    map.addLayer({ id: 'sv', type: 'circle', source: 'sv', paint: { 'circle-color': '#0891b2', 'circle-radius': 6, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+    map.addLayer({ id: 'sv-label', type: 'symbol', source: 'sv', layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Medium'], 'text-size': 12, 'text-offset': [0, -1.2], 'text-anchor': 'bottom', 'text-allow-overlap': true },
+      paint: { 'text-color': '#fff', 'text-halo-color': '#155e75', 'text-halo-width': 1.6 } });
+    map.addLayer({ id: 'ref', type: 'circle', source: 'ref', paint: { 'circle-color': '#ea580c', 'circle-radius': 8, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5 } });
+    map.addLayer({ id: 'ref-label', type: 'symbol', source: 'ref', layout: { 'text-field': ['get', 'beacon'], 'text-font': ['Noto Sans Medium'], 'text-size': 12, 'text-offset': [0, -1.3], 'text-anchor': 'bottom', 'text-allow-overlap': true },
+      paint: { 'text-color': '#fff', 'text-halo-color': '#9a3412', 'text-halo-width': 1.6 } });
+    map.addLayer({ id: 'drawn-fill', type: 'fill', source: 'drawn', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.18 } });
+    map.addLayer({ id: 'drawn-line', type: 'line', source: 'drawn', filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#4ade80', 'line-width': 2.5 } });
+    map.addLayer({ id: 'drawn-point', type: 'circle', source: 'drawn', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-color': '#16a34a', 'circle-radius': 6, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+    map.addLayer({ id: 'drawn-label', type: 'symbol', source: 'drawn', layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Medium'], 'text-size': 12, 'text-offset': [0, -1.2], 'text-anchor': 'bottom', 'text-allow-overlap': true },
+      paint: { 'text-color': '#fff', 'text-halo-color': '#166534', 'text-halo-width': 1.5 } });
+    map.addLayer({ id: 'draft-line', type: 'line', source: 'draft', filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#facc15', 'line-width': 2, 'line-dasharray': [2, 1.5] } });
+    map.addLayer({ id: 'draft-point', type: 'circle', source: 'draft', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-color': '#facc15', 'circle-radius': 4, 'circle-stroke-color': '#111', 'circle-stroke-width': 1 } });
+    map.addLayer({ id: 'snap', type: 'circle', source: 'snap', paint: { 'circle-radius': 9, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-width': 2.5,
+      'circle-stroke-color': ['match', ['get', 'kind'], 'edge', '#facc15', '#22c55e'] } });
+    setMode('satellite');
+    ['register', 'ref', 'sv', 'drawn-point'].forEach(layer => {
+      map.on('click', layer, e => { if (!tool) popup(e.features[0], e.lngLat); });
+      map.on('mouseenter', layer, () => { if (!tool) map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', layer, () => { if (!tool) map.getCanvas().style.cursor = ''; });
+    });
+    mapReady = true;
+    wireDrawing();
+    loadRegister();
+    refresh();
+  });
+}
+function setMode(m) {
+  const sat = m === 'satellite';
+  map.getStyle().layers.forEach(l => {
+    if (l.id === 'satellite') return map.setLayoutProperty(l.id, 'visibility', sat ? 'visible' : 'none');
+    if (OUR.includes(l.id)) return;
+    map.setLayoutProperty(l.id, 'visibility', sat && l.type !== 'symbol' ? 'none' : 'visible');
+  });
+  $('btn-street').classList.toggle('active', !sat);
+  $('btn-satellite').classList.toggle('active', sat);
+}
+$('btn-street').onclick = () => setMode('street');
+$('btn-satellite').onclick = () => setMode('satellite');
+function popup(f, at) {
+  const p = f.properties;
+  const what = { R: ' <span style="color:#ea580c">(reference)</span>', S: ' <span style="color:#0891b2">(plan beacon)</span>', C: ' (control point)', D: ' <span style="color:#16a34a">(drawn)</span>' }[p.kind] || '';
+  const html = `<b>${esc(p.beacon || p.name)}</b>${what}<br>`
+    + (p.x !== undefined ? `X ${fmt(p.x)} · Y ${fmt(p.y)}${p.grid ? `<br><span style="color:#6b7280">${esc(p.grid)}</span>` : ''}<br>` : '')
+    + `${fmt(p.lat, 7)}, ${fmt(p.lon, 7)}` + (p.plan_no ? `<br>Plan ${esc(p.plan_no)}` : '') + (p.district ? `<br>${esc(p.district)}` : '');
+  new maplibregl.Popup({ maxWidth: '260px' }).setLngLat(at || f.geometry.coordinates).setHTML(html).addTo(map);
+}
+
+/* ---------- Beacon Register ---------- */
+let REG = [], SORTED = [];
+const REG_BY = new Map();
+async function loadRegister() {
+  const note = $('data-note');
+  try {
+    const data = await fetch('/maps/data/beacons.json', { cache: 'no-cache' }).then(r => r.json());
+    REG = data.rows.map(([beacon, x, y, kind, plan_no, district]) => { const [lon, lat] = toLL('26332', x, y); return { beacon, kind, plan_no, district, lon, lat }; });
+    REG.forEach(b => { if (!REG_BY.has(key(b.beacon))) REG_BY.set(key(b.beacon), b); });
+    map.getSource('register').setData({ type: 'FeatureCollection', features: REG.map(b => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [b.lon, b.lat] }, properties: b })) });
+    SORTED = [...REG_BY.values()].sort((p, q) => String(p.beacon).localeCompare(String(q.beacon), 'en', { numeric: true }));
+    note.textContent = `${REG.length.toLocaleString()} beacons in the Beacon Register (as of ${data.generated}).`;
+    allRows().forEach(tr => lookup(tr));
+    buildPlans();
+    // Separate link (user, 2026-11-12): /maps/check-survey-plan.html opens Check Survey Plan straight away;
+    // ?plan=SPU-SAMPLE-0001 opens it filled in from that sample upload.
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('open') === 'check') {
+      const plan = PLANS.find(p => p.ref === qs.get('plan')) || null;
+      $('navUpload').classList.remove('on'); $('navCheck').classList.add('on');
+      // The checker's page (user, 2026-11-12): "Uploaded Survey Plan", with no Upload button.
+      $('pageTitle').textContent = 'Uploaded Survey Plan'; document.title = 'Uploaded Survey Plan';
+      $('pageSub').textContent = 'Survey plans sent for checking. Check one on the map from its reference coordinate.';
+      $('listTitle').textContent = 'Uploaded Survey Plan';
+      $('openUpload').hidden = true;
+      openModal('check', plan);
+    }
+    refresh();
+  } catch (e) { note.textContent = 'The Beacon Register could not be loaded. Typed X / Y still work.'; }
+}
+// A register beacon's X / Y in the chosen system.
+const regXY = b => toXY(gridCode(), b.lon, b.lat);
+
+/* ---------- rows (reference and plan beacons share one shape) ---------- */
+// Recording 2026-11-12: ONE reference coordinate (2), and the other beacons under the map (4), in survey order.
+const refBody = $('refRows'), svBody = $('svRows');
+const rowsOf = body => [...body.children].filter(tr => tr._hint);
+const allRows = () => [...rowsOf(refBody), ...rowsOf(svBody)];
+function addRow(body, b = '', x = '', y = '') {
+  const isRef = body === refBody;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="n"></td><td><select class="b" aria-label="Beacon No."></select>`
+    + `<input type="text" class="other" maxlength="60" placeholder="Specify the beacon number" aria-label="Specify the beacon number" hidden></td>`
+    + `<td><input type="text" class="x" inputmode="decimal" aria-label="X (Easting)"></td>`
+    + `<td><input type="text" class="y" inputmode="decimal" aria-label="Y (Northing)"></td>`
+    + `<td class="act"><button type="button" class="go" title="Go to point"><i class="fas fa-location-crosshairs"></i> Go to point</button>`
+    + (isRef ? `<button type="button" class="ib del" aria-label="Clear" title="Clear"><i class="fas fa-xmark"></i></button></td>`
+      : `<button type="button" class="ib up" aria-label="Move up" title="Move up"><i class="fas fa-arrow-up"></i></button><button type="button" class="ib down" aria-label="Move down" title="Move down"><i class="fas fa-arrow-down"></i></button>`
+      + `<button type="button" class="ib del" aria-label="Remove" title="Remove"><i class="fas fa-xmark"></i></button></td>`);
+  const hint = document.createElement('tr'); hint.className = 'hint';
+  hint.innerHTML = `<td></td><td colspan="4"></td>`;
+  tr._hint = hint;
+  const [bIn, xIn, yIn] = ['.b', '.x', '.y'].map(s => tr.querySelector(s));
+  if (b) bIn.appendChild(new Option(b, b, true, true));
+  tr._lastB = b;
+  xIn.value = x; yIn.value = y;
+  // Other (specify): the typed beacon number (one "Other" with a required specify box; user, 2026-11-12).
+  const oIn = tr.querySelector('.other');
+  oIn.addEventListener('change', () => { oIn.value = oIn.value.trim().toUpperCase(); lookup(tr); refresh(); goTo(tr); });
+  oIn.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); oIn.dispatchEvent(new Event('change')); } });
+  [xIn, yIn].forEach(i => {
+    i.addEventListener('input', () => { tr.dataset.auto = ''; });
+    i.addEventListener('change', refresh);
+    i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); refresh(); goTo(tr); } });
+  });
+  // The reference row is always there: its × clears it instead of removing it.
+  tr.querySelector('.del').onclick = () => { if (isRef) { setRef(); return; } jQuery(bIn).select2('destroy'); tr.remove(); hint.remove(); number(); refresh(); };
+  tr.querySelector('.go').onclick = () => { lookup(tr); refresh(); goTo(tr); };
+  if (!isRef) {
+    tr.querySelector('.up').onclick = () => { const p = tr.previousElementSibling?.previousElementSibling; if (p) { body.insertBefore(tr, p); body.insertBefore(hint, p); number(); refresh(); } };
+    tr.querySelector('.down').onclick = () => { const n = hint.nextElementSibling; if (n) { const after = n._hint; body.insertBefore(n, tr); body.insertBefore(after, tr); number(); refresh(); } };
+  }
+  body.appendChild(tr); body.appendChild(hint); number();
+  beaconPicker(tr, bIn);
+  if (b) lookup(tr);
+  return tr;
+}
+function number() {
+  rowsOf(refBody).forEach(tr => tr.querySelector('.n').textContent = 'R');
+  rowsOf(svBody).forEach((tr, i) => tr.querySelector('.n').textContent = i + 1);
+}
+const OTHER = '__other';
+const isOther = tr => tr.querySelector('.b').value === OTHER;
+// The row's beacon number: the listed one, or what was typed under Other (specify).
+const beaconOf = tr => isOther(tr) ? tr.querySelector('.other').value.trim().toUpperCase() : tr.querySelector('.b').value.trim();
+function showOther(tr, on) { const o = tr.querySelector('.other'); o.hidden = !on; if (!on) o.value = ''; else setTimeout(() => o.focus(), 0); }
+// Beacon No.: a dropdown in beacon order with search, and one "Other (specify)" at the foot of every list (user, 2026-11-12).
+function beaconPicker(tr, sel) {
+  jQuery(sel).select2({
+    width: '100%', placeholder: 'Search beacon, e.g. A0876A', allowClear: true, dropdownParent: jQuery('#uploadModal'),
+    templateResult: d => d.loading ? d.text : d.id === OTHER ? jQuery('<span class="new">').text('Other (specify)')
+      : jQuery('<span>').append(jQuery('<b>').text(d.text), d.district ? jQuery('<span class="dist">').text(' \u00b7 ' + d.district) : ''),
+    templateSelection: d => d.id === OTHER ? 'Other (specify)' : d.text,
+    ajax: { delay: 100, transport: (params, ok) => {
+      const term = key(params.data.term || '');
+      const list = term ? SORTED.filter(b => key(b.beacon).includes(term)).sort((p, q) => key(p.beacon).indexOf(term) - key(q.beacon).indexOf(term)) : SORTED;
+      ok({ results: list.slice(0, 80).map(b => ({ id: b.beacon, text: b.beacon, district: b.district || '' })).concat([{ id: OTHER, text: 'Other (specify)' }]) });
+    }, processResults: d => d },
+  }).on('select2:open', () => setTimeout(() => { const f = document.querySelector('.select2-container--open .select2-search__field'); if (f) f.focus(); }, 0))
+    .on('change select2:select select2:clear', () => setTimeout(() => {
+      const v = sel.value; if (v === tr._lastB) return; tr._lastB = v;
+      showOther(tr, v === OTHER);
+      lookup(tr); refresh(); goTo(tr);
+    }, 0));
+}
+// Picking a register beacon fills its X / Y in the chosen system (only when blank, or filled by us before).
+function lookup(tr) {
+  const no = beaconOf(tr), b = no ? REG_BY.get(key(no)) : null;
+  const xIn = tr.querySelector('.x'), yIn = tr.querySelector('.y');
+  tr._reg = b || null;
+  if (!b && tr.dataset.auto === '1') { xIn.value = ''; yIn.value = ''; tr.dataset.auto = ''; }
+  if (b && (tr.dataset.auto === '1' || (!xIn.value.trim() && !yIn.value.trim()))) {
+    const [x, y] = regXY(b); xIn.value = x.toFixed(3); yIn.value = y.toFixed(3); tr.dataset.auto = '1';
+  }
+}
+
+/* ---------- evaluate rows ---------- */
+function evalRow(tr, code, tol, autofix) {
+  const o = { tr, beacon: beaconOf(tr), chips: [], bad: false, reg: tr._reg };
+  const rawX = tr.querySelector('.x').value.replace(/[,\s]/g, ''), rawY = tr.querySelector('.y').value.replace(/[,\s]/g, '');
+  o.empty = !o.beacon && !rawX && !rawY && !isOther(tr);
+  if (o.empty) return o;
+  if (isOther(tr) && !o.beacon) { o.chips.push(['warn', 'Other: type the beacon number, then its X and Y']); o.missing = true; return o; }
+  const x = Number(rawX), y = Number(rawY);
+  if (rawX === '' || rawY === '' || !isFinite(x) || !isFinite(y)) {
+    o.chips.push(o.beacon && !o.reg ? ['warn', 'Not in the Beacon Register: type its X and Y'] : ['bad', 'X and Y must be numbers']);
+    o.bad = !(o.beacon && !o.reg); o.missing = true; return o;
+  }
+  let ll = toLL(code, x, y), ux = x, uy = y;
+  if (!inKano(ll)) {
+    const sw = toLL(code, y, x);
+    if (inKano(sw) && autofix) { ll = sw; ux = y; uy = x; o.chips.push(['warn', 'X and Y switched back']); }
+    else if (inKano(sw)) { o.chips.push(['bad', 'X and Y look reversed']); o.bad = true; }
+    else { o.chips.push(['bad', 'Outside Kano: check the coordinate system or the digits']); o.bad = true; }
+  }
+  Object.assign(o, { x: ux, y: uy, lon: ll[0], lat: ll[1] });
+  if (o.reg && tr.dataset.auto !== '1') {
+    o.dist = metres(ll, [o.reg.lon, o.reg.lat]);
+    if (o.dist <= tol) o.chips.push(['ok', `Matches the Beacon Register (${fmt(o.dist, 2)} m)`]);
+    else { o.chips.push(['bad', `${fmt(o.dist, 2)} m from its Beacon Register position`]); o.bad = true; }
+  } else if (o.reg) o.chips.push(['ok', 'X / Y from the Beacon Register']);
+  else if (o.beacon) o.chips.push(['info', 'Not in the Beacon Register']);
+  return o;
+}
+
+let REFS = [], SV = [], POLY = false;
+function refresh() {
+  const code = gridCode(), tol = Math.max(0.01, parseFloat($('tol').value) || 1), autofix = $('autofix').checked;
+  REFS = rowsOf(refBody).map(tr => evalRow(tr, code, tol, autofix));
+  SV = rowsOf(svBody).map(tr => evalRow(tr, code, tol, autofix));
+  const placed = list => list.filter(o => o.lon !== undefined && !o.bad);
+  const ref = placed(REFS)[0] || null;
+
+  // A beacon far from the rest (and from the reference) is a typing error, wherever it lands.
+  const sv = placed(SV), all = ref ? [ref, ...sv] : sv;
+  if (all.length >= 3) {
+    const mid = [median(all.map(o => o.lon)), median(all.map(o => o.lat))];
+    sv.forEach(o => { if (metres([o.lon, o.lat], mid) > 2000) { o.chips.push(['bad', 'More than 2 km from the other beacons']); o.bad = true; } });
+  }
+  const svOk = placed(SV);
+  if (POLY && svOk.length < 3) POLY = false;
+
+  // Hints: status; for the other beacons, the side from the one before (point 1 from the reference).
+  const side = (a, o, name) => `<span class="chip info">From ${esc(name)}: ${fmt(Math.hypot(o.x - a.x, o.y - a.y), 2)} m · ${bearing(a, o)}</span>`;
+  [...REFS, ...SV].forEach(o => {
+    const cell = o.tr._hint.lastElementChild;
+    if (o.empty) { cell.innerHTML = ''; return; }
+    const i = svOk.indexOf(o);
+    const s = i > 0 ? side(svOk[i - 1], o, svOk[i - 1].beacon || 'point ' + i) : (i === 0 && ref ? side(ref, o, 'the reference ' + (ref.beacon || '')) : '');
+    cell.innerHTML = o.chips.map(c => `<span class="chip ${c[0]}">${esc(c[1])}</span>`).join('') + s;
+  });
+
+  // Reference verdict
+  const r0 = REFS.find(o => !o.empty), v = $('refVerdict');
+  if (!r0) v.hidden = true;
+  else if (r0.bad) { v.hidden = false; v.className = 'verdict bad'; v.innerHTML = `<b>Check the reference coordinate</b><span>${esc(r0.beacon || 'Reference')}: ${esc(r0.chips.filter(c => c[0] === 'bad').map(c => c[1]).join('; '))}</span>`; }
+  else if (r0.dist !== undefined) { v.hidden = false; v.className = 'verdict ok'; v.innerHTML = `<b>OK</b><span>The reference coordinate matches the Beacon Register within ${fmt(tol, 2)} m (${fmt(r0.dist, 2)} m).</span>`; }
+  else if (r0.lon !== undefined) { v.hidden = false; v.className = 'verdict warn'; v.innerHTML = `<b>Plotted</b><span>The reference coordinate is on the map. ${r0.reg ? 'Its X / Y came from the Beacon Register.' : 'It is not in the Beacon Register, so there is nothing to compare.'}</span>`; }
+  else v.hidden = true;
+
+  // Stats for the other beacons
+  const st = $('svStats');
+  if (svOk.length >= 2) {
+    const sides = svOk.slice(1).map((o, i) => Math.hypot(o.x - svOk[i].x, o.y - svOk[i].y));
+    if (POLY) sides.push(Math.hypot(svOk[0].x - svOk[svOk.length - 1].x, svOk[0].y - svOk[svOk.length - 1].y));
+    const area = POLY ? Math.abs(svOk.reduce((s, o, i) => { const n = svOk[(i + 1) % svOk.length]; return s + o.x * n.y - n.x * o.y; }, 0) / 2) : 0;
+    st.hidden = false;
+    st.innerHTML = `<div class="stat"><span>Points</span><b>${svOk.length}</b></div>`
+      + `<div class="stat"><span>${POLY ? 'Perimeter' : 'Length'}</span><b>${fmt(sides.reduce((a, b) => a + b, 0), 2)} m</b></div>`
+      + (POLY ? `<div class="stat"><span>Area</span><b>${fmt(area, 2)} m²</b></div><div class="stat"><span>Hectares</span><b>${fmt(area / 10000, 4)} ha</b></div>`
+              + `<div class="stat"><span>Closing side</span><b>${fmt(sides[sides.length - 1], 2)} m</b></div>`
+              : `<div class="stat"><span>Polygon</span><b style="font-size:13px">Not closed yet</b></div>`);
+    if (brgMode() && TRAV) st.innerHTML += `<div class="stat"><span>Closing error</span><b>${fmt(TRAV.err, 3)} m</b></div>`
+      + (TRAV.err >= 0.0005 ? `<div class="stat"><span>Precision</span><b>1 : ${Math.round(TRAV.ratio).toLocaleString()}</b></div>` : '');
+  } else st.hidden = true;
+  $('svPoly').innerHTML = `<i class="fas fa-draw-polygon"></i> ${POLY ? 'Open polygon' : 'Create polygon'}`;
+  $('svPoly').disabled = svOk.length < 3;
+  $('gridtag').textContent = GRID_NAME[code];
+  $('ex-grid').textContent = 'X / Y in ' + GRID_NAME[code];
+
+  extras(svOk, ref);
+  if (!mapReady) return;
+  const pt = (o, kind, label) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [o.lon, o.lat] },
+    properties: { beacon: o.beacon || '?', label, x: o.x, y: o.y, lon: o.lon, lat: o.lat, kind, grid: GRID_NAME[code] } });
+  map.getSource('ref').setData({ type: 'FeatureCollection', features: ref ? [pt(ref, 'R', ref.beacon)] : [] });
+  map.getSource('sv').setData({ type: 'FeatureCollection', features: svOk.map((o, i) => pt(o, 'S', `${i + 1}${o.beacon ? ' · ' + o.beacon : ''}`)) });
+  const ring = svOk.map(o => [o.lon, o.lat]);
+  map.getSource('svline').setData(ring.length >= 2 ? { type: 'Feature', geometry: { type: 'LineString', coordinates: POLY ? [...ring, ring[0]] : ring }, properties: {} } : empty);
+  map.getSource('poly').setData(POLY ? { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[...ring, ring[0]]] }, properties: {} } : empty);
+  const pairs = svOk.slice(1).map((o, i) => [svOk[i], o]); if (POLY) pairs.push([svOk[svOk.length - 1], svOk[0]]);
+  map.getSource('sides').setData({ type: 'FeatureCollection', features: pairs.map(([a, b]) => ({ type: 'Feature',
+    geometry: { type: 'Point', coordinates: [(a.lon + b.lon) / 2, (a.lat + b.lat) / 2] }, properties: { label: (brgMode() ? quadrant((Math.atan2(b.x - a.x, b.y - a.y) * 180 / Math.PI + 360) % 360) + ' · ' : '') + `${fmt(Math.hypot(b.x - a.x, b.y - a.y), 2)} m` } })) });
+  map.getSource('links').setData({ type: 'FeatureCollection', features: [...REFS, ...SV].filter(o => o.reg && o.dist !== undefined && o.lon !== undefined && o.chips.some(c => c[0] === 'bad'))
+    .map(o => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: [[o.lon, o.lat], [o.reg.lon, o.reg.lat]] }, properties: {} })) });
+}
+// Go to point: the reference coordinate (or another beacon) on the map.
+function goTo(tr) {
+  const o = [...REFS, ...SV].find(r => r.tr === tr);
+  if (!o || o.lon === undefined || !mapReady) { if (o?.reg && mapReady) map.flyTo({ center: [o.reg.lon, o.reg.lat], zoom: 17 }); return; }
+  map.flyTo({ center: [o.lon, o.lat], zoom: 17 });
+}
+function fitAll() {
+  const pts = [...REFS, ...SV].filter(o => o.lon !== undefined && !o.bad);
+  if (!pts.length || !mapReady) return;
+  const b = new maplibregl.LngLatBounds(); pts.forEach(o => b.extend([o.lon, o.lat]));
+  map.fitBounds(b, { padding: 90, maxZoom: 17, duration: 600 });
+}
+
+// Changing the system: X / Y filled from the register are refilled in the new system; typed ones stay as typed.
+document.querySelectorAll('input[name=sys], input[name=belt]').forEach(r => r.addEventListener('change', () => {
+  if (r.name === 'belt') document.querySelector('input[name=sys][value=ntm]').checked = true;
+  allRows().forEach(tr => { if (tr.dataset.auto === '1') { tr.querySelector('.x').value = ''; tr.querySelector('.y').value = ''; lookup(tr); } });
+  refresh(); renderDrawn();
+}));
+// A belt click always means NTM, even on the belt already picked.
+document.querySelectorAll('input[name=belt]').forEach(r => r.addEventListener('click', () => { const n = $('sysNtm'); if (!n.checked) { n.checked = true; n.dispatchEvent(new Event('change')); } }));
+// Clicking anywhere on a system card picks it.
+document.querySelectorAll('.sys .opt').forEach(c => c.addEventListener('click', e => { const r = c.querySelector('input[name=sys]'); if (e.target.closest('.belt') || r.checked) return; r.checked = true; r.dispatchEvent(new Event('change')); }));
+['tol', 'autofix'].forEach(id => $(id).addEventListener('change', refresh));
+function clearBody(body) { jQuery(body).find('select.b').select2('destroy'); body.innerHTML = ''; }
+// The single reference row, reset (optionally to a beacon, with X / Y as on the upload).
+function setRef(b = '', x = '', y = '') { clearBody(refBody); addRow(refBody, b, x, y); refresh(); }
+$('svAdd').onclick = () => jQuery(addRow(svBody).querySelector('.b')).select2('open');
+$('svPlot').onclick = () => { refresh(); fitAll(); };
+$('svPoly').onclick = () => { POLY = !POLY; refresh(); if (POLY) fitAll(); };
+$('svClear').onclick = () => { if (brgMode()) { jQuery(travBody).find('select.tb').select2('destroy'); travBody.innerHTML = ''; addLine(); addLine(); addLine(); addLine(); computeTraverse(); return; } clearBody(svBody); POLY = false; addRow(svBody); refresh(); };
+$('usepaste').onclick = () => {
+  const lines = $('paste').value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return;
+  clearBody(svBody); POLY = false;
+  lines.forEach(l => { const p = l.split(/[\t,;]+|\s{2,}|\s(?=[\d.-]+(\s|$))/).map(s => s.trim()).filter(Boolean); addRow(svBody, String(p[0] || '').toUpperCase(), (p[1] || '').replace(/,/g, ''), (p[2] || '').replace(/,/g, '')); });
+  refresh(); fitAll();
+};
+// Register beacons near a point, in perimeter order (samples only).
+function neighbours(a, n) {
+  const near = REG.filter(b => b.kind === 'B' && b !== a && key(b.beacon) !== key(a.beacon) && metres([a.lon, a.lat], [b.lon, b.lat]) < 300)
+    .sort((p, q) => metres([a.lon, a.lat], [p.lon, p.lat]) - metres([a.lon, a.lat], [q.lon, q.lat])).slice(0, n);
+  const cx = near.reduce((s, b) => s + b.lon, 0) / (near.length || 1), cy = near.reduce((s, b) => s + b.lat, 0) / (near.length || 1);
+  return near.sort((p, q) => Math.atan2(p.lat - cy, p.lon - cx) - Math.atan2(q.lat - cy, q.lon - cx));
+}
+// A sample: the reference beacon near the current one (or a random one), and four neighbours as the other beacons.
+$('sample').onclick = () => {
+  // Traverse sample: from the reference coordinate (or a register beacon), four lines that close within 3 cm.
+  if (brgMode()) {
+    if (!REFS.some(o => o.lon !== undefined && !o.bad)) { const a = REG.find(b => b.kind === 'B' && b.district); if (a) setRef(a.beacon); }
+    startFromRef(true);
+    jQuery(travBody).find('select.tb').select2('destroy'); travBody.innerHTML = '';
+    [{ ns: 'N', d: 30, m: 0, s: 0, ew: 'E', dist: 40 }, { ns: 'S', d: 60, m: 0, s: 0, ew: 'E', dist: 30 },
+     { ns: 'S', d: 30, m: 0, s: 0, ew: 'W', dist: 40 }, { ns: 'N', d: 60, m: 0, s: 0, ew: 'W', dist: 30.03 }].forEach(addLine);
+    $('trClose').checked = true; computeTraverse(); fitAll();
+    return;
+  }
+  const cur = REFS.find(o => o.reg)?.reg;
+  const pts = REG.filter(b => b.kind === 'B');
+  for (let t = 0; t < 60; t++) {
+    const a = t === 0 && cur ? cur : pts[Math.floor(Math.random() * pts.length)];
+    const near = neighbours(a, 4);
+    if (near.length < (a === cur ? 3 : 4)) continue;  // keep the uploaded reference when it has neighbours
+    if (a !== cur) setRef(a.beacon);
+    clearBody(svBody); POLY = false;
+    near.forEach(b => addRow(svBody, b.beacon));
+    refresh(); fitAll();
+    return;
+  }
+};
+/* ---------- traverse: bearing and distance from a start point (recording, 2026-11-12) ---------- */
+// Lines X1→X2, X2→X3 … each a quadrant bearing (N/S deg min sec E/W) and a distance; the points are worked out
+// on the grid of the chosen system and become the other beacons. With "closes", the last line should land on X1:
+// the gap is the closing error, and the points make the polygon.
+let TRAV = null;
+const brgMode = () => document.querySelector('input[name=svmode]:checked').value === 'brg';
+const travBody = $('travRows');
+// Quadrant bearing to whole-circle azimuth (degrees from grid north, clockwise).
+function azimuth(ns, d, m, s, ew) {
+  const t = d + m / 60 + s / 3600;
+  return ns === 'N' ? (ew === 'E' ? t : 360 - t) : (ew === 'E' ? 180 - t : 180 + t);
+}
+// Whole-circle azimuth to a quadrant bearing, N 45° 30′ 20″ E.
+function quadrant(az) {
+  az = ((az % 360) + 360) % 360;
+  const [ns, ew, t] = az <= 90 ? ['N', 'E', az] : az <= 180 ? ['S', 'E', 180 - az] : az <= 270 ? ['S', 'W', az - 180] : ['N', 'W', 360 - az];
+  let d = Math.floor(t), m = Math.floor((t - d) * 60), s = Math.round(((t - d) * 60 - m) * 60);
+  if (s === 60) { s = 0; m++; } if (m === 60) { m = 0; d++; }
+  return `${ns} ${d}° ${String(m).padStart(2, '0')}′ ${String(s).padStart(2, '0')}″ ${ew}`;
+}
+// The beacon number picked in a traverse dropdown, or typed under Other (specify).
+function pickedName(sel, other) { return sel.value === OTHER ? other.value.trim().toUpperCase() : sel.value.trim(); }
+function setPicked(sel, other, v) {
+  if (jQuery(sel).data('select2')) jQuery(sel).empty();
+  if (v) sel.appendChild(new Option(v, v, true, true));
+  other.hidden = true; other.value = '';
+  jQuery(sel).trigger('change.select2');
+}
+function namePicker(sel, other, placeholder, onChange) {
+  jQuery(sel).select2({
+    width: '100%', placeholder, allowClear: true, dropdownParent: jQuery('#uploadModal'),
+    templateResult: d => d.loading ? d.text : d.id === OTHER ? jQuery('<span class="new">').text('Other (specify)')
+      : jQuery('<span>').append(jQuery('<b>').text(d.text), d.district ? jQuery('<span class="dist">').text(' \u00b7 ' + d.district) : ''),
+    templateSelection: d => d.id === OTHER ? 'Other (specify)' : d.text,
+    ajax: { delay: 100, transport: (params, ok) => {
+      const term = key(params.data.term || '');
+      const list = term ? SORTED.filter(b => key(b.beacon).includes(term)).sort((p, q) => key(p.beacon).indexOf(term) - key(q.beacon).indexOf(term)) : SORTED;
+      ok({ results: list.slice(0, 80).map(b => ({ id: b.beacon, text: b.beacon, district: b.district || '' })).concat([{ id: OTHER, text: 'Other (specify)' }]) });
+    }, processResults: d => d },
+  }).on('select2:open', () => setTimeout(() => { const f = document.querySelector('.select2-container--open .select2-search__field'); if (f) f.focus(); }, 0))
+    .on('select2:select select2:clear', () => setTimeout(() => {
+      const isO = sel.value === OTHER;
+      other.hidden = !isO; if (!isO) other.value = ''; else setTimeout(() => other.focus(), 0);
+      onChange();
+    }, 0));
+  other.addEventListener('change', () => { other.value = other.value.trim().toUpperCase(); onChange(); });
+  other.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); other.dispatchEvent(new Event('change')); } });
+}
+function addLine(l = {}) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="ln" data-label="Line"></td><td class="trav-pick" data-label="To beacon"><select class="tb" aria-label="To beacon"></select>`
+    + `<input type="text" class="tbo other" maxlength="60" placeholder="Specify the beacon number" aria-label="Specify the to beacon" hidden></td>`
+    + `<td data-label="Bearing"><div class="brg"><select class="ns" aria-label="N or S"><option>N</option><option>S</option></select>`
+    + `<input type="number" class="d" min="0" max="90" step="1" placeholder="°" aria-label="Degrees"><span>°</span>`
+    + `<input type="number" class="m" min="0" max="59" step="1" placeholder="′" aria-label="Minutes"><span>′</span>`
+    + `<input type="number" class="s" min="0" max="59.99" step="0.01" placeholder="″" aria-label="Seconds"><span>″</span>`
+    + `<select class="ew" aria-label="E or W"><option>E</option><option>W</option></select></div></td>`
+    + `<td data-label="Distance (m)"><input type="number" class="dist" min="0" step="0.01" placeholder="m" aria-label="Distance in metres"></td>`
+    + `<td class="cx mono" data-label="X (Easting)">—</td><td class="cy mono" data-label="Y (Northing)">—</td>`
+    + `<td class="act"><button type="button" class="ib up" aria-label="Move up" title="Move up"><i class="fas fa-arrow-up"></i></button><button type="button" class="ib down" aria-label="Move down" title="Move down"><i class="fas fa-arrow-down"></i></button><button type="button" class="ib del" aria-label="Remove" title="Remove"><i class="fas fa-xmark"></i></button></td>`;
+  const set = (c, v) => { if (v !== undefined && v !== '') tr.querySelector(c).value = v; };
+  if (l.to) tr.querySelector('.tb').appendChild(new Option(l.to, l.to, true, true));
+  set('.ns', l.ns); set('.d', l.d); set('.m', l.m); set('.s', l.s); set('.ew', l.ew); set('.dist', l.dist);
+  tr.querySelectorAll('input:not(.tbo), select:not(.tb)').forEach(i => i.addEventListener('change', computeTraverse));
+  namePicker(tr.querySelector('.tb'), tr.querySelector('.tbo'), 'To beacon (optional)', computeTraverse);
+  tr.querySelector('.del').onclick = () => { jQuery(tr.querySelector('.tb')).select2('destroy'); tr.remove(); computeTraverse(); };
+  tr.querySelector('.up').onclick = () => { const p = tr.previousElementSibling; if (p) { travBody.insertBefore(tr, p); computeTraverse(); } };
+  tr.querySelector('.down').onclick = () => { const n = tr.nextElementSibling; if (n) { travBody.insertBefore(n, tr); computeTraverse(); } };
+  travBody.appendChild(tr);
+  return tr;
+}
+function startFromRef(force) {
+  const r = REFS.find(o => o.lon !== undefined && !o.bad);
+  if (!r) return false;
+  if (force || (!$('trStartX').value.trim() && !$('trStartY').value.trim())) {
+    setPicked($('trStartB'), $('trStartOther'), r.beacon || ''); $('trStartX').value = r.x.toFixed(3); $('trStartY').value = r.y.toFixed(3);
+  }
+  return true;
+}
+function computeTraverse() {
+  const num = v => { const n = Number(String(v).replace(/[,\s]/g, '')); return String(v).trim() === '' || !isFinite(n) ? null : n; };
+  const sx = num($('trStartX').value), sy = num($('trStartY').value), close = $('trClose').checked;
+  const rows = [...travBody.children], lines = rows.length;
+  const pts = [];
+  let bad = [], cur = sx !== null && sy !== null ? { x: sx, y: sy } : null;
+  if (cur) pts.push({ b: pickedName($('trStartB'), $('trStartOther')) || 'X1', x: cur.x, y: cur.y });
+  rows.forEach((tr, i) => {
+    const last = close && i === lines - 1 && lines >= 3;
+    const toName = last ? 'X1' : 'X' + (i + 2);
+    tr.querySelector('.ln').innerHTML = `<b>X${i + 1} → ${toName}</b>${last ? '<div class="note">closes</div>' : ''}`;
+    const g = c => tr.querySelector(c).value;
+    const d = num(g('.d')), m = num(g('.m')) ?? 0, s = num(g('.s')) ?? 0, dist = num(g('.dist'));
+    const ok = cur && d !== null && dist !== null && d >= 0 && d <= 90 && m >= 0 && m < 60 && s >= 0 && s < 60 && dist > 0;
+    tr.classList.toggle('bad', !ok && (g('.d') !== '' || g('.dist') !== ''));
+    if (!ok) { tr.querySelector('.cx').textContent = '—'; tr.querySelector('.cy').textContent = '—'; if (g('.d') !== '' || g('.dist') !== '') bad.push(i + 1); cur = null; return; }
+    const az = azimuth(g('.ns'), d, m, s, g('.ew')) * Math.PI / 180;
+    cur = { x: cur.x + dist * Math.sin(az), y: cur.y + dist * Math.cos(az) };
+    tr.querySelector('.cx').textContent = fmt(cur.x); tr.querySelector('.cy').textContent = fmt(cur.y);
+    if (!last) pts.push({ b: pickedName(tr.querySelector('.tb'), tr.querySelector('.tbo')) || toName, x: cur.x, y: cur.y });
+    else pts.closeAt = cur;
+  });
+  // Closing error: where the last line lands against X1.
+  TRAV = null;
+  const v = $('trVerdict');
+  if (pts.closeAt && pts.length >= 3) {
+    const dx = pts.closeAt.x - pts[0].x, dy = pts.closeAt.y - pts[0].y, err = Math.hypot(dx, dy);
+    const per = rows.reduce((s, tr) => s + (num(tr.querySelector('.dist').value) || 0), 0);
+    TRAV = { err, dx, dy, per, ratio: err > 0 ? per / err : Infinity };
+    v.hidden = false;
+    v.className = 'verdict ' + (err <= 0.05 || TRAV.ratio >= 5000 ? 'ok' : err <= 0.5 ? 'warn' : 'bad');
+    v.innerHTML = `<b>${err < 0.0005 ? 'Closes exactly on X1' : 'Closing error ' + fmt(err, 3) + ' m'}</b><span>Misclosure ΔX ${fmt(dx, 3)} m, ΔY ${fmt(dy, 3)} m · perimeter ${fmt(per, 2)} m${err >= 0.0005 ? ` · precision 1 : ${Math.round(TRAV.ratio).toLocaleString()}` : ''}.</span>`;
+  } else if (bad.length) { v.hidden = false; v.className = 'verdict bad'; v.innerHTML = `<b>Check line${bad.length > 1 ? 's' : ''} ${bad.join(', ')}</b><span>Degrees 0–90, minutes and seconds under 60, and a distance in metres${cur === null && sx === null ? '; and the start point X / Y' : ''}.</span>`; }
+  else if (!cur && rows.length && (sx === null || sy === null)) { v.hidden = false; v.className = 'verdict warn'; v.innerHTML = '<b>Start point needed</b><span>Enter X1 or use the reference coordinate.</span>'; }
+  else v.hidden = true;
+  // The worked-out points become the other beacons (hidden X / Y table), so the map, polygon and export follow.
+  clearBody(svBody);
+  pts.forEach(p => addRow(svBody, p.b, p.x.toFixed(3), p.y.toFixed(3)));
+  if (!pts.length) addRow(svBody);
+  POLY = !!pts.closeAt && pts.length >= 3;
+  refresh();
+}
+function setSvMode() {
+  const brg = brgMode();
+  $('svBrg').hidden = !brg; $('svXY').hidden = brg; $('svAdd').hidden = brg; $('paste').closest('details').hidden = brg;
+  if (brg) { startFromRef(false); if (!travBody.children.length) { addLine(); addLine(); addLine(); addLine(); } computeTraverse(); }
+  else refresh();
+}
+document.querySelectorAll('input[name=svmode]').forEach(r => r.addEventListener('change', setSvMode));
+['trStartX', 'trStartY', 'trClose'].forEach(id => $(id).addEventListener('change', computeTraverse));
+// Start beacon: picking a register beacon fills X1's X / Y in the chosen system (user, 2026-11-12).
+namePicker($('trStartB'), $('trStartOther'), 'Search beacon, e.g. A0876A', () => {
+  const b = REG_BY.get(key(pickedName($('trStartB'), $('trStartOther'))));
+  if (b) { const [x, y] = regXY(b); $('trStartX').value = x.toFixed(3); $('trStartY').value = y.toFixed(3); }
+  computeTraverse();
+});
+$('trUseRef').onclick = () => { if (!startFromRef(true)) { toast('Enter the reference coordinate first (section 2).'); return; } computeTraverse(); goTo(rowsOf(refBody)[0]); };
+$('trAdd').onclick = () => { const tr = addLine(); computeTraverse(); tr.querySelector('.d').focus(); };
+// Traverse lines for the export, with their bearing and distance as attributes.
+function traverseFeatures() {
+  if (!brgMode()) return [];
+  const pts = SV.filter(o => o.lon !== undefined && !o.bad);
+  const out = [], n = pts.length;
+  for (let i = 0; i < n - (POLY ? 0 : 1); i++) {
+    const a = pts[i], b = pts[(i + 1) % n];
+    const az = (Math.atan2(b.x - a.x, b.y - a.y) * 180 / Math.PI + 360) % 360;
+    out.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: [[a.lon, a.lat], [b.lon, b.lat]] },
+      properties: { name: `${a.beacon || 'X' + (i + 1)} → ${b.beacon || 'X' + ((i + 1) % n + 1)}`, kind: 'traverse line', from: a.beacon, to: b.beacon,
+        bearing: quadrant(az), azimuth_deg: +az.toFixed(6), distance_m: +Math.hypot(b.x - a.x, b.y - a.y).toFixed(3) } });
+  }
+  return out;
+}
+
+addRow(refBody); addRow(svBody);
+refresh();
+
+/* ---------- map drawing tools: points, lines and parcels, with snapping ---------- */
+let tool = null, draft = [], hover = null;
+const DRAWN = [];
+let seq = { point: 0, line: 0, polygon: 0 }, nextId = 1;
+const NAMES = { point: 'Point', line: 'Line', polygon: 'Parcel' };
+const SNAP_PX = 12;
+function setTool(t) {
+  if (draft.length) cancelDraft();
+  tool = tool === t ? null : t;
+  document.querySelectorAll('#tools [data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+  map.getCanvas().style.cursor = tool ? 'crosshair' : '';
+  if (tool) map.doubleClickZoom.disable(); else map.doubleClickZoom.enable();
+  info();
+}
+document.querySelectorAll('#tools [data-tool]').forEach(b => b.onclick = () => setTool(b.dataset.tool));
+function snapCandidates() {
+  const pts = [], segs = [], bb = map.getBounds().toArray(), inView = c => c[0] >= bb[0][0] && c[0] <= bb[1][0] && c[1] >= bb[0][1] && c[1] <= bb[1][1];
+  REG.forEach(r => { const c = [r.lon, r.lat]; if (inView(c)) pts.push(c); });
+  const ok = [...REFS, ...SV].filter(o => o.lon !== undefined && !o.bad);
+  ok.forEach(o => pts.push([o.lon, o.lat]));
+  const lines = [], ring = SV.filter(o => o.lon !== undefined && !o.bad).map(o => [o.lon, o.lat]);
+  if (ring.length >= 2) lines.push(POLY ? [...ring, ring[0]] : ring);
+  DRAWN.forEach(f => { if (f.type === 'point') pts.push(f.coords[0]); else { f.coords.forEach(c => pts.push(c)); lines.push(f.type === 'polygon' ? [...f.coords, f.coords[0]] : f.coords); } });
+  draft.forEach(c => pts.push(c));
+  if (draft.length >= 2) lines.push(draft);
+  lines.forEach(l => { for (let i = 1; i < l.length; i++) segs.push([l[i - 1], l[i]]); });
+  return { pts, segs };
+}
+function snapAt(point) {
+  if (!$('snap').checked) return null;
+  const { pts, segs } = snapCandidates();
+  let best = null, bestD = SNAP_PX;
+  pts.forEach(c => { const p = map.project(c), d = Math.hypot(p.x - point.x, p.y - point.y); if (d < bestD) { bestD = d; best = { c, kind: 'vertex' }; } });
+  if (best) return best;
+  bestD = SNAP_PX - 2;
+  segs.forEach(([a, b]) => {
+    const pa = map.project(a), pb = map.project(b), dx = pb.x - pa.x, dy = pb.y - pa.y, len = dx * dx + dy * dy;
+    if (!len) return;
+    const t = Math.max(0, Math.min(1, ((point.x - pa.x) * dx + (point.y - pa.y) * dy) / len));
+    const qx = pa.x + t * dx, qy = pa.y + t * dy, d = Math.hypot(qx - point.x, qy - point.y);
+    if (d < bestD) { bestD = d; const ll = map.unproject([qx, qy]); best = { c: [ll.lng, ll.lat], kind: 'edge' }; }
+  });
+  return best;
+}
+function renderDraft() {
+  const feats = [], path = hover ? [...draft, hover.c] : draft;
+  if (path.length >= 2) feats.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: tool === 'polygon' && path.length >= 3 ? [...path, path[0]] : path }, properties: {} });
+  draft.forEach(c => feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: c }, properties: {} }));
+  map.getSource('draft').setData({ type: 'FeatureCollection', features: feats });
+  map.getSource('snap').setData(hover && hover.kind ? { type: 'Feature', geometry: { type: 'Point', coordinates: hover.c }, properties: { kind: hover.kind } } : empty);
+}
+function info() {
+  const el = $('drawinfo');
+  if (!tool) { el.hidden = true; return; }
+  const path = hover ? [...draft, hover.c] : draft;
+  let t = { point: 'Click to add a point.', line: 'Click to add points; double-click or Enter to finish.', polygon: 'Click the corners; double-click, Enter or click the first corner to close.' }[tool];
+  if (tool !== 'point' && path.length >= 2) {
+    t = `Length ${fmt(lengthOf(path), 2)} m · last side ${fmt(metres(path[path.length - 2], path[path.length - 1]), 2)} m`;
+    if (tool === 'polygon' && path.length >= 3) t += ` · area ${fmt(areaOf(path), 2)} m² (${fmt(areaOf(path) / 10000, 4)} ha)`;
+  }
+  if (hover?.kind) t += hover.kind === 'vertex' ? ' · snapped to a point' : ' · snapped to a line';
+  el.textContent = t; el.hidden = false;
+}
+function finishDraft() {
+  if (tool === 'line' && draft.length >= 2) addDrawn('line', draft);
+  else if (tool === 'polygon' && draft.length >= 3) addDrawn('polygon', draft);
+  draft = []; hover = null; renderDraft(); info();
+}
+function cancelDraft() { draft = []; hover = null; renderDraft(); info(); }
+function addDrawn(type, coords) { seq[type]++; DRAWN.push({ id: nextId++, type, name: `${NAMES[type]} ${seq[type]}`, coords: coords.map(c => [...c]) }); renderDrawn(); }
+function renderDrawn() {
+  if (!mapReady) return;
+  const code = gridCode();
+  map.getSource('drawn').setData({ type: 'FeatureCollection', features: DRAWN.map(f => {
+    const c0 = f.type === 'point' ? f.coords[0] : null, props = { name: f.name, label: f.name, kind: 'D' };
+    if (c0) { const [x, y] = toXY(code, c0[0], c0[1]); Object.assign(props, { lon: c0[0], lat: c0[1], x, y, grid: GRID_NAME[code] }); }
+    return { type: 'Feature', geometry: f.type === 'point' ? { type: 'Point', coordinates: c0 } : f.type === 'line' ? { type: 'LineString', coordinates: f.coords }
+      : { type: 'Polygon', coordinates: [[...f.coords, f.coords[0]]] }, properties: props };
+  }) });
+  const box = $('feats');
+  if (!DRAWN.length) { box.className = 'note'; box.style.display = ''; box.textContent = 'Shapes drawn with the map tools appear here.'; return; }
+  box.className = ''; box.style.display = 'grid'; box.style.gap = '6px';
+  box.innerHTML = DRAWN.map(f => {
+    const meta = f.type === 'point' ? (() => { const [x, y] = toXY(code, f.coords[0][0], f.coords[0][1]); return `X ${fmt(x)} · Y ${fmt(y)}`; })()
+      : f.type === 'line' ? `${f.coords.length} points · ${fmt(lengthOf(f.coords), 2)} m`
+      : `${f.coords.length} corners · ${fmt(areaOf(f.coords), 2)} m² (${fmt(areaOf(f.coords) / 10000, 4)} ha) · perimeter ${fmt(lengthOf([...f.coords, f.coords[0]]), 2)} m`;
+    return `<div class="feat"><input type="text" value="${esc(f.name)}" data-name="${f.id}" aria-label="Name">`
+      + `<span><button type="button" data-zoom="${f.id}" title="Zoom to it">⌖</button> <button type="button" data-del="${f.id}" title="Delete" aria-label="Delete">×</button></span>`
+      + `<span class="meta">${esc(NAMES[f.type])}: ${meta}</span></div>`;
+  }).join('');
+  box.querySelectorAll('[data-name]').forEach(i => i.onchange = () => { const f = DRAWN.find(d => d.id == i.dataset.name); f.name = i.value.trim() || f.name; renderDrawn(); });
+  box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { DRAWN.splice(DRAWN.findIndex(d => d.id == b.dataset.del), 1); renderDrawn(); });
+  box.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => { const f = DRAWN.find(d => d.id == b.dataset.zoom), bb = new maplibregl.LngLatBounds(); f.coords.forEach(c => bb.extend(c)); map.fitBounds(bb, { padding: 80, maxZoom: 17, duration: 500 }); });
+}
+function wireDrawing() {
+  map.on('mousemove', e => { if (!tool) return; hover = snapAt(e.point) || { c: [e.lngLat.lng, e.lngLat.lat], kind: null }; renderDraft(); info(); });
+  map.on('click', e => {
+    if (!tool) return;
+    const s = snapAt(e.point), c = s ? s.c : [e.lngLat.lng, e.lngLat.lat];
+    if (tool === 'point') { addDrawn('point', [c]); return; }
+    if (tool === 'polygon' && draft.length >= 3) { const p0 = map.project(draft[0]); if (Math.hypot(p0.x - e.point.x, p0.y - e.point.y) <= SNAP_PX) { finishDraft(); return; } }
+    const last = draft[draft.length - 1];
+    if (!last || last[0] !== c[0] || last[1] !== c[1]) draft.push(c);
+    renderDraft(); info();
+  });
+  map.on('dblclick', e => { if (tool && tool !== 'point') { e.preventDefault(); finishDraft(); } });
+  document.addEventListener('keydown', e => {
+    if (!tool || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+    if (e.key === 'Enter') { e.preventDefault(); finishDraft(); }
+    else if (e.key === 'Escape') { if (draft.length) cancelDraft(); else setTool(tool); }
+    else if (e.key === 'Backspace') { e.preventDefault(); draft.pop(); renderDraft(); info(); }
+  });
+}
+
+/* ---------- export ---------- */
+function exportFeatures() {
+  const code = gridCode(), feats = [];
+  const xyProps = c => { const [x, y] = toXY(code, c[0], c[1]); return { x: +x.toFixed(3), y: +y.toFixed(3), lat: +c[1].toFixed(8), lon: +c[0].toFixed(8) }; };
+  if ($('incplan').checked) {
+    const ok = l => l.filter(o => o.lon !== undefined && !o.bad);
+    ok(REFS).slice(0, 1).forEach(o => feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [o.lon, o.lat] }, properties: { name: o.beacon || 'Reference', kind: 'reference coordinate', ...xyProps([o.lon, o.lat]) } }));
+    const sv = ok(SV);
+    sv.forEach((o, i) => feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [o.lon, o.lat] }, properties: { name: o.beacon || 'Point ' + (i + 1), kind: 'plan beacon', order: i + 1, ...xyProps([o.lon, o.lat]) } }));
+    const ring = sv.map(o => [o.lon, o.lat]);
+    if (POLY && ring.length >= 3) feats.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[...ring, ring[0]]] }, properties: { name: 'Plan polygon', kind: 'plan polygon', area_m2: +areaOf(ring).toFixed(2), length_m: +lengthOf([...ring, ring[0]]).toFixed(2) } });
+    else if (ring.length >= 2) feats.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: ring }, properties: { name: 'Plan traverse', kind: 'plan traverse', length_m: +lengthOf(ring).toFixed(2) } });
+  }
+  if ($('incplan').checked) traverseFeatures().forEach(f => feats.push(f));
+  DRAWN.forEach(f => {
+    if (f.type === 'point') feats.push({ type: 'Feature', geometry: { type: 'Point', coordinates: f.coords[0] }, properties: { name: f.name, kind: 'point', ...xyProps(f.coords[0]) } });
+    else if (f.type === 'line') feats.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: f.coords }, properties: { name: f.name, kind: 'line', length_m: +lengthOf(f.coords).toFixed(2) } });
+    else feats.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[...f.coords, f.coords[0]]] }, properties: { name: f.name, kind: 'parcel', area_m2: +areaOf(f.coords).toFixed(2), length_m: +lengthOf([...f.coords, f.coords[0]]).toFixed(2) } });
+  });
+  return feats;
+}
+const coordsOf = g => g.type === 'Point' ? [g.coordinates] : g.type === 'LineString' ? g.coordinates : g.coordinates[0];
+const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+function save(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+const EXPORTS = {
+  geojson(f) { save(new Blob([JSON.stringify({ type: 'FeatureCollection', features: f }, null, 1)], { type: 'application/geo+json' }), `survey-plan-${stamp()}.geojson`); },
+  kml(f) {
+    const pm = x => {
+      const g = x.geometry, c = cs => cs.map(p => `${p[0]},${p[1]},0`).join(' ');
+      const geom = g.type === 'Point' ? `<Point><coordinates>${c([g.coordinates])}</coordinates></Point>` : g.type === 'LineString' ? `<LineString><coordinates>${c(g.coordinates)}</coordinates></LineString>`
+        : `<Polygon><outerBoundaryIs><LinearRing><coordinates>${c(g.coordinates[0])}</coordinates></LinearRing></outerBoundaryIs></Polygon>`;
+      return `<Placemark><name>${esc(x.properties.name)}</name><ExtendedData>${Object.entries(x.properties).map(([k, v]) => `<Data name="${esc(k)}"><value>${esc(v)}</value></Data>`).join('')}</ExtendedData>${geom}</Placemark>`;
+    };
+    save(new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Survey Plan Check</name>${f.map(pm).join('')}</Document></kml>`], { type: 'application/vnd.google-earth.kml+xml' }), `survey-plan-${stamp()}.kml`);
+  },
+  async shp(f) { save(await shpwrite.zip({ type: 'FeatureCollection', features: f }, { outputType: 'blob', types: { point: 'points', polygon: 'polygons', polyline: 'lines' } }), `survey-plan-${stamp()}-shapefile.zip`); },
+  dxf(f) {
+    const code = gridCode(), L = [], add = (...p) => L.push(...p);
+    add('0', 'SECTION', '2', 'ENTITIES');
+    f.forEach(x => {
+      const pts = coordsOf(x.geometry).map(c => toXY(code, c[0], c[1])), layer = (x.properties.kind || 'DRAWN').toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+      if (x.geometry.type === 'Point') { add('0', 'POINT', '8', layer, '10', pts[0][0].toFixed(3), '20', pts[0][1].toFixed(3), '30', '0'); add('0', 'TEXT', '8', layer, '10', (pts[0][0] + 1).toFixed(3), '20', (pts[0][1] + 1).toFixed(3), '30', '0', '40', '1.5', '1', String(x.properties.name)); }
+      else { const closed = x.geometry.type === 'Polygon'; add('0', 'POLYLINE', '8', layer, '66', '1', '70', closed ? '1' : '0'); (closed ? pts.slice(0, -1) : pts).forEach(p => add('0', 'VERTEX', '8', layer, '10', p[0].toFixed(3), '20', p[1].toFixed(3), '30', '0')); add('0', 'SEQEND'); }
+    });
+    add('0', 'ENDSEC', '0', 'EOF');
+    save(new Blob([L.join('\r\n') + '\r\n'], { type: 'application/dxf' }), `survey-plan-${stamp()}.dxf`);
+  },
+  csv(f) {
+    const code = gridCode(), rows = [['feature', 'kind', 'point_no', 'x_easting', 'y_northing', 'latitude', 'longitude', 'coordinate_system']];
+    f.forEach(x => { const cs = coordsOf(x.geometry), pts = x.geometry.type === 'Polygon' ? cs.slice(0, -1) : cs;
+      pts.forEach((c, i) => { const [ex, ny] = toXY(code, c[0], c[1]); rows.push([x.properties.name, x.properties.kind, x.properties.order || i + 1, ex.toFixed(3), ny.toFixed(3), c[1].toFixed(8), c[0].toFixed(8), GRID_NAME[code]]); }); });
+    save(new Blob([rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(',')).join('\r\n')], { type: 'text/csv' }), `survey-plan-${stamp()}.csv`);
+  },
+  sql(f) {
+    const code = gridCode(), q = s => `N'${String(s).replace(/'/g, "''")}'`;
+    const wkt = x => { const pts = coordsOf(x.geometry).map(c => toXY(code, c[0], c[1]).map(n => n.toFixed(3)).join(' '));
+      return x.geometry.type === 'Point' ? `POINT (${pts[0]})` : x.geometry.type === 'LineString' ? `LINESTRING (${pts.join(', ')})` : `POLYGON ((${pts.join(', ')}))`; };
+    const out = [`-- Survey Plan Check export, ${new Date().toISOString()}. Coordinate system: ${GRID_NAME[code]}.`,
+      `-- CREATE TABLE plan_features (id INT IDENTITY PRIMARY KEY, name NVARCHAR(200), kind NVARCHAR(50), geom GEOMETRY);`,
+      ...f.map(x => `INSERT INTO plan_features (name, kind, geom) VALUES (${q(x.properties.name)}, ${q(x.properties.kind)}, geometry::STGeomFromText('${wkt(x)}', ${code}));`)];
+    save(new Blob([out.join('\r\n') + '\r\n'], { type: 'application/sql' }), `survey-plan-${stamp()}.sql`);
+  },
+};
+document.querySelectorAll('[data-export]').forEach(b => b.onclick = async () => {
+  const f = exportFeatures(), note = $('export-note');
+  if (!f.length) { note.textContent = 'Nothing to export yet: enter beacons or draw something first.'; return; }
+  try { await EXPORTS[b.dataset.export](f); note.textContent = `${f.length} feature(s) exported as ${b.textContent}.`; }
+  catch (e) { note.textContent = 'The export failed: ' + e.message; }
+});
+
+/* ---------- the card: Upload, or Check (blank, or filled in from an uploaded plan) ---------- */
+function extras(svOk, ref) {
+  const fs = $('fullStats');
+  if (!svOk.length && !ref) { fs.innerHTML = ''; return; }
+  const st = $('svStats');
+  fs.innerHTML = `<b>${ref ? 'Reference ' + esc(ref.beacon || '') : 'No reference'} · ${svOk.length} other beacon(s)</b>`
+    + (st.hidden ? '' : [...st.querySelectorAll('.stat')].map(s => `<span>${s.querySelector('span').textContent}: ${s.querySelector('b').textContent}</span>`).join(''));
+}
+const modal = $('uploadModal');
+function setSel(id, v) {
+  const el = $(id); if (!v) { el.value = ''; return; }
+  if (![...el.options].some(o => o.value === v || o.text === v)) el.appendChild(new Option(v, v));
+  el.value = [...el.options].find(o => o.value === v || o.text === v).value;
+}
+function setSystem(sys, belt) {
+  if (sys === 'utm') $('sysUtm').checked = true;
+  else { $('sysNtm').checked = true; document.querySelector(`input[name=belt][value="${belt || '26392'}"]`).checked = true; }
+}
+// mode: 'upload' | 'check'; plan: an uploaded plan to fill in from (Check action), or null for a blank card.
+function openModal(mode, plan = null) {
+  clearBody(svBody); POLY = false; addRow(svBody);
+  setSystem(plan?.sys, plan?.belt);
+  setRef(plan?.refBeacon || '', plan?.refX || '', plan?.refY || '');
+  ['pdType', 'pdUnit', 'pdDistrict', 'pdLga', 'pdDrawn'].forEach(id => setSel(id, plan ? plan[id] : ''));
+  $('pdPlot').value = plan?.pdPlot || ''; $('pdRemarks').value = plan?.pdRemarks || '';
+  $('spuFile').value = ''; $('spuFile').dispatchEvent(new Event('change'));
+  $('spuFile').hidden = !!plan;
+  $('pdFileNote').innerHTML = plan ? `<i class="fas fa-paperclip"></i> Uploaded file: <b>${esc(plan.file)}</b>` : 'PDF, JPG, PNG or TIFF, up to 25 MB.';
+  const check = mode === 'check';
+  // Check Survey Plan has no Plan details (user, 2026-11-12); Export moves up to 5.
+  $('pdGroup').hidden = check; document.querySelector('[data-panel=details]').hidden = check; $('exNum').textContent = check ? 5 : 6;
+  $('up-h').textContent = check ? 'Check Survey Plan' : 'Upload Survey Plan';
+  $('modePill').hidden = !check; $('modePill').textContent = plan ? plan.ref : 'Blank check';
+  $('sendBtn').hidden = check;
+  $('prefillNote').hidden = !plan;
+  $('prefillNote').innerHTML = plan ? `<i class="fas fa-circle-info"></i> Filled in from upload <b>${esc(plan.ref)}</b> (${esc(plan.pdType)}, plot ${esc(plan.pdPlot)}, ${esc(plan.pdDistrict)}, ${esc(plan.pdLga)}): the coordinate system and the reference coordinate are as the uploader entered them. Add the other beacons under the map.` : '';
+  modal.hidden = false; document.body.classList.add('lock');
+  modal.querySelector('.modal-b').scrollTop = 0;
+  setTimeout(() => { if (map) { map.resize(); const r = rowsOf(refBody)[0]; if (plan) goTo(r); } }, 60);
+}
+function closeModal() { modal.hidden = true; document.body.classList.remove('lock'); if ($('mapbox').classList.contains('full')) setFull(false); }
+$('openUpload').onclick = () => openModal('upload');
+$('openCheck').onclick = () => openModal('check');
+$('closeX').onclick = closeModal; $('closeBtn').onclick = closeModal;
+
+// Sample uploaded plans for the list (prototype only), made from Beacon Register beacons. One is typed in UTM and
+// is not in the register, to show the uploader's coordinate system and typed X / Y coming through.
+let PLANS = [];
+function buildPlans() {
+  const used = new Set(), out = [];
+  for (const b of SORTED) {
+    if (out.length >= 3) break;
+    if (b.kind !== 'B' || !b.district || used.has(key(b.district)) || neighbours(b, 3).length < 3) continue;
+    used.add(key(b.district));
+    out.push({ ref: `SPU-SAMPLE-${String(out.length + 1).padStart(4, '0')}`, sys: 'ntm', belt: '26392', refBeacon: b.beacon,
+      pdType: out.length % 2 ? 'Application Plan' : 'Final Survey Plan', pdUnit: 'GKN (Public)', pdPlot: `${10 + out.length * 7}`,
+      pdDistrict: String(b.district).toUpperCase(), pdLga: 'Kano Municipal', pdDrawn: 'Sample Surveyor', pdRemarks: 'Sample for the preview.',
+      file: `sample-plan-${out.length + 1}.pdf`, stage: 'Awaiting check' });
+  }
+  const t = SORTED.find(b => b.kind === 'B' && !out.some(p => p.refBeacon === b.beacon) && b.district);
+  if (t) {
+    const [x, y] = toXY('32632', t.lon + 0.0004, t.lat + 0.0003);
+    out.push({ ref: `SPU-SAMPLE-${String(out.length + 1).padStart(4, '0')}`, sys: 'utm', refBeacon: 'SC/KN 9001', refX: x.toFixed(3), refY: y.toFixed(3),
+      pdType: 'Final Survey Plan', pdUnit: 'Examination/Verification', pdPlot: '3B', pdDistrict: String(t.district).toUpperCase(), pdLga: 'Nassarawa',
+      pdDrawn: 'Sample Surveyor', pdRemarks: 'Typed in UTM (WGS 84); not in the Beacon Register.', file: 'sample-plan-utm.pdf', stage: 'Awaiting check' });
+  }
+  PLANS = out;
+  $('planRows').innerHTML = out.map((p, i) => `<tr><td>${i + 1}</td><td class="mono">${esc(p.ref)}</td><td>${esc(p.pdType)}</td><td>${esc(p.pdPlot)}</td><td>${esc(p.pdDistrict)}</td><td>${esc(p.pdLga)}</td>`
+    + `<td>${esc(p.pdDistrict)}, ${esc(p.pdLga)}</td><td class="mono">${esc(p.refBeacon)} <span class="sys-tag">${p.sys === 'utm' ? 'UTM' : 'NTM Mid'}</span></td><td>${esc(p.pdDrawn)}</td>`
+    + `<td><span class="stage">${esc(p.stage)}</span></td><td><button type="button" class="kebab" data-plan="${i}" aria-label="Actions" aria-haspopup="menu"><i class="fas fa-ellipsis-vertical"></i></button></td></tr>`).join('')
+    || '<tr><td colspan="11" class="note" style="padding:14px">No samples.</td></tr>';
+}
+// Row action menu (three dots).
+const menu = $('rowMenu'); let menuPlan = null;
+document.addEventListener('click', e => {
+  const k = e.target.closest('.kebab');
+  if (k) {
+    menuPlan = PLANS[+k.dataset.plan];
+    const r = k.getBoundingClientRect();
+    menu.hidden = false;
+    menu.style.top = (r.bottom + 4) + 'px'; menu.style.left = Math.max(8, r.right - menu.offsetWidth) + 'px';
+    return;
+  }
+  if (!e.target.closest('#rowMenu')) menu.hidden = true;
+});
+window.addEventListener('scroll', () => { menu.hidden = true; }, true);
+$('rmCheck').onclick = () => { menu.hidden = true; if (menuPlan) openModal('check', menuPlan); };
+// NTM vs UTM chart: opens full size; Esc, Close or a click beside the chart closes it.
+(function () {
+  const box = $('guideBox'), show = on => { box.hidden = !on; };
+  document.querySelectorAll('[data-guide]').forEach(b => b.addEventListener('click', () => show(true)));
+  $('guideClose').onclick = () => show(false);
+  $('guideBody').addEventListener('click', e => { if (e.target.tagName !== 'IMG') show(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !box.hidden) { e.stopPropagation(); show(false); } }, true);
+})();
+$('sendBtn').onclick = () => toast('Prototype: nothing is saved. In KLAES this uploads the plan with its reference beacons.');
+function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 3200); }
+// Preview of the chosen plan file (as KLAES), read in the browser only.
+let previewUrl = null;
+$('spuFile').addEventListener('change', e => {
+  const f = e.target.files[0], box = $('spuPreview'), body = $('spuPreviewBody');
+  if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = null; }
+  if (!f) { box.hidden = true; body.innerHTML = ''; return; }
+  previewUrl = URL.createObjectURL(f); $('spuPreviewName').textContent = f.name; box.hidden = false;
+  body.innerHTML = /pdf$/i.test(f.type) ? `<iframe src="${previewUrl}" title="Plan preview"></iframe>`
+    : /^image\/(png|jpe?g)$/i.test(f.type) ? `<img src="${previewUrl}" alt="Plan preview">` : '<p class="note">No preview for this file type; it will still upload.</p>';
+});
+$('spuPreviewClear').onclick = () => { $('spuFile').value = ''; $('spuFile').dispatchEvent(new Event('change')); };
+// Full screen, as on the correction board: the same map over the whole window; Esc or F closes it.
+function setFull(on) {
+  $('mapbox').classList.toggle('full', on);
+  $('mapFull').querySelector('span').textContent = on ? 'Exit full screen' : 'Full screen';
+  $('mapFull').querySelector('i').className = on ? 'fas fa-down-left-and-up-right-to-center' : 'fas fa-up-right-and-down-left-from-center';
+  setTimeout(() => map && map.resize(), 30);
+}
+$('mapFull').onclick = () => setFull(!$('mapbox').classList.contains('full'));
+$('mapFit').onclick = () => { refresh(); fitAll(); };
+document.addEventListener('keydown', e => {
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || tool) return;
+  if (e.key === 'Escape' && $('mapbox').classList.contains('full')) setFull(false);
+  else if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !modal.hidden) setFull(!$('mapbox').classList.contains('full'));
+});
+</script>
+</body>
+</html>

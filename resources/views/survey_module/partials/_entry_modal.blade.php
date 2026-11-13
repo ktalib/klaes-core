@@ -7,7 +7,7 @@
     validation error) opens as a modal too.
 
         data-sv-modal="Log Complaint"      dialog title
-        data-sv-modal-size="sm|lg"         narrower / wider dialog (default md)
+        data-sv-modal-size="sm|lg|xl"      narrower / wider dialog (default md); xl nearly fills the screen
         data-sv-modal-close="<url>"        where closing goes instead of just hiding (edit mode)
         data-sv-modal-static               closes only with the x or the form's own Close button,
                                            not on a click outside or Esc (user, 2026-11-02)
@@ -25,6 +25,9 @@
         width: min(860px, 100%); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; }
     .survey-proto .sv-modal-dialog.sm { width: min(600px, 100%); }
     .survey-proto .sv-modal-dialog.lg { width: min(1080px, 100%); }
+    /* xl: the Upload Survey Plan card with its map (user, 2026-11-12). */
+    .survey-proto .sv-modal-dialog.xl { width: min(1500px, 96vw); height: 96vh; max-height: 96vh; }
+    .survey-proto .sv-modal:has(.sv-modal-dialog.xl) { padding: 2vh 2vw; align-items: center; }
     .survey-proto .sv-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px;
         border-bottom: 1px solid var(--gray-200, #e5e7eb); flex-shrink: 0; }
     .survey-proto .sv-modal-head h4 { margin: 0; font-size: 16.5px; font-weight: 600; color: var(--gray-900, #111827); }

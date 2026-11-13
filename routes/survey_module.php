@@ -69,6 +69,9 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // CR 11112026-2 (items 4-7): reference beacon search, the four stages, SG/DSG signing list, portal uploads.
         Route::get('/beacons', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'beacons'])->name('beacons');
         Route::get('/signing', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'signing'])->name('signing');
+        // Survey Plan Check (user, 2026-11-12): blank, or filled in from an uploaded plan.
+        Route::get('/check', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'check'])->name('check');
+        Route::get('/{plan}/check', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'checkPlan'])->whereNumber('plan')->name('check-plan');
         Route::get('/portal', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'portalPlans'])->name('portal');
         Route::get('/{plan}', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'show'])->whereNumber('plan')->name('show');
         Route::post('/{plan}/corrections', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'corrections'])->whereNumber('plan')->name('corrections');

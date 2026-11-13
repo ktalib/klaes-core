@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * CR 11112026-2 item 8 prototype: the beacons with coordinates, for the public Plan Coordinate Check page
- * (public/maps/plan-check.html, no login; user, 2026-11-12). Writes public/maps/data/beacons.json with the
+ * (public/maps/survey-plan-check.html, no login; user, 2026-11-12). Writes public/maps/data/beacons.json with the
  * beacon number, X (Easting), Y (Northing), plan no. and district only. Pairs that are not a six-digit
  * Easting and a seven-digit Northing are left out (they are on the coordinate-fix "needs checking" list).
  */

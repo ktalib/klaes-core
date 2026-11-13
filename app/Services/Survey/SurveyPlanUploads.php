@@ -46,7 +46,9 @@ class SurveyPlanUploads
             'drawn_by'       => ['required', 'string', 'max:255'],
             'drawn_by_other' => ['nullable', 'string', 'max:255', Rule::requiredIf(fn () => $staff && $r->input('drawn_by') === self::OTHER)],
             'remarks'        => 'nullable|string|max:1000',
-            'plan_file'      => ['required', 'file', 'max:25600', 'mimes:' . implode(',', Plan::FILE_TYPES), function ($attr, $file, $fail) {
+            // The system the plan's X / Y are in (Survey Plan Check, user 2026-11-12).
+            'coord_system'   => ['required', Rule::in(array_keys(Plan::COORD_SYSTEMS))],
+            'plan_file'     => ['required', 'file', 'max:25600', 'mimes:' . implode(',', Plan::FILE_TYPES), function ($attr, $file, $fail) {
                 // mimes reads the contents; a wrong name is refused too.
                 if (! in_array(strtolower($file->getClientOriginalExtension()), Plan::FILE_TYPES, true)) {
                     $fail('Upload the plan as a PDF, JPG, PNG or TIFF.');
@@ -61,6 +63,8 @@ class SurveyPlanUploads
             'lga.required'            => 'Choose the LGA.',
             'drawn_by.required'       => 'Say who drew the plan.',
             'drawn_by_other.required' => "Type the name of who drew the plan.",
+            'coord_system.required'   => 'Choose the coordinate system of the plan.',
+            'coord_system.in'         => 'Choose the coordinate system of the plan: NTM (West, Mid or East Belt) or UTM (WGS 84).',
             'plan_file.required'      => 'Upload the survey plan.',
             'plan_file.mimes'         => 'Upload the plan as a PDF, JPG, PNG or TIFF.',
             'plan_file.max'           => 'The plan can be at most 25 MB.',
@@ -98,6 +102,7 @@ class SurveyPlanUploads
             'surveyors_list_id' => $surveyorId,
             'drawn_by'          => $drawnBy,
             'remarks'           => \App\Services\CadastralDept\Normalise::text($d['remarks'] ?? null) ?: null,
+            'coord_system'      => $d['coord_system'],
             'beacons'           => $beacons,
         ];
     }
@@ -122,9 +127,9 @@ class SurveyPlanUploads
             }
             [$x, $y] = SurveyCoordinates::orient($x, $y);   // X = Easting, Y = Northing (item 10)
             $n = count($rows) + 1;
-            if ($no === '') $errors["beacons.$i.beacon_no"] = "Reference beacon {$n}: enter the beacon number.";
-            if (! is_numeric($x)) $errors["beacons.$i.x"] = "Reference beacon {$n}: X must be a number.";
-            if (! is_numeric($y)) $errors["beacons.$i.y"] = "Reference beacon {$n}: Y must be a number.";
+            if ($no === '') $errors["beacons.$i.beacon_no"] = 'Reference coordinate: enter the beacon number.';
+            if (! is_numeric($x)) $errors["beacons.$i.x"] = 'Reference coordinate: X must be a number.';
+            if (! is_numeric($y)) $errors["beacons.$i.y"] = 'Reference coordinate: Y must be a number.';
             $rows[] = [
                 'beacon_no' => mb_substr($no, 0, 60),
                 'coord_x'   => mb_substr($x, 0, 40),
@@ -132,11 +137,12 @@ class SurveyPlanUploads
                 'source'    => in_array($b['source'] ?? '', ['captured', 'extant'], true) ? $b['source'] : 'typed',
             ];
         }
+        // One reference coordinate (user, 2026-11-12); the other beacons are plotted by the checker.
         if (! $rows) {
-            $errors['beacons'] = 'Enter at least one reference beacon with its X and Y.';
+            $errors['beacons'] = 'Enter the reference coordinate: its beacon number, X and Y.';
         }
-        if (count($rows) > 30) {
-            $errors['beacons'] = 'Up to 30 reference beacons can be entered.';
+        if (count($rows) > 1) {
+            $errors['beacons'] = 'Enter one reference coordinate.';
         }
         if ($errors) {
             throw ValidationException::withMessages($errors);
