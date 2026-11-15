@@ -22,6 +22,17 @@
         : route('survey-module.survey-plans.gis-tiles', ['layer' => '__LAYER__']);
 @endphp
 <div class="spc" id="spc" data-column-picker="off" data-mode="{{ $spcMode }}" data-search="{{ $spcSearchUrl }}" data-gis="{{ $spcGisUrl }}" data-gis-full="{{ request()->routeIs('surveyor-portal.*') ? '0' : '1' }}" data-prefill='@json($spcPrefill)'>
+  {{-- Coloured top bar with Refresh and Reset, as on the FC commissioning card (user, 2026-11-15).
+       Refresh reloads the Beacon Register and redraws, keeping what is typed; Reset clears what was entered. --}}
+  <div class="spc-topbar">
+    <div class="spc-topbar-t"><span class="spc-topbar-ic"><i class="fas fa-map-location-dot"></i></span>
+      <div><b>Survey Plan Check</b><small>Coordinates, beacons and the plan on the map</small></div></div>
+    <span class="spc-topbar-msg" id="spc-topMsg" hidden></span>
+    <div class="spc-topbar-btns">
+      <button type="button" class="spc-top-btn reset" id="spc-resetBtn" title="Clear everything entered on this card and start again"><i class="fas fa-eraser"></i> Reset</button>
+      <button type="button" class="spc-top-btn refresh" id="spc-refreshBtn" title="Reload the Beacon Register and redraw the map; your entries are kept"><i class="fas fa-rotate"></i> Refresh</button>
+    </div>
+  </div>
   @if (! empty($spcPrefill['note']))
     <div class="spc-prefill"><i class="fas fa-circle-info"></i> {!! $spcPrefill['note'] !!}</div>
   @endif
@@ -214,6 +225,9 @@
     <div class="spc-mapbody" id="spc-mapbody">
     <aside class="spc-toc" id="spc-toc" aria-label="Layers"></aside>
     <div class="spc-map" id="spc-map">
+      @if ($spcMode === 'upload')
+        <span class="spc-map-watermark" aria-hidden="true">Dev-SDK4.3-Demo</span>
+      @endif
       <div class="spc-drawinfo" id="spc-drawinfo" hidden></div>
       <div class="spc-fullstats" id="spc-fullStats"></div>
     </div>

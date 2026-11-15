@@ -1149,19 +1149,50 @@ window.addEventListener('load', function () {
       map.on('mouseleave', id, () => { if (!tool) map.getCanvas().style.cursor = ''; });
     });
   }
-  const GIS_FIELDS = {
-    'gis-parcels-fill': [['mlsfNo', 'MLS File No.'], ['kangisFileNo', 'KANGIS File No.'], ['plotNo', 'Plot No.'], ['blockNo', 'Block'], ['tpPlanNo', 'TP Plan'], ['approvedPlanNo', 'Approved Plan'],
-      ['layoutName', 'Layout'], ['districtName', 'District'], ['lgaName', 'LGA'], ['plotYearCreated', 'Year'], ['surveyedBy', 'Surveyed by'], ['drawnBy', 'Drawn by'], ['checkedBy', 'Checked by'], ['passedBy', 'Passed by'],
-      ['metricSheetNo', 'Metric sheet'], ['imperialSheetNo', 'Imperial sheet'], ['oldTitleSerialNo', 'Old title serial'], ['oldTitlePageNo', 'Old title page'], ['oldTitleVolumeNo', 'Old title volume'], ['deedsDate', 'Deeds date']],
-    'gis-beacons': [['beaconName', 'Beacon']],
-    'gis-ctl': [['PILLAR_NO', 'Pillar'], ['LOCATION', 'Location'], ['LGA', 'LGA'], ['E', 'E'], ['N', 'N'], ['H', 'Height']],
+  // The pop-up card for a Kano GIS feature (user, 2026-11-15: icons and colours). Sections in the property
+  // order the app uses everywhere: Plot No., District, LGA, then the layout and plans.
+  const GIS_CARD = {
+    'gis-parcels-fill': {
+      title: 'Parcel', icon: 'fa-draw-polygon', tone: 'parcel',
+      chips: [['mlsfNo', 'MLS'], ['kangisFileNo', 'KANGIS']],
+      sections: [
+        ['Property', 'fa-map-location-dot', [['plotNo', 'Plot No.'], ['blockNo', 'Block'], ['districtName', 'District'], ['lgaName', 'LGA'], ['layoutName', 'Layout']]],
+        ['Plans', 'fa-file-lines', [['tpPlanNo', 'TP Plan'], ['approvedPlanNo', 'Approved Plan'], ['metricSheetNo', 'Metric sheet'], ['imperialSheetNo', 'Imperial sheet']]],
+        ['Survey', 'fa-user-pen', [['plotYearCreated', 'Year'], ['surveyedBy', 'Surveyed by'], ['drawnBy', 'Drawn by'], ['checkedBy', 'Checked by'], ['passedBy', 'Passed by']]],
+        ['Old title / Deeds', 'fa-book', [['oldTitleSerialNo', 'Serial'], ['oldTitlePageNo', 'Page'], ['oldTitleVolumeNo', 'Volume'], ['deedsDate', 'Deeds date']]],
+      ],
+    },
+    'gis-beacons': {
+      title: 'Beacon', icon: 'fa-location-dot', tone: 'beacon', chips: [['beaconName', 'Beacon']], sections: [],
+    },
+    'gis-ctl': {
+      title: 'Control beacon', icon: 'fa-crosshairs', tone: 'control', chips: [['PILLAR_NO', 'Pillar']],
+      sections: [
+        ['Location', 'fa-map-location-dot', [['LOCATION', 'Location'], ['LGA', 'LGA']]],
+        ['Coordinates', 'fa-ruler-combined', [['E', 'Easting'], ['N', 'Northing'], ['H', 'Height']]],
+      ],
+    },
   };
   function gisPopup(id, f, at) {
-    const p = f.properties || {};
-    const title = { 'gis-parcels-fill': 'Parcel', 'gis-beacons': 'Beacon', 'gis-ctl': 'Control beacon' }[id];
-    const rows = GIS_FIELDS[id].filter(([k]) => p[k] !== undefined && p[k] !== null && String(p[k]).trim() !== '' && String(p[k]) !== 'NaT')
-      .map(([k, label]) => `<tr><td style="color:#6b7280;padding:1px 8px 1px 0;border:0;white-space:nowrap">${esc(label)}</td><td style="padding:1px 0;border:0"><b>${esc(String(p[k]).replace(/T00:00:00$/, ''))}</b></td></tr>`).join('');
-    new maplibregl.Popup({ maxWidth: '300px' }).setLngLat(at).setHTML(`<b>${title}</b><table style="font-size:12px;margin-top:4px;border-collapse:collapse;width:auto">${rows || '<tr><td>No details</td></tr>'}</table>`).addTo(map);
+    const p = f.properties || {}, card = GIS_CARD[id];
+    const val = k => { const v = p[k]; if (v === undefined || v === null) return ''; const t = String(v).replace(/T00:00:00$/, '').trim(); return t === 'NaT' || t === 'nan' ? '' : t; };
+    const chips = card.chips.filter(([k]) => val(k)).map(([k, label]) =>
+      `<span class="spc-gp-chip"><small>${esc(label)}</small><b>${esc(val(k))}</b><button type="button" class="spc-gp-copy" data-copy="${esc(val(k))}" title="Copy" aria-label="Copy ${esc(val(k))}"><i class="fas fa-copy"></i></button></span>`).join('');
+    const sections = card.sections.map(([name, icon, fields]) => {
+      const rows = fields.filter(([k]) => val(k)).map(([k, label]) => `<div class="spc-gp-row"><span>${esc(label)}</span><b>${esc(val(k))}</b></div>`).join('');
+      return rows ? `<div class="spc-gp-sec"><div class="spc-gp-sname"><i class="fas ${icon}"></i>${esc(name)}</div>${rows}</div>` : '';
+    }).join('');
+    const [lon, lat] = [at.lng, at.lat];
+    const html = `<div class="spc-gp spc-gp-${card.tone}">
+        <div class="spc-gp-head"><span class="spc-gp-ic"><i class="fas ${card.icon}"></i></span><div><b>${card.title}</b><small>Kano GIS</small></div></div>
+        ${chips ? `<div class="spc-gp-chips">${chips}</div>` : ''}
+        <div class="spc-gp-body">${sections || (chips ? '' : '<p class="spc-gp-none">No details on this feature.</p>')}</div>
+        <div class="spc-gp-foot"><i class="fas fa-crosshairs"></i> ${fmt(lat, 6)}, ${fmt(lon, 6)}</div>
+      </div>`;
+    const pop = new maplibregl.Popup({ maxWidth: '320px', className: 'spc-gp-wrap' }).setLngLat(at).setHTML(html).addTo(map);
+    pop.getElement().querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
+      try { navigator.clipboard.writeText(b.dataset.copy); b.innerHTML = '<i class="fas fa-check"></i>'; setTimeout(() => { b.innerHTML = '<i class="fas fa-copy"></i>'; }, 1200); } catch (e) { /* clipboard blocked */ }
+    });
   }
   function showGis(key, on) {
     GIS_ON[key] = on;
@@ -1361,6 +1392,36 @@ window.addEventListener('load', function () {
     guide.addEventListener('click', e => { if (e.target.closest('[data-spc-guide-close]') && !e.target.closest('img')) show(false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !guide.hidden) { e.stopPropagation(); show(false); } }, true);
   }
+
+  /* ---------- top bar: Refresh and Reset (user, 2026-11-15, as on the FC card) ---------- */
+  let topMsgTimer = null;
+  function topMsg(text) {
+    const m = $('topMsg'); if (!m) return;
+    m.textContent = text; m.hidden = false;
+    clearTimeout(topMsgTimer); topMsgTimer = setTimeout(() => { m.hidden = true; }, 4000);
+  }
+  // Refresh: the Beacon Register again and a fresh draw; nothing typed is touched.
+  if ($('refreshBtn')) $('refreshBtn').onclick = async () => {
+    const b = $('refreshBtn'); b.disabled = true; b.querySelector('i').classList.add('fa-spin');
+    try {
+      if (mapReady) { await loadRegister(); map.resize(); map.triggerRepaint(); }
+      refresh(); renderToc();
+      topMsg('Refreshed: Beacon Register reloaded; your entries are kept.');
+    } finally { b.disabled = false; b.querySelector('i').classList.remove('fa-spin'); }
+  };
+  // Reset: back to a blank card (default system, empty reference, other beacons, traverse and drawn shapes).
+  // The map, its layers, imagery and any scanned plan stay as they are.
+  if ($('resetBtn')) $('resetBtn').onclick = () => {
+    if (tool) setTool(tool);
+    setSystem('26332'); systemChanged();
+    clearBody(refBody); addRow(refBody);
+    clearBody(svBody); addRow(svBody); POLY = false;
+    setPicked($('trStartB'), $('trStartOther'), ''); $('trStartX').value = ''; $('trStartY').value = '';
+    resetLines();
+    DRAWN.length = 0; renderDrawn();
+    refresh();
+    topMsg('Reset: the card is blank again.');
+  };
 
   /* ---------- start: the system and reference from the upload (Check), or blank ---------- */
   setSystem(PREFILL?.sys || '26332');

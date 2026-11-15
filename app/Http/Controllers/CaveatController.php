@@ -185,7 +185,7 @@ class CaveatController extends Controller
             $year = date('Y');
 
             if ($caveatNumberScheme === 'ADD-CAV') {
-                $lastSeq = (int) (Caveat::where('caveat_number', 'like', 'ADD-CAV-' . $year . '-%')
+                $lastSeq = (int) (Caveat::withoutGlobalScope('not_deleted')->where('caveat_number', 'like', 'ADD-CAV-' . $year . '-%')
                     ->get()
                     ->map(function ($c) use ($year) {
                         if (preg_match('/ADD\-CAV\-' . $year . '\-(\d+)/i', (string) $c->caveat_number, $m)) {
@@ -196,7 +196,7 @@ class CaveatController extends Controller
                     ->max() ?? 0);
                 $caveatNumber = 'ADD-CAV-' . $year . '-' . str_pad((string) ($lastSeq + 1), 3, '0', STR_PAD_LEFT);
             } else {
-                $lastSeq = (int) (Caveat::where('caveat_number', 'like', 'CAV%' . $year . '%')
+                $lastSeq = (int) (Caveat::withoutGlobalScope('not_deleted')->where('caveat_number', 'like', 'CAV%' . $year . '%')
                     ->get()
                     ->map(function ($c) use ($year) {
                         if (preg_match('/CAV[\/\-]' . $year . '[\/\-](\d+)/', (string) $c->caveat_number, $m)) {
@@ -362,7 +362,7 @@ class CaveatController extends Controller
     public function nextDraftId()
     {
         $year = date('Y');
-        $lastSeq = (int) (Caveat::where('caveat_number', 'like', 'ADD-CAV-' . $year . '-%')
+        $lastSeq = (int) (Caveat::withoutGlobalScope('not_deleted')->where('caveat_number', 'like', 'ADD-CAV-' . $year . '-%')
             ->get()
             ->map(function ($c) use ($year) {
                 if (preg_match('/ADD\-CAV\-' . $year . '\-(\d+)/i', (string) $c->caveat_number, $m)) {

@@ -154,6 +154,7 @@
 .spc .spc-mapbody.notoc { grid-template-columns: minmax(0, 1fr); }
 .spc .spc-mapbody.notoc .spc-toc { display: none; }
 .spc .spc-map { position: relative; height: 100%; min-height: 0; }
+.spc[data-mode="upload"] .spc-map-watermark { position: absolute; right: 12px; bottom: 34px; z-index: 6; color: #dc2626; background: rgba(255,255,255,.82); border: 1px solid rgba(220,38,38,.3); border-radius: 6px; padding: 3px 7px; font: 700 11px/1.2 system-ui, sans-serif; letter-spacing: .08em; pointer-events: none; user-select: none; }
 .spc .spc-drawinfo { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 5; background: rgba(15,23,42,.88); color: #fff; font-size: 12px; padding: 7px 12px; border-radius: 8px; max-width: calc(100% - 24px); text-align: center; }
 .spc .spc-fullstats { position: absolute; left: 12px; bottom: 34px; z-index: 5; background: rgba(15,23,42,.88); color: #fff; font-size: 12px; padding: 8px 12px; border-radius: 10px; display: none; gap: 2px; }
 .spc .spc-mapbox.full { position: fixed; inset: 0; z-index: 3000; border-radius: 0; border: 0; grid-template-rows: auto minmax(0, 1fr); }
@@ -410,3 +411,51 @@ body.spc-noscroll { overflow: hidden; }
 .spc .spc-geo-ib { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
 .spc .spc-geo-ib:hover { background: rgba(148,163,184,.25); }
 @media (max-width: 900px) { .spc .spc-geo-ovl { padding: 0; } .spc .spc-geo-box { width: 100vw; height: 100vh; border-radius: 0; } .spc .spc-geo-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 55vh auto; overflow: auto; } .spc .spc-geo-side { border-left: 0; } }
+
+
+/* ── Kano GIS pop-up card (2026-11-15) ── */
+.spc-gp-wrap .maplibregl-popup-content { padding: 0; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(15,23,42,.28); }
+.spc-gp-wrap .maplibregl-popup-close-button { color: #fff; font-size: 18px; width: 28px; height: 28px; right: 2px; top: 2px; z-index: 2; }
+.spc-gp-wrap .maplibregl-popup-close-button:hover { background: rgba(255,255,255,.18); }
+.spc-gp { --gp: #ea580c; --gp-soft: #fff7ed; font-size: 12px; color: #1f2937; width: 300px; max-width: 100%; }
+.spc-gp-beacon { --gp: #e11d48; --gp-soft: #fff1f2; }
+.spc-gp-control { --gp: #ca8a04; --gp-soft: #fefce8; }
+.spc-gp-head { display: flex; align-items: center; gap: 10px; padding: 10px 34px 10px 12px; background: linear-gradient(135deg, var(--gp), color-mix(in srgb, var(--gp) 70%, #000)); color: #fff; }
+.spc-gp-head b { display: block; font-size: 14px; line-height: 1.2; }
+.spc-gp-head small { display: block; font-size: 10.5px; opacity: .85; letter-spacing: .04em; text-transform: uppercase; }
+.spc-gp-ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: rgba(255,255,255,.2); font-size: 15px; flex: none; }
+.spc-gp-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px 2px; }
+.spc-gp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; border-radius: 8px; background: var(--gp-soft); border: 1px solid color-mix(in srgb, var(--gp) 30%, #fff); }
+.spc-gp-chip small { font-size: 9.5px; font-weight: 700; color: var(--gp); text-transform: uppercase; letter-spacing: .04em; }
+.spc-gp-chip b { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #111827; }
+.spc-gp-copy { border: 0; background: transparent; color: #64748b; width: 22px; height: 22px; border-radius: 6px; cursor: pointer; font-size: 11px; }
+.spc-gp-copy:hover { background: #fff; color: var(--gp); }
+.spc-gp-body { padding: 4px 12px 8px; max-height: 280px; overflow-y: auto; }
+.spc-gp-sec { padding: 8px 0 4px; border-bottom: 1px dashed #e5e7eb; }
+.spc-gp-sec:last-child { border-bottom: 0; }
+.spc-gp-sname { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--gp); margin-bottom: 4px; }
+.spc-gp-sname i { width: 14px; text-align: center; }
+.spc-gp-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; padding: 2px 0; line-height: 1.35; }
+.spc-gp-row span { color: #6b7280; }
+.spc-gp-row b { font-weight: 600; color: #111827; word-break: break-word; }
+.spc-gp-none { margin: 6px 0; color: #6b7280; }
+.spc-gp-foot { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: #f8fafc; border-top: 1px solid #eef2f7; color: #64748b; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+
+
+/* ── Card top bar: Refresh / Reset (2026-11-15) ── */
+.spc .spc-topbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: 12px; color: #fff;
+  background: linear-gradient(135deg, #0f766e, #0e7490 60%, #1d4ed8); box-shadow: 0 6px 18px rgba(14,116,144,.25); }
+.spc .spc-topbar-t { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
+.spc .spc-topbar-t b { display: block; font-size: 15px; line-height: 1.2; }
+.spc .spc-topbar-t small { display: block; font-size: 12px; opacity: .85; }
+.spc .spc-topbar-ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,255,255,.18); font-size: 16px; flex: none; }
+.spc .spc-topbar-msg { font-size: 12px; font-weight: 600; background: rgba(255,255,255,.18); padding: 5px 10px; border-radius: 8px; }
+.spc .spc-topbar-msg[hidden] { display: none; }
+.spc .spc-topbar-btns { display: inline-flex; gap: 8px; }
+.spc .spc-top-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: #fff; }
+.spc .spc-top-btn.reset { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+.spc .spc-top-btn.reset:hover { background: #fee2e2; }
+.spc .spc-top-btn.refresh { color: #1d4ed8; border-color: #bfdbfe; background: #eff6ff; }
+.spc .spc-top-btn.refresh:hover { background: #dbeafe; }
+.spc .spc-top-btn:disabled { opacity: .6; cursor: wait; }
+@media (max-width: 600px) { .spc .spc-topbar-btns { width: 100%; } .spc .spc-top-btn { flex: 1; justify-content: center; } }

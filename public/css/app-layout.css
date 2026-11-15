@@ -432,12 +432,22 @@ tr.gender-row-joint     > td:first-child { box-shadow: inset 4px 0 0 0 #15803d; 
 .gender-swatch-joint     { background-color: #dcfce7; box-shadow: inset 4px 0 0 0 #15803d; }
 .gender-swatch-none      { background-color: #ffffff; box-shadow: inset 0 0 0 1px #cbd5e1; }
 
-/* A deleted file left on its table: crossed out and read-only. */
+/* A deleted file left on its table: crossed out and read-only. Red row with one straight line
+   through the whole row (user, 2026-11-15), not just each cell's text. */
+.crossed-out-row td {
+  background-color: #fef2f2 !important;
+  background-image: linear-gradient(#dc2626, #dc2626) !important;
+  background-size: 100% 2px !important;
+  background-position: 0 50% !important;
+  background-repeat: no-repeat !important;
+}
 .crossed-out-row td,
 .crossed-out-row td * {
   text-decoration: line-through;
-  color: #94a3b8 !important;
+  text-decoration-color: #dc2626;
+  color: #b91c1c !important;
 }
+.crossed-out-row:hover td { background-color: #fee2e2 !important; }
 
 .crossed-out-row a,
 .crossed-out-row button,
@@ -457,4 +467,35 @@ tr.gender-row-joint     > td:first-child { box-shadow: inset 4px 0 0 0 #15803d; 
 
 .sidebar-locked * {
   cursor: not-allowed !important;
+}
+
+/* A Master-Deleted file's tracker request (File Tracker cards): kept, red, one line straight
+   through the card, read-only (user, 2026-11-15). */
+.tracker-card.tracker-crossed-out {
+  position: relative;
+  background-color: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+  border-left: 4px solid #dc2626 !important;
+}
+.tracker-card.tracker-crossed-out::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 2px solid #dc2626;
+  pointer-events: none;
+  z-index: 3;
+}
+.tracker-card.tracker-crossed-out,
+.tracker-card.tracker-crossed-out * {
+  color: #b91c1c !important;
+  text-decoration: line-through;
+  text-decoration-color: #dc2626;
+}
+.tracker-card.tracker-crossed-out button,
+.tracker-card.tracker-crossed-out a,
+.tracker-card.tracker-crossed-out select,
+.tracker-card.tracker-crossed-out input {
+  pointer-events: none;
 }

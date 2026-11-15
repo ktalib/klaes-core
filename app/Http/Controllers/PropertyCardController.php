@@ -901,6 +901,12 @@ class PropertyCardController extends Controller
                 'instrument_type',
                 'created_at',
             ];
+            // A Master-Deleted file's CofO stays listed, crossed out (user, 2026-11-15).
+            foreach (['is_deleted', 'deleted_numbers'] as $crossCol) {
+                if (Schema::connection('sqlsrv')->hasColumn($cofoTable, $crossCol)) {
+                    $selectColumns[] = $crossCol;
+                }
+            }
 
             if ($hasGrantorColumn) {
                 $selectColumns[] = 'Grantor';
@@ -923,7 +929,8 @@ class PropertyCardController extends Controller
                         ->orWhere('regNo', 'like', "%{$searchValue}%")
                         ->orWhere('transaction_type', 'like', "%{$searchValue}%")
                         ->orWhere('cofo_type', 'like', "%{$searchValue}%")
-                        ->orWhere('land_use', 'like', "%{$searchValue}%");
+                        ->orWhere('land_use', 'like', "%{$searchValue}%")
+                        ->orWhere('deleted_numbers', 'like', "%{$searchValue}%");
 
                     if ($hasGrantorColumn) {
                         $q->orWhere('Grantor', 'like', "%{$searchValue}%");
@@ -965,6 +972,10 @@ class PropertyCardController extends Controller
             // Format the data for DataTables
             $data = [];
             foreach ($records as $record) {
+                $crossedOut = !empty($record->is_deleted) && \App\Services\FileNumber\CrossedOutFiles::isCrossedOut($record);
+                if ($crossedOut) {
+                    \App\Services\FileNumber\CrossedOutFiles::restoreNumbers($record);
+                }
                 $propId = $record->prop_id ?? null;
                 $propIdKey = $propId !== null ? trim((string) $propId) : null;
                 $timelineCount = $propIdKey
@@ -987,6 +998,7 @@ class PropertyCardController extends Controller
                     'Grantee' => $record->Grantee ?? ($record->grantee ?? null),
                     'created_at' => $record->created_at,
                     'timeline_count' => max(1, $timelineCount),
+                    'is_crossed_out' => $crossedOut,
                 ];
             }
 

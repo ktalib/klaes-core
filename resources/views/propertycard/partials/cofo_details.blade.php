@@ -416,6 +416,10 @@
                         orderable: false,
                         searchable: false,
                         render: function(data, type, row) {
+                            // A Master-Deleted file's CofO: kept, crossed out, read-only.
+                            if (row && row.is_crossed_out) {
+                                return '<span class="text-gray-300">&mdash;</span>';
+                            }
                             return `
                                 <div class="flex items-center gap-2">
                                     <button class="text-blue-500 hover:text-blue-700 transition-colors view-cofo" data-id="${data}">
@@ -433,6 +437,9 @@
                     }
                 ],
                 order: [[7, 'desc']], // Order by Date Captured column (index 7) in descending order
+                createdRow: function(tr, row) {
+                    if (row && row.is_crossed_out) tr.classList.add('crossed-out-row');
+                },
                 pageLength: 25,
                 responsive: true,
                 language: {

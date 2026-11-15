@@ -740,12 +740,15 @@ class PropertyRecordController extends Controller
 
         // File number filter: must have at least one non-null/non-empty file number
         // Expanded to include legacy (fileno) and temporary (temp_fileno) numbers
+        // A Master-Deleted file's transaction stays listed, crossed out (user, 2026-11-15): its
+        // numbers moved into deleted_numbers, so it is let in on that instead.
         $query->where(function ($q) {
             $q->whereRaw("(mlsFNo IS NOT NULL AND mlsFNo != '') 
                           OR (kangisFileNo IS NOT NULL AND kangisFileNo != '') 
                           OR (NewKANGISFileno IS NOT NULL AND NewKANGISFileno != '')
                           OR (fileno IS NOT NULL AND fileno != '')
-                          OR (temp_fileno IS NOT NULL AND temp_fileno != '')");
+                          OR (temp_fileno IS NOT NULL AND temp_fileno != '')
+                          OR (is_deleted = 1 AND deleted_numbers IS NOT NULL)");
         });
 
         // Exclusion filters
@@ -794,7 +797,8 @@ class PropertyRecordController extends Controller
                     ->orWhere('Mortgagor', 'LIKE', "%{$search}%")
                     ->orWhere('Mortgagee', 'LIKE', "%{$search}%")
                     ->orWhere('Grantor', 'LIKE', "%{$search}%")
-                    ->orWhere('Grantee', 'LIKE', "%{$search}%");
+                    ->orWhere('Grantee', 'LIKE', "%{$search}%")
+                    ->orWhere('deleted_numbers', 'LIKE', "%{$search}%");
             });
         }
 
@@ -845,6 +849,11 @@ class PropertyRecordController extends Controller
 
         $timelineCounts = $this->resolveTimelineCountsForRecords($data);
         $data = $data->map(function ($row) use ($timelineCounts) {
+            // Crossed out: the numbers back on the row for display only, read-only on the list.
+            $row->is_crossed_out = !empty($row->is_deleted) && \App\Services\FileNumber\CrossedOutFiles::isCrossedOut($row);
+            if ($row->is_crossed_out) {
+                \App\Services\FileNumber\CrossedOutFiles::restoreNumbers($row);
+            }
             $propIdKey = trim((string) ($row->prop_id ?? ''));
             $fallbackKey = '__id_' . (string) ($row->id ?? '0');
             $resolvedCount = (int) ($timelineCounts[$propIdKey !== '' ? $propIdKey : $fallbackKey] ?? 1);

@@ -4217,10 +4217,12 @@ class FileNumberController extends Controller
             $fileIndexingIds = array_unique(array_merge($fileIndexingIds, $moreIds));
         }
         if (!empty($fileIndexingIds)) {
-            DB::connection('sqlsrv')->table('scannings')
-                ->whereIn('file_indexing_id', $fileIndexingIds)->delete();
-            DB::connection('sqlsrv')->table('pagetypings')
-                ->whereIn('file_indexing_id', $fileIndexingIds)->delete();
+            // Scans and page typings stay, crossed out (user, 2026-11-15); their link to the
+            // file is parked in deleted_numbers so no screen reaches them by the file's id.
+            foreach (['scannings', 'pagetypings'] as $keptTable) {
+                $crossedOutFiles->crossOutRelated($keptTable, DB::connection('sqlsrv')->table($keptTable)
+                    ->whereIn('file_indexing_id', $fileIndexingIds)->pluck('id')->all(), [], ['file_indexing_id']);
+            }
             DB::connection('sqlsrv')->table('print_label_batch_items')
                 ->whereIn('file_indexing_id', $fileIndexingIds)->delete();
             $deletedIndexings = $crossedOutFiles->crossOutIndexings($fileIndexingIds);
@@ -4250,8 +4252,9 @@ class FileNumberController extends Controller
         $deletedOssApplications = 0;
         if (!empty($fileNumbersForStaging)) {
             try {
-                $deletedOssApplications = DB::connection('sqlsrv')->table('oss_applications')
-                    ->whereIn('file_no', $fileNumbersForStaging)->delete();
+                // Kept, crossed out, with the number moved off it (user, 2026-11-15).
+                $deletedOssApplications = $crossedOutFiles->crossOutRelated('oss_applications', DB::connection('sqlsrv')->table('oss_applications')
+                    ->whereIn('file_no', $fileNumbersForStaging)->pluck('id')->all(), ['file_no']);
             } catch (\Exception $e) {
                 Log::warning('Could not purge oss_applications during master delete', [
                     'fileNumber_id' => $id,
@@ -4271,35 +4274,10 @@ class FileNumberController extends Controller
                 $trackerIds = DB::connection('sqlsrv')->table('file_tracker')
                     ->whereIn('file_number', $fileNumbersForStaging)->pluck('id')->all();
 
-                if (!empty($trackerIds)) {
-                    foreach (['kangis_checkout_approvals', 'file_tracker_department_backfill'] as $childTable) {
-                        try {
-                            DB::connection('sqlsrv')->table($childTable)
-                                ->whereIn('file_tracker_id', $trackerIds)->delete();
-                        } catch (\Exception $e) {
-                            Log::warning("Could not purge {$childTable} during master delete", [
-                                'fileNumber_id' => $id,
-                                'error' => $e->getMessage(),
-                            ]);
-                        }
-                    }
-
-                    // An indexing_duplicates row is a record about INDEXING, not about the
-                    // tracking request, so the pointer is cleared rather than the row deleted.
-                    try {
-                        DB::connection('sqlsrv')->table('indexing_duplicates')
-                            ->whereIn('file_tracker_id', $trackerIds)
-                            ->update(['file_tracker_id' => null]);
-                    } catch (\Exception $e) {
-                        Log::warning('Could not clear indexing_duplicates.file_tracker_id during master delete', [
-                            'fileNumber_id' => $id,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
-
-                    $deletedTracking += DB::connection('sqlsrv')->table('file_tracker')
-                        ->whereIn('id', $trackerIds)->delete();
-                }
+                // The requests stay, crossed out, with the file number moved off them (user,
+                // 2026-11-15). Their approval / backfill rows and the indexing_duplicates
+                // pointer stay with them: they belong to a request that is kept.
+                $deletedTracking += $crossedOutFiles->crossOutRelated('file_tracker', $trackerIds, ['file_number'], [], ['status' => \App\Models\FileTracker::STATUS_COMPLETED]);
 
                 // Both are keyed on the file number directly and carry no children.
                 $deletedTracking += DB::connection('sqlsrv')->table('rds_tracking')

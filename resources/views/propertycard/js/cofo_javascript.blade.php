@@ -309,6 +309,10 @@
                                 if (!row || !row.id) {
                                     return '<span class="text-xs text-gray-400 italic">No actions</span>';
                                 }
+                                // A Master-Deleted file's CofO: kept, crossed out, read-only (2026-11-15).
+                                if (row.is_crossed_out) {
+                                    return '<span class="text-gray-300">&mdash;</span>';
+                                }
 
                                 var timelineBtn = '';
                                 if (row.prop_id) {
@@ -338,8 +342,9 @@
                             lucide.createIcons();
                         }
                     },
-                    createdRow: function(row) {
+                    createdRow: function(row, data) {
                         $(row).addClass('align-middle text-sm');
+                        if (data && data.is_crossed_out) $(row).addClass('crossed-out-row');
                     }
                 });
                 

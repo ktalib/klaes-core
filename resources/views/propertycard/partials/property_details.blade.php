@@ -856,7 +856,11 @@
                     name: 'actions',
                     orderable: false,
                     searchable: false,
-                    render: function (data) {
+                    render: function (data, type, row) {
+                        // A Master-Deleted file's record: kept, crossed out, read-only.
+                        if (row && row.is_crossed_out) {
+                            return '<span class="text-gray-300">&mdash;</span>';
+                        }
                         return `
                             <div class="flex items-center gap-2">
                                 <button class="text-blue-500 hover:text-blue-700 transition-colors view-property" data-id="${data}">
@@ -875,6 +879,9 @@
                 }
             ],
             order: [[9, 'desc']],
+            createdRow: function (tr, row) {
+                if (row && row.is_crossed_out) tr.classList.add('crossed-out-row');
+            },
             language: {
                 processing: 'Searching...',
                 emptyTable: 'No property records found',

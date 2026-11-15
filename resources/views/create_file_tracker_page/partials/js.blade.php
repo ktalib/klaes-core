@@ -4532,6 +4532,8 @@
         return {
             id: tracker.id,
             trackingId: tracker.tracking_id,
+            // A Master-Deleted file's request: kept, crossed out, read-only (2026-11-15).
+            isCrossedOut: !!tracker.is_crossed_out,
             fileNo: tracker.file_number,
             // A duplicate file's own tracking line, kept apart from the file that now holds
             // the number: "<number> (DUPLICATE)" (user, 2026-11-11). Watermarked on its card.
@@ -6935,7 +6937,7 @@
             const cardHeaderClass = `tracker-card-header ${isOwnedByCurrentUser ? 'tracker-card-header--owned' : 'tracker-card-header--other'}`;
 
             return `
-                    <div class="tracker-card border rounded-lg p-4 mb-6 hover:shadow-md transition-shadow duration-200 ${isOwnedByCurrentUser ? 'border-l-4 border-l-blue-500' : (pendingMovement ? 'border-l-4 border-l-green-500 bg-green-50/30' : 'border-l-4 border-l-red-500 bg-red-50/30')}" data-tracking-id="${safeTrackingId}"${tracker.isDuplicateFile ? ' style="position:relative;"' : ''}>
+                    <div class="tracker-card${tracker.isCrossedOut ? ' tracker-crossed-out' : ''} border rounded-lg p-4 mb-6 hover:shadow-md transition-shadow duration-200 ${isOwnedByCurrentUser ? 'border-l-4 border-l-blue-500' : (pendingMovement ? 'border-l-4 border-l-green-500 bg-green-50/30' : 'border-l-4 border-l-red-500 bg-red-50/30')}" data-tracking-id="${safeTrackingId}"${tracker.isDuplicateFile ? ' style="position:relative;"' : ''}>
                         ${tracker.isDuplicateFile ? `<span aria-label="Duplicate file" title="A duplicate file moved off this number; its own tracking line" style="position:absolute;right:10px;bottom:8px;transform:rotate(-8deg);padding:2px 10px;border:2px solid rgba(220,38,38,.55);border-radius:4px;color:rgba(220,38,38,.6);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;pointer-events:none;user-select:none;z-index:1;">Duplicate File</span>` : ''}
                         <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-3">
                             <div class="flex flex-1 items-start gap-3">

@@ -2,7 +2,9 @@
 
 namespace App\Services\FileNumber;
 
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * A deleted file stays on its table, crossed out and read-only (user, 2026-11-06).
@@ -109,12 +111,78 @@ class CrossedOutFiles
         return ['count' => count($rows), 'rows' => $rows];
     }
 
+    /**
+     * The deleted file's other records stay too (user, 2026-11-15): transactions (PRA, CofO, file
+     * history, deeds), caveats, file tracker requests, OSS applications, scans, page typings,
+     * thumbnails and bills are flagged is_deleted = 1 instead of removed, with who and when.
+     *
+     * Their links move into deleted_numbers like the file's own: number columns are emptied, and an
+     * integer link (file_indexing_id, NOT NULL on scans and page typings) is turned negative, so no
+     * lookup by number and no join by id reaches them; only screens that ask for crossed-out rows
+     * show them, with restoreNumbers() putting the links back for display.
+     *
+     * @param int[]    $ids           row ids in $table
+     * @param string[] $numberColumns columns holding the file's number (emptied)
+     * @param string[] $linkColumns   integer columns linking to the file (negated)
+     * @param array    $set           other columns to change (e.g. a tracker's status to Deleted);
+     *                                their old values are kept in deleted_numbers as was_<column>
+     */
+    public function crossOutRelated(string $table, array $ids, array $numberColumns = [], array $linkColumns = [], array $set = []): int
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if (! $ids) {
+            return 0;
+        }
+
+        $have = array_flip(Schema::connection('sqlsrv')->getColumnListing($table));
+        $numberColumns = array_values(array_filter($numberColumns, fn ($c) => isset($have[$c])));
+        $linkColumns = array_values(array_filter($linkColumns, fn ($c) => isset($have[$c])));
+        $stamp = [];
+        if (isset($have['deleted_at'])) {
+            $stamp['deleted_at'] = now();
+        }
+        if (isset($have['deleted_by'])) {
+            // Some tables already had deleted_by as a user id (oss_applications: bigint).
+            $type = DB::connection('sqlsrv')->selectOne(
+                "SELECT DATA_TYPE AS t FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? AND COLUMN_NAME = 'deleted_by'", [$table]
+            )->t ?? 'nvarchar';
+            $user = Auth::user();
+            $stamp['deleted_by'] = in_array($type, ['int', 'bigint', 'smallint'], true)
+                ? ($user ? (int) $user->id : null)
+                : ($user ? mb_substr(trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: (string) $user->id, 0, 150) : 'System');
+        }
+
+        $count = 0;
+        foreach (array_chunk($ids, 500) as $chunk) {
+            foreach ($this->notYet(DB::connection('sqlsrv')->table($table), $chunk) as $row) {
+                $update = $stamp;
+                $held = [];
+                foreach ($linkColumns as $column) {
+                    $value = (int) ($row->{$column} ?? 0);
+                    if ($value > 0) {
+                        $held[$column] = $value;
+                        $update[$column] = -$value;
+                    }
+                }
+                foreach ($set as $column => $value) {
+                    if (isset($have[$column])) {
+                        $held['was_' . $column] = $row->{$column} ?? null;
+                        $update[$column] = $value;
+                    }
+                }
+                $count += $this->moveNumbers($table, $row, $numberColumns, $update, $held);
+            }
+        }
+
+        return $count;
+    }
+
     /** Puts the numbers back on a row read for a table, for display only. */
     public static function restoreNumbers(object $row): object
     {
         $numbers = json_decode((string) ($row->deleted_numbers ?? ''), true);
         foreach (is_array($numbers) ? $numbers : [] as $column => $value) {
-            if (! in_array($column, self::NOTE_KEYS, true)) {
+            if (! in_array($column, self::NOTE_KEYS, true) && ! str_starts_with((string) $column, 'was_')) {
                 $row->{$column} = $value;
             }
         }

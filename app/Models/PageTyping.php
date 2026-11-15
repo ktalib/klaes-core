@@ -7,6 +7,16 @@ use App\Models\User;
 
 class PageTyping extends Model
 {
+
+    protected static function booted()
+    {
+        // A Master-Deleted file's pagetypings rows are kept, crossed out (user, 2026-11-15):
+        // gone to every screen except one that lifts this scope to show them read-only.
+        static::addGlobalScope('not_deleted', function ($query) {
+            $query->where(fn ($q) => $q->whereNull('pagetypings.is_deleted')->orWhere('pagetypings.is_deleted', 0));
+        });
+    }
+
     protected $connection = 'sqlsrv';
     protected $table = 'pagetypings';
 

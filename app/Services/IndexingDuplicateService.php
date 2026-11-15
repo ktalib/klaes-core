@@ -76,6 +76,17 @@ class IndexingDuplicateService
         'deprecated_records',
     ];
 
+    /**
+     * What a Master Delete keeps, crossed out, instead of removing (user, 2026-11-15): the
+     * file's transactions, caveats, tracker requests, scans, page typings, thumbnails and bills.
+     * Staging, print-label items, barcodes, links and logs are housekeeping and still go.
+     * A Move to Indexing Duplicates is unchanged: it archives and removes them all.
+     */
+    private const KEPT_ON_MASTER_DELETE = [
+        'pra', 'CofO_staging', 'file_history_staging', 'deed_registrations', 'caveats', 'file_tracker',
+        'scannings', 'pagetypings', 'thumbnails', 'file_indexing_bills',
+    ];
+
     /** Prefix of the system temp file no a move assigns (MOV-DUP-00001, ...). */
     public const MOVE_TEMP_PREFIX = MoveTempFileNumber::PREFIX;
 
@@ -686,8 +697,18 @@ class IndexingDuplicateService
             $detachCounts = [];
 
             // Scan reassignment logs, page typings, thumbnails, bills, then scans. Same
-            // queries the snapshot was taken from.
+            // queries the snapshot was taken from. A Master Delete keeps the scans, page
+            // typings, thumbnails and bills, crossed out (user, 2026-11-15); a Move still
+            // takes them into the archive.
+            $crossed = app(\App\Services\FileNumber\CrossedOutFiles::class);
             foreach ($this->moveArchivedQueries($fileIndexingId) as $table => $query) {
+                if (!$archive && in_array($table, self::KEPT_ON_MASTER_DELETE, true)) {
+                    $kept = $crossed->crossOutRelated($table, (clone $query)->pluck('id')->all(), [], ['file_indexing_id']);
+                    if ($kept > 0) {
+                        $childCounts[$table . ' (kept, crossed out)'] = $kept;
+                    }
+                    continue;
+                }
                 if ($table === 'scannings') {
                     // Parent links inside this file first (parent_scan_id is NO_ACTION).
                     $conn->table('scannings')->where('file_indexing_id', (string) $fileIndexingId)
@@ -723,6 +744,16 @@ class IndexingDuplicateService
             foreach (self::FILE_NUMBER_DELETIONS as $table => $meta) {
                 $query = $this->fileNumberQuery($table, $meta['columns'], $numbers);
                 if (!$query) {
+                    continue;
+                }
+
+                // Master Delete: the file's transactions, caveats and tracker requests stay,
+                // crossed out, with the file's number moved off them (user, 2026-11-15).
+                if (!$archive && in_array($table, self::KEPT_ON_MASTER_DELETE, true)) {
+                    $kept = $crossed->crossOutRelated($table, (clone $query)->pluck('id')->all(), $meta['columns'], [], $table === 'file_tracker' ? ['status' => \App\Models\FileTracker::STATUS_COMPLETED] : []);
+                    if ($kept > 0) {
+                        $fileNumberCounts[$table . ' (kept, crossed out)'] = $kept;
+                    }
                     continue;
                 }
 

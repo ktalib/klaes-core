@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 
 class FileTracker extends Model
 {
+
     protected $connection = 'sqlsrv';
     protected $table = 'file_tracker';
 

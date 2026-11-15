@@ -675,7 +675,9 @@ class CreateFileTrackerController extends Controller
                 $query->where(function ($q) use ($search) {
                     $q->where('tracking_id', 'LIKE', "%{$search}%")
                         ->orWhere('file_number', 'LIKE', "%{$search}%")
-                        ->orWhere('file_title', 'LIKE', "%{$search}%");
+                        ->orWhere('file_title', 'LIKE', "%{$search}%")
+                        // A Master-Deleted file's request keeps its number here (2026-11-15).
+                        ->orWhere('deleted_numbers', 'LIKE', "%{$search}%");
                 });
             }
 
@@ -971,6 +973,15 @@ class CreateFileTrackerController extends Controller
                 ->kangisContainersForMany($results->pluck('file_number')->filter()->all());
 
             $collection = $results->map(function ($tracker) use ($kangisByFile) {
+                // A Master-Deleted file's request: kept, crossed out, its number back for display
+                // only (user, 2026-11-15).
+                if (!empty($tracker->is_deleted) && trim((string) ($tracker->deleted_numbers ?? '')) !== '') {
+                    $held = json_decode((string) $tracker->deleted_numbers, true) ?: [];
+                    if (!empty($held['file_number'])) {
+                        $tracker->setAttribute('file_number', $held['file_number']);
+                    }
+                    $tracker->setAttribute('is_crossed_out', true);
+                }
                 $tracker = $this->decorateTrackerForResponse($tracker);
                 $tracker->setAttribute('kangis_files', $kangisByFile[strtoupper(trim((string) $tracker->file_number))] ?? []);
                 return $tracker;
