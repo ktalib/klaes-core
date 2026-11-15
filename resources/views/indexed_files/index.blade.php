@@ -621,6 +621,8 @@
             tableVariant: 'main',
             // Record State Versions: the Version column and the earlier versions under an edited row.
             recordVersionsUrlTemplate: @json(url('api/indexed-files/versions/__ID__')),
+            // Open Folio (the VFS) in place of View Scanned File (Kunle, 2026-11-14).
+            folioUrlTemplate: @json(url('vfs/folios/__ID__')),
             scanCheckUrl: @json(route('scan-check.check')),
             listUrl: @json(route('indexed-files.api.list')),
             viewListUrl: @json(route('indexed-files.api.view-list')),

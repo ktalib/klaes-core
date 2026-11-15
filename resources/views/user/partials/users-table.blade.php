@@ -10,6 +10,12 @@
         ['key' => null, 'label' => __('Work Days'), 'class' => 'text-center'],
         ['key' => null, 'label' => __('Man Hours'), 'class' => 'text-center'],
         ['key' => 'staff_type', 'label' => __('Staff Type'), 'class' => 'text-center'],
+        // Who created / last edited the account (Kunle, 2026-11-15). Accounts made
+        // before the columns existed have no creator on record and read N/A.
+        ['key' => null, 'label' => __('Created By'), 'class' => ''],
+        ['key' => 'created_at', 'label' => __('Date Created'), 'class' => ''],
+        ['key' => null, 'label' => __('Updated By'), 'class' => ''],
+        ['key' => 'details_updated_at', 'label' => __('Date Updated'), 'class' => ''],
         ['key' => null, 'label' => __('User Actions'), 'class' => ''],
         ['key' => null, 'label' => __('Actions'), 'class' => ''],
     ];
@@ -57,6 +63,14 @@
             </tr>
         </thead>
         <tbody>
+            @php
+                // One lookup for the names behind Created By / Updated By on this page.
+                $stampIds = collect(method_exists($users, 'items') ? $users->items() : $users)
+                    ->flatMap(fn ($u) => [$u->created_by ?? null, $u->updated_by ?? null])->filter()->unique()->values();
+                $stampNames = $stampIds->isEmpty() ? collect() : \App\Models\User::whereIn('id', $stampIds)->get(['id', 'first_name', 'last_name'])
+                    ->mapWithKeys(fn ($u) => [$u->id => trim($u->first_name . ' ' . $u->last_name)]);
+                $stampNa = '<span class="text-sm text-gray-400">' . e(__('N/A')) . '</span>';
+            @endphp
             @forelse ($users as $user)
                 <tr class="table-row">
                     <td class="px-6 py-5 whitespace-nowrap">
@@ -199,6 +213,18 @@
                         @else
                             <span class="text-sm text-gray-400">{{ __('N/A') }}</span>
                         @endif
+                    </td>
+                    <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-700">
+                        {!! !empty($user->created_by) && isset($stampNames[$user->created_by]) ? e(strtoupper($stampNames[$user->created_by])) : $stampNa !!}
+                    </td>
+                    <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-700">
+                        {!! $user->created_at ? e($user->created_at->format('d M Y, h:i A')) : $stampNa !!}
+                    </td>
+                    <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-700">
+                        {!! !empty($user->updated_by) && isset($stampNames[$user->updated_by]) ? e(strtoupper($stampNames[$user->updated_by])) : $stampNa !!}
+                    </td>
+                    <td class="px-6 py-5 whitespace-nowrap text-sm text-gray-700">
+                        {!! !empty($user->details_updated_at) ? e(\Carbon\Carbon::parse($user->details_updated_at)->format('d M Y, h:i A')) : $stampNa !!}
                     </td>
                     <td class="px-6 py-5 whitespace-nowrap">
                         @if(!empty($user->user_actions))
@@ -348,7 +374,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="11" class="px-6 py-12 text-center">
+                    <td colspan="15" class="px-6 py-12 text-center">
                         <div class="flex flex-col items-center justify-center space-y-3">
                             <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>

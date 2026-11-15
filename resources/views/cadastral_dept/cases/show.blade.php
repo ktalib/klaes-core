@@ -141,10 +141,14 @@
           <dd class="font-mono">{{ $case->correspondence_fileno }}@if ($case->shadow_fileno ?? null) · {{ $case->shadow_fileno }}@endif</dd>
         @endif
         <dt class="text-gray-500">Registered</dt><dd>{{ optional($case->received_at)->format('d M Y H:i') }} · {{ optional($case->receiver)->name }}</dd>
-        {{-- Recording 355: the land file's scans and, once opened, the correspondence file's. --}}
+        {{-- Kunle 2026-11-14: the land file opens in the VFS (Folio); the Correspondence File,
+             which the VFS does not show, keeps its own link (recording 355). --}}
         <dt class="text-gray-500">Scanned files</dt>
-        <dd><button type="button" onclick="cdScannedFiles(@js($case->file_number))" class="inline-flex items-center gap-1 text-blue-700 hover:underline">
-          <i data-lucide="scan-eye" class="w-4 h-4"></i> View Land File / Correspondence File</button></dd>
+        <dd class="flex flex-wrap gap-x-4 gap-y-1">
+          <a href="{{ route('vfs.open', ['file_no' => $case->file_number]) }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-blue-700 hover:underline">
+            <i data-lucide="folder-open" class="w-4 h-4"></i> Open Folio</a>
+          <button type="button" onclick="cdScannedFiles(@js($case->file_number), { correspondenceOnly: true })" class="inline-flex items-center gap-1 text-blue-700 hover:underline">
+            <i data-lucide="mail" class="w-4 h-4"></i> Correspondence File</button></dd>
       </dl>
     </div>
 

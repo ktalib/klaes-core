@@ -352,6 +352,8 @@
     
     <!-- Include SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    {{-- Related files open under the row, as on the FC table. --}}
+    <script src="{{ asset('js/related-temp-expand.js') }}?v={{ @filemtime(public_path('js/related-temp-expand.js')) }}"></script>
 
     <style>
         /* Select2 Custom Styling */
@@ -542,8 +544,25 @@
                 order: [[8, 'desc']], // decommissioning_date (after S/N, PropID, Reason, File No, Temporary File No, Related File, File Name, Commissioning Date)
                 pageLength: 25,
                 responsive: true,
+                createdRow: function (tr, row) {
+                    if (row.rt_file_no) tr.dataset.rtFileno = row.rt_file_no;
+                },
                 drawCallback: function() {
                     lucide.createIcons();
+                    // Related files collapsible under the row, as on the FC table: a chevron
+                    // at the start of the row, the list (with title, location, plot) under it.
+                    if (window.RelatedTempExpand) {
+                        this.api().rows({ page: 'current' }).every(function () {
+                            const row = this.data();
+                            if (!row || !row.rt_file_no) return;
+                            window.RelatedTempExpand.prime(
+                                row.rt_file_no,
+                                (row.related_files || []).map(function (no) { return { file_number: String(no).trim(), file_title: null }; }),
+                                []
+                            );
+                        });
+                        window.RelatedTempExpand.scan(this.api().table().body());
+                    }
                 }
             });
 
@@ -616,10 +635,12 @@
                     $reasonTooltip.hide();
                 });
 
-            // Related File cell: reveal the remaining file numbers when the "+N" pill is clicked
-            $('#decommissionedFilesTable tbody').on('click', '.rel-more', function() {
-                $(this).addClass('hidden');
-                $(this).siblings('.rel-rest').removeClass('hidden');
+            // Related File cell: the "+N · view all" pill opens the row's related files
+            // under it (the same as the chevron at the start of the row).
+            $('#decommissionedFilesTable tbody').on('click', '.rel-expand', function(e) {
+                e.preventDefault();
+                const toggle = $(this).closest('tr').find('.rt-toggle').get(0);
+                if (toggle) toggle.click();
             });
 
             // Custom search functionality (drives both tables)

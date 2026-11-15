@@ -76,6 +76,27 @@
                 @error('lga')<p class="ks-error">{{ $message }}</p>@enderror
             </div>
         </div>
+        {{-- Map sheet, Metric and Imperial (CR 141102026 item 3, 2026-11-15). Optional: blank when not known. --}}
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+                <label class="ks-label" for="map_sheet_metric">Map Sheet (Metric)</label> <button type="button" class="spc-sheet-link" data-spc-guide="sheets"><i class="fas fa-map"></i> View sheet index</button>
+                <select class="ks-input ks-searchable" id="map_sheet_metric" name="map_sheet_metric" data-placeholder="Search sheet…">
+                    <option value="">Select sheet…</option>
+                    @foreach (\App\Services\Survey\MapSheets::METRIC as $c)<option value="{{ $c }}" @selected(old('map_sheet_metric') === $c)>{{ $c }}</option>@endforeach
+                </select>
+                <p class="ks-help" style="margin-top:4px;">Kano metropolitan index grid. Leave blank if not known.</p>
+                @error('map_sheet_metric')<p class="ks-error">{{ $message }}</p>@enderror
+            </div>
+            <div>
+                <label class="ks-label" for="map_sheet_imperial">Map Sheet (Imperial)</label> <button type="button" class="spc-sheet-link" data-spc-guide="sheets"><i class="fas fa-map"></i> View sheet index</button>
+                <select class="ks-input ks-searchable" id="map_sheet_imperial" name="map_sheet_imperial" data-placeholder="Search sheet…">
+                    <option value="">Select sheet…</option>
+                    @foreach (\App\Services\Survey\MapSheets::IMPERIAL as $c => $n)<option value="{{ $c }}" @selected(old('map_sheet_imperial') === $c)>{{ $c }} · {{ $n }}</option>@endforeach
+                </select>
+                <p class="ks-help" style="margin-top:4px;">1:50,000 topo sheet. Leave blank if not known.</p>
+                @error('map_sheet_imperial')<p class="ks-error">{{ $message }}</p>@enderror
+            </div>
+        </div>
         <div class="grid sm:grid-cols-2 gap-4">
             <div>
                 <label class="ks-label" for="drawn_by">Drawn By <span class="ks-req">*</span></label>

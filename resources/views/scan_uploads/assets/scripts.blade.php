@@ -95,6 +95,9 @@
             fileNumber: null,
             files: [],
             stagedFiles: [],
+            // Index cards found under the file's name (CR 141102026 item 2): unticked ones are left in Blind Scan.
+            titleCards: [],
+            skipped: new Set(),
             counts: {
                 total: 0,
                 byPaperSize: {},
@@ -365,6 +368,7 @@
             documentTypes: document.getElementById('blind-scan-document-types'),
             tableWrapper: document.getElementById('blind-scan-table-wrapper'),
             tableBody: document.getElementById('blind-scan-table-body'),
+            titleNote: document.getElementById('blind-scan-title-note'),
             transferBtn: document.getElementById('blind-scan-transfer-btn'),
             registry: document.getElementById('blind-scan-registry'),
             footnote: document.getElementById('blind-scan-footnote'),
@@ -715,15 +719,59 @@
 
         state.blindScan.files.forEach((file) => {
             const row = document.createElement('tr');
+            const byName = !!file.title_card;
+            const ticked = !state.blindScan.skipped.has(file.relative_path);
+            const preview = buildBlindScanPreviewUrl(file);
+            row.className = byName ? (ticked ? 'bg-amber-50' : 'bg-gray-50 opacity-75') : '';
+            const where = byName
+                ? `<span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Saved under the name</span>
+                   <span class="block mt-1 font-semibold text-gray-800">${escapeHtml(file.matched_title || '')}</span>
+                   ${file.duplicate_of ? `<span class="block text-[11px] text-gray-500">Same card as ${escapeHtml(file.duplicate_of)}</span>` : ''}`
+                : escapeHtml(file.relative_path || '');
             row.innerHTML = `
-          <td class="px-4 py-2 text-sm font-medium text-gray-900">${escapeHtml(file.name || file.file_name || 'Document')}</td>
-          <td class="px-4 py-2 text-xs text-gray-600">${escapeHtml(file.relative_path || '')}</td>
+          <td class="px-3 py-2 text-center">${byName
+                ? `<input type="checkbox" class="h-4 w-4" data-title-card="${escapeHtml(file.relative_path)}" ${ticked ? 'checked' : ''} aria-label="Add ${escapeHtml(file.name || '')} to this file">`
+                : '<input type="checkbox" class="h-4 w-4" checked disabled aria-label="In the file\'s own folder">'}</td>
+          <td class="px-4 py-2 text-sm font-medium text-gray-900">${preview && byName
+                ? `<a href="${escapeHtml(preview)}" target="_blank" rel="noopener" class="text-blue-700 underline">${escapeHtml(file.name || 'Document')}</a>`
+                : escapeHtml(file.name || file.file_name || 'Document')}</td>
+          <td class="px-4 py-2 text-xs text-gray-600">${where}</td>
           <td class="px-4 py-2 text-sm text-gray-600">${escapeHtml(file.paper_size || 'A4')}</td>
           <td class="px-4 py-2 text-sm text-gray-600">${escapeHtml(file.document_type || 'Document')}</td>
           <td class="px-4 py-2 text-right text-sm text-gray-900">${formatFileSize(file.size || 0)}</td>
         `;
             tableBody.appendChild(row);
         });
+
+        tableBody.querySelectorAll('[data-title-card]').forEach(box => box.addEventListener('change', () => {
+            const key = box.getAttribute('data-title-card');
+            if (box.checked) state.blindScan.skipped.delete(key); else state.blindScan.skipped.add(key);
+            renderBlindScanModal();
+        }));
+        renderBlindScanTitleNote();
+    }
+
+    // What was found under the file's name, and a warning when another file has the same name.
+    function renderBlindScanTitleNote() {
+        const note = blindScanElements.titleNote;
+        if (!note) {
+            return;
+        }
+        const groups = state.blindScan.titleCards || [];
+        if (!groups.length) {
+            note.classList.add('hidden');
+            note.innerHTML = '';
+            return;
+        }
+        const ticked = state.blindScan.files.filter(f => f.title_card && !state.blindScan.skipped.has(f.relative_path)).length;
+        note.innerHTML = `
+          <p class="font-semibold text-amber-900">Index cards saved under the file's name</p>
+          <ul class="mt-1 space-y-1">${groups.map(g => `<li><b>${escapeHtml(g.title)}</b>: ${g.cards} card${g.cards === 1 ? '' : 's'}${g.cards !== g.new_cards ? ` (${g.cards - g.new_cards} identical cop${g.cards - g.new_cards === 1 ? 'y' : 'ies'})` : ''}.
+            ${g.other_files > 0
+                ? `<span class="text-red-700 font-semibold">${g.other_files} other file${g.other_files === 1 ? ' has' : 's have'} this name.</span> Open each card and tick only the ones for this file.`
+                : 'No other file has this name.'}</li>`).join('')}</ul>
+          <p class="mt-1 text-xs text-amber-800">${ticked} ticked: they go to this file's Index Cards. Unticked cards stay in Blind Scan.</p>`;
+        note.classList.remove('hidden');
     }
 
     async function startBlindScanTransfer(indexedFile) {
@@ -865,6 +913,7 @@
         }
 
         const stagedDocs = state.blindScan.files
+            .filter(file => !(file.title_card && state.blindScan.skipped.has(file.relative_path)))
             .map((file, index) => mapBlindManifestToUploadDoc(file, index))
             .filter(Boolean);
 
@@ -1101,6 +1150,8 @@
                 },
                 body: JSON.stringify({
                     file_number: fileNumber,
+                    // The indexed file: its title finds index cards saved under the name.
+                    file_indexing_id: Number(state.selectedIndexedFile) || null,
                     // Look in this registry's blind-scan folder first.
                     registry: blindScanElements.registry?.value || null
                 })
@@ -1117,6 +1168,12 @@
             const counts = payload.counts || {};
 
             state.blindScan.files = files;
+            state.blindScan.titleCards = Array.isArray(payload.title_cards) ? payload.title_cards : [];
+            // Pre-ticked only when no other file has the name and the card is not a copy of another one.
+            const sharedNames = new Set(state.blindScan.titleCards.filter(t => t.other_files > 0).map(t => t.title));
+            state.blindScan.skipped = new Set(files
+                .filter(f => f.title_card && (f.duplicate_of || sharedNames.has(f.matched_title)))
+                .map(f => f.relative_path));
             state.blindScan.counts = {
                 total: counts.total ?? files.length,
                 byPaperSize: counts.by_paper_size || {},
@@ -1126,6 +1183,8 @@
         } catch (error) {
             console.error('Blind scan discovery failed:', error);
             state.blindScan.files = [];
+            state.blindScan.titleCards = [];
+            state.blindScan.skipped = new Set();
             state.blindScan.counts = {
                 total: 0,
                 byPaperSize: {},

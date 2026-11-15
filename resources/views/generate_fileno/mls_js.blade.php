@@ -2432,11 +2432,12 @@
                     name: 'updated_by',
                     title: 'Updated By',
                     defaultContent: 'N/A',
-                    render: function (data, type) {
+                    render: function (data, type, row) {
                         const label = data ? String(data).toUpperCase() : 'N/A';
                         if (type !== 'display' || !data || label === 'N/A') return label;
 
-                        const raw = String(data).trim();
+                        // The server sends the name, and the id (updated_by_id) for the card.
+                        const raw = String(row && row.updated_by_id ? row.updated_by_id : data).trim();
                         const attr = /^\d+$/.test(raw)
                             ? 'data-user-id="' + raw + '"'
                             : 'data-user-name="' + raw.replace(/"/g, '&quot;') + '"';
@@ -2579,6 +2580,13 @@
                                         <i data-lucide="edit-3" class="w-4 h-4 text-slate-500"></i>
                                         <span class="font-medium">Edit Record${batchCount > 1 ? ` <span class="text-[10px] font-semibold text-amber-700">(batch of ${batchCount})</span>` : ''}</span>
                                     </button>
+
+                                    <!-- Open Folio: the file's virtual folder in the VFS (Kunle, 2026-11-14) -->
+                                    <a href="{{ route('vfs.open') }}?file_no=${encodeURIComponent(String(row.mlsfNo || ''))}" target="_blank" rel="noopener"
+                                       class="w-full text-left px-4 py-2.5 text-sm text-indigo-700 hover:bg-indigo-50 flex items-center space-x-3">
+                                        <i data-lucide="folder-open" class="w-4 h-4 text-indigo-500"></i>
+                                        <span class="font-medium">Open Folio</span>
+                                    </a>
 
                                     ${isFileNumberRow ? `
                                     <!-- c. Quick fix of the property/contact fields on the fileNumber row:

@@ -69,6 +69,7 @@ class UserController extends Controller
         'user_level' => ['user_level'],
         'staff_type' => ['staff_type_category'],
         'created_at' => ['created_at'],
+        'details_updated_at' => ['details_updated_at'],
     ];
 
     private const PER_PAGE_OPTIONS = [10, 25, 50, 100];
@@ -142,6 +143,10 @@ class UserController extends Controller
                 'man_hours_per_day',
                 'staff_type_category',
                 'created_at',
+                // Users list: Created By / Updated By / Date Updated (2026-11-15).
+                'created_by',
+                'updated_by',
+                'details_updated_at',
                 'parent_id',
                 'is_active',
             ])
@@ -687,6 +692,7 @@ class UserController extends Controller
                     $user->profile = 'avatar.png';
                 }
 
+                $user->created_by = Auth::id(); // Users list: Created By
                 $user->save();
                 defaultTemplate($user->id);
 
@@ -853,6 +859,7 @@ class UserController extends Controller
                  */
                 $user->dfr_permissions = isset($request->dfr_permissions) ? implode(',', $request->dfr_permissions) : null;
                 $user->fr_permissions = $request->input('fr_permissions') === 'SCB' ? 'SCB' : null;
+                $user->created_by = Auth::id(); // Users list: Created By
                 $user->save();
 
                 $this->syncModulePermissions($request, $user, $isSupperAdmin, $grantedModules);
@@ -1001,6 +1008,7 @@ class UserController extends Controller
                 if ($request->filled('password')) {
                     $user->password = Hash::make($request->password);
                 }
+                $user->updated_by = Auth::id(); $user->details_updated_at = now(); // Users list: Updated By / Date Updated
                 $user->save();
                 $this->notifyAccountUpdate($user);
 
@@ -1148,6 +1156,7 @@ class UserController extends Controller
                 }
                 $this->applyProfileUpload($request, $user);
                 $this->applyProfileRemoval($request, $user);
+                $user->updated_by = Auth::id(); $user->details_updated_at = now(); // Users list: Updated By / Date Updated
                 $user->save();
 
                 $this->syncModulePermissions($request, $user, $isSupperAdmin, $grantedModules);

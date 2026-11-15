@@ -99,6 +99,87 @@ class BlindScanningController extends Controller
     }
 
     /**
+     * Registry codes (registries.code) that own a file-number series. A scan of one
+     * series uploaded into another of these is put in the wrong place (Kunle,
+     * 2026-11-15: SIT-2001-122 landed in ST_Registry_Raw). Cadastral, Secret, Deeds
+     * and Physical Planning hold other registries' numbers on purpose (the Cadastral
+     * correspondence file shares the land file's number), so they are never checked.
+     */
+    private const SERIES_REGISTRIES = [
+        'Lands Registry' => 'LANDS',
+        'SIT Registry' => 'SIT',
+        'ST Registry' => 'ST',
+        'SLTR Registry' => 'SLTR',
+        'DCIV Registry' => 'DCIV',
+        'Survey Registry' => 'GKN',
+        'KANGIS Registry' => 'KANGIS',
+    ];
+
+    /**
+     * Does this file number belong in the registry picked for it?
+     *
+     * Returns null when it does (or cannot be told), else
+     *   ['level' => 'block'|'warn', 'expected_code', 'expected_name', 'message'].
+     * block: a number from a dedicated series (SIT-, ST-, SLTR-, DCIV-, GKN/LPKN..., KANGIS)
+     *        picked for another series registry -- the upload must go to its own registry.
+     * warn:  a Lands number (RES/COM/CON...) picked for a dedicated-series registry -- some
+     *        are filed there (the SLTR folder holds CON- files), so the user confirms.
+     */
+    private function registryMismatch(string $fileNumber, string $registryInput): ?array
+    {
+        $expectedName = FileIndexing::detectRegistryFromFileNumber($fileNumber);
+        if ($expectedName === null || !isset(self::SERIES_REGISTRIES[$expectedName])) {
+            return null;
+        }
+
+        [, , $canonical] = $this->resolveBlindRegistry($registryInput);
+        $input = strtoupper(trim($registryInput));
+        $chosenCode = in_array($input, self::SERIES_REGISTRIES, true) ? $input : null;
+        if ($chosenCode === null) {
+            foreach (self::SERIES_REGISTRIES as $name => $code) {
+                if (strcasecmp(preg_replace('/\s+/', ' ', trim((string) $canonical)), $name) === 0
+                    || ($code === 'LANDS' && preg_match('/^lands?\s+registry$/i', trim((string) $canonical)))) {
+                    $chosenCode = $code;
+                    break;
+                }
+            }
+        }
+        // Not a series registry (Cadastral, Secret, Deeds, PP): anything may be filed there.
+        if ($chosenCode === null) {
+            return null;
+        }
+
+        $expectedCode = self::SERIES_REGISTRIES[$expectedName];
+        // SIT files are kept under Land (user, 2026-11-15): a SIT number belongs in the Lands
+        // Registry, and the SIT Registry folder (which already holds them) stays accepted too.
+        if ($expectedCode === 'SIT') {
+            if (in_array($chosenCode, ['LANDS', 'SIT'], true)) {
+                return null;
+            }
+            $expectedCode = 'LANDS';
+            $expectedName = 'Lands Registry';
+        }
+        if ($expectedCode === $chosenCode) {
+            return null;
+        }
+
+        // A SIT number elsewhere is still a block, redirected to Lands; only a plain Lands number warns.
+        $isSit = str_starts_with(strtoupper(trim($fileNumber)), 'SIT');
+        $level = $expectedCode === 'LANDS' && !$isSit ? 'warn' : 'block';
+        $chosenName = array_search($chosenCode, self::SERIES_REGISTRIES, true) ?: $canonical;
+
+        return [
+            'level' => $level,
+            'expected_code' => $expectedCode,
+            'expected_name' => $expectedName,
+            'chosen_name' => $chosenName,
+            'message' => $level === 'block'
+                ? "{$fileNumber} is a {$expectedName} file number, so its scans cannot go into the {$chosenName}. Upload it to the {$expectedName}."
+                : "{$fileNumber} is a {$expectedName} file number but the {$chosenName} was picked. Confirm the physical file is kept in the {$chosenName}, or upload it to the {$expectedName}.",
+        ];
+    }
+
+    /**
      * Whether the current user uploaded anything into this folder
      * ("Lands_Registry_Raw/RES-1981-141"). Seeks on the status + uploaded_by
      * index before comparing the (unindexable) path column.
@@ -547,6 +628,14 @@ class BlindScanningController extends Controller
             if (trim((string) $registryInput) === '') {
                 return response()->json(['ok' => false, 'error' => 'Select the registry first.'], 422);
             }
+
+            // The file number's own registry against the one picked (2026-11-15). The
+            // page asks first; this is the guard for anything that skips the page.
+            $mismatch = $this->registryMismatch($rawFileNumber, (string) $registryInput);
+            if ($mismatch && ($mismatch['level'] === 'block' || !$request->boolean('registry_confirmed'))) {
+                return response()->json(['ok' => false, 'error' => $mismatch['message'], 'registry_mismatch' => $mismatch], 409);
+            }
+
             [$registrySubfolder, $registryType] = $this->resolveBlindRegistry($registryInput);
 
             $storagePath = file_storage_path('app/public/EDMS/BLIND_SCAN/' . $registrySubfolder);

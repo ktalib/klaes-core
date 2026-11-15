@@ -30,6 +30,7 @@ use App\Services\IndexingStorageSummaryService;
 use App\Services\FileRangeTrackingService;
 use App\Services\EdmsScanUploadFolderService;
 use App\Services\FileSnapshotService;
+use App\Services\RecordVersions\FcRecordVersions;
 use App\Support\FileIndexingYearPolicy;
 use App\Services\FileIndexing\KangisBlockIndexing;
 use App\Services\FileIndexing\RelatedFileSightings;
@@ -1502,6 +1503,16 @@ class FileIndexingController extends Controller
                     $updatePayload = app(KangisBlockIndexing::class)->keepKangisAdditions((int) $id, $updatePayload);
                 }
 
+                // Record State Versions on the FC table (Kunle, 2026-11-15): an indexing edit
+                // copies title / plot / location onto the file's FC (fileNumber) rows, so their
+                // state before this edit is captured here and a version is written after the
+                // sync below -- only where a value the FC table shows actually changed.
+                $fcVersions = app(FcRecordVersions::class);
+                $fcVersionsBefore = [];
+                foreach ($this->fcVersionTargets($existingRecord) as $fcId) {
+                    $fcVersionsBefore[$fcId] = $fcVersions->capture(FcRecordVersions::FILE_NUMBER, $fcId);
+                }
+
                 // Update the main file indexing record
                 DB::connection('sqlsrv')->table('file_indexings')
                     ->where('id', $id)
@@ -1544,6 +1555,10 @@ class FileIndexingController extends Controller
                     !$skipEntityCustomerUpdates,
                     false  // $allowInserts = false during edit
                 );
+
+                foreach ($fcVersionsBefore as $fcId => $fcBefore) {
+                    $fcVersions->record(FcRecordVersions::FILE_NUMBER, (int) $fcId, $fcBefore);
+                }
 
                 // Handle related file links for update
                 $rawRelatedFiles = $validated['related_fileno'] ?? null;
@@ -2301,6 +2316,54 @@ class FileIndexingController extends Controller
                     'error' => $e->getMessage(),
                 ]);
             }
+        }
+    }
+
+    /**
+     * The FC (fileNumber) rows an indexing edit will write to, found the way
+     * updateFileNumberTable() finds them: the file number's spelling variants in any
+     * number column, or the temp number for a temp-only file, else the tracking id.
+     *
+     * @return int[]
+     */
+    protected function fcVersionTargets($existingRecord): array
+    {
+        try {
+            $number = trim((string) ($existingRecord->file_number ?? ''));
+            if ($number === '') {
+                $number = trim((string) ($existingRecord->temp_file_no ?? ''));
+            }
+            $variants = $number !== '' ? array_values(array_unique($this->buildFileNumberVariants($number))) : [];
+            $trackingId = trim((string) ($existingRecord->tracking_id ?? ''));
+            if (!$variants && $trackingId === '') {
+                return [];
+            }
+            $hasFileno = Schema::connection('sqlsrv')->hasColumn('fileNumber', 'fileno');
+
+            $ids = DB::connection('sqlsrv')->table('fileNumber')
+                ->where(function ($q) use ($variants, $hasFileno, $trackingId) {
+                    if ($variants) {
+                        $q->whereIn('st_file_no', $variants)
+                            ->orWhereIn('mlsfNo', $variants)
+                            ->orWhereIn('kangisFileNo', $variants)
+                            ->orWhereIn('NewKANGISFileNo', $variants);
+                        if ($hasFileno) {
+                            $q->orWhereIn('fileno', $variants);
+                        }
+                    }
+                    if ($trackingId !== '') {
+                        $q->orWhereRaw('UPPER(LTRIM(RTRIM(tracking_id))) = UPPER(?)', [$trackingId]);
+                    }
+                })
+                ->limit(20)
+                ->pluck('id')
+                ->map(fn ($v) => (int) $v)
+                ->all();
+
+            return array_values(array_unique($ids));
+        } catch (\Throwable $e) {
+            Log::warning('fcVersionTargets failed', ['id' => $existingRecord->id ?? null, 'error' => $e->getMessage()]);
+            return [];
         }
     }
 

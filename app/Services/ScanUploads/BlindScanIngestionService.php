@@ -21,6 +21,14 @@ class BlindScanIngestionService
     private const BLIND_SCAN_ROOT = 'EDMS/BLIND_SCAN';
     private const SCAN_UPLOAD_ROOT = 'EDMS/SCAN_UPLOAD';
 
+    /**
+     * Index cards saved under the holder's name instead of the file number (CR 141102026 item 2, 2026-11-15).
+     * Drop folder for them under BLIND_SCAN: loose cards named by the title, or one folder per title.
+     */
+    public const TITLE_CARD_FOLDER = 'Index_Cards_By_Title';
+    /** Marks a card found by name in the manifest's relative_path; the rest is its path under BLIND_SCAN. */
+    public const TITLE_CARD_PREFIX = '@title/';
+
     private $filesystem;
 
     public function __construct(Filesystem $filesystem)
@@ -34,12 +42,21 @@ class BlindScanIngestionService
      * @param  string  $rawFileNumber
      * @return array
      */
-    public function discover(string $rawFileNumber, ?string $registry = null): array
+    public function discover(string $rawFileNumber, ?string $registry = null, array $titles = []): array
     {
         $fileNumber = $this->normalizeFileNumber($rawFileNumber);
-        [$blindFolder, $blindRelative] = $this->resolveBlindFolder($fileNumber, $registry);
-
-        $files = $this->collectFiles($blindFolder, $blindRelative, $fileNumber);
+        $titleCards = $this->titleCards($titles, $fileNumber);
+        try {
+            [$blindFolder, $blindRelative] = $this->resolveBlindFolder($fileNumber, $registry, $titleCards->isNotEmpty());
+            $files = $this->collectFiles($blindFolder, $blindRelative, $fileNumber);
+        } catch (FileNotFoundException $e) {
+            // No folder under the file number: the cards saved under its name may still be there.
+            if ($titleCards->isEmpty()) {
+                throw $e;
+            }
+            [$blindRelative, $files] = [null, collect()];
+        }
+        $files = $files->concat($titleCards)->values();
         if ($files->isEmpty()) {
             return [
                 'file_number' => $fileNumber,
@@ -79,10 +96,18 @@ class BlindScanIngestionService
      *                                 directly under the registry, as before
      * @return array
      */
-    public function transfer(string $rawFileNumber, array $requestedFiles, ?int $fileIndexingId = null, ?string $registry = null, ?string $fileType = null): array
+    public function transfer(string $rawFileNumber, array $requestedFiles, ?int $fileIndexingId = null, ?string $registry = null, ?string $fileType = null, array $titles = []): array
     {
         $fileNumber = $this->normalizeFileNumber($rawFileNumber);
-        [$blindFolder, $blindRelative] = $this->resolveBlindFolder($fileNumber, $registry);
+        $wantsTitleCards = collect($requestedFiles)->contains(fn ($f) => str_starts_with((string) (is_array($f) ? ($f['relative_path'] ?? '') : $f), self::TITLE_CARD_PREFIX));
+        try {
+            [$blindFolder, $blindRelative] = $this->resolveBlindFolder($fileNumber, $registry, $wantsTitleCards);
+        } catch (FileNotFoundException $e) {
+            if (! $wantsTitleCards) {
+                throw $e;
+            }
+            [$blindFolder, $blindRelative] = [null, null];
+        }
 
         $registryMap = [
             'Lands Registry' => 'Lands_Registry',
@@ -111,7 +136,9 @@ class BlindScanIngestionService
             $registrySubFolder .= '/' . $typeFolder;
         }
 
-        $discovered = $this->collectFiles($blindFolder, $blindRelative, $fileNumber, $registrySubFolder)->keyBy('relative_path');
+        $discovered = ($blindFolder !== null ? $this->collectFiles($blindFolder, $blindRelative, $fileNumber, $registrySubFolder) : collect())
+            ->concat($wantsTitleCards ? $this->titleCards($titles, $fileNumber, $registrySubFolder) : [])
+            ->keyBy('relative_path');
         if ($discovered->isEmpty()) {
             return ['file_number' => $fileNumber, 'files' => []];
         }
@@ -142,7 +169,10 @@ class BlindScanIngestionService
             }
 
             foreach ($targetFiles as $manifest) {
-                $source = $blindFolder . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $manifest['relative_path']);
+                // A card found by name sits outside the file's own folder: it is moved from where it was found.
+                $source = ! empty($manifest['title_card'])
+                    ? $manifest['original_path']
+                    : $blindFolder . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $manifest['relative_path']);
                 $destination = $scanUploadDirectory . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $manifest['target_relative_path']);
 
                 $this->filesystem->ensureDirectoryExists(dirname($destination), 0775, true);
@@ -156,7 +186,15 @@ class BlindScanIngestionService
                 $this->logMove($fileNumber, $manifest, $scan->id, $destination);
             }
 
-            $this->cleanupIfEmpty($blindFolder);
+            if ($blindFolder !== null) {
+                $this->cleanupIfEmpty($blindFolder);
+            }
+            // A title's own folder in the drop folder goes once its last card is taken; the drop folder stays.
+            foreach ($targetFiles->where('title_card', true)->pluck('original_path')->map(fn ($p) => dirname($p))->unique() as $dir) {
+                if (strcasecmp(basename(dirname($dir)), self::TITLE_CARD_FOLDER) === 0) {
+                    $this->cleanupIfEmpty($dir);
+                }
+            }
 
             return $createdScans;
         });
@@ -165,6 +203,168 @@ class BlindScanIngestionService
             'file_number' => $fileNumber,
             'files' => $movedFiles,
         ];
+    }
+
+    /** A name as it is compared: capitals, letters and digits only, single spaces ("Alh. Ado  Bayero" = "ALH ADO BAYERO"). */
+    public static function titleKey(?string $value): string
+    {
+        return trim(preg_replace('/\s+/', ' ', preg_replace('/[^A-Z0-9]+/', ' ', strtoupper((string) $value))));
+    }
+
+    /** The name a card was saved under: no extension, no "_1" page or " (2)" copy suffix. */
+    public static function cardNameKey(string $filename): string
+    {
+        $base = pathinfo($filename, PATHINFO_FILENAME);
+        do {
+            $before = $base;
+            $base = preg_replace('/(\s*\(\d+\)|_\d{1,3})$/', '', trim($base));
+        } while ($base !== $before);
+
+        return self::titleKey($base);
+    }
+
+    /**
+     * Index cards saved under the file's name (File Title / holder) rather than its number. Looked for in
+     *  - the Index_Cards_By_Title drop folder: loose cards named by the title, or a folder named by it;
+     *  - a folder named by the title in any registry's blind-scan folder;
+     *  - the Blind Scan table: rows whose "file number" is the title (a folder uploaded under the name).
+     * Each card is offered as a Property Index Card for the file's INDEX_CARDS folder.
+     *
+     * @param  array<int,string>  $titles  the file's names, as recorded
+     */
+    public function titleCards(array $titles, string $fileNumber, ?string $registrySubFolder = null): Collection
+    {
+        $keys = [];
+        foreach ($titles as $t) {
+            $k = self::titleKey($t);
+            // Too short or no letters (e.g. "A", "123"): would match unrelated cards.
+            if (strlen($k) >= 5 && preg_match('/[A-Z]{3,}/', $k)) {
+                $keys[$k] = trim((string) $t);
+            }
+        }
+        if (! $keys) {
+            return collect();
+        }
+        $root = file_storage_path('app/public/' . self::BLIND_SCAN_ROOT);
+        $found = [];   // absolute path => matched title
+        $take = function (string $path, string $title) use (&$found) {
+            if (str_starts_with(basename($path), '.trashed') || str_contains(strtolower(str_replace('\\', '/', $path)), '_pdf_originals/')) {
+                return;
+            }
+            $found[$path] = $found[$path] ?? $title;
+        };
+        $takeFolder = function (string $dir, string $title) use ($take) {
+            foreach ($this->filesystem->allFiles($dir) as $f) {
+                $take($f->getPathname(), $title);
+            }
+        };
+
+        // 1. The drop folder (loose cards, and one level of folders).
+        $drop = $root . DIRECTORY_SEPARATOR . self::TITLE_CARD_FOLDER;
+        if ($this->filesystem->isDirectory($drop)) {
+            foreach ($this->titleDropIndex($drop) as [$path, $key, $isDir]) {
+                if (isset($keys[$key]) && ($isDir ? $this->filesystem->isDirectory($path) : $this->filesystem->isFile($path))) {
+                    $isDir ? $takeFolder($path, $keys[$key]) : $take($path, $keys[$key]);
+                }
+            }
+        }
+
+        // 2. A folder named by the title in a registry's blind-scan folder.
+        foreach (glob($root . DIRECTORY_SEPARATOR . '*_Raw', GLOB_ONLYDIR) ?: [] as $rawDir) {
+            foreach ($keys as $key => $title) {
+                foreach (array_unique([$title, $key]) as $name) {
+                    $dir = $rawDir . DIRECTORY_SEPARATOR . $name;
+                    if (! str_contains($name, '..') && ! preg_match('#[\\\\/]#', $name) && $this->filesystem->isDirectory($dir)) {
+                        $takeFolder($dir, $title);
+                    }
+                }
+            }
+        }
+
+        // 3. The Blind Scan table: still-pending rows filed under the name.
+        try {
+            $rows = DB::connection('sqlsrv')->table('blind_scannings')->lock('WITH (NOLOCK)')
+                ->whereIn('file_number', array_values(array_unique(array_merge(array_keys($keys), array_values($keys)))))
+                ->where('status', '!=', BlindScanning::STATUS_CONVERTED)
+                ->limit(500)->get(['file_number', 'document_path']);
+            foreach ($rows as $r) {
+                $rel = str_replace('\\', '/', (string) $r->document_path);
+                if (! str_starts_with($rel, self::BLIND_SCAN_ROOT . '/') || str_contains($rel, '..')) {
+                    continue;
+                }
+                $abs = file_storage_path('app/public/' . $rel);
+                if ($this->filesystem->isFile($abs)) {
+                    $take($abs, $keys[self::titleKey($r->file_number)] ?? $r->file_number);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('BlindScan: title-card table lookup failed', ['error' => $e->getMessage()]);
+        }
+
+        $targetBase = self::SCAN_UPLOAD_ROOT . '/' . ($registrySubFolder ? $registrySubFolder . '/' : '') . $fileNumber;
+        $rootNorm = rtrim(str_replace('\\', '/', $root), '/') . '/';
+        $cards = collect();
+        $seen = [];   // content hash => first card: identical "(2)" copies are flagged, not offered as new
+        // Originals before their " (2)" copies, so the copy is the one flagged as the same card.
+        uksort($found, fn ($a, $b) => [dirname($a), self::cardNameKey(basename($a)), preg_match('/\(\d+\)\.[^.]+$/', $a), strtolower(basename($a))]
+            <=> [dirname($b), self::cardNameKey(basename($b)), preg_match('/\(\d+\)\.[^.]+$/', $b), strtolower(basename($b))]);
+        foreach ($found as $path => $title) {
+            $norm = str_replace('\\', '/', $path);
+            if (stripos($norm, $rootNorm) !== 0) {
+                continue;
+            }
+            $under = substr($norm, strlen($rootNorm));
+            $size = @filesize($path) ?: 0;
+            $hash = $size <= 50 * 1024 * 1024 ? (@md5_file($path) ?: null) : null;
+            $dup = $hash !== null && isset($seen[$hash]) ? $seen[$hash] : null;
+            if ($hash !== null && $dup === null) {
+                $seen[$hash] = basename($path);
+            }
+            $target = \App\Http\Controllers\BlindScanningController::INDEX_CARD_FOLDER . '/' . $this->buildTargetFilename(basename($path));
+            $cards->push([
+                'name' => basename($path),
+                'relative_path' => self::TITLE_CARD_PREFIX . $under,
+                'size' => $size,
+                'paper_size' => 'A4',
+                'document_type' => \App\Http\Controllers\BlindScanningController::INDEX_CARD_DOCUMENT_TYPE,
+                'target_relative_path' => $target,
+                'original_path' => $path,
+                'blind_storage_path' => self::BLIND_SCAN_ROOT . '/' . $under,
+                'target_storage_path' => $targetBase . '/' . $target,
+                'title_card' => true,
+                'matched_title' => $title,
+                'duplicate_of' => $dup,
+            ]);
+        }
+
+        return $cards;
+    }
+
+    /**
+     * [path, name key, is folder] for everything in the drop folder and one level down. Cached for 10 minutes
+     * against the folder's modified time, so a large drop folder is not re-read for every file opened.
+     */
+    private function titleDropIndex(string $drop): array
+    {
+        $build = function () use ($drop) {
+            $out = [];
+            foreach (new \FilesystemIterator($drop, \FilesystemIterator::SKIP_DOTS) as $e) {
+                if ($e->isDir()) {
+                    $out[] = [$e->getPathname(), self::titleKey($e->getFilename()), true];
+                    foreach (new \FilesystemIterator($e->getPathname(), \FilesystemIterator::SKIP_DOTS) as $f) {
+                        if ($f->isFile()) {
+                            $out[] = [$f->getPathname(), self::cardNameKey($f->getFilename()), false];
+                        }
+                    }
+                } elseif ($e->isFile()) {
+                    $out[] = [$e->getPathname(), self::cardNameKey($e->getFilename()), false];
+                }
+            }
+
+            return $out;
+        };
+
+        return \Illuminate\Support\Facades\Cache::remember('blind_scan.title_cards.' . md5($drop) . '.' . @filemtime($drop), 600, $build);
     }
 
     private function normalizeFileNumber(string $value): string
@@ -229,13 +429,17 @@ class BlindScanIngestionService
         return $files;
     }
 
-    private function resolveBlindFolder(string $fileNumber, ?string $registry = null): array
+    /**
+     * @param  bool  $directOnly  only the file's folder by name in each registry folder; no deep search. Used when
+     *                            cards saved under the file's name were found: the deep search takes minutes.
+     */
+    private function resolveBlindFolder(string $fileNumber, ?string $registry = null, bool $directOnly = false): array
     {
         $startTime = microtime(true);
         Log::info('BlindScan: Resolving folder start', ['file_number' => $fileNumber, 'registry' => $registry]);
 
         $normalizedFileNumber = $this->normalizeFileNumber($fileNumber);
-        $needle = strtolower(preg_replace('/[^a-z0-9]/', '', $normalizedFileNumber) ?? '');
+        $needle = preg_replace('/[^a-z0-9]/', '', strtolower($normalizedFileNumber)) ?? '';
 
         // 1. Try Direct/Known Locations (Fastest). The selected registry's
         // folder first, so a file number present under two registries resolves
@@ -266,13 +470,17 @@ class BlindScanIngestionService
             }
         }
 
+        if ($directOnly) {
+            throw new FileNotFoundException("Blind scan folder not found for {$fileNumber}.");
+        }
+
         // 2. Try Exact Match in Registries/Subdirectories (Iterative search)
         $root = file_storage_path('app/public/' . self::BLIND_SCAN_ROOT);
         if ($this->filesystem->isDirectory($root)) {
             $topDirs = $this->filesystem->directories($root);
             foreach ($topDirs as $topDir) {
                 $dirName = basename($topDir);
-                $cleanName = strtolower(preg_replace('/[^a-z0-9]/', '', $dirName) ?? '');
+                $cleanName = preg_replace('/[^a-z0-9]/', '', strtolower($dirName)) ?? '';
 
                 // Level 1 check
                 if ($cleanName === $needle) {
@@ -287,7 +495,7 @@ class BlindScanIngestionService
                 $subDirs = $this->filesystem->directories($topDir);
                 foreach ($subDirs as $subDir) {
                     $subDirName = basename($subDir);
-                    $cleanSubName = strtolower(preg_replace('/[^a-z0-9]/', '', $subDirName) ?? '');
+                    $cleanSubName = preg_replace('/[^a-z0-9]/', '', strtolower($subDirName)) ?? '';
 
                     if ($cleanSubName === $needle) {
                         $relativeResult = $dirName . '/' . $subDirName;
@@ -303,7 +511,7 @@ class BlindScanIngestionService
                         $deepDirs = $this->filesystem->directories($subDir);
                         foreach ($deepDirs as $deepDir) {
                             $deepDirName = basename($deepDir);
-                            $cleanDeepName = strtolower(preg_replace('/[^a-z0-9]/', '', $deepDirName) ?? '');
+                            $cleanDeepName = preg_replace('/[^a-z0-9]/', '', strtolower($deepDirName)) ?? '';
 
                             if ($cleanDeepName === $needle) {
                                 $relativeResult = $dirName . '/' . $subDirName . '/' . $deepDirName;
@@ -335,7 +543,7 @@ class BlindScanIngestionService
                     $pathAccumulator = '';
                     foreach ($segments as $segment) {
                         $pathAccumulator = $pathAccumulator ? $pathAccumulator . '/' . $segment : $segment;
-                        if (strtolower(preg_replace('/[^a-z0-9]/', '', $segment) ?? '') === $needle) {
+                        if (preg_replace('/[^a-z0-9]/', '', strtolower($segment)) ?? '' === $needle) {
                             $candidatePath = file_storage_path('app/public/' . self::BLIND_SCAN_ROOT . '/' . $pathAccumulator);
                             if ($this->filesystem->isDirectory($candidatePath)) {
                                 Log::info('BlindScan: Resolved from history', [
@@ -465,7 +673,7 @@ class BlindScanIngestionService
         return trim(preg_replace('#/{2,}#', '/', $relative), '/');
     }
 
-    private function markBlindScanRecord(array $manifest, string $fileNumber, string $blindRelative, ?int $fileIndexingId, int $scanId): void
+    private function markBlindScanRecord(array $manifest, string $fileNumber, ?string $blindRelative, ?int $fileIndexingId, int $scanId): void
     {
         BlindScanning::on('sqlsrv')
             ->where('document_path', $manifest['blind_storage_path'])

@@ -1020,6 +1020,7 @@ class FileNumberController extends Controller
                 }
             }
             $mergedData = array_values($mergedData);
+            $mergedData = $this->nameUpdatedBy($mergedData);
 
             return response()->json([
                 'draw' => intval($draw),
@@ -1041,6 +1042,49 @@ class FileNumberController extends Controller
                 'error' => 'Error loading data: ' . $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Updated By as a name (Kunle, 2026-11-15): edits store updated_by as a user id on
+     * most paths and as a name on a few, and the table printed the id ("50550"). One
+     * lookup per page; the id is kept as updated_by_id for the profile card. An id with
+     * no user row is left as it is rather than blanked.
+     */
+    private function nameUpdatedBy(array $rows): array
+    {
+        $ids = [];
+        foreach ($rows as $row) {
+            $value = trim((string) ($row['updated_by'] ?? ''));
+            if ($value !== '' && ctype_digit($value)) {
+                $ids[(int) $value] = true;
+            }
+        }
+        if (!$ids) {
+            return $rows;
+        }
+
+        try {
+            $names = DB::connection('sqlsrv')->table('users')
+                ->whereIn('id', array_keys($ids))
+                ->get(['id', 'first_name', 'last_name'])
+                ->mapWithKeys(fn ($u) => [(int) $u->id => trim(trim((string) $u->first_name) . ' ' . trim((string) $u->last_name))])
+                ->filter()
+                ->all();
+        } catch (\Throwable $e) {
+            Log::warning('FC Updated By names unavailable', ['error' => $e->getMessage()]);
+            return $rows;
+        }
+
+        foreach ($rows as &$row) {
+            $value = trim((string) ($row['updated_by'] ?? ''));
+            if ($value !== '' && ctype_digit($value) && isset($names[(int) $value])) {
+                $row['updated_by_id'] = (int) $value;
+                $row['updated_by'] = $names[(int) $value];
+            }
+        }
+        unset($row);
+
+        return $rows;
     }
 
     /**
@@ -4334,9 +4378,17 @@ class FileNumberController extends Controller
         }
 
         try {
+            $versions = app(FcRecordVersions::class)->versions($entity, (int) $id);
+            // Each version's Updated By as a name, as on the live row.
+            $states = $this->nameUpdatedBy(array_map(fn ($v) => $v['state'] ?? [], $versions));
+            foreach ($versions as $i => &$version) {
+                $version['state'] = $states[$i];
+            }
+            unset($version);
+
             return response()->json([
                 'success' => true,
-                'versions' => app(FcRecordVersions::class)->versions($entity, (int) $id),
+                'versions' => $versions,
             ]);
         } catch (\Throwable $e) {
             Log::warning('FC versions failed', ['id' => $id, 'entity' => $entity, 'error' => $e->getMessage()]);

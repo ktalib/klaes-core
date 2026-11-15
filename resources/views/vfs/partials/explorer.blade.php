@@ -50,7 +50,10 @@
 
     <div class="flex-1"></div>
 
+    {{-- The register is Super Admins only; everyone else opens a folio from a table row. --}}
+    @if(auth()->user()?->isSuperAdmin())
     <a href="{{ route('vfs.index') }}" class="text-xs font-semibold border border-gray-300 text-gray-700 rounded-md py-2 px-4">Back to register</a>
+    @endif
 </div>
 
 {{-- ST family: Land File > Primary ST > Unit(s) (CR-11112026-2 item 15). Absent for a file outside any ST family. --}}
@@ -70,8 +73,10 @@
 {{-- Toolbar --}}
 <div class="bg-white border-b border-gray-200 px-6 py-2 flex items-center gap-2">
     <nav aria-label="Breadcrumb" class="flex items-center gap-2 text-sm">
+        @if(auth()->user()?->isSuperAdmin())
         <a href="{{ route('vfs.index') }}" class="text-gray-600">Register</a>
         <i data-lucide="chevron-right" class="h-3 w-3 text-gray-400"></i>
+        @endif
         <a href="{{ route('vfs.show', $file->id) }}" class="text-gray-600">{{ $summary['display_number'] }}</a>
         @if($section === 'documents' && $activeFolder)
             <i data-lucide="chevron-right" class="h-3 w-3 text-gray-400"></i>

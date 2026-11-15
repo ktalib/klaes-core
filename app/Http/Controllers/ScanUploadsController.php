@@ -77,11 +77,16 @@ class ScanUploadsController extends Controller
     {
         $validated = $request->validate([
             'file_number' => 'required|string|max:255',
+            'file_indexing_id' => 'nullable|integer',
             'registry' => 'nullable|string|max:100',
         ]);
 
         try {
-            $manifest = $this->blindScanIngestionService->discover($validated['file_number'], $validated['registry'] ?? null);
+            // Index cards saved under the file's name are found too (CR 141102026 item 2).
+            $fileIndexing = $this->resolveFileIndexing($validated);
+            $titles = $this->blindScanTitles($fileIndexing);
+            $manifest = $this->blindScanIngestionService->discover($validated['file_number'], $validated['registry'] ?? null, $titles);
+            $manifest['title_cards'] = $this->titleCardSummary($manifest['files'] ?? [], $fileIndexing);
 
             return response()->json([
                 'success' => true,
@@ -136,7 +141,8 @@ class ScanUploadsController extends Controller
                 $selectedFiles,
                 $fileIndexing->id,
                 $validated['registry'] ?? null,
-                $fileType
+                $fileType,
+                $this->blindScanTitles($fileIndexing)
             );
 
             if ($fileType !== null && EdmsFileType::normalize($fileIndexing->edms_file_type) !== $fileType) {
@@ -1020,6 +1026,50 @@ class ScanUploadsController extends Controller
     /**
      * Resolve a FileIndexing record from payload parameters.
      */
+    /** The names a file's index cards may have been saved under: its File Title and its holders. */
+    private function blindScanTitles(?FileIndexing $fileIndexing): array
+    {
+        if (! $fileIndexing) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            fn ($v) => trim((string) $v),
+            [$fileIndexing->file_title, $fileIndexing->original_holder, $fileIndexing->current_holder]
+        ), fn ($v) => $v !== '')));
+    }
+
+    /**
+     * Per name the cards were found under: how many cards, and how many OTHER indexed files carry the same name.
+     * A shared name means a card may belong to another file, so the officer checks it before adding.
+     */
+    private function titleCardSummary(array $files, ?FileIndexing $fileIndexing): array
+    {
+        $byTitle = collect($files)->where('title_card', true)->groupBy('matched_title');
+        if ($byTitle->isEmpty()) {
+            return [];
+        }
+
+        return $byTitle->map(function ($cards, $title) use ($fileIndexing) {
+            $others = 0;
+            try {
+                $others = (int) DB::connection('sqlsrv')->table('file_indexings')->lock('WITH (NOLOCK)')
+                    ->where(fn ($q) => $q->where('file_title', $title)->orWhere('original_holder', $title)->orWhere('current_holder', $title))
+                    ->where('file_number', '!=', (string) ($fileIndexing->file_number ?? ''))
+                    ->distinct()->count('file_number');
+            } catch (Throwable $e) {
+                Log::warning('Blind scan title-card count failed', ['error' => $e->getMessage()]);
+            }
+
+            return [
+                'title' => $title,
+                'cards' => $cards->count(),
+                'new_cards' => $cards->whereNull('duplicate_of')->count(),
+                'other_files' => $others,
+            ];
+        })->values()->all();
+    }
+
     protected function resolveFileIndexing(array $payload)
     {
         if (!empty($payload['file_indexing_id'])) {

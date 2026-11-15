@@ -17,11 +17,18 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-// Super Admins only. The sidebar entry is gated the same way, but a hidden menu is
-// not access control — without this the URL was reachable by any signed-in user.
+// The register (finding any indexed file) stays Super Admins only. The sidebar
+// entry is gated the same way, but a hidden menu is not access control.
 Route::middleware(['auth', 'XSS', 'super.admin'])->prefix('vfs')->name('vfs.')->group(function () {
-    // The register: find an indexed file.
     Route::get('/', [VirtualFileExplorerController::class, 'index'])->name('index');
+});
+
+// One folio, read-only, for any signed-in user (Kunle, 2026-11-14: "Open Folio" on
+// the action menus and every "View Scanned File" opens the VFS). They reach it from
+// a record they can already see on a table.
+Route::middleware(['auth', 'XSS'])->prefix('vfs')->name('vfs.')->group(function () {
+    // A file number from a table row (FC, Cadastral) to its folio.
+    Route::get('/open', [VirtualFileExplorerController::class, 'open'])->name('open');
 
     // The explorer: one folio's virtual folder.
     Route::get('/folios/{fileIndexing}', [VirtualFileExplorerController::class, 'show'])

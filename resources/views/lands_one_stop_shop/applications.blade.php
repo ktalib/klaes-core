@@ -1770,8 +1770,12 @@
         }
 
         var snColumnIndex = {{ $isSupperAdmin ? 1 : 0 }};
-        var actionsColumnIndex = {{ $isSupperAdmin ? 18 : 17 }};
-        var sortColumnIndex = {{ $isSupperAdmin ? 17 : 16 }};
+        // Newest fully commissioned first (Kunle, 2026-11-14: files finished two days ago
+        // were showing above today's). These were one column short after Passport,
+        // Latitude, Longitude and Map were added, so the default sort sat on Date
+        // Commissioned and "not sortable" sat on Full Commissioned Date, not Actions.
+        var actionsColumnIndex = {{ $isSupperAdmin ? 19 : 18 }};
+        var sortColumnIndex = {{ $isSupperAdmin ? 18 : 17 }};
 
         // ── DataTable initialisation ──
         const table = $('#op-resettlement-table').DataTable({

@@ -17,7 +17,7 @@
   <div class="spc-exports">
     <button type="button" class="spc-btn" data-export="geojson" title="GeoJSON, latitude / longitude (WGS 84)"><i class="fas fa-code"></i> GeoJSON</button>
     <button type="button" class="spc-btn" data-export="kml" title="KML for Google Earth"><i class="fas fa-earth-africa"></i> KML</button>
-    <button type="button" class="spc-btn" data-export="shp" title="Shapefile (.zip), latitude / longitude (WGS 84)"><i class="fas fa-file-zipper"></i> Shapefile</button>
+    <button type="button" class="spc-btn" data-export="shp" title="Shapefile (.zip), X / Y in the chosen system, with its .prj"><i class="fas fa-file-zipper"></i> Shapefile</button>
     <button type="button" class="spc-btn" data-export="dxf" title="DXF for CAD, X / Y in the chosen system"><i class="fas fa-compass-drafting"></i> DXF</button>
     <button type="button" class="spc-btn" data-export="csv" title="Every point: X / Y in the chosen system and latitude / longitude"><i class="fas fa-file-csv"></i> CSV</button>
     <button type="button" class="spc-btn" data-export="sql" title="SQL Server INSERTs with geometry in the chosen system"><i class="fas fa-database"></i> SQL</button>
@@ -35,4 +35,8 @@
 <script src="{{ asset('maps/vendor/proj4.js') }}"></script>
 <script src="{{ asset('maps/vendor/shpwrite.js') }}"></script>
 <script src="{{ asset('maps/vendor/shp.js') }}"></script>
+{{-- Scanned plans / GeoTIFF (2026-11-15): geotiff.js reads GeoTIFFs, UTIF.js the scans with tags geotiff.js refuses. --}}
+<script src="{{ asset('maps/vendor/geotiff.js') }}"></script>
+<script src="{{ asset('maps/vendor/UTIF.js') }}"></script>
+<script src="{{ asset('js/survey-plan-scan.js') }}?v={{ filemtime(public_path('js/survey-plan-scan.js')) }}"></script>
 <script src="{{ asset('js/survey-plan-check.js') }}?v={{ filemtime(public_path('js/survey-plan-check.js')) }}"></script>

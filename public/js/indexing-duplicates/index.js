@@ -753,7 +753,8 @@ function attachManualEntry() {
   registry.addEventListener('change', syncRegistry);
 
   // Picked from the global selector, never typed -- and nothing is backfilled: the
-  // indexed record behind the number is the OTHER file.
+  // indexed record behind the number is the OTHER file. Manual Entry only (user,
+  // 2026-11-15): the selector's prefix / year / serial builder, no Smart Selector.
   const pick = () => {
     if (typeof window.GlobalFileNoModal === 'undefined') {
       fail('The file number selector did not load. Refresh the page and try again.');
@@ -761,6 +762,7 @@ function attachManualEntry() {
     }
     window.GlobalFileNoModal.open({
       initialValue: fileNo.value || '',
+      manualOnly: true,
       callback: (fileData) => {
         const picked = fileData && (fileData.fileNumber || fileData.fileno || fileData.mlsFNo
           || fileData.kangisFileNo || fileData.NewKANGISFileno

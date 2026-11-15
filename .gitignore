@@ -21,3 +21,6 @@
 .phpunit.result.cache
 /npm-debug.log
 /yarn-error.log
+
+# Imagery map tiles made by resources/gis/make_tiles.py (GBs, not code)
+/public/tiles

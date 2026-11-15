@@ -152,7 +152,10 @@
                                 <th class="px-4 py-3">Existing Site Measurement</th>
                                 <th class="px-4 py-3">Compliance</th>
                                 <th class="px-4 py-3">JSI Status</th>
-                                <th class="px-4 py-3">Created</th>
+                                <th class="px-4 py-3">Created By</th>
+                                <th class="px-4 py-3">Date Created</th>
+                                <th class="px-4 py-3">Updated By</th>
+                                <th class="px-4 py-3">Date Updated</th>
                                 <th class="px-4 py-3 text-center">Actions</th>
                             </tr>
                         </thead>
@@ -372,7 +375,15 @@ $(document).ready(function() {
                 }
             },
             {
-                // 12 – Created
+                // Created By (Kunle, 2026-11-15)
+                data: 'created_by_name',
+                render: function(data) {
+                    if (!data) return '<span class="text-[10px] text-slate-400">N/A</span>';
+                    return '<span class="text-[10px] text-slate-600 font-semibold uppercase">' + $('<div>').text(data).html() + '</span>';
+                }
+            },
+            {
+                // Date Created
                 data: 'created_at',
                 render: function(data) {
                     if (!data) return '<span class="text-[10px] text-slate-400">N/A</span>';
@@ -381,7 +392,26 @@ $(document).ready(function() {
                 }
             },
             {
-                // 13 – Actions dropdown
+                // Updated By: any save after creation; N/A when never edited
+                data: 'updated_by_name',
+                render: function(data) {
+                    if (!data) return '<span class="text-[10px] text-slate-400">N/A</span>';
+                    return '<span class="text-[10px] text-slate-600 font-semibold uppercase">' + $('<div>').text(data).html() + '</span>';
+                }
+            },
+            {
+                // Date Updated
+                data: 'updated_at',
+                render: function(data) {
+                    if (!data) return '<span class="text-[10px] text-slate-400">N/A</span>';
+                    var d = new Date(String(data).replace(' ', 'T'));
+                    if (isNaN(d.getTime())) return '<span class="text-[10px] text-slate-500">' + $('<div>').text(data).html() + '</span>';
+                    return '<span class="text-[10px] text-slate-500">' + d.toLocaleDateString() + ' ' +
+                        d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '</span>';
+                }
+            },
+            {
+                // Actions dropdown
                 data: null,
                 orderable: false,
                 searchable: false,
@@ -427,7 +457,7 @@ $(document).ready(function() {
                 }
             }
         ],
-        order: [[13, 'desc']], // Order by Created column
+        order: [[14, 'desc']], // Order by Date Created
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
         language: {

@@ -852,6 +852,44 @@
     return isFlatPick() && !/\d/.test(localParentName) ? null : localParentName;
   }
 
+  /*
+   | The file number's own registry against the one picked (Kunle, 2026-11-15:
+   | SIT-2001-122 landed in ST_Registry_Raw). Same rules as the server's
+   | registryMismatch(), which refuses the upload anyway:
+   |   block  a number from a dedicated series (SIT-, ST-, SLTR-, DCIV-, Survey, KANGIS)
+   |          picked for another series registry: it goes to its own registry.
+   |   warn   a Lands number picked for a dedicated-series registry: confirm.
+   | Cadastral, Secret, Deeds and Physical Planning are never checked.
+   */
+  const SERIES_NAMES = { LANDS: 'Lands Registry', SIT: 'SIT Registry', ST: 'ST Registry', SLTR: 'SLTR Registry', DCIV: 'DCIV Registry', GKN: 'Survey Registry', KANGIS: 'KANGIS Registry' };
+  function expectedRegistryCode(fileNumber) {
+    const f = String(fileNumber || '').trim().toUpperCase();
+    if (!f) return null;
+    if (f.startsWith('ST-')) return 'ST';
+    if (f.startsWith('DCIV-') || f.startsWith('DCIV/')) return 'DCIV';
+    if (f.startsWith('SLTR-') || f.startsWith('SLTR/')) return 'SLTR';
+    if (f.startsWith('SIT-') || f.startsWith('SIT/')) return 'SIT';
+    if (/^(GKN[-\/ ]|LPKN[-\/ ]|LPPL-|RDKN-|MISC KN)/.test(f)) return 'GKN';
+    if (/^(KNML|MLKN|MNKL|KNGP)/.test(f)) return 'KANGIS';
+    if (/^(RES[-\/]|COM[-\/]|IND[-\/]|AG[-\/]|MISC[-\/]|CON-(RES|COM|IND|AG|MISC))/.test(f)) return 'LANDS';
+    return null;
+  }
+  function registryMismatch(fileNumber, chosenCode) {
+    const expected = expectedRegistryCode(fileNumber);
+    const chosen = String(chosenCode || '').toUpperCase();
+    if (!expected || !SERIES_NAMES[chosen] || expected === chosen) return null;
+    // SIT files are kept under Land (user, 2026-11-15): Lands and the SIT Registry both accept a SIT
+    // number; anywhere else it is blocked and offered the Lands Registry.
+    if (expected === 'SIT') {
+      if (chosen === 'LANDS' || chosen === 'SIT') return null;
+      return { level: 'block', expected: 'LANDS', expectedName: SERIES_NAMES.LANDS, chosenName: SERIES_NAMES[chosen] };
+    }
+    const level = expected === 'LANDS' ? 'warn' : 'block';
+    return { level, expected, expectedName: SERIES_NAMES[expected], chosenName: SERIES_NAMES[chosen] };
+  }
+  // Set once the user confirms a Lands number for a dedicated-series registry.
+  let registryConfirmed = false;
+
   function validateUploadSection() {
     const typedRaw = norm(fileNoEl.value);
     const registryOk = !!(registryEl && registryEl.value);
@@ -896,9 +934,14 @@
       ? `<div class="text-yellow-700 mt-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i>The folder is named <code>${escapeHtml(inferred)}</code> but the file number is <code>${escapeHtml(typedRaw)}</code>. You will be asked to confirm.</div>`
       : '';
 
+    const regMis = registryMismatch(typedRaw, registryEl.value);
+    const regNote = !regMis ? '' : (regMis.level === 'block'
+      ? `<div class="text-red-600 mt-1"><i class="fa-solid fa-ban mr-1"></i><b>${escapeHtml(typedRaw)}</b> is a <b>${regMis.expectedName}</b> file number. It cannot go into the ${regMis.chosenName}; you will be offered the ${regMis.expectedName} when you upload.</div>`
+      : `<div class="text-yellow-700 mt-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i><b>${escapeHtml(typedRaw)}</b> is a <b>${regMis.expectedName}</b> file number but the ${regMis.chosenName} is picked. You will be asked to confirm.</div>`);
+
     statusEl.innerHTML = `<span class="text-green-700"><i class="fa-solid fa-circle-check mr-1"></i>Ready:</span>
       <b>${selectedFiles.length}</b> file(s), ${formatBytes(totalSelectedBytes)} &mdash; ${isIndexCards() ? `Index cards ${counts.IC}` : `A4 ${counts.A4}, A3 ${counts.A3}${counts.IC ? `, index cards ${counts.IC}` : ''}${counts.other ? `, no paper folder ${counts.other}` : ''}`}
-      &rarr; <b>${escapeHtml(typedRaw)}</b> in <b>${escapeHtml(registryLabel)}</b>.${mismatch}${skippedNote}`;
+      &rarr; <b>${escapeHtml(typedRaw)}</b> in <b>${escapeHtml(registryLabel)}</b>.${regNote}${mismatch}${skippedNote}`;
     migrateBtn.disabled = uploading; ready = true;
   }
 
@@ -1167,6 +1210,42 @@
     if (!ready || uploading) return;
 
     const folderName = norm(fileNoEl.value);
+
+    // Wrong registry for this file number: send it to its own (block), or confirm (warn).
+    registryConfirmed = false;
+    const regMis = registryMismatch(folderName, registryEl.value);
+    if (regMis) {
+      const target = Array.from(registryEl.options).find(o => String(o.value).toUpperCase() === regMis.expected);
+      const text = regMis.level === 'block'
+        ? `${folderName} is a ${regMis.expectedName} file number, so its scans cannot go into the ${regMis.chosenName}.`
+        : `${folderName} is a ${regMis.expectedName} file number, but the ${regMis.chosenName} is picked. Only continue if the physical file is kept in the ${regMis.chosenName}.`;
+      let choice = 'cancel';
+      if (typeof Swal !== 'undefined') {
+        const res = await Swal.fire({
+          icon: regMis.level === 'block' ? 'error' : 'warning',
+          title: 'Wrong registry for this file number',
+          text,
+          showConfirmButton: !!target,
+          confirmButtonText: `Upload to ${regMis.expectedName} instead`,
+          showDenyButton: regMis.level === 'warn',
+          denyButtonText: `Keep in ${regMis.chosenName}`,
+          showCancelButton: true,
+          cancelButtonText: 'Cancel',
+        });
+        choice = res.isConfirmed ? 'switch' : (res.isDenied ? 'keep' : 'cancel');
+      } else if (target && confirm(`${text}\n\nOK = upload to ${regMis.expectedName} instead.`)) {
+        choice = 'switch';
+      }
+      if (choice === 'switch' && target) {
+        registryEl.value = target.value;
+        registryEl.dispatchEvent(new Event('change'));
+      } else if (choice === 'keep' && regMis.level === 'warn') {
+        registryConfirmed = true;
+      } else {
+        return;
+      }
+    }
+
     const registry = registryEl.value;
     const registryLabel = registryEl.options[registryEl.selectedIndex].text;
 
@@ -1206,6 +1285,7 @@
           form.append('_token', CSRF_TOKEN);
           form.append('folderName', folderName);
           form.append('registry', registry);
+          if (registryConfirmed) form.append('registry_confirmed', '1');
           form.append('uploadMethod', 'direct');
           form.append('uploadType', uploadType);
           form.append('batch_index', String(i));
@@ -1265,6 +1345,7 @@
           form.append('_token', CSRF_TOKEN);
           form.append('folderName', folderName);
           form.append('registry', registry);
+          if (registryConfirmed) form.append('registry_confirmed', '1');
           form.append('uploadMethod', 'direct');
           form.append('uploadType', uploadType);
           form.append('batch_index', '0');

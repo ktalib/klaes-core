@@ -80,20 +80,6 @@
             </select>
             <p class="helper-text">GKN for public plans, Examination/Verification for private.</p>
         </div>
-        <div class="form-group">
-            <label>Plan File <span class="required">*</span></label>
-            <input type="file" name="plan_file" id="spuFile" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff" required>
-            <p class="helper-text">PDF, JPG, PNG or TIFF, up to 25 MB.</p>
-        </div>
-        {{-- Preview of the chosen plan, before it is saved (user, 2026-11-10). Read from the browser only. --}}
-        <div id="spuPreview" hidden style="grid-column:1 / -1;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;padding:10px 12px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-                <span style="font-size:13px;font-weight:600;color:#374151;"><i class="fas fa-eye" style="margin-right:6px;color:#6b7280;"></i>Preview: <span id="spuPreviewName"></span></span>
-                <button type="button" id="spuPreviewClear" class="btn btn-secondary" style="padding:4px 10px;font-size:12px;"><i class="fas fa-times"></i> Remove file</button>
-            </div>
-            <div id="spuPreviewBody"></div>
-        </div>
-
         <div class="sv-group"><i class="fas fa-map-marker-alt"></i><span>Location of the Plan</span></div>
         <div class="form-group">
             <label>Plot No.</label>
@@ -116,6 +102,23 @@
                 @foreach ($lgas as $l)<option value="{{ $l }}" @selected(old('lga') === $l)>{{ $l }}</option>@endforeach
             </select>
         </div>
+        {{-- Map sheet, Metric and Imperial (CR 141102026 item 3, 2026-11-15). Optional: blank when not known. --}}
+        <div class="form-group">
+            <label>Map Sheet (Metric) <button type="button" class="spc-sheet-link" data-spc-guide="sheets"><i class="fas fa-map"></i> View sheet index</button></label>
+            <select name="map_sheet_metric">
+                <option value="">— Select sheet —</option>
+                @foreach (\App\Services\Survey\MapSheets::METRIC as $c)<option value="{{ $c }}" @selected(old('map_sheet_metric') === $c)>{{ $c }}</option>@endforeach
+            </select>
+            <p class="helper-text">Kano metropolitan index grid. Leave blank if not known.</p>
+        </div>
+        <div class="form-group">
+            <label>Map Sheet (Imperial) <button type="button" class="spc-sheet-link" data-spc-guide="sheets"><i class="fas fa-map"></i> View sheet index</button></label>
+            <select name="map_sheet_imperial">
+                <option value="">— Select sheet —</option>
+                @foreach (\App\Services\Survey\MapSheets::IMPERIAL as $c => $n)<option value="{{ $c }}" @selected(old('map_sheet_imperial') === $c)>{{ $c }} · {{ $n }}</option>@endforeach
+            </select>
+            <p class="helper-text">1:50,000 topo sheet. Leave blank if not known.</p>
+        </div>
 
         <div class="sv-group"><i class="fas fa-user-edit"></i><span>Drawn By</span></div>
         <div class="form-group">
@@ -131,6 +134,22 @@
         <div class="form-group" style="grid-column:span 2;">
             <label>Remarks</label>
             <textarea name="remarks" rows="2" maxlength="1000">{{ old('remarks') }}</textarea>
+        </div>
+
+        {{-- The plan file comes last, after Drawn By (user, 2026-11-15). --}}
+        <div class="sv-group"><i class="fas fa-file-upload"></i><span>Plan File</span></div>
+        <div class="form-group">
+            <label>Plan File <span class="required">*</span></label>
+            <input type="file" name="plan_file" id="spuFile" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff" required>
+            <p class="helper-text">PDF, JPG, PNG or TIFF, up to 25 MB.</p>
+        </div>
+        {{-- Preview of the chosen plan, before it is saved (user, 2026-11-10). Read from the browser only. --}}
+        <div id="spuPreview" hidden style="grid-column:1 / -1;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;padding:10px 12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+                <span style="font-size:13px;font-weight:600;color:#374151;"><i class="fas fa-eye" style="margin-right:6px;color:#6b7280;"></i>Preview: <span id="spuPreviewName"></span></span>
+                <button type="button" id="spuPreviewClear" class="btn btn-secondary" style="padding:4px 10px;font-size:12px;"><i class="fas fa-times"></i> Remove file</button>
+            </div>
+            <div id="spuPreviewBody"></div>
         </div>
     </div>
     <div style="margin-top:18px;">@include('survey_module.survey_plans._plan_check_export', ['spcExportNo' => 6, 'spcExportGate' => true])</div>

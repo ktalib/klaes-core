@@ -63,6 +63,36 @@ class VirtualFileExplorerController extends Controller
         ]);
     }
 
+    /**
+     * A file number from a table row to its folio. FC and Cadastral rows carry a
+     * file number, not an indexing id, and a number can sit in file_number or, for
+     * a (T) file, temp_file_no. No folio yet (never indexed): Super Admins land on
+     * the register search, which also lists Blind Scan-only matches; everyone else
+     * is told plainly.
+     */
+    public function open(Request $request)
+    {
+        $number = trim((string) $request->query('file_no', ''));
+        abort_if($number === '', 404);
+
+        $id = FileIndexing::query()->where('file_number', $number)->orderByDesc('id')->value('id')
+            ?? FileIndexing::query()->where('temp_file_no', $number)->orderByDesc('id')->value('id');
+
+        if ($id) {
+            return redirect()->route('vfs.show', $id);
+        }
+
+        if ($request->user()?->isSuperAdmin()) {
+            return redirect()->route('vfs.index', ['q' => $number, 'scope' => 'all']);
+        }
+
+        return view('vfs.no_folio', [
+            'PageTitle' => 'Virtual File/Folder System (Folio)',
+            'PageDescription' => $number,
+            'number' => $number,
+        ]);
+    }
+
     /** The explorer for one folio. */
     public function show(Request $request, FileIndexing $fileIndexing)
     {

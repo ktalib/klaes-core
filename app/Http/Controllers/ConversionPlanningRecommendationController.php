@@ -199,6 +199,9 @@ class ConversionPlanningRecommendationController extends Controller
         $query = DB::connection('sqlsrv')
             ->table('joint_site_inspection_reports as jsi')
             ->leftJoin('file_indexings as fi', 'fi.file_number', '=', 'jsi.file_number')
+            // Updated By (Kunle, 2026-11-15): updated_by holds the user id.
+            ->leftJoin('users as upd_user', 'upd_user.id', '=', 'jsi.updated_by')
+            ->leftJoin('users as crt_user', 'crt_user.id', '=', 'jsi.created_by')
             ->select([
                 'jsi.id as jsi_report_id',
                 'jsi.application_id',
@@ -228,6 +231,8 @@ class ConversionPlanningRecommendationController extends Controller
                 'jsi.updated_at as jsi_updated_at',
                 'jsi.created_at',
                 'fi.tp_no',
+                DB::raw("NULLIF(LTRIM(RTRIM(CONCAT(COALESCE(upd_user.first_name, ''), ' ', COALESCE(upd_user.last_name, '')))), '') as updated_by_name"),
+                DB::raw("NULLIF(LTRIM(RTRIM(CONCAT(COALESCE(crt_user.first_name, ''), ' ', COALESCE(crt_user.last_name, '')))), '') as created_by_name"),
             ])
             ->whereNull('jsi.sub_application_id')
             ->where($baseWhere);
@@ -327,7 +332,10 @@ class ConversionPlanningRecommendationController extends Controller
             9 => 'jsi.existing_site_area',    // Existing Site Measurement
             10 => 'jsi.compliance_status',    // Compliance
             11 => 'jsi.is_approved',          // JSI Status
-            12 => 'jsi.created_at',           // Created
+            12 => 'crt_user.first_name',      // Created By
+            13 => 'jsi.created_at',           // Date Created
+            14 => 'upd_user.first_name',      // Updated By
+            15 => 'jsi.updated_at',           // Date Updated
         ];
 
         if (isset($sortableColumns[$orderColumnIndex])) {
@@ -349,6 +357,18 @@ class ConversionPlanningRecommendationController extends Controller
 
             // JSI status is only Pending or Approved.
             $jsiStatusCode = $isApproved ? 'approved' : 'pending';
+
+            // Updated By / Date Updated (Kunle, 2026-11-15), the Land FC rule: shown for
+            // any save after creation, even by the same person; N/A only when the stamp
+            // is exactly the creation stamp (to the second), i.e. never edited.
+            $wasUpdated = false;
+            try {
+                $wasUpdated = $file->created_at !== null && $file->jsi_updated_at !== null
+                    && \Carbon\Carbon::parse($file->jsi_updated_at)->startOfSecond()
+                        ->greaterThan(\Carbon\Carbon::parse($file->created_at)->startOfSecond());
+            } catch (\Throwable $e) {
+                $wasUpdated = false;
+            }
             $jsiStatusLabel = $isApproved ? 'Approved' : 'Pending';
 
             return [
@@ -380,6 +400,9 @@ class ConversionPlanningRecommendationController extends Controller
                 'jsi_approved_at'     => $file->jsi_approved_at,
                 'jsi_updated_at'      => $file->jsi_updated_at,
                 'created_at'          => $file->created_at ?? null,
+                'created_by_name'     => $file->created_by_name ?? null,
+                'updated_by_name'     => $wasUpdated ? ($file->updated_by_name ?? null) : null,
+                'updated_at'          => $wasUpdated ? ($file->jsi_updated_at ?? null) : null,
             ];
         });
 

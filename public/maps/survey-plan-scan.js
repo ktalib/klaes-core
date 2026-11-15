@@ -387,6 +387,36 @@
     showMethod(); draw();
   };
 
+  /* ---------- the plans from the user's drive (2026-11-15) ---------- */
+  // Six Abia scans (Downloads	iff). 004 and 005 have NTM Mid Belt grids printed on them: their grid crossings
+  // were found on the full scans and fitted (004: 10 crossings, 0.70 m rms; 005: 17 crosses, 0.44 m rms), and saved
+  // as GeoTIFFs, so they place themselves. The others are shrunk copies to place by hand: 007 and 008 have only
+  // bearings from beacons with no coordinates on the sheet, 010 is on a local Aba grid (0 = an origin in the
+  // town), 006 is a faded blueprint.
+  const DRIVE_NOTE = {
+    '006': 'Outline development plan, a faded blueprint: its grid labels cannot be read. Place it with control points.',
+    '007': 'No grid: bearings and distances from PB 2363 (origin), whose coordinates are not on the sheet. Place it with control points once the beacons’ X / Y are known.',
+    '008': 'No grid: bearings and distances between C4932…C2180 (origin Nigeria National), coordinates not on the sheet. Place it with control points once the beacons’ X / Y are known.',
+    '010': 'A local Aba grid (metres E / W and N / S of an origin "0" in the town), not NTM: place it with control points.',
+  };
+  $('geoDrive').onchange = async () => {
+    const f = $('geoDrive').value; if (!f) return;
+    $('geoMsg').className = 'note'; $('geoMsg').textContent = 'Loading ' + f + '…';
+    const ko = document.getElementById('kanoOnly');
+    if (ko && ko.checked) { ko.checked = false; ko.dispatchEvent(new Event('change')); }   // Abia, not Kano
+    document.querySelector('input[name=sys][value=ntm]').checked = true; document.querySelector('input[name=belt][value="26392"]').checked = true;
+    document.querySelector('input[name=belt][value="26392"]').dispatchEvent(new Event('change'));
+    const label = $('geoDrive').selectedOptions[0].textContent;
+    try {
+      if (/\.tif$/.test(f)) await readTiff(await (await fetch('/maps/samples/tiff/' + f)).arrayBuffer(), label);
+      else {
+        await readImage('/maps/samples/tiff/' + f, label, null);
+        $('geoMsg').className = 'note'; $('geoMsg').textContent = DRIVE_NOTE[f.slice(0, 3)] || '';
+      }
+    } catch (err) { $('geoMsg').className = 'note bad'; $('geoMsg').textContent = 'Could not read ' + f + ': ' + err.message; }
+    $('geoDrive').value = '';
+  };
+
   /* ---------- the figures instead of the picture (user, 2026-11-14) ---------- */
   // Prototype of "read the plan, then plot it": the figures below are read off the sample sheet (what an AI
   // reader would hand the officer to confirm). Whole-circle bearings as printed, PBC7954 → … → PBC7954.

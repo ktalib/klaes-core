@@ -175,6 +175,9 @@ class SltrPlanningRecommendationController extends Controller
         $query = DB::connection('sqlsrv')
             ->table(self::TABLE . ' as jsi')
             ->leftJoin('file_indexings as fi', 'fi.id', '=', DB::raw('TRY_CAST(jsi.application_id AS BIGINT)'))
+            // Created By / Updated By (Kunle, 2026-11-15): both hold the user id.
+            ->leftJoin('users as crt_user', 'crt_user.id', '=', 'jsi.created_by')
+            ->leftJoin('users as upd_user', 'upd_user.id', '=', 'jsi.updated_by')
             ->select([
                 'jsi.id as jsi_report_id',
                 'jsi.application_id',
@@ -204,6 +207,8 @@ class SltrPlanningRecommendationController extends Controller
                 'jsi.updated_at as jsi_updated_at',
                 'jsi.created_at',
                 'fi.tp_no',
+                DB::raw("NULLIF(LTRIM(RTRIM(CONCAT(COALESCE(crt_user.first_name, ''), ' ', COALESCE(crt_user.last_name, '')))), '') as created_by_name"),
+                DB::raw("NULLIF(LTRIM(RTRIM(CONCAT(COALESCE(upd_user.first_name, ''), ' ', COALESCE(upd_user.last_name, '')))), '') as updated_by_name"),
             ]);
 
         if ($request->has('search') && !empty($request->search['value'])) {
@@ -270,7 +275,10 @@ class SltrPlanningRecommendationController extends Controller
             10 => 'jsi.existing_site_area',
             11 => 'jsi.compliance_status',
             12 => 'jsi.is_approved',
-            13 => 'jsi.created_at',
+            13 => 'crt_user.first_name',  // Created By
+            14 => 'jsi.created_at',       // Date Created
+            15 => 'upd_user.first_name',  // Updated By
+            16 => 'jsi.updated_at',       // Date Updated
         ];
 
         $query->orderBy($sortableColumns[$orderColumnIndex] ?? 'jsi.created_at', $orderDir)
@@ -282,6 +290,18 @@ class SltrPlanningRecommendationController extends Controller
 
         $data = $files->map(function ($file) {
             $isApproved = (bool) ($file->jsi_is_approved ?? false);
+
+            // Updated By / Date Updated (Kunle, 2026-11-15), the Land FC rule: shown for
+            // any save after creation, even by the same person; N/A only when the stamp
+            // is exactly the creation stamp (to the second), i.e. never edited.
+            $wasUpdated = false;
+            try {
+                $wasUpdated = $file->created_at !== null && $file->jsi_updated_at !== null
+                    && \Carbon\Carbon::parse($file->jsi_updated_at)->startOfSecond()
+                        ->greaterThan(\Carbon\Carbon::parse($file->created_at)->startOfSecond());
+            } catch (\Throwable $e) {
+                $wasUpdated = false;
+            }
 
             return [
                 'id'                    => $file->jsi_report_id,
@@ -312,6 +332,9 @@ class SltrPlanningRecommendationController extends Controller
                 'jsi_approved_at'       => $file->jsi_approved_at,
                 'jsi_updated_at'        => $file->jsi_updated_at,
                 'created_at'            => $file->created_at ?? null,
+                'created_by_name'       => $file->created_by_name ?? null,
+                'updated_by_name'       => $wasUpdated ? ($file->updated_by_name ?? null) : null,
+                'updated_at'            => $wasUpdated ? ($file->jsi_updated_at ?? null) : null,
             ];
         });
 

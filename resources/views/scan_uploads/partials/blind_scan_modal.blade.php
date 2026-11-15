@@ -51,11 +51,15 @@
         </div>
       </div>
 
+      {{-- Index cards found under the file's name (CR 141102026 item 2, 2026-11-15). --}}
+      <div id="blind-scan-title-note" class="hidden p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900"></div>
+
       <div id="blind-scan-table-wrapper" class="hidden border border-gray-200 rounded-lg overflow-hidden">
         <div class="max-h-72 overflow-y-auto">
           <table class="min-w-full divide-y divide-gray-200 text-sm">
             <thead class="bg-gray-50">
               <tr>
+                <th class="px-3 py-2 text-center font-semibold uppercase tracking-wide text-xs text-gray-600">Add</th>
                 <th class="px-4 py-2 text-left font-semibold uppercase tracking-wide text-xs text-gray-600">File Name</th>
                 <th class="px-4 py-2 text-left font-semibold uppercase tracking-wide text-xs text-gray-600">Relative Path</th>
                 <th class="px-4 py-2 text-left font-semibold uppercase tracking-wide text-xs text-gray-600">Paper</th>

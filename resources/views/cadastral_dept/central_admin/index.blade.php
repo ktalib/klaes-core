@@ -121,9 +121,13 @@
                     @if ($fmcInstalled && $fmcVisible && $case->fmc)
                       <a href="{{ route('cadastral-dept.cases.fmc.show', $case->id) }}" class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><i data-lucide="id-card" class="w-4 h-4 text-gray-500"></i> File Movement Card</a>
                     @endif
-                    {{-- Recording 355: the land file's scans and, once opened, the correspondence file's. --}}
-                    <button type="button" @click="open = false; cdScannedFiles(@js($case->file_number))" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                      <i data-lucide="scan-eye" class="w-4 h-4 text-gray-500"></i> View Scanned Files
+                    {{-- Kunle 2026-11-14: the land file opens in the VFS (Folio); the Correspondence File,
+                         which the VFS does not show, keeps its own item (recording 355). --}}
+                    <a href="{{ route('vfs.open', ['file_no' => $case->file_number]) }}" target="_blank" rel="noopener" @click="open = false" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                      <i data-lucide="folder-open" class="w-4 h-4 text-gray-500"></i> Open Folio
+                    </a>
+                    <button type="button" @click="open = false; cdScannedFiles(@js($case->file_number), { correspondenceOnly: true })" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                      <i data-lucide="mail" class="w-4 h-4 text-gray-500"></i> Correspondence File
                     </button>
                     @php $cdT = $timers[$case->id] ?? null; @endphp
                     @if ($pauseReady && $cdT)

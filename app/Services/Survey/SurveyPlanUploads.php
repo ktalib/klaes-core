@@ -46,6 +46,9 @@ class SurveyPlanUploads
             'drawn_by'       => ['required', 'string', 'max:255'],
             'drawn_by_other' => ['nullable', 'string', 'max:255', Rule::requiredIf(fn () => $staff && $r->input('drawn_by') === self::OTHER)],
             'remarks'        => 'nullable|string|max:1000',
+            // Map sheet, Metric and Imperial (CR 141102026 item 3): optional, from the lists.
+            'map_sheet_metric'   => ['nullable', Rule::in(MapSheets::METRIC)],
+            'map_sheet_imperial' => ['nullable', Rule::in(array_keys(MapSheets::IMPERIAL))],
             // The system the plan's X / Y are in (Survey Plan Check, user 2026-11-12).
             'coord_system'   => ['required', Rule::in(array_keys(Plan::COORD_SYSTEMS))],
             'plan_file'     => ['required', 'file', 'max:25600', 'mimes:' . implode(',', Plan::FILE_TYPES), function ($attr, $file, $fail) {
@@ -68,6 +71,8 @@ class SurveyPlanUploads
             'plan_file.required'      => 'Upload the survey plan.',
             'plan_file.mimes'         => 'Upload the plan as a PDF, JPG, PNG or TIFF.',
             'plan_file.max'           => 'The plan can be at most 25 MB.',
+            'map_sheet_metric.in'     => 'Choose the Metric map sheet from the list.',
+            'map_sheet_imperial.in'   => 'Choose the Imperial map sheet from the list.',
         ]);
 
         $beacons = $this->validatedBeacons($r);
@@ -103,6 +108,8 @@ class SurveyPlanUploads
             'drawn_by'          => $drawnBy,
             'remarks'           => \App\Services\CadastralDept\Normalise::text($d['remarks'] ?? null) ?: null,
             'coord_system'      => $d['coord_system'],
+            'map_sheet_metric'   => $d['map_sheet_metric'] ?? null,
+            'map_sheet_imperial' => $d['map_sheet_imperial'] ?? null,
             'beacons'           => $beacons,
         ];
     }

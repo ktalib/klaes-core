@@ -72,6 +72,7 @@
     <div><span>District</span><strong>{{ $plan->district ?: '—' }}</strong></div>
     <div><span>LGA</span><strong>{{ $plan->lga ?: '—' }}</strong></div>
     <div><span>Location</span><strong>{{ $plan->location ?: '—' }}</strong></div>
+    <div><span>Map Sheet</span><strong>{{ collect([$plan->map_sheet_metric ? 'Metric ' . $plan->map_sheet_metric : null, $plan->map_sheet_imperial ? 'Imperial ' . $plan->map_sheet_imperial . ' (' . (\App\Services\Survey\MapSheets::IMPERIAL[$plan->map_sheet_imperial] ?? '') . ')' : null])->filter()->implode(' · ') ?: '—' }}</strong></div>
     <div><span>Drawn By</span><strong>{{ $plan->drawn_by }}</strong></div>
     <div><span>Coordinate System</span><strong>{{ $plan->coord_system_label ?: '—' }}</strong></div>
     <div><span>Uploaded</span><strong>{{ $plan->created_at?->format('d M Y H:i') }} · {{ $plan->uploaded_by_name }} ({{ $plan->source_label }})</strong></div>

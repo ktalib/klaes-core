@@ -9,6 +9,10 @@
  *
  * Commissioning (user, 2026-11-10): a commissioned file also lists its Commissioning Sheet and, if any, its LGA
  * Confirmation Sheet, drawn read-only as the VFS Commissioning folder draws them (/cadastral-dept/commissioning-docs).
+ *
+ * Kunle, 2026-11-14: the menus now open the Land File in the VFS (Open Folio). The VFS does not show the
+ * Correspondence File, so the menus keep a "Correspondence File" item: cdScannedFiles(no, { correspondenceOnly: true })
+ * opens that folder alone.
  */
 (function () {
   if (window.cdScannedFiles) return;
@@ -94,7 +98,8 @@
     .then((d) => (d && Array.isArray(d.documents) ? d.documents : []))
     .catch(() => []);
 
-  window.cdScannedFiles = function (fileNumber) {
+  window.cdScannedFiles = function (fileNumber, options) {
+    options = options || {};
     fileNumber = String(fileNumber || '').trim();
     if (!fileNumber) {
       notify('info', 'No file number', 'This file has no number to look up.');
@@ -127,6 +132,18 @@
           subtitle: (s.folder || '') + ' · ' + (s.pages || 0) + ' page(s)',
           actions: [],
         });
+        if (options.correspondenceOnly) {
+          if (!correspondence.length) {
+            notify('info', 'No Correspondence File', 'The Correspondence File for ' + fileNumber + ' has not been scanned yet.');
+            return;
+          }
+          if (correspondence.length === 1) {
+            openSource(correspondence[0]);
+            return;
+          }
+          choose(fileNumber, [], null, correspondence, [], openSource);
+          return;
+        }
         choose(fileNumber, land, archive, correspondence, commissioning, openSource);
       })
       .catch((err) => {

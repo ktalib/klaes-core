@@ -70,6 +70,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/beacons', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'beacons'])->name('beacons');
         // Survey Plan Check > Export > Geodatabase (user, 2026-11-15).
         Route::post('/export-gdb', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'gdb'])->middleware('throttle:20,1')->name('gdb');
+        // Kano GIS layers (F:\GIS Data) for the card's Layers panel, signed-in only (2026-11-15).
+        Route::get('/gis-tiles/{layer}.pmtiles', [\App\Http\Controllers\Survey\GisTilesController::class, 'show'])->where('layer', '[a-z-]+')->name('gis-tiles');
         Route::get('/signing', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'signing'])->name('signing');
         // Survey Plan Check (user, 2026-11-12): blank, or filled in from an uploaded plan.
         Route::get('/check', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'check'])->name('check');

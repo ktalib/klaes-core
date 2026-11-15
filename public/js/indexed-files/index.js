@@ -605,14 +605,19 @@ function buildActionsMenu(row, viewUrl) {
           View Details
         </button>`;
 
-  // Opens the Blind Scan folder in the scanned-page viewer (openScannedFile). Only where
-  // the page loads the viewer (config.scanCheckUrl), i.e. the main Files table.
+  // Open Folio: the file's virtual folder in the VFS, in place of View Scanned File
+  // (Kunle, 2026-11-14). The VFS does not show the Correspondence File (Cadastral_*
+  // folders), so that keeps its own item, opened in the scanned-page viewer. Only where
+  // the page sets them, i.e. the main Files table.
   const scannedFileNumber = String(row.file_number || row.temp_file_no || '').trim();
   const hasScannedTarget = scannedFileNumber !== '' && scannedFileNumber !== '-';
-  const viewScannedButton = !config.scanCheckUrl ? '' : `<button type="button" class="view-scanned-file-btn flex items-start gap-2.5 w-full text-left px-4 py-2.5 text-sm ${hasScannedTarget ? 'text-emerald-700 hover:bg-emerald-50' : 'text-gray-400 cursor-not-allowed opacity-40'} transition-colors" data-file-id="${id}" data-file-number="${escapeHtml(scannedFileNumber)}" ${hasScannedTarget ? '' : 'disabled="disabled"'}>
-          <i data-lucide="scan-line" class="h-4 w-4 mt-0.5 shrink-0 ${hasScannedTarget ? 'text-emerald-600' : 'text-gray-300'}"></i>
-          <span class="leading-snug">View Scanned File</span>
-        </button>`;
+  const viewScannedButton = (!config.folioUrlTemplate ? '' : `<a href="${escapeHtml(config.folioUrlTemplate.replace('__ID__', encodeURIComponent(id)))}" target="_blank" rel="noopener" class="flex items-start gap-2.5 w-full text-left px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors">
+          <i data-lucide="folder-open" class="h-4 w-4 mt-0.5 shrink-0 text-emerald-600"></i>
+          <span class="leading-snug">Open Folio</span>
+        </a>`) + (!config.scanCheckUrl ? '' : `<button type="button" class="view-scanned-file-btn flex items-start gap-2.5 w-full text-left px-4 py-2.5 text-sm ${hasScannedTarget ? 'text-amber-700 hover:bg-amber-50' : 'text-gray-400 cursor-not-allowed opacity-40'} transition-colors" data-file-id="${id}" data-file-number="${escapeHtml(scannedFileNumber)}" data-correspondence-only="1" ${hasScannedTarget ? '' : 'disabled="disabled"'}>
+          <i data-lucide="mail" class="h-4 w-4 mt-0.5 shrink-0 ${hasScannedTarget ? 'text-amber-600' : 'text-gray-300'}"></i>
+          <span class="leading-snug">Correspondence File</span>
+        </button>`);
 
   // config.canEdit / canPrint come from the blade component and mirror the module
   // permission the route middleware enforces, so the menu shows only what will work.
@@ -1106,7 +1111,8 @@ function handleTableBodyClick(event) {
     event.preventDefault();
     event.stopPropagation();
     closeAllActionMenus();
-    openScannedFile(scannedBtn.getAttribute('data-file-number'), scannedBtn.getAttribute('data-file-id'));
+    openScannedFile(scannedBtn.getAttribute('data-file-number'), scannedBtn.getAttribute('data-file-id'),
+      { correspondenceOnly: scannedBtn.hasAttribute('data-correspondence-only') });
     return;
   }
 
@@ -1601,7 +1607,7 @@ async function openReassignFileNo(fileIndexingId, fileNumber) {
 // The table's scan counts change with the file the scans moved to or from.
 window.addEventListener('scans-reassigned', () => loadTable());
 
-function openScannedFile(fileNumber, fileId) {
+function openScannedFile(fileNumber, fileId, options = {}) {
   fileNumber = String(fileNumber || '').trim();
   const notify = (icon, title, text) => (window.Swal ? Swal.fire({ icon, title, text }) : alert(title + '\n\n' + text));
   if (!fileNumber || fileNumber === '-') {
@@ -1658,6 +1664,30 @@ function openScannedFile(fileNumber, fileId) {
         subtitle: (s.folder || '') + ' · ' + (s.pages || 0) + ' page(s)',
         actions: viewerActions,
       });
+
+      // The action menu's Correspondence File item: that folder alone. The Main File
+      // opens in the VFS (Open Folio) instead.
+      if (options.correspondenceOnly) {
+        if (!correspondence.length) {
+          notify('info', 'No Correspondence File', `No Correspondence File has been scanned for ${fileNumber}.`);
+          return;
+        }
+        if (correspondence.length === 1 || !window.Swal) {
+          openSource(correspondence[0]);
+          return;
+        }
+        const inputOptions = {};
+        correspondence.forEach((s, i) => { inputOptions[i] = `${s.label}: ${s.folder} (${s.pages} page${s.pages === 1 ? '' : 's'})`; });
+        Swal.fire({
+          title: 'Choose a Correspondence File folder',
+          input: 'radio',
+          inputOptions,
+          inputValue: '0',
+          showCancelButton: true,
+          confirmButtonText: 'Open',
+        }).then(res => { if (res.isConfirmed) openSource(correspondence[Number(res.value) || 0]); });
+        return;
+      }
 
       const choices = blind.length ? blind : folders;
       if (correspondence.length && window.Swal) {

@@ -273,6 +273,7 @@ class UserImportController extends Controller
 
                 // Create user
                 $user = new User();
+                $user->created_by = Auth::id(); // Users list: Created By
                 $user->first_name = $userData['first_name'];
                 $user->last_name = $userData['last_name'];
                 $user->email = $userData['username'] . '@klaes.ng'; // Generate system email
@@ -456,6 +457,7 @@ class UserImportController extends Controller
 
                 // Create user
                 $user = new User();
+                $user->created_by = Auth::id(); // Users list: Created By
                 $user->first_name = $userData['first_name'];
                 $user->last_name = $userData['last_name'];
                 $user->email = $userData['username'] . '@klaes.ng'; // Generate system email

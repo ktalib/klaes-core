@@ -86,6 +86,8 @@ Route::prefix('mlpp-sg')->name('surveyor-portal.')->group(function () {
                 // CR 11112026-2: beacon search, the plan page, the final copy and the stage files.
                 Route::get('beacons', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'beacons'])->middleware('throttle:120,1')->name('beacons');
                 Route::post('export-gdb', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'gdb'])->middleware('throttle:20,1')->name('gdb');
+                // Kano GIS layers for the card (parcels without file numbers / deeds details here).
+                Route::get('gis-tiles/{layer}.pmtiles', [\App\Http\Controllers\Survey\GisTilesController::class, 'show'])->where('layer', '[a-z-]+')->name('gis-tiles');
                 Route::get('{plan}', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'show'])->whereNumber('plan')->name('show');
                 Route::post('{plan}/final', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'final'])->whereNumber('plan')->middleware('throttle:20,1')->name('final');
                 Route::get('{plan}/files/{file}', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'stageFile'])->whereNumber(['plan', 'file'])->name('stage-file');

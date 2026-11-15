@@ -15,7 +15,13 @@
   }
   $spcErrors = isset($errors) ? collect($errors->getMessages())->filter(fn ($m, $k) => str_starts_with($k, 'beacons') || $k === 'coord_system')->flatten() : collect();
 @endphp
-<div class="spc" id="spc" data-column-picker="off" data-mode="{{ $spcMode }}" data-search="{{ $spcSearchUrl }}" data-prefill='@json($spcPrefill)'>
+@php
+    // Kano GIS layers (2026-11-15): the portal gets the parcels without file numbers / deeds details.
+    $spcGisUrl = request()->routeIs('surveyor-portal.*')
+        ? route('surveyor-portal.survey-plans.gis-tiles', ['layer' => '__LAYER__'])
+        : route('survey-module.survey-plans.gis-tiles', ['layer' => '__LAYER__']);
+@endphp
+<div class="spc" id="spc" data-column-picker="off" data-mode="{{ $spcMode }}" data-search="{{ $spcSearchUrl }}" data-gis="{{ $spcGisUrl }}" data-gis-full="{{ request()->routeIs('surveyor-portal.*') ? '0' : '1' }}" data-prefill='@json($spcPrefill)'>
   @if (! empty($spcPrefill['note']))
     <div class="spc-prefill"><i class="fas fa-circle-info"></i> {!! $spcPrefill['note'] !!}</div>
   @endif
@@ -49,25 +55,47 @@
       <span class="d">WGS 84 ellipsoid, zone 32N, central meridian 9° E (EPSG:32632). GPS / GNSS coordinates.</span>
     </div>
   </div>
-  {{-- NTM vs UTM chart: Check Survey Plan and Survey Plan Upload (KLAES and portal; user, 2026-11-12). --}}
-    <div class="spc-guide">
-      <button type="button" class="spc-guide-thumb" data-spc-guide aria-label="View the NTM vs UTM chart"><img src="{{ asset('assets/survey/ntm-vs-utm.webp') }}" alt="" loading="lazy"></button>
-      <div class="spc-guide-text">
-        <b>NTM vs UTM: Nigeria's two Transverse Mercator grids</b>
-        <span>How the NTM belts (Minna) line up with the UTM zones (WGS 84). Kano is in the NTM Mid Belt and UTM zone 32N. Never convert one to the other by adding constants.</span>
+  {{-- Reference charts in one tabbed card (Kunle, 2026-11-15): NTM vs UTM, the UTM Sheet Index, the Application Plan Data Sheet.
+       Check Survey Plan and Survey Plan Upload (KLAES and portal). --}}
+  @php
+    $spcGuides = [
+      'ntm' => ['tab' => 'NTM vs UTM', 'img' => 'assets/survey/ntm-vs-utm.webp', 'title' => "NTM vs UTM: Nigeria's two Transverse Mercator grids",
+                'text' => 'How the NTM belts (Minna) line up with the UTM zones (WGS 84). Kano is in the NTM Mid Belt and UTM zone 32N. Never convert one to the other by adding constants.'],
+      'sheets' => ['tab' => 'Sheet Index', 'img' => 'assets/survey/utm-sheet-index.webp', 'title' => 'Greater Kano UTM Sheet Index',
+                'text' => 'The map sheets of Greater Kano (Minna / UTM 32N): the nine A0 sheets, the metric index grid and the 1:50,000 topo sheets. Use it to find the Map Sheet for the plan.'],
+      'datasheet' => ['tab' => 'Data Sheet', 'img' => 'assets/survey/application-plan-data-sheet.webp', 'title' => 'Application Plan: Data Sheet',
+                'text' => 'The entries of an Application Plan, in the order they appear on the plan: particulars, beacon coordinates, ground status, survey and office use.'],
+    ];
+    $spcGuideJson = json_encode(array_map(fn ($g) => ['title' => $g['title'], 'src' => asset($g['img'])], $spcGuides), JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES);
+  @endphp
+    <div class="spc-guide spc-guides">
+      <div class="spc-gtabs" role="tablist" aria-label="Reference charts">
+        @foreach ($spcGuides as $k => $g)
+          <button type="button" role="tab" class="spc-gtab @if ($loop->first) active @endif" data-spc-gtab="{{ $k }}" aria-selected="{{ $loop->first ? 'true' : 'false' }}">{{ $g['tab'] }}</button>
+        @endforeach
       </div>
-      <button type="button" class="spc-btn spc-plot" data-spc-guide><i class="fas fa-book-atlas"></i> View chart</button>
+      @foreach ($spcGuides as $k => $g)
+        <div class="spc-gpane" data-spc-gpane="{{ $k }}" role="tabpanel" @if (! $loop->first) hidden @endif>
+          <button type="button" class="spc-guide-thumb" data-spc-guide="{{ $k }}" aria-label="View {{ $g['title'] }}"><img src="{{ asset($g['img']) }}" alt="" loading="lazy"></button>
+          <div class="spc-guide-text">
+            <b>{{ $g['title'] }}</b>
+            <span>{{ $g['text'] }}</span>
+          </div>
+          <button type="button" class="spc-btn spc-plot" data-spc-guide="{{ $k }}"><i class="fas fa-book-atlas"></i> View chart</button>
+        </div>
+      @endforeach
     </div>
   </div>
-    <div class="spc-lightbox" id="spc-guide" hidden role="dialog" aria-modal="true" aria-label="NTM vs UTM chart">
+    <div class="spc-lightbox" id="spc-guide" hidden role="dialog" aria-modal="true" aria-label="Reference chart">
       <div class="spc-lightbox-bar">
-        <b>NTM vs UTM: Nigeria's two Transverse Mercator grids</b>
+        <b id="spc-guideTitle"></b>
         <span style="flex:1"></span>
-        <a class="spc-btn spc-plot" href="{{ asset('assets/survey/ntm-vs-utm.webp') }}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Open full size</a>
+        <a class="spc-btn spc-plot" id="spc-guideOpen" href="#" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Open full size</a>
         <button type="button" class="spc-btn spc-clear" data-spc-guide-close><i class="fas fa-xmark"></i> Close</button>
       </div>
-      <div class="spc-lightbox-body" data-spc-guide-close><img src="{{ asset('assets/survey/ntm-vs-utm.webp') }}" alt="NTM vs UTM: comparison of Nigeria's two Transverse Mercator grids"></div>
+      <div class="spc-lightbox-body" data-spc-guide-close><img id="spc-guideImg" src="" alt=""></div>
     </div>
+    <script type="application/json" id="spc-guideData">{!! $spcGuideJson !!}</script>
 
   <div class="spc-group"><span class="n">2</span><span>Reference coordinate <span class="spc-req">*</span></span><span class="aside" id="spc-data-note">Loading the Beacon Register…</span></div>
   <p class="spc-note">One reference beacon. Search the Beacon No. list: a beacon in the Beacon Register fills X and Y for you. If it is not listed, type the number, pick <b>Not listed</b>, and enter X (Easting) and Y (Northing) as on the plan. <b>Go to point</b> takes the map there.</p>
@@ -165,17 +193,76 @@
         <label class="snap" title="Snap to beacons and lines"><input type="checkbox" id="spc-snap" checked> Snap</label>
       </div>
       <div class="grp"><button type="button" class="mb" id="spc-mapFit" title="Zoom to the beacons"><i class="fas fa-expand"></i> Fit</button></div>
-      {{-- Existing layers (user, 2026-11-15): parcels, beacons, lines from a file; read in the browser, not uploaded. --}}
-      <div class="grp"><button type="button" class="mb" id="spc-lyrAdd" title="Show existing parcels, beacons or lines: a shapefile (.zip, or .shp + .dbf + .prj), GeoJSON or KML"><i class="fas fa-layer-group"></i> Add layer</button></div>
+      {{-- A scanned plan or GeoTIFF under the plotting (public/js/survey-plan-scan.js, 2026-11-15). --}}
+      <div class="grp"><button type="button" class="mb spc-scan-btn" id="spc-scanBtn" title="Put a scanned plan or GeoTIFF on the map"><i class="fas fa-file-image"></i> Scanned plan</button></div>
+      <div class="grp spc-scan-grp" id="spc-scanGrp" hidden>
+        <label class="snap" title="Show or hide the scanned plan"><input type="checkbox" id="spc-scanVis" checked> <span id="spc-scanTag" class="spc-scan-tag">Scan</span></label>
+        <label class="snap" title="See-through" for="spc-scanOp"><i class="fas fa-circle-half-stroke"></i><input type="range" id="spc-scanOp" min="10" max="100" value="75" aria-label="Scan opacity"></label>
+        <select id="spc-scanPaper" class="mb" title="Remove the paper so only the plan&#39;s lines lie on the map" aria-label="Scan paper"><option value="keep">Paper: keep</option><option value="dark">Lines only: dark</option><option value="yellow">Lines only: yellow</option></select>
+        <button type="button" class="mb" id="spc-scanAdj" title="Drag the scan on the map to line it up; Shift + drag turns it"><i class="fas fa-up-down-left-right"></i> Move</button>
+        <span id="spc-scanAdjBox" class="spc-scan-adj" hidden><label class="snap" title="Turn clockwise, in degrees">Turn<input type="number" id="spc-scanRot" step="0.05" value="0" aria-label="Turn in degrees"></label><label class="snap" title="Size, % of the placed size">Size %<input type="number" id="spc-scanSize" step="0.1" min="10" max="1000" value="100" aria-label="Size in percent"></label><button type="button" class="mb" id="spc-scanReset" title="Back to where it was placed">Reset</button></span>
+        <button type="button" class="mb" id="spc-scanDel" title="Remove the scan from the map" aria-label="Remove the scan"><i class="fas fa-xmark"></i></button>
+      </div>
+      {{-- Table of Contents (CR 141102026 item 4): every layer on / off. Existing layers (2026-11-15) are added from
+           its Add layer: parcels, beacons, lines from a file, read in the browser and never uploaded. --}}
+      <div class="grp"><button type="button" class="mb active" id="spc-tocBtn" title="Table of contents: turn each layer on or off"><i class="fas fa-list-check"></i> Layers</button></div>
       <input type="file" id="spc-lyrFile" accept=".zip,.shp,.dbf,.prj,.cpg,.geojson,.json,.kml" multiple hidden>
       <span class="grow"></span>
       <span class="gridtag" id="spc-gridtag"></span>
       <button type="button" class="full" id="spc-mapFull" title="Full screen"><i class="fas fa-up-right-and-down-left-from-center"></i> <span>Full screen</span></button>
     </div>
+    <div class="spc-mapbody" id="spc-mapbody">
+    <aside class="spc-toc" id="spc-toc" aria-label="Layers"></aside>
     <div class="spc-map" id="spc-map">
       <div class="spc-drawinfo" id="spc-drawinfo" hidden></div>
       <div class="spc-fullstats" id="spc-fullStats"></div>
     </div>
-    <div class="spc-layers" id="spc-layers" hidden></div>
+    </div>
   </div>
+  {{-- Scanned plan panel (survey-plan-scan.js). The file is read in the browser; nothing is uploaded. --}}
+  <div class="spc-geo-ovl" id="spc-geoPanel" hidden role="dialog" aria-modal="true" aria-labelledby="spc-geoTitle">
+    <div class="spc-geo-box">
+      <div class="spc-geo-h">
+        <i class="fas fa-file-image" style="color:var(--spc-blue)"></i>
+        <div><h3 id="spc-geoTitle">Put a scanned plan on the map</h3><p class="spc-note">A GeoTIFF places itself. A plain scan (TIFF, JPG, PNG) is placed from a beacon on it. The file stays in your browser: nothing is uploaded.</p></div>
+        <span style="flex:1"></span>
+        <label class="spc-geo-btn spc-geo-btn-primary" for="spc-geoFile"><i class="fas fa-folder-open"></i> Open scan<input type="file" id="spc-geoFile" accept=".tif,.tiff,.jpg,.jpeg,.png,image/tiff,image/jpeg,image/png" hidden></label>
+        <button type="button" class="spc-geo-btn" id="spc-geoSample" title="A GeoTIFF layout plan from Abia, until the Kano plans are added"><i class="fas fa-flask"></i> Load the sample (GeoTIFF)</button>
+        <button type="button" class="spc-geo-ib" id="spc-geoClose" aria-label="Close" title="Close (Esc)"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="spc-geo-body">
+        <div class="spc-geo-view">
+          <div class="spc-geo-viewbar"><span id="spc-gvName" class="spc-mono">No scan open</span><span style="flex:1"></span>
+            <button type="button" class="spc-geo-ib" id="spc-gvOut" aria-label="Zoom out" title="Zoom out"><i class="fas fa-minus"></i></button>
+            <button type="button" class="spc-geo-ib" id="spc-gvIn" aria-label="Zoom in" title="Zoom in"><i class="fas fa-plus"></i></button>
+            <button type="button" class="spc-geo-ib" id="spc-gvFit" aria-label="Fit" title="Fit the sheet"><i class="fas fa-expand"></i></button></div>
+          <div class="spc-geo-canvas"><canvas id="spc-gvCanvas"></canvas></div>
+          <div class="spc-geo-hint" id="spc-gvHint"></div>
+        </div>
+        <div class="spc-geo-side">
+          <p class="spc-note" id="spc-geoMsg">Open a scan, or load the sample.</p>
+          <div class="spc-geo-method" role="radiogroup" aria-label="How to place the scan">
+            <label><input type="radio" name="spc_geomethod" value="quick" checked><span><i class="fas fa-location-dot"></i> One beacon + scale</span></label>
+            <label><input type="radio" name="spc_geomethod" value="cps"><span><i class="fas fa-crosshairs"></i> Control points</span></label>
+          </div>
+          <p class="spc-note">Coordinates in <b id="spc-geoSys"></b> (section 1).</p>
+          <div id="spc-geoQuick" class="spc-geo-form">
+            <label class="lbl">Beacon clicked on the scan <span class="spc-note" id="spc-gqPx">not clicked yet</span></label>
+            <input type="text" id="spc-gqName" placeholder="Beacon No." aria-label="Beacon No.">
+            <div class="spc-geo-two"><label class="lbl">X (Easting)<input type="text" id="spc-gqX" inputmode="decimal"></label><label class="lbl">Y (Northing)<input type="text" id="spc-gqY" inputmode="decimal"></label></div>
+            <div class="spc-geo-three"><label class="lbl">Scale 1 :<input type="text" id="spc-gqScale" inputmode="decimal" value="2500"></label><label class="lbl">Scan dpi<input type="text" id="spc-gqDpi" inputmode="decimal" value="200"></label><label class="lbl">Turn (&deg;)<input type="text" id="spc-gqRot" inputmode="decimal" value="0" title="How far the sheet&#39;s north is turned clockwise from grid north"></label></div>
+            <p class="spc-note">The scale is printed on the plan. Turn stays 0 when the sheet&#39;s north arrow points straight up.</p>
+          </div>
+          <div id="spc-geoCps" class="spc-geo-form" hidden>
+            <div class="spc-geo-tablewrap"><table class="spc-geo-table"><thead><tr><th>#</th><th>On scan</th><th>Beacon No.</th><th>X (Easting)</th><th>Y (Northing)</th><th>Miss</th><th></th></tr></thead><tbody id="spc-gcRows"></tbody></table></div>
+            <div><button type="button" class="spc-geo-btn" id="spc-gcClear"><i class="fas fa-eraser"></i> Clear points</button>
+              <span class="spc-note">A Beacon Register number fills its X / Y. 3 or more points also take paper stretch.</span></div>
+          </div>
+          <div class="spc-geo-fit" id="spc-geoFit"></div>
+          <button type="button" class="spc-geo-btn spc-geo-btn-success" id="spc-geoPlace" disabled><i class="fas fa-map-location-dot"></i> Place on map</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>

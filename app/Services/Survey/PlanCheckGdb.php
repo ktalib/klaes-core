@@ -65,6 +65,11 @@ class PlanCheckGdb
         if (! is_dir($dir)) {
             mkdir($dir, 0775, true);
         }
+        foreach (glob($dir . DIRECTORY_SEPARATOR . '*') ?: [] as $old) {   // anything a failed send left behind
+            if (filemtime($old) < time() - 3600) {
+                @unlink($old);
+            }
+        }
         $base = $dir . DIRECTORY_SEPARATOR . date('YmdHis') . '-' . bin2hex(random_bytes(4));
         $in = $base . '.json';
         $out = $base . '.zip';

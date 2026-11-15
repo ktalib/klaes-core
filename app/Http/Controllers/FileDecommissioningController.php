@@ -342,6 +342,10 @@ class FileDecommissioningController extends Controller
                     'file_no' => $fileNos ? implode('<br>', array_map('e', $fileNos)) : 'N/A',
                     'temp_file_no' => $this->renderTempFileNo($tempFileNos[$this->tempFileKey($row, self::ARCHIVE_NUMBER_COLUMNS)] ?? null),
                     'related_file' => $this->renderRelatedFile($relatedFiles[$this->relatedFileKey($row)] ?? [], trim($row->mlsfNo ?? '') ?: trim($row->kangisFileNo ?? '')),
+                    // For the expandable row (RelatedTempExpand, as on the FC table): the
+                    // row's own file number and its related list, opened under the row.
+                    'rt_file_no' => trim($row->mlsfNo ?? '') ?: trim($row->kangisFileNo ?? ''),
+                    'related_files' => array_values($relatedFiles[$this->relatedFileKey($row)] ?? []),
                     'prop_id' => $propId !== null && trim((string) $propId) !== '' ? trim((string) $propId) : '-',
                     'file_name' => trim($row->FileName ?? '') ?: 'N/A',
                     'commissioning_date' => $row->commissioning_date ? Carbon::parse($row->commissioning_date)->format('d M Y, h:i A') : 'N/A',
@@ -737,8 +741,10 @@ class FileDecommissioningController extends Controller
 
         return '<div class="rel-file-cell flex flex-wrap items-center gap-1">'
             . '<span class="text-gray-700">' . $first . '</span>'
-            . '<button type="button" class="pu-newfiles-open inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-200 whitespace-nowrap" title="Show all related files"'
-            . ' data-files="' . e(json_encode(array_values($items))) . '" data-from="' . e($fileNo) . '" data-title="Related Files">+' . count($rest) . ' &middot; view all ' . count($items) . '</button>'
+            // Opens the related files under the row, as the FC table does (Kunle,
+            // 2026-11-14), rather than in a pop-up list.
+            . '<button type="button" class="rel-expand inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-200 whitespace-nowrap" title="Show all related files under the row"'
+            . ' data-from="' . e($fileNo) . '">+' . count($rest) . ' &middot; view all ' . count($items) . '</button>'
             . '</div>';
     }
 

@@ -61,6 +61,16 @@ window.addEventListener('load', function () {
   const OUR = ['register', 'register-label', 'links', 'poly-fill', 'sv-line', 'sides', 'sv', 'sv-label', 'ref', 'ref-label',
     'drawn-fill', 'drawn-line', 'drawn-point', 'drawn-label', 'draft-line', 'draft-point', 'snap', 'plain', 'grid-halo', 'grid-line'];
   let map = null, mapReady = false;
+  // Kano imagery held on our own server (F:\GIS Data), cut into tiles by resources/gis/make_tiles.py (Kunle, 2026-11-15).
+  // Each is its own layer in the Layers panel, above the online basemap and under everything else; off at first.
+  const IMAGERY = [
+    { key: 'kano05', name: 'Kano imagery 0.5 m', note: 'Central Kano, about 15 x 13 km', dir: '/tiles/kano-imagery' },
+    { key: 'ortho7', name: 'Kano Metro orthophoto 7 cm', note: 'Sharada and around, about 6 x 6.5 km', dir: '/tiles/kano-metro-ortho' },
+  ];
+  const IMG_ON = {}, IMG_INFO = {};
+  // Each set's tiles.json gives its area and zooms; a set not made yet is listed as not available.
+  const imageryReady = Promise.all(IMAGERY.map(i => fetch(i.dir + '/tiles.json', { cache: 'no-cache' })
+    .then(r => (r.ok ? r.json() : null)).catch(() => null).then(j => { IMG_INFO[i.key] = j; })));
 
   async function initMap() {
     const style = await fetch('/maps/style-light.json').then(r => r.json());
@@ -116,6 +126,9 @@ window.addEventListener('load', function () {
         map.on('mouseleave', layer, () => { if (!tool) map.getCanvas().style.cursor = ''; });
       });
       mapReady = true;
+      imageryReady.then(() => { addImagery(); renderToc(); });
+      addGis();
+      tocApply();
       map.on('moveend', drawGrid); map.on('resize', drawGrid);
       wireDrawing();
       loadRegister();
@@ -129,7 +142,7 @@ window.addEventListener('load', function () {
     BASE = m;
     const sat = m === 'satellite', base = $('baseOn').checked;
     map.getStyle().layers.forEach(l => {
-      if (OUR.includes(l.id) || l.id.startsWith('lyr')) return;
+      if (OUR.includes(l.id) || l.id.startsWith('lyr') || l.id.startsWith('img-')) return;
       const vis = base && (l.id === 'satellite' ? sat : !(sat && l.type !== 'symbol'));
       map.setLayoutProperty(l.id, 'visibility', vis ? 'visible' : 'none');
     });
@@ -744,6 +757,9 @@ window.addEventListener('load', function () {
     if (ring.length >= 2) lines.push(POLY ? [...ring, ring[0]] : ring);
     DRAWN.forEach(f => { if (f.type === 'point') pts.push(f.coords[0]); else { f.coords.forEach(c => pts.push(c)); lines.push(f.type === 'polygon' ? [...f.coords, f.coords[0]] : f.coords); } });
     LYR.filter(l => l.on).forEach(l => l.fc.features.forEach(f => lyrParts(f.geometry, c => { if (inView(c)) pts.push(c); }, l2 => lines.push(l2))));
+    // Kano GIS beacons and control pillars on the screen (user: show and snap).
+    const gisPts = ['gis-beacons', 'gis-ctl'].filter(id => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') === 'visible');
+    if (gisPts.length) map.queryRenderedFeatures({ layers: gisPts }).forEach(f => { const c = f.geometry.type === 'Point' ? f.geometry.coordinates : f.geometry.coordinates[0]; if (c) pts.push(c); });
     draft.forEach(c => pts.push(c));
     if (draft.length >= 2) lines.push(draft);
     lines.forEach(l => { for (let i = 1; i < l.length; i++) segs.push([l[i - 1], l[i]]); });
@@ -920,6 +936,33 @@ window.addEventListener('load', function () {
     }
     return out;
   }
+  // A .zip of the given files, stored (no compression); used to rewrite the shapefile export's .prj.
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = u => { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function zipStore(files) {
+    const enc = new TextEncoder(), parts = [], dir = [];
+    let off = 0;
+    Object.entries(files).forEach(([name, data]) => {
+      const u = data instanceof Uint8Array ? data : new Uint8Array(data), nm = enc.encode(name), c = crc32(u);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint32(14, c, true); h.setUint32(18, u.length, true); h.setUint32(22, u.length, true); h.setUint16(26, nm.length, true);
+      const d = new DataView(new ArrayBuffer(46));
+      d.setUint32(0, 0x02014b50, true); d.setUint16(4, 20, true); d.setUint16(6, 20, true); d.setUint32(16, c, true); d.setUint32(20, u.length, true); d.setUint32(24, u.length, true); d.setUint16(28, nm.length, true); d.setUint32(42, off, true);
+      parts.push(h, nm, u); dir.push(d, nm); off += 30 + nm.length + u.length;
+    });
+    const size = dir.reduce((s, x) => s + x.byteLength, 0), e = new DataView(new ArrayBuffer(22)), n = Object.keys(files).length;
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, n, true); e.setUint16(10, n, true); e.setUint32(12, size, true); e.setUint32(16, off, true);
+    return new Blob([...parts, ...dir, e]);
+  }
+  // The .prj ArcGIS writes for each of the card's systems (taken from GDAL, ESRI WKT).
+  const PRJ = {
+    26332: "PROJCS[\"Minna_UTM_Zone_32N\",GEOGCS[\"GCS_Minna\",DATUM[\"D_Minna\",SPHEROID[\"Clarke_1880_RGS\",6378249.145,293.465]],PRIMEM[\"Greenwich\",0.0],UNIT[\"Degree\",0.0174532925199433]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"False_Easting\",500000.0],PARAMETER[\"False_Northing\",0.0],PARAMETER[\"Central_Meridian\",9.0],PARAMETER[\"Scale_Factor\",0.9996],PARAMETER[\"Latitude_Of_Origin\",0.0],UNIT[\"Meter\",1.0]]",
+    26391: "PROJCS[\"Nigeria_West_Belt\",GEOGCS[\"GCS_Minna\",DATUM[\"D_Minna\",SPHEROID[\"Clarke_1880_RGS\",6378249.145,293.465]],PRIMEM[\"Greenwich\",0.0],UNIT[\"Degree\",0.0174532925199433]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"False_Easting\",230738.26],PARAMETER[\"False_Northing\",0.0],PARAMETER[\"Central_Meridian\",4.5],PARAMETER[\"Scale_Factor\",0.99975],PARAMETER[\"Latitude_Of_Origin\",4.0],UNIT[\"Meter\",1.0]]",
+    26392: "PROJCS[\"Nigeria_Mid_Belt\",GEOGCS[\"GCS_Minna\",DATUM[\"D_Minna\",SPHEROID[\"Clarke_1880_RGS\",6378249.145,293.465]],PRIMEM[\"Greenwich\",0.0],UNIT[\"Degree\",0.0174532925199433]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"False_Easting\",670553.98],PARAMETER[\"False_Northing\",0.0],PARAMETER[\"Central_Meridian\",8.5],PARAMETER[\"Scale_Factor\",0.99975],PARAMETER[\"Latitude_Of_Origin\",4.0],UNIT[\"Meter\",1.0]]",
+    26393: "PROJCS[\"Nigeria_East_Belt\",GEOGCS[\"GCS_Minna\",DATUM[\"D_Minna\",SPHEROID[\"Clarke_1880_RGS\",6378249.145,293.465]],PRIMEM[\"Greenwich\",0.0],UNIT[\"Degree\",0.0174532925199433]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"False_Easting\",1110369.7],PARAMETER[\"False_Northing\",0.0],PARAMETER[\"Central_Meridian\",12.5],PARAMETER[\"Scale_Factor\",0.99975],PARAMETER[\"Latitude_Of_Origin\",4.0],UNIT[\"Meter\",1.0]]",
+    32632: "PROJCS[\"WGS_1984_UTM_Zone_32N\",GEOGCS[\"GCS_WGS_1984\",DATUM[\"D_WGS_1984\",SPHEROID[\"WGS_1984\",6378137.0,298.257223563]],PRIMEM[\"Greenwich\",0.0],UNIT[\"Degree\",0.0174532925199433]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"False_Easting\",500000.0],PARAMETER[\"False_Northing\",0.0],PARAMETER[\"Central_Meridian\",9.0],PARAMETER[\"Scale_Factor\",0.9996],PARAMETER[\"Latitude_Of_Origin\",0.0],UNIT[\"Meter\",1.0]]",
+  };
+
   // Shapefile parts by name (each .shp with its .dbf / .prj / .cpg) -> FeatureCollections.
   function fromShapefiles(files) {
     const base = n => n.replace(/\.[^./\\]+$/, '').toLowerCase(), ext = n => ((n.match(/\.([^.]+)$/) || [])[1] || '').toLowerCase();
@@ -995,18 +1038,17 @@ window.addEventListener('load', function () {
     if (any) map.fitBounds(bb, { padding: 60, maxZoom: 18, duration: 500 });
   }
   function renderLayers() {
-    const box = $('layers');
-    box.hidden = !LYR.length;
+    const box = $('tocLoaded');
+    if (!box) return;
+    if (!LYR.length) { box.innerHTML = '<p class="toc-none">None. Add a shapefile, GeoJSON or KML.</p>'; return; }
     box.innerHTML = LYR.map(l => {
       const kinds = {};
       l.fc.features.forEach(f => { const t = f.geometry.type.replace('Multi', ''); kinds[t] = (kinds[t] || 0) + 1; });
       const what = Object.entries(kinds).map(([t, c]) => `${c} ${({ Point: 'point', LineString: 'line', Polygon: 'parcel' }[t] || t.toLowerCase())}${c === 1 ? '' : 's'}`).join(', ');
       const out = l.fc.features.some(f => { let o = false; lyrParts(f.geometry, c => { o = o || !inKano(c); }, () => {}); return o; });
-      return `<div class="lyr"><span class="sw" style="border-color:${l.colour};background:${l.colour}22"></span><span class="nm">${esc(l.name)}</span>
-        <span class="meta">${what ? esc(what) : 'no shapes'}${l.fc._from ? ' · converted from ' + esc(l.fc._from) : ''}${out ? ' · <b style="color:#b91c1c">some shapes are outside Kano: check the file\'s coordinate system</b>' : ''}</span>
-        <label><input type="checkbox" data-lyr-on="${l.id}" ${l.on ? 'checked' : ''}> Show</label>
-        <button type="button" data-lyr-zoom="${l.id}"><i class="fas fa-magnifying-glass"></i> Zoom</button>
-        <button type="button" data-lyr-del="${l.id}"><i class="fas fa-xmark"></i> Remove</button></div>`;
+      return `<div class="lyr"><label class="toc-row"><input type="checkbox" data-lyr-on="${l.id}" ${l.on ? 'checked' : ''}><span class="sw sw-poly" style="--c:${l.colour}"></span><span class="nm">${esc(l.name)}</span></label>
+        <div class="meta">${what ? esc(what) : 'no shapes'}${l.fc._from ? ' · converted from ' + esc(l.fc._from) : ''}${out ? ' · <b style="color:#b91c1c">some shapes are outside Kano: check the file\'s coordinate system</b>' : ''}</div>
+        <div class="acts"><button type="button" data-lyr-zoom="${l.id}"><i class="fas fa-magnifying-glass"></i> Zoom</button><button type="button" data-lyr-del="${l.id}"><i class="fas fa-xmark"></i> Remove</button></div></div>`;
     }).join('');
     box.querySelectorAll('[data-lyr-on]').forEach(i => i.onchange = () => {
       const l = LYR.find(x => x.id === i.dataset.lyrOn);
@@ -1020,7 +1062,7 @@ window.addEventListener('load', function () {
       map.removeSource(l.id); LYR.splice(i, 1); renderLayers();
     });
   }
-  $('lyrAdd').onclick = () => { if (!mapReady) return; $('lyrFile').value = ''; $('lyrFile').click(); };
+  function pickLayerFile() { if (!mapReady) return; $('lyrFile').value = ''; $('lyrFile').click(); }
   $('lyrFile').onchange = async () => {
     const list = [...$('lyrFile').files];
     if (!list.length) return;
@@ -1030,6 +1072,176 @@ window.addEventListener('load', function () {
       fcs.filter(fc => fc.features.length).forEach(addLayer);
     } catch (e) { alert('That layer could not be loaded: ' + e.message); }
   };
+
+  /* ---------- Imagery (our own tiles) ---------- */
+  function addImagery() {
+    const firstLabel = map.getStyle().layers.find(l => l.type === 'symbol' && !OUR.includes(l.id))?.id;
+    IMAGERY.forEach(i => {
+      const t = IMG_INFO[i.key];
+      if (!t || map.getSource('img-' + i.key)) return;
+      map.addSource('img-' + i.key, { type: 'raster', tiles: [location.origin + i.dir + '/{z}/{x}/{y}.webp'], tileSize: 256,
+        minzoom: t.minzoom, maxzoom: t.maxzoom, bounds: t.bounds, attribution: 'Imagery: Kano State (KLAES)' });
+      // Above the online satellite, under the basemap's labels and every layer of ours.
+      map.addLayer({ id: 'img-' + i.key, type: 'raster', source: 'img-' + i.key, layout: { visibility: IMG_ON[i.key] ? 'visible' : 'none' } }, firstLabel);
+    });
+  }
+  function showImagery(key, on) {
+    IMG_ON[key] = on;
+    if (mapReady && map.getLayer('img-' + key)) map.setLayoutProperty('img-' + key, 'visibility', on ? 'visible' : 'none');
+  }
+  function zoomImagery(key) {
+    const b = IMG_INFO[key]?.bounds;
+    if (b && mapReady) map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 20, duration: 600 });
+  }
+  const imageryRows = () => IMAGERY.map(i => {
+    const t = IMG_INFO[i.key];
+    if (!t) return `<div class="toc-row toc-off"><input type="checkbox" disabled><span>${esc(i.name)}<small class="toc-meta">Not available yet</small></span></div>`;
+    return `<div class="toc-row"><label class="toc-lbl"><input type="checkbox" data-img="${i.key}" ${IMG_ON[i.key] ? 'checked' : ''}><span class="sw sw-img"></span><span>${esc(i.name)}<small class="toc-meta">${esc(i.note)}</small></span></label>
+      <button type="button" class="toc-zoom" data-img-zoom="${i.key}" title="Zoom to this imagery" aria-label="Zoom to ${esc(i.name)}"><i class="fas fa-magnifying-glass-location"></i></button></div>`;
+  }).join('');
+
+
+  /* ---------- Kano GIS layers (F:\GIS Data), 2026-11-15 ---------- */
+  // PMTiles cut by resources/gis/make_vector_tiles.py, served to signed-in users only (GisTilesController).
+  // The portal's parcels carry the shape, plot, block, TP plan, layout, district and LGA only (user); KLAES
+  // staff also get file numbers and the deeds details. All off until ticked.
+  const GIS_URL = root.dataset.gis || '', GIS_FULL = root.dataset.gisFull === '1';
+  const GIS = [
+    { key: 'parcels', name: 'Parcels', note: '41,180 plots · from zoom 12', minzoom: 12, sw: ['#f97316', 'poly'], ids: ['gis-parcels-fill', 'gis-parcels-line', 'gis-parcels-label'] },
+    { key: 'beacons', name: 'Beacons', note: '87,064 named beacons · from zoom 13', minzoom: 13, sw: ['#e11d48', 'pt'], ids: ['gis-beacons', 'gis-beacons-label'] },
+    { key: 'roads', name: 'Roads and streets', note: '11,867 lines · from zoom 10', minzoom: 10, sw: ['#fbbf24', 'line'], ids: ['gis-roads', 'gis-roads-label'] },
+    { key: 'lga', name: 'LGA boundaries', note: 'Kano Metro, 18 LGAs', minzoom: 6, sw: ['#a855f7', 'line'], ids: ['gis-lga', 'gis-lga-label'] },
+    { key: 'control-beacons', name: 'Control beacons', note: 'Kano Metro, 100 pillars', minzoom: 8, sw: ['#facc15', 'pt'], ids: ['gis-ctl', 'gis-ctl-label'] },
+  ];
+  const GIS_ON = {};
+  const gisSrc = key => 'pmtiles://' + GIS_URL.replace('__LAYER__', key);
+  function addGis() {
+    if (!GIS_URL || map.getSource('gis-parcels')) return;
+    const before = map.getLayer('grid-halo') ? 'grid-halo' : undefined;   // over the imagery, under everything of ours
+    const vis = key => ({ visibility: GIS_ON[key] ? 'visible' : 'none' });
+    GIS.forEach(g => map.addSource('gis-' + g.key, { type: 'vector', url: gisSrc(g.key), attribution: 'GIS: Kano State (KLAES)' }));
+    const parcelLayer = GIS_FULL ? 'kano_parcels' : 'kano_parcels_public';
+    map.addLayer({ id: 'gis-lga', type: 'line', source: 'gis-lga', 'source-layer': 'kano_lga', layout: vis('lga'), paint: { 'line-color': '#a855f7', 'line-width': 2, 'line-dasharray': [3, 2] } }, before);
+    map.addLayer({ id: 'gis-roads', type: 'line', source: 'gis-roads', 'source-layer': 'kano_roads', layout: vis('roads'), paint: { 'line-color': '#fbbf24', 'line-opacity': 0.85, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 16, 3] } }, before);
+    map.addLayer({ id: 'gis-parcels-fill', type: 'fill', source: 'gis-parcels', 'source-layer': parcelLayer, layout: vis('parcels'), paint: { 'fill-color': '#f97316', 'fill-opacity': 0.07 } }, before);
+    map.addLayer({ id: 'gis-parcels-line', type: 'line', source: 'gis-parcels', 'source-layer': parcelLayer, layout: vis('parcels'), paint: { 'line-color': '#f97316', 'line-width': ['interpolate', ['linear'], ['zoom'], 12, 0.4, 17, 1.8] } }, before);
+    map.addLayer({ id: 'gis-beacons', type: 'circle', source: 'gis-beacons', 'source-layer': 'kano_beacons', minzoom: 13, layout: vis('beacons'), paint: { 'circle-color': '#e11d48', 'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 1.6, 18, 5], 'circle-stroke-color': '#fff', 'circle-stroke-width': 0.8 } }, before);
+    map.addLayer({ id: 'gis-ctl', type: 'circle', source: 'gis-control-beacons', 'source-layer': 'kano_control_beacons', layout: vis('control-beacons'), paint: { 'circle-color': '#facc15', 'circle-radius': 6, 'circle-stroke-color': '#111827', 'circle-stroke-width': 2 } }, before);
+    const lbl = (id, src, layer, field, minzoom, color, extra = {}) => map.addLayer({ id, type: 'symbol', source: src, 'source-layer': layer, minzoom,
+      layout: { visibility: 'none', 'text-field': ['get', field], 'text-font': ['Noto Sans Regular'], 'text-size': 11, ...extra },
+      paint: { 'text-color': '#fff', 'text-halo-color': color, 'text-halo-width': 1.5 } }, before);
+    lbl('gis-parcels-label', 'gis-parcels', parcelLayer, 'plotNo', 16, '#9a3412');
+    lbl('gis-beacons-label', 'gis-beacons', 'kano_beacons', 'beaconName', 17, '#9f1239', { 'text-offset': [0, 1], 'text-anchor': 'top' });
+    lbl('gis-roads-label', 'gis-roads', 'kano_roads', 'NAME', 15, '#92400e', { 'symbol-placement': 'line' });
+    lbl('gis-lga-label', 'gis-lga', 'kano_lga', 'name', 9, '#6b21a8');
+    lbl('gis-ctl-label', 'gis-control-beacons', 'kano_control_beacons', 'PILLAR_NO', 13, '#713f12', { 'text-offset': [0, 1.2], 'text-anchor': 'top' });
+    GIS.forEach(g => { if (GIS_ON[g.key]) showGis(g.key, true); });
+
+    // Click a parcel, a beacon or a control pillar (no drawing tool on): what the layer holds.
+    const ours = ['register', 'ref', 'sv', 'drawn-point'];
+    ['gis-parcels-fill', 'gis-beacons', 'gis-ctl'].forEach(id => {
+      map.on('click', id, e => {
+        if (tool || map.queryRenderedFeatures(e.point, { layers: ours.filter(l => map.getLayer(l)) }).length) return;
+        if (id === 'gis-parcels-fill' && map.queryRenderedFeatures(e.point, { layers: ['gis-beacons', 'gis-ctl'].filter(l => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') === 'visible') }).length) return;
+        gisPopup(id, e.features[0], e.lngLat);
+      });
+      map.on('mouseenter', id, () => { if (!tool) map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', id, () => { if (!tool) map.getCanvas().style.cursor = ''; });
+    });
+  }
+  const GIS_FIELDS = {
+    'gis-parcels-fill': [['mlsfNo', 'MLS File No.'], ['kangisFileNo', 'KANGIS File No.'], ['plotNo', 'Plot No.'], ['blockNo', 'Block'], ['tpPlanNo', 'TP Plan'], ['approvedPlanNo', 'Approved Plan'],
+      ['layoutName', 'Layout'], ['districtName', 'District'], ['lgaName', 'LGA'], ['plotYearCreated', 'Year'], ['surveyedBy', 'Surveyed by'], ['drawnBy', 'Drawn by'], ['checkedBy', 'Checked by'], ['passedBy', 'Passed by'],
+      ['metricSheetNo', 'Metric sheet'], ['imperialSheetNo', 'Imperial sheet'], ['oldTitleSerialNo', 'Old title serial'], ['oldTitlePageNo', 'Old title page'], ['oldTitleVolumeNo', 'Old title volume'], ['deedsDate', 'Deeds date']],
+    'gis-beacons': [['beaconName', 'Beacon']],
+    'gis-ctl': [['PILLAR_NO', 'Pillar'], ['LOCATION', 'Location'], ['LGA', 'LGA'], ['E', 'E'], ['N', 'N'], ['H', 'Height']],
+  };
+  function gisPopup(id, f, at) {
+    const p = f.properties || {};
+    const title = { 'gis-parcels-fill': 'Parcel', 'gis-beacons': 'Beacon', 'gis-ctl': 'Control beacon' }[id];
+    const rows = GIS_FIELDS[id].filter(([k]) => p[k] !== undefined && p[k] !== null && String(p[k]).trim() !== '' && String(p[k]) !== 'NaT')
+      .map(([k, label]) => `<tr><td style="color:#6b7280;padding:1px 8px 1px 0;border:0;white-space:nowrap">${esc(label)}</td><td style="padding:1px 0;border:0"><b>${esc(String(p[k]).replace(/T00:00:00$/, ''))}</b></td></tr>`).join('');
+    new maplibregl.Popup({ maxWidth: '300px' }).setLngLat(at).setHTML(`<b>${title}</b><table style="font-size:12px;margin-top:4px;border-collapse:collapse;width:auto">${rows || '<tr><td>No details</td></tr>'}</table>`).addTo(map);
+  }
+  function showGis(key, on) {
+    GIS_ON[key] = on;
+    const g = GIS.find(x => x.key === key);
+    if (!g || !mapReady) return;
+    g.ids.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'); });
+    if (on && map.getZoom() < g.minzoom) map.easeTo({ zoom: g.minzoom + 0.5, duration: 500 });
+  }
+  const gisRows = () => !GIS_URL ? '<p class="toc-none">Not available here.</p>' : GIS.map(g =>
+    `<label class="toc-row"><input type="checkbox" data-gis="${g.key}" ${GIS_ON[g.key] ? 'checked' : ''}>${tocSwatch(g.sw)}<span>${esc(g.name)}<small class="toc-meta">${esc(g.note)}</small></span></label>`).join('');
+
+  /* ---------- Table of Contents (CR 141102026 item 4, Kunle 2026-11-15) ---------- */
+  // Every layer on the map, ArcMap style, each turned on / off on its own: this plan, loaded layers, the Beacon
+  // Register, the grid, scanned plans (GeoTIFF), imagery and the online basemap. All off = a blank space.
+  const TOC_PLAN = [
+    { key: 'ref', name: 'Reference coordinate', ids: ['ref', 'ref-label'], sw: ['#ea580c', 'pt'] },
+    { key: 'sv', name: 'Other beacons', ids: ['sv', 'sv-label'], sw: ['#0891b2', 'pt'] },
+    { key: 'bnd', name: 'Boundary and polygon', ids: ['sv-line', 'poly-fill', 'sides'], sw: ['#22d3ee', 'poly'] },
+    { key: 'drawn', name: 'Drawn shapes', ids: ['drawn-fill', 'drawn-line', 'drawn-point', 'drawn-label'], sw: ['#16a34a', 'poly'] },
+    { key: 'links', name: 'Distance to Register beacons', ids: ['links'], sw: ['#dc2626', 'line'] },
+  ];
+  const TOC_REG = { key: 'reg', name: 'Beacon Register', ids: ['register', 'register-label'], sw: ['#2563eb', 'pt'] };
+  const TOC_VIS = {};
+  const tocSwatch = ([c, k]) => `<span class="sw sw-${k}" style="--c:${c}"></span>`;
+  function tocShow(entry, on) {
+    TOC_VIS[entry.key] = on;
+    if (!mapReady) return;
+    entry.ids.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'); });
+  }
+  const tocRow = e => `<label class="toc-row"><input type="checkbox" data-toc="${e.key}" ${TOC_VIS[e.key] !== false ? 'checked' : ''}>${tocSwatch(e.sw)}<span>${esc(e.name)}</span></label>`;
+  function renderToc() {
+    const box = $('toc');
+    if (!box) return;
+    const base = $('baseOn').checked ? BASE : 'none';
+    box.innerHTML = `
+      <div class="toc-head"><b><i class="fas fa-layer-group"></i> Layers</b><button type="button" class="toc-add" id="spc-tocAdd" title="Show existing parcels, beacons or lines: a shapefile (.zip, or .shp + .dbf + .prj), GeoJSON or KML"><i class="fas fa-plus"></i> Add layer</button></div>
+      <div class="toc-grp"><div class="toc-gname">This plan</div>${TOC_PLAN.map(tocRow).join('')}</div>
+      <div class="toc-grp"><div class="toc-gname">Loaded layers</div><div id="spc-tocLoaded"></div></div>
+      <div class="toc-grp"><div class="toc-gname">Reference</div>${tocRow(TOC_REG)}
+        <label class="toc-row"><input type="checkbox" data-toc-grid ${$('gridOn').checked ? 'checked' : ''}>${tocSwatch(['#1e293b', 'line'])}<span>Coordinate grid</span></label></div>
+      <div class="toc-grp"><div class="toc-gname">Kano GIS</div>${gisRows()}</div>
+      <div class="toc-grp"><div class="toc-gname">Scanned plans (GeoTIFF)</div><div id="spc-tocScan"><p class="toc-none">None on this map yet.</p></div></div>
+      <div class="toc-grp"><div class="toc-gname">Imagery</div>${imageryRows()}</div>
+      <div class="toc-grp"><div class="toc-gname">Basemap</div>
+        ${[['satellite', 'Online satellite'], ['street', 'Online street map'], ['none', 'None (blank)']].map(([v, t]) => `<label class="toc-row"><input type="radio" name="spc_tocbase" value="${v}" ${base === v ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>`;
+    box.querySelectorAll('[data-toc]').forEach(i => i.onchange = () => tocShow([...TOC_PLAN, TOC_REG].find(e => e.key === i.dataset.toc), i.checked));
+    box.querySelectorAll('[data-img]').forEach(i => i.onchange = () => { showImagery(i.dataset.img, i.checked); if (i.checked) zoomIfAway(i.dataset.img); });
+    box.querySelectorAll('[data-img-zoom]').forEach(b => b.onclick = () => zoomImagery(b.dataset.imgZoom));
+    box.querySelectorAll('[data-gis]').forEach(i => i.onchange = () => showGis(i.dataset.gis, i.checked));
+    box.querySelector('[data-toc-grid]').onchange = e => { $('gridOn').checked = e.target.checked; $('gridOn').dispatchEvent(new Event('change')); };
+    box.querySelectorAll('[name=spc_tocbase]').forEach(r => r.onchange = () => {
+      if (!map || !mapReady) return;
+      if (r.value === 'none') { $('baseOn').checked = false; $('baseOn').dispatchEvent(new Event('change')); }
+      else pickBase(r.value);
+      renderToc();
+    });
+    $('tocAdd').onclick = pickLayerFile;
+    renderLayers();
+    if (window.SpcScanToc) window.SpcScanToc();   // survey-plan-scan.js fills its group
+  }
+  // Ticking an imagery layer while looking somewhere it does not cover takes the map to it.
+  function zoomIfAway(key) {
+    const b = IMG_INFO[key]?.bounds;
+    if (!b || !mapReady) return;
+    const c = map.getBounds();
+    if (c.getEast() < b[0] || c.getWest() > b[2] || c.getNorth() < b[1] || c.getSouth() > b[3]) zoomImagery(key);
+  }
+  function setToc(on) {
+    $('mapbody').classList.toggle('notoc', !on);
+    $('tocBtn').classList.toggle('active', on);
+    if (map) setTimeout(() => map.resize(), 0);
+  }
+  $('tocBtn').onclick = () => setToc($('mapbody').classList.contains('notoc'));
+  // The bar's own controls keep the panel in step.
+  ['btn-street', 'btn-satellite'].forEach(id => $(id).addEventListener('click', () => setTimeout(renderToc, 0)));
+  ['baseOn', 'gridOn'].forEach(id => $(id).addEventListener('change', () => setTimeout(renderToc, 0)));
+  if (window.matchMedia('(max-width: 700px)').matches) setToc(false);
+  renderToc();
+  // Turned off before the map was ready: applied once it is.
+  function tocApply() { [...TOC_PLAN, TOC_REG].forEach(e => { if (TOC_VIS[e.key] === false) tocShow(e, false); }); renderToc(); }
 
   /* ---------- export ---------- */
   function exportFeatures() {
@@ -1066,7 +1278,16 @@ window.addEventListener('load', function () {
       };
       save(new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Survey Plan Check</name>${f.map(pm).join('')}</Document></kml>`], { type: 'application/vnd.google-earth.kml+xml' }), `survey-plan-${stamp()}.kml`);
     },
-    async shp(f) { save(await shpwrite.zip({ type: 'FeatureCollection', features: f }, { outputType: 'blob', types: { point: 'points', polygon: 'polygons', polyline: 'lines' } }), `survey-plan-${stamp()}-shapefile.zip`); },
+    // X / Y in the chosen system with that system's .prj (Kunle, 2026-11-15: it always said WGS 84). shpwrite
+    // writes a WGS 84 .prj only, so its zip is opened and each .prj replaced with the one ArcGIS writes.
+    async shp(f) {
+      const code = gridCode(), xy = c => toXY(code, c[0], c[1]).map(n => +n.toFixed(3));
+      const fc = { type: 'FeatureCollection', features: f.map(x => ({ ...x, geometry: mapCoords(x.geometry, xy) })) };
+      const files = await unzip(await shpwrite.zip(fc, { outputType: 'arraybuffer', types: { point: 'points', polygon: 'polygons', polyline: 'lines' } }));
+      const enc = new TextEncoder();
+      Object.keys(files).forEach(n => { if (/\.prj$/i.test(n)) { files[n] = enc.encode(PRJ[code]); files[n.replace(/\.prj$/i, '.cpg')] = enc.encode('UTF-8'); } });
+      save(new Blob([zipStore(files)], { type: 'application/zip' }), `survey-plan-${stamp()}-shapefile.zip`);
+    },
     dxf(f) {
       const code = gridCode(), L = [], add = (...p) => L.push(...p);
       add('0', 'SECTION', '2', 'ENTITIES');
@@ -1106,7 +1327,7 @@ window.addEventListener('load', function () {
         else if (g.type === 'Polygon') layers.parcels.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: g.coordinates.map(r => r.map(xy)) }, properties: props });
       });
       const r = await fetch(ex.dataset.gdb, { method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': ex.dataset.csrf, 'X-Requested-With': 'XMLHttpRequest' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': ex.dataset.csrf || document.querySelector('meta[name=csrf-token]')?.content || '', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ epsg: code, name: 'survey_plan_' + stamp(), layers }) });
       if (!r.ok) { let m = 'the server said ' + r.status; try { m = (await r.json()).message || m; } catch (e) { /* not JSON */ } throw new Error(m); }
       save(await r.blob(), `survey-plan-${stamp()}-geodatabase.zip`);
@@ -1120,11 +1341,23 @@ window.addEventListener('load', function () {
     catch (e) { note.textContent = 'The export failed: ' + e.message; }
   });
 
-  // NTM vs UTM chart (check page): opens full size; Esc, Close or a click beside the chart closes it.
+  // Reference charts (NTM vs UTM, Sheet Index, Data Sheet) in tabs; each opens full size. Esc, Close or a click
+  // beside the chart closes it. A [data-spc-guide=key] anywhere on the page (e.g. by the Map Sheet dropdowns) opens one.
   const guide = $('guide');
   if (guide) {
-    const show = on => { guide.hidden = !on; document.body.classList.toggle('spc-noscroll', on); };
-    root.querySelectorAll('[data-spc-guide]').forEach(b => b.addEventListener('click', () => show(true)));
+    let GUIDES = {};
+    try { GUIDES = JSON.parse($('guideData').textContent); } catch (e) { /* the tabs still switch */ }
+    const tab = k => {
+      root.querySelectorAll('[data-spc-gtab]').forEach(t => { const on = t.dataset.spcGtab === k; t.classList.toggle('active', on); t.setAttribute('aria-selected', on); });
+      root.querySelectorAll('[data-spc-gpane]').forEach(p => { p.hidden = p.dataset.spcGpane !== k; });
+    };
+    root.querySelectorAll('[data-spc-gtab]').forEach(t => t.addEventListener('click', () => tab(t.dataset.spcGtab)));
+    const show = (on, k) => {
+      const g = on && GUIDES[k];
+      if (g) { $('guideTitle').textContent = g.title; $('guideImg').src = g.src; $('guideImg').alt = g.title; $('guideOpen').href = g.src; guide.setAttribute('aria-label', g.title); tab(k); }
+      guide.hidden = !on; document.body.classList.toggle('spc-noscroll', on);
+    };
+    document.addEventListener('click', e => { const b = e.target.closest('[data-spc-guide]'); if (b) { e.preventDefault(); show(true, b.dataset.spcGuide || 'ntm'); } });
     guide.addEventListener('click', e => { if (e.target.closest('[data-spc-guide-close]') && !e.target.closest('img')) show(false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !guide.hidden) { e.stopPropagation(); show(false); } }, true);
   }
@@ -1137,4 +1370,12 @@ window.addEventListener('load', function () {
   if (!(PREFILL?.others || []).length) addRow(svBody);
   refresh();
   initMap();
+
+  /* ---------- scanned plans (GeoTIFF): public/js/survey-plan-scan.js, 2026-11-15 ---------- */
+  // The scan script runs inside this card: it gets the map and the helpers it needs from here.
+  window.SPC_SCAN_API = {
+    root, $, toLL, toXY, gridCode, GRID_NAME, REG_BY, key, fmt, esc, setRef, inKano, OUR,
+    map: () => map, ready: () => mapReady, refs: () => REFS, sv: () => SV, base: () => BASE,
+  };
+  document.dispatchEvent(new CustomEvent('spc:ready'));
 });
