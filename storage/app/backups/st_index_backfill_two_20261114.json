@@ -1,0 +1,25 @@
+{
+    "note": "Rows inserted; undo = delete these file_indexings ids",
+    "rows": [
+        {
+            "file_indexings_id": 224317,
+            "file_number": "ST-RES-2026-6",
+            "prop_id": 318092,
+            "parent_prop_id": "229650",
+            "title": "Alhaji WAKILI ALIYU",
+            "district": null,
+            "lga": null,
+            "plot": null
+        },
+        {
+            "file_indexings_id": 224318,
+            "file_number": "ST-RES-2026-8",
+            "prop_id": 318093,
+            "parent_prop_id": "259159",
+            "title": "Alhaji ALA KOKI",
+            "district": "SANI MAINAGGE",
+            "lga": "Gwale",
+            "plot": "438"
+        }
+    ]
+}

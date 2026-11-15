@@ -39,7 +39,7 @@
 @endpush
 
 @section('body')
-@include('surveyor_portal.partials.public_nav')
+@include('surveyor_portal.partials.public_nav', ['pnPartners' => true])
 
 <div class="ks-guest">
     <aside class="hidden lg:flex ks-guest-banner">

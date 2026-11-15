@@ -6,6 +6,11 @@
             <span class="flex items-center gap-2 shrink-0" aria-label="{{ $portalSettings['brand_name'] }} and Ministry seals">
                 <img src="{{ asset('assets/logo/ministry2.png') }}" alt="Kano State Ministry of Land and Physical Planning seal" width="44" height="44" style="width:44px;height:44px;border-radius:50%;object-fit:contain;box-shadow:0 1px 3px rgba(0,0,0,.18);">
                 <img src="{{ asset($portalSettings['logo_seal']) }}" alt="{{ $portalSettings['brand_name'] }} seal" width="44" height="44" style="width:44px;height:44px;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.25);">
+                {{-- SURCON and NIS beside them on the sign-in and register pages only (user, 2026-11-14): guest layout passes pnPartners. --}}
+                @if (! empty($pnPartners))
+                    <img src="{{ asset('assets/logo/surcon-logo.png') }}" alt="Surveyors Council of Nigeria (SURCON) logo" width="44" height="44" style="width:44px;height:44px;border-radius:50%;object-fit:contain;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18);">
+                    <img src="{{ asset('assets/logo/nis-logo.png') }}" alt="Nigerian Institution of Surveyors (NIS) logo" width="44" height="44" style="width:44px;height:44px;border-radius:50%;object-fit:contain;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18);">
+                @endif
             </span>
             <span class="min-w-0">
                 <span class="block font-extrabold tracking-wide" style="color:var(--ks-blue);font-size:17px;line-height:1.1;">{{ $portalSettings['brand_name'] }}</span>

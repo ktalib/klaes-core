@@ -7,6 +7,7 @@ use App\Models\FileIndexing;
 use App\Services\AuditService;
 use App\Services\IndexedFilesFilterOptions;
 use App\Services\IndexingDuplicateService;
+use App\Services\RecordVersions\IndexingVersionHistory;
 use App\Services\TemporaryFileConditionService;
 use App\Services\TemporaryFileNumberResolver;
 use Carbon\Carbon;
@@ -503,7 +504,9 @@ class IndexedFileTableController extends Controller
 
         $kangisLinks = $this->kangisContainerLinks($items);
 
-        $data = $items->map(function ($item) use ($scanningCounts, $pageTypingCounts, $workflowScanningCounts, $workflowTypingCounts, $creators, $groupingFallbacks, $relatedFileCounts, $edmsFolderMap, $duplicateSet, $shelfLookup, $oldKangisLookup, $kangisLinks) {
+        $versionCounts = app(IndexingVersionHistory::class)->counts($indexedIds->all());
+
+        $data = $items->map(function ($item) use ($scanningCounts, $pageTypingCounts, $workflowScanningCounts, $workflowTypingCounts, $creators, $groupingFallbacks, $relatedFileCounts, $edmsFolderMap, $duplicateSet, $shelfLookup, $oldKangisLookup, $kangisLinks, $versionCounts) {
             $scanned = (int) ($scanningCounts->get($item->id) ?? 0);
             $typed = (int) ($pageTypingCounts->get($item->id) ?? 0);
             $hasRelatedFilesFromLinks = (int) ($relatedFileCounts->get($item->id) ?? 0) > 0;
@@ -642,6 +645,9 @@ class IndexedFileTableController extends Controller
             $rowData['dciv_fileno'] = $item->dciv_fileno ?? null;
             $rowData['dciv_reason'] = $item->dciv_reason ?? null;
 
+            // Record State Versions: which version of the file this row is (1 = never edited).
+            $rowData['version'] = $versionCounts[(int) $item->id] ?? 1;
+
             return $rowData;
         });
 
@@ -655,6 +661,51 @@ class IndexedFileTableController extends Controller
                 'last_page' => $paginator->lastPage(),
             ],
         ]);
+    }
+
+    /**
+     * GET indexed-files/api/versions/{id} - Record State Versions for one file, oldest
+     * first. Each version is a full list row built by listResponse() from the file as
+     * that snapshot recorded it, so the table draws it with the same cells as the live
+     * row. Read from file_snapshots (see IndexingVersionHistory).
+     */
+    public function versions(int $id): JsonResponse
+    {
+        try {
+            $current = FileIndexing::on('sqlsrv')->withoutGlobalScope('not_deleted')->find($id);
+            if (!$current) {
+                return response()->json(['success' => false, 'message' => 'Record not found.'], 404);
+            }
+
+            $versions = app(IndexingVersionHistory::class)->versions($id);
+            if (empty($versions)) {
+                return response()->json(['success' => true, 'versions' => []]);
+            }
+
+            $base = $current->getAttributes();
+            $models = collect($versions)->map(function (array $version) use ($base) {
+                return (new FileIndexing())->setConnection('sqlsrv')
+                    ->newFromBuilder(array_merge($base, $version['columns']));
+            });
+
+            $paginator = new \Illuminate\Pagination\LengthAwarePaginator($models->all(), $models->count(), max(1, $models->count()), 1);
+            $rows = $this->listResponse($paginator, null)->getData(true)['data'] ?? [];
+
+            return response()->json([
+                'success' => true,
+                'versions' => collect($versions)->values()->map(fn (array $version, int $i) => [
+                    'version' => $version['version'],
+                    'kind' => $version['kind'],
+                    'by' => $version['by'],
+                    'at' => $version['at'],
+                    'row' => $rows[$i] ?? null,
+                ])->all(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Indexed file versions failed', ['id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Could not load the versions of this record.'], 500);
+        }
     }
 
     public function viewList(Request $request): JsonResponse

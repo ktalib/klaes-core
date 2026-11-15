@@ -110,4 +110,21 @@ class SurveyPlanController extends Controller
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
+
+    /** Survey Plan Check > Export > Geodatabase (user, 2026-11-15): the card's features as a zipped File GDB. */
+    public function gdb(Request $r, \App\Services\Survey\PlanCheckGdb $gdb)
+    {
+        $data = $r->validate(['epsg' => 'required|string|max:10', 'name' => 'nullable|string|max:60', 'layers' => 'required|array']);
+        try {
+            $zip = $gdb->make($data['layers'], $data['epsg'], $data['name'] ?? 'survey_plan');
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\RuntimeException $e) {
+            report($e);
+
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+
+        return response()->download($zip, 'survey-plan-' . now()->format('YmdHi') . '-geodatabase.zip', ['Content-Type' => 'application/zip'])->deleteFileAfterSend();
+    }
 }

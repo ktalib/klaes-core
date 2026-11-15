@@ -242,9 +242,16 @@ class DashboardController extends Controller
 
                 // 5. ST Files
 
+                // Only ST files commissioned in KLAES (user, 2026-11-14): 15 ST files indexed without an
+                // st_file_numbers row (ST-MIXED-2025-1-046..054, ST-RES-2026-3-005/006, 4 ST-COM) are hidden
+                // until investigated. A commission's own ST number: np_fileno on PRIMARY, fileno on units.
                 $stIndexed      = $db->table('file_indexings')
                     ->where('registry', 'like', 'st%')
                     ->where(function ($q) { $q->where('is_deleted', 0)->orWhereNull('is_deleted'); })
+                    ->whereIn('file_number', function ($q) {
+                        $q->from('st_file_numbers')
+                          ->selectRaw("CASE WHEN file_no_type = 'PRIMARY' THEN np_fileno ELSE fileno END");
+                    })
                     ->count();
                 $stCommissioned = $db->table('st_file_numbers')->count();
 

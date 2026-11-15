@@ -223,6 +223,39 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--b
   .trav-table input.dist { width: 100%; }
   .trav-pick { min-width: 0; }
 }
+/* Scanned plan on the map (user, 2026-11-13) */
+.mapbar .scan-btn { color: #fde68a; }
+.mapbar .scan-grp input[type=range] { width: 90px; accent-color: #f59e0b; }
+.geo-read { margin-top: 12px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: grid; gap: 8px; }
+.mapbar .scan-adj { display: inline-flex; gap: 6px; align-items: center; }
+.mapbar .scan-adj input[type=number] { width: 66px; }
+.mapbar .scan-tag { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.noscroll { overflow: hidden; }
+.geo-ovl { position: fixed; inset: 0; z-index: 3500; background: rgba(15,23,42,.6); display: grid; place-items: center; padding: 2vh 2vw; }
+.geo-ovl[hidden] { display: none; }
+.geo-box { width: min(1500px, 96vw); height: 94vh; background: #fff; border-radius: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,.35); }
+.geo-h { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.geo-h h3 { margin: 0; font-size: 17px; }
+.geo-body { display: grid; grid-template-columns: minmax(0, 1fr) 420px; min-height: 0; }
+.geo-view { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; background: #1e293b; }
+.geo-viewbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: #0f172a; color: #cbd5e1; font-size: 12px; }
+.geo-canvas { position: relative; min-height: 0; overflow: hidden; }
+.geo-canvas canvas { position: absolute; inset: 0; cursor: crosshair; touch-action: none; }
+.geo-hint { padding: 6px 12px; background: #0f172a; color: #fde68a; font-size: 12.5px; }
+.geo-side { padding: 14px 16px; display: grid; grid-auto-rows: max-content; gap: 12px; overflow: auto; border-left: 1px solid var(--line); }
+.geo-form { display: grid; gap: 8px; }
+.geo-form .lbl { display: grid; gap: 4px; font-size: 12.5px; font-weight: 600; }
+.geo-form input[type=text] { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.geo-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.geo-three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.geo-table th, .geo-table td { padding: 4px; font-size: 12px; }
+.geo-table input { padding: 6px; font-size: 12px; min-width: 0; width: 100%; font-family: ui-monospace, Consolas, monospace; }
+.mono { font-family: ui-monospace, Consolas, monospace; }
+.geo-fit { font-size: 13px; padding: 10px 12px; border-radius: 10px; background: #f1f5f9; color: #334155; }
+.geo-fit:empty { display: none; }
+.geo-fit.bad { background: #fef2f2; color: #991b1b; }
+.note.ok { color: #166534; } .note.bad { color: #991b1b; }
+@media (max-width: 900px) { .geo-ovl { padding: 0; } .geo-box { width: 100vw; height: 100vh; border-radius: 0; } .geo-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 55vh auto; overflow: auto; } .geo-side { border-left: 0; } }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 4000; background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
 
 /* preview of the chosen plan file */
@@ -320,6 +353,20 @@ details.opts summary { cursor: pointer; font-size: 12.5px; color: var(--muted); 
 .mapbox.full #fullStats:not(:empty) { display: grid; }
 .maplibregl-popup-content { font: 12px/1.4 system-ui, sans-serif; color: #1d2320; }
 .maplibregl-popup-content b { font-size: 13px; }
+/* Plan-sheet grid border, north arrow and scale (2026-11-14) */
+.spc-gridedge { position: absolute; inset: 0; pointer-events: none; z-index: 1; border: 22px solid rgba(255,255,255,.88); box-shadow: inset 0 0 0 1px #334155; }
+.spc-gridedge span { position: absolute; font: 600 10px/1 ui-monospace, Consolas, monospace; color: #1e293b; white-space: nowrap; }
+.spc-gridedge .t { top: -16px; transform: translateX(-50%); }
+.spc-gridedge .b { bottom: -16px; transform: translateX(-50%); }
+.spc-gridedge .l { left: -19px; transform: translate(-50%, -50%) rotate(-90deg); transform-origin: center; }
+.spc-gridedge .r { right: -19px; transform: translate(50%, -50%) rotate(-90deg); transform-origin: center; }
+.spc-gridedge .l, .spc-gridedge .r { margin-left: 0; }
+.spc-north { position: absolute; left: 32px; top: 32px; z-index: 2; pointer-events: none; display: grid; justify-items: center; gap: 1px; padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.92); box-shadow: 0 1px 4px rgba(0,0,0,.2); color: #0f172a; }
+.spc-north b { font: 700 12px/1 system-ui, sans-serif; }
+.spc-north span { font: 600 10.5px/1.2 ui-monospace, Consolas, monospace; white-space: nowrap; }
+.spc-gridedge[hidden], .spc-north[hidden] { display: none; }
+.spc-sheet .maplibregl-ctrl-top-right { top: 22px; right: 22px; } .spc-sheet .maplibregl-ctrl-bottom-left { bottom: 22px; left: 22px; } .spc-sheet .maplibregl-ctrl-bottom-right { bottom: 22px; right: 22px; }
+.spc-sheet #fullStats { left: 32px; bottom: 56px; }
 </style>
 </head>
 <body>
@@ -386,7 +433,12 @@ details.opts summary { cursor: pointer; font-size: 12.5px; color: var(--muted); 
       <div class="sysrow">
       <div class="sys" role="radiogroup" aria-label="Coordinate system">
         <div class="opt">
-          <input type="radio" name="sys" value="ntm" id="sysNtm" checked>
+          <input type="radio" name="sys" value="minna" id="sysMinna" checked>
+          <label class="t" for="sysMinna">Minna / UTM Zone 32N</label>
+          <span class="d">Clarke 1880 ellipsoid, Minna datum, central meridian 9° E (EPSG:26332). Kano's survey grid; matches ArcMap.</span>
+        </div>
+        <div class="opt">
+          <input type="radio" name="sys" value="ntm" id="sysNtm">
           <label class="t" for="sysNtm">NTM · Nigerian Transverse Mercator (Minna datum)</label>
           <span class="d">Clarke 1880 ellipsoid, three 4° belts. Kano is in the Mid Belt.</span>
           <span class="belt" role="radiogroup" aria-label="NTM belt">
@@ -438,6 +490,8 @@ details.opts summary { cursor: pointer; font-size: 12.5px; color: var(--muted); 
           <div class="grp" id="switcher">
             <button type="button" class="mb" id="btn-street"><i class="fas fa-road"></i> Street</button>
             <button type="button" class="mb active" id="btn-satellite"><i class="fas fa-satellite"></i> Satellite</button>
+            <label class="snap" title="Untick to plot on a plain georeferenced backdrop"><input type="checkbox" id="baseOn" checked> Basemap</label>
+            <label class="snap" title="Coordinate grid in the chosen system"><input type="checkbox" id="gridOn"> Grid</label>
           </div>
           <div class="grp" id="tools">
             <button type="button" class="mb" data-tool="point" title="Add a point"><i class="fas fa-location-dot"></i> Point</button>
@@ -447,6 +501,18 @@ details.opts summary { cursor: pointer; font-size: 12.5px; color: var(--muted); 
           </div>
           <div class="grp">
             <button type="button" class="mb" id="mapFit" title="Zoom to the beacons"><i class="fas fa-expand"></i> Fit</button>
+          </div>
+          <!-- Their own map under the plotting (user, 2026-11-13): a scanned plan or a GeoTIFF. -->
+          <div class="grp">
+            <button type="button" class="mb scan-btn" id="scanBtn" title="Put a scanned plan or GeoTIFF on the map"><i class="fas fa-file-image"></i> Scanned plan</button>
+          </div>
+          <div class="grp scan-grp" id="scanGrp" hidden>
+            <label class="snap" title="Show or hide the scanned plan / TIFF"><input type="checkbox" id="scanVis" checked> <span id="scanTag" class="scan-tag">Scan</span></label>
+            <label class="snap" title="See-through" for="scanOp"><i class="fas fa-circle-half-stroke"></i><input type="range" id="scanOp" min="10" max="100" value="75" aria-label="Scan opacity"></label>
+            <select id="scanPaper" class="mb" title="Remove the paper so only the plan's lines lie on the map" aria-label="Scan paper"><option value="keep">Paper: keep</option><option value="dark">Lines only: dark</option><option value="yellow">Lines only: yellow</option></select>
+            <button type="button" class="mb" id="scanAdj" title="Drag the scan on the map to line it up; Shift + drag turns it"><i class="fas fa-up-down-left-right"></i> Move</button>
+            <span id="scanAdjBox" class="scan-adj" hidden><label class="snap" title="Turn clockwise, in degrees">Turn<input type="number" id="scanRot" step="0.05" value="0" aria-label="Turn in degrees"></label><label class="snap" title="Size, % of the placed size">Size %<input type="number" id="scanSize" step="0.1" min="10" max="1000" value="100" aria-label="Size in percent"></label><button type="button" class="mb" id="scanReset" title="Back to where it was placed">Reset</button></span>
+            <button type="button" class="mb" id="scanDel" title="Remove the scan from the map"><i class="fas fa-xmark"></i></button>
           </div>
           <span class="grow"></span>
           <span class="gridtag" id="gridtag"></span>
@@ -515,6 +581,7 @@ details.opts summary { cursor: pointer; font-size: 12.5px; color: var(--muted); 
           <div style="display:grid;gap:8px;margin-top:8px;max-width:360px">
             <label class="lbl" for="tol">Register tolerance (m)<input type="number" id="tol" value="1" min="0.01" step="0.1" style="margin-top:4px"></label>
             <label class="check" for="autofix"><input type="checkbox" id="autofix" checked><span>Switch X and Y back when they were typed the wrong way round</span></label>
+            <label class="check" for="kanoOnly"><input type="checkbox" id="kanoOnly" checked><span>Points must be in Kano (untick for a plan elsewhere in Nigeria)</span></label>
           </div>
         </details>
       </div>
@@ -571,6 +638,54 @@ details.opts summary { cursor: pointer; font-size: 12.5px; color: var(--muted); 
     </div>
   </div>
 </div>
+<div class="geo-ovl" id="geoPanel" hidden role="dialog" aria-modal="true" aria-labelledby="geoTitle">
+  <div class="geo-box">
+    <div class="geo-h">
+      <i class="fas fa-file-image" style="color:var(--blue)"></i>
+      <div><h3 id="geoTitle">Put a scanned plan on the map</h3><p class="note">A GeoTIFF places itself. A plain scan (TIFF, JPG, PNG) is placed from a beacon on it. Prototype: the file stays in your browser.</p></div>
+      <span style="flex:1"></span>
+      <label class="btn btn-sm btn-primary" for="geoFile" style="margin:0"><i class="fas fa-folder-open"></i> Open scan<input type="file" id="geoFile" accept=".tif,.tiff,.jpg,.jpeg,.png,image/tiff,image/jpeg,image/png" hidden></label>
+      <button type="button" class="btn btn-sm btn-secondary" id="geoSample"><i class="fas fa-flask"></i> Try the sample plan</button>
+      <button type="button" class="ib" id="geoClose" aria-label="Close" title="Close (Esc)"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="geo-body">
+      <div class="geo-view">
+        <div class="geo-viewbar"><span id="gvName" class="mono">No scan open</span><span style="flex:1"></span>
+          <button type="button" class="ib" id="gvOut" aria-label="Zoom out" title="Zoom out"><i class="fas fa-minus"></i></button>
+          <button type="button" class="ib" id="gvIn" aria-label="Zoom in" title="Zoom in"><i class="fas fa-plus"></i></button>
+          <button type="button" class="ib" id="gvFit" aria-label="Fit" title="Fit the sheet"><i class="fas fa-expand"></i></button></div>
+        <div class="geo-canvas"><canvas id="gvCanvas"></canvas></div>
+        <div class="geo-hint" id="gvHint"></div>
+      </div>
+      <div class="geo-side">
+        <p class="note" id="geoMsg">Open a scan, or try the sample plan.</p>
+        <div class="entry-mode" role="radiogroup" aria-label="How to place the scan">
+          <label><input type="radio" name="geomethod" value="quick" checked><span><i class="fas fa-location-dot"></i> One beacon + scale</span></label>
+          <label><input type="radio" name="geomethod" value="cps"><span><i class="fas fa-crosshairs"></i> Control points</span></label>
+        </div>
+        <p class="note">Coordinates in <b id="geoSys"></b> (section 1).</p>
+        <div id="geoQuick" class="geo-form">
+          <label class="lbl">Beacon clicked on the scan <span class="note" id="gqPx">not clicked yet</span></label>
+          <input type="text" id="gqName" placeholder="Beacon No., e.g. PBC7954" aria-label="Beacon No.">
+          <div class="geo-two"><label class="lbl">X (Easting)<input type="text" id="gqX" inputmode="decimal"></label><label class="lbl">Y (Northing)<input type="text" id="gqY" inputmode="decimal"></label></div>
+          <div class="geo-three"><label class="lbl">Scale 1 :<input type="text" id="gqScale" inputmode="decimal" value="2500"></label><label class="lbl">Scan dpi<input type="text" id="gqDpi" inputmode="decimal" value="200"></label><label class="lbl">Turn (°)<input type="text" id="gqRot" inputmode="decimal" value="0" title="How far the sheet's north is turned clockwise from grid north"></label></div>
+          <p class="note">The scale is printed on the plan. Turn stays 0 when the sheet's north arrow points straight up.</p>
+        </div>
+        <div id="geoCps" class="geo-form" hidden>
+          <div class="bt"><table class="geo-table"><thead><tr><th>#</th><th>On scan</th><th>Beacon No.</th><th>X (Easting)</th><th>Y (Northing)</th><th>Miss</th><th></th></tr></thead><tbody id="gcRows"></tbody></table></div>
+          <div class="row"><button type="button" class="btn btn-sm btn-secondary" id="gcClear"><i class="fas fa-eraser"></i> Clear points</button>
+            <span class="note">A Beacon Register number fills its X / Y. 3 or more points also take paper stretch.</span></div>
+        </div>
+        <div class="geo-fit" id="geoFit"></div>
+        <button type="button" class="btn btn-success" id="geoPlace" disabled><i class="fas fa-map-location-dot"></i> Place on map</button>
+        <div id="geoReadBox" class="geo-read" hidden>
+          <p class="note"><b>Instead of the picture:</b> the plan's own figures (beacons, bearings, distances) read off the sheet and plotted, checked by the officer against the scan.</p>
+          <button type="button" class="btn btn-primary" id="geoRead"><i class="fas fa-wand-magic-sparkles"></i> Read figures from the plan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="rowmenu" id="rowMenu" hidden role="menu">
   <button type="button" role="menuitem" id="rmCheck"><i class="fas fa-map-location-dot"></i> Check survey plan</button>
 </div>
@@ -579,23 +694,29 @@ details.opts summary { cursor: pointer; font-size: 12.5px; color: var(--muted); 
 <script src="/maps/vendor/pmtiles.js"></script>
 <script src="/maps/vendor/proj4.js"></script>
 <script src="/maps/vendor/shpwrite.js"></script>
+<script src="/maps/vendor/geotiff.js"></script>
+<script src="/maps/vendor/UTIF.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
 <script>
 /* ---------- coordinate systems ---------- */
-// NTM belts (EPSG 26391-26393) and UTM 32N on WGS 84 (user, 2026-11-12). Minna / UTM 32N (26332) is only how the
-// Beacon Register is stored; it is converted, never offered.
-const MINNA = '+ellps=clrk80 +towgs84=-92,-93,122,0,0,0,0 +units=m +no_defs';
+// Minna / UTM 32N (26332) is the default and how the Beacon Register is stored (surveyor, 2026-11-13); then NTM belts
+// (EPSG 26391-26393) and UTM 32N on WGS 84.
+const MINNA = '+a=6378249.145 +rf=293.465 +towgs84=-92,-93,122,0,0,0,0 +units=m +no_defs';   // Clarke 1880 (RGS), as ArcMap
 proj4.defs('EPSG:26391', '+proj=tmerc +lat_0=4 +lon_0=4.5 +k=0.99975 +x_0=230738.26 +y_0=0 ' + MINNA);
 proj4.defs('EPSG:26392', '+proj=tmerc +lat_0=4 +lon_0=8.5 +k=0.99975 +x_0=670553.98 +y_0=0 ' + MINNA);
 proj4.defs('EPSG:26393', '+proj=tmerc +lat_0=4 +lon_0=12.5 +k=0.99975 +x_0=1110369.7 +y_0=0 ' + MINNA);
 proj4.defs('EPSG:26332', '+proj=utm +zone=32 ' + MINNA);
 proj4.defs('EPSG:32632', '+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
-const GRID_NAME = { 26391: 'NTM West Belt, Minna (EPSG:26391)', 26392: 'NTM Mid Belt, Minna (EPSG:26392)', 26393: 'NTM East Belt, Minna (EPSG:26393)', 32632: 'UTM 32N, WGS 84 (EPSG:32632)' };
+const GRID_NAME = { 26332: 'Minna / UTM Zone 32N (EPSG:26332)', 26391: 'NTM West Belt, Minna (EPSG:26391)', 26392: 'NTM Mid Belt, Minna (EPSG:26392)', 26393: 'NTM East Belt, Minna (EPSG:26393)', 32632: 'UTM 32N, WGS 84 (EPSG:32632)' };
 const $ = id => document.getElementById(id);
-const gridCode = () => document.querySelector('input[name=sys]:checked').value === 'utm' ? '32632' : document.querySelector('input[name=belt]:checked').value;
+const gridCode = () => { const v = document.querySelector('input[name=sys]:checked').value; return v === 'minna' ? '26332' : v === 'utm' ? '32632' : document.querySelector('input[name=belt]:checked').value; };
 const KANO = { s: 10.3, n: 12.9, w: 7.6, e: 9.5 };
-const inKano = ([lon, lat]) => lat >= KANO.s && lat <= KANO.n && lon >= KANO.w && lon <= KANO.e;
+const NIGERIA = { s: 4.0, n: 14.0, w: 2.6, e: 14.7 };
+// "Points must be in Kano" (Check options); unticked, anywhere in Nigeria (a scanned plan from elsewhere).
+const AREA = () => document.getElementById('kanoOnly')?.checked === false ? NIGERIA : KANO;
+const AREA_NAME = () => AREA() === KANO ? 'Kano' : 'Nigeria';
+const inKano = ([lon, lat]) => { const A = AREA(); return lat >= A.s && lat <= A.n && lon >= A.w && lon <= A.e; };
 const toLL = (code, x, y) => proj4('EPSG:' + code, 'EPSG:4326', [x, y]);
 const toXY = (code, lon, lat) => proj4('EPSG:4326', 'EPSG:' + code, [lon, lat]);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -624,7 +745,7 @@ const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol('pmtiles', protocol.tile);
 const empty = { type: 'FeatureCollection', features: [] };
 const OUR = ['register', 'register-label', 'links', 'poly-fill', 'sv-line', 'sides', 'sv', 'sv-label', 'ref', 'ref-label',
-  'drawn-fill', 'drawn-line', 'drawn-point', 'drawn-label', 'draft-line', 'draft-point', 'snap'];
+  'drawn-fill', 'drawn-line', 'drawn-point', 'drawn-label', 'draft-line', 'draft-point', 'snap', 'plain', 'grid-halo', 'grid-line'];
 let map, mapReady = false;
 initMap();
 
@@ -643,7 +764,11 @@ async function initMap() {
     map.addSource('satellite', { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, maxzoom: 19, attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics' });
     const firstLabel = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
     map.addLayer({ id: 'satellite', type: 'raster', source: 'satellite' }, firstLabel);
-    ['register', 'ref', 'sv', 'svline', 'poly', 'sides', 'links', 'drawn', 'draft', 'snap'].forEach(id => map.addSource(id, { type: 'geojson', data: empty }));
+    ['register', 'ref', 'sv', 'svline', 'poly', 'sides', 'links', 'drawn', 'draft', 'snap', 'grid'].forEach(id => map.addSource(id, { type: 'geojson', data: empty }));
+    // Plain backdrop + coordinate grid for plotting without a basemap (Kunle, 2026-11-14).
+    map.addLayer({ id: 'plain', type: 'background', layout: { visibility: 'none' }, paint: { 'background-color': '#f8fafc' } }, map.getStyle().layers[0]?.id);
+    map.addLayer({ id: 'grid-halo', type: 'line', source: 'grid', paint: { 'line-color': '#fff', 'line-width': 3.4, 'line-opacity': 0.85 } });
+    map.addLayer({ id: 'grid-line', type: 'line', source: 'grid', paint: { 'line-color': '#1e293b', 'line-width': 1.2 } });
     map.addLayer({ id: 'register', type: 'circle', source: 'register', paint: {
       'circle-color': ['match', ['get', 'kind'], 'C', '#7c3aed', '#2563eb'],
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 16, 6], 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } });
@@ -659,7 +784,7 @@ async function initMap() {
     map.addLayer({ id: 'sv-label', type: 'symbol', source: 'sv', layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Medium'], 'text-size': 12, 'text-offset': [0, -1.2], 'text-anchor': 'bottom', 'text-allow-overlap': true },
       paint: { 'text-color': '#fff', 'text-halo-color': '#155e75', 'text-halo-width': 1.6 } });
     map.addLayer({ id: 'ref', type: 'circle', source: 'ref', paint: { 'circle-color': '#ea580c', 'circle-radius': 8, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5 } });
-    map.addLayer({ id: 'ref-label', type: 'symbol', source: 'ref', layout: { 'text-field': ['get', 'beacon'], 'text-font': ['Noto Sans Medium'], 'text-size': 12, 'text-offset': [0, -1.3], 'text-anchor': 'bottom', 'text-allow-overlap': true },
+    map.addLayer({ id: 'ref-label', type: 'symbol', source: 'ref', layout: { 'text-field': ['get', 'beacon'], 'text-font': ['Noto Sans Medium'], 'text-size': 12, 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-allow-overlap': true },
       paint: { 'text-color': '#fff', 'text-halo-color': '#9a3412', 'text-halo-width': 1.6 } });
     map.addLayer({ id: 'drawn-fill', type: 'fill', source: 'drawn', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.18 } });
     map.addLayer({ id: 'drawn-line', type: 'line', source: 'drawn', filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#4ade80', 'line-width': 2.5 } });
@@ -677,23 +802,62 @@ async function initMap() {
       map.on('mouseleave', layer, () => { if (!tool) map.getCanvas().style.cursor = ''; });
     });
     mapReady = true;
+    map.on('moveend', drawGrid); map.on('resize', drawGrid);
     wireDrawing();
     loadRegister();
     refresh();
   });
 }
+let BASE = 'satellite';
 function setMode(m) {
-  const sat = m === 'satellite';
+  BASE = m;
+  const sat = m === 'satellite', base = $('baseOn').checked;
   map.getStyle().layers.forEach(l => {
-    if (l.id === 'satellite') return map.setLayoutProperty(l.id, 'visibility', sat ? 'visible' : 'none');
     if (OUR.includes(l.id)) return;
-    map.setLayoutProperty(l.id, 'visibility', sat && l.type !== 'symbol' ? 'none' : 'visible');
+    const vis = base && (l.id === 'satellite' ? sat : !(sat && l.type !== 'symbol'));
+    map.setLayoutProperty(l.id, 'visibility', vis ? 'visible' : 'none');
   });
-  $('btn-street').classList.toggle('active', !sat);
-  $('btn-satellite').classList.toggle('active', sat);
+  map.setLayoutProperty('plain', 'visibility', base ? 'none' : 'visible');
+  $('btn-street').classList.toggle('active', base && !sat);
+  $('btn-satellite').classList.toggle('active', base && sat);
 }
-$('btn-street').onclick = () => setMode('street');
-$('btn-satellite').onclick = () => setMode('satellite');
+const pickBase = m => { $('baseOn').checked = true; setMode(m); };
+$('btn-street').onclick = () => pickBase('street');
+$('btn-satellite').onclick = () => pickBase('satellite');
+// Basemap off = plain backdrop; the grid comes on with it so the plot stays georeferenced.
+$('baseOn').onchange = () => { if (!mapReady) return; if (!$('baseOn').checked) $('gridOn').checked = true; setMode(BASE); drawGrid(); };
+$('gridOn').onchange = () => drawGrid();
+// Plan-sheet grid (user, 2026-11-14): crosses (+) at every 1/2/5 x 10^n metre intersection in the chosen system,
+// the mE / mN values in a border round the map, a north arrow and the on-screen scale as 1 : N.
+const gridEdge = document.createElement('div'), north = document.createElement('div');
+gridEdge.className = 'spc-gridedge'; north.className = 'spc-north';
+north.innerHTML = '<svg viewBox="0 0 24 34" width="20" height="28" aria-hidden="true"><path d="M12 1 20 27 12 22 4 27Z" fill="#0f172a"/><path d="M12 1 12 22 4 27Z" fill="#fff" stroke="#0f172a" stroke-width="1.2"/></svg><b>N</b><span></span>';
+document.getElementById('map').append(gridEdge, north);
+function drawGrid() {
+  if (!mapReady) return;
+  const src = map.getSource('grid'), on = $('gridOn').checked;
+  gridEdge.hidden = north.hidden = !on; map.getContainer().classList.toggle('spc-sheet', on);
+  if (!on) return src.setData(empty);
+  const code = gridCode(), b = map.getBounds(), W = map.getContainer().clientWidth, H = map.getContainer().clientHeight;
+  const cs = [[b.getWest(), b.getSouth()], [b.getEast(), b.getSouth()], [b.getEast(), b.getNorth()], [b.getWest(), b.getNorth()]].map(c => toXY(code, c[0], c[1]));
+  const x0 = Math.min(...cs.map(c => c[0])), x1 = Math.max(...cs.map(c => c[0])), y0 = Math.min(...cs.map(c => c[1])), y1 = Math.max(...cs.map(c => c[1]));
+  const raw = Math.max(x1 - x0, y1 - y0) / 8, p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = Math.max(1, [1, 2, 5, 10].map(k => k * p).find(k => k >= raw)), arm = step * 0.07;
+  const xs = [], ys = [], f = [], seg = (a, c) => f.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [toLL(code, a[0], a[1]), toLL(code, c[0], c[1])] } });
+  for (let i = Math.ceil(x0 / step); i * step <= x1; i++) xs.push(i * step);
+  for (let i = Math.ceil(y0 / step); i * step <= y1; i++) ys.push(i * step);
+  xs.forEach(x => ys.forEach(y => { seg([x - arm, y], [x + arm, y]); seg([x, y - arm], [x, y + arm]); }));
+  src.setData({ type: 'FeatureCollection', features: f });
+  // Border labels where each grid value meets the map edge.
+  const ym = (y0 + y1) / 2, xm = (x0 + x1) / 2, lab = [];
+  xs.forEach(x => { const q = map.project(toLL(code, x, ym)); if (q.x > 40 && q.x < W - 40) lab.push(`<span class="t" style="left:${q.x}px">${x} mE</span><span class="b" style="left:${q.x}px">${x} mE</span>`); });
+  ys.forEach(y => { const q = map.project(toLL(code, xm, y)); if (q.y > 40 && q.y < H - 40) lab.push(`<span class="l" style="top:${q.y}px">${y} mN</span><span class="r" style="top:${q.y}px">${y} mN</span>`); });
+  gridEdge.innerHTML = lab.join('');
+  // Scale on this screen (96 dpi), rounded to 2 figures.
+  const c = map.getCenter(), mpp = 40075016.686 * Math.cos(c.lat * Math.PI / 180) / (512 * Math.pow(2, map.getZoom()));
+  const n = mpp / 0.00026458, r = Math.pow(10, Math.floor(Math.log10(n)) - 1);
+  north.querySelector('span').textContent = '1 : ' + (Math.round(n / r) * r).toLocaleString('en');
+}
 function popup(f, at) {
   const p = f.properties;
   const what = { R: ' <span style="color:#ea580c">(reference)</span>', S: ' <span style="color:#0891b2">(plan beacon)</span>', C: ' (control point)', D: ' <span style="color:#16a34a">(drawn)</span>' }[p.kind] || '';
@@ -836,7 +1000,7 @@ function evalRow(tr, code, tol, autofix) {
     const sw = toLL(code, y, x);
     if (inKano(sw) && autofix) { ll = sw; ux = y; uy = x; o.chips.push(['warn', 'X and Y switched back']); }
     else if (inKano(sw)) { o.chips.push(['bad', 'X and Y look reversed']); o.bad = true; }
-    else { o.chips.push(['bad', 'Outside Kano: check the coordinate system or the digits']); o.bad = true; }
+    else { o.chips.push(['bad', `Outside ${AREA_NAME()}: check the coordinate system or the digits`]); o.bad = true; }
   }
   Object.assign(o, { x: ux, y: uy, lon: ll[0], lat: ll[1] });
   if (o.reg && tr.dataset.auto !== '1') {
@@ -901,6 +1065,7 @@ function refresh() {
   $('svPoly').innerHTML = `<i class="fas fa-draw-polygon"></i> ${POLY ? 'Open polygon' : 'Create polygon'}`;
   $('svPoly').disabled = svOk.length < 3;
   $('gridtag').textContent = GRID_NAME[code];
+  drawGrid();
   $('ex-grid').textContent = 'X / Y in ' + GRID_NAME[code];
 
   extras(svOk, ref);
@@ -928,7 +1093,7 @@ function fitAll() {
   const pts = [...REFS, ...SV].filter(o => o.lon !== undefined && !o.bad);
   if (!pts.length || !mapReady) return;
   const b = new maplibregl.LngLatBounds(); pts.forEach(o => b.extend([o.lon, o.lat]));
-  map.fitBounds(b, { padding: 90, maxZoom: 17, duration: 600 });
+  map.fitBounds(b, { padding: 90, maxZoom: 19.75, duration: 600 });
 }
 
 // Changing the system: X / Y filled from the register are refilled in the new system; typed ones stay as typed.
@@ -942,6 +1107,10 @@ document.querySelectorAll('input[name=belt]').forEach(r => r.addEventListener('c
 // Clicking anywhere on a system card picks it.
 document.querySelectorAll('.sys .opt').forEach(c => c.addEventListener('click', e => { const r = c.querySelector('input[name=sys]'); if (e.target.closest('.belt') || r.checked) return; r.checked = true; r.dispatchEvent(new Event('change')); }));
 ['tol', 'autofix'].forEach(id => $(id).addEventListener('change', refresh));
+$('kanoOnly').addEventListener('change', () => {
+  if (map) map.setMaxBounds($('kanoOnly').checked ? [[6.9, 9.6], [10.2, 13.6]] : [[1.5, 3.0], [15.8, 15.0]]);
+  refresh();
+});
 function clearBody(body) { jQuery(body).find('select.b').select2('destroy'); body.innerHTML = ''; }
 // The single reference row, reset (optionally to a beacon, with X / Y as on the upload).
 function setRef(b = '', x = '', y = '') { clearBody(refBody); addRow(refBody, b, x, y); refresh(); }
@@ -963,18 +1132,24 @@ function neighbours(a, n) {
   const cx = near.reduce((s, b) => s + b.lon, 0) / (near.length || 1), cy = near.reduce((s, b) => s + b.lat, 0) / (near.length || 1);
   return near.sort((p, q) => Math.atan2(p.lat - cy, p.lon - cx) - Math.atan2(q.lat - cy, q.lon - cx));
 }
+// The surveyor's parcel 234 (2026-11-13): Minna / UTM 32N, plan quadrant bearings, closes 0.000, 74 m, 329.99 m².
+// Matches ArcMap exactly; the sample for the traverse and the first sample upload.
+const P234 = { start: '234', x: '441344.7833', y: '1338968.2609', lines: [
+  { ns: 'N', d: 84, m: 17, s: 1, ew: 'W', dist: 15, to: '235' }, { ns: 'N', d: 5, m: 41, s: 0, ew: 'E', dist: 22, to: '236' },
+  { ns: 'S', d: 84, m: 17, s: 1, ew: 'E', dist: 15, to: '237' }, { ns: 'S', d: 5, m: 41, s: 0, ew: 'W', dist: 22 }] };
+// Fill Other Beacons by bearing and distance: X1 = the reference coordinate, then the lines, closing on X1.
+function loadTraverse(t) {
+  const r = document.querySelector('input[name=svmode][value=brg]');
+  if (!r.checked) { r.checked = true; r.dispatchEvent(new Event('change')); }
+  setRef(t.start, t.x, t.y); startFromRef(true); $('trStartX').value = t.x; $('trStartY').value = t.y;
+  jQuery(travBody).find('select.tb').select2('destroy'); travBody.innerHTML = '';
+  t.lines.forEach(addLine);
+  $('trClose').checked = true; computeTraverse(); fitAll();
+}
 // A sample: the reference beacon near the current one (or a random one), and four neighbours as the other beacons.
 $('sample').onclick = () => {
-  // Traverse sample: from the reference coordinate (or a register beacon), four lines that close within 3 cm.
-  if (brgMode()) {
-    if (!REFS.some(o => o.lon !== undefined && !o.bad)) { const a = REG.find(b => b.kind === 'B' && b.district); if (a) setRef(a.beacon); }
-    startFromRef(true);
-    jQuery(travBody).find('select.tb').select2('destroy'); travBody.innerHTML = '';
-    [{ ns: 'N', d: 30, m: 0, s: 0, ew: 'E', dist: 40 }, { ns: 'S', d: 60, m: 0, s: 0, ew: 'E', dist: 30 },
-     { ns: 'S', d: 30, m: 0, s: 0, ew: 'W', dist: 40 }, { ns: 'N', d: 60, m: 0, s: 0, ew: 'W', dist: 30.03 }].forEach(addLine);
-    $('trClose').checked = true; computeTraverse(); fitAll();
-    return;
-  }
+  // Traverse sample: the surveyor's parcel 234 (2026-11-13), checked against ArcMap.
+  if (brgMode()) { setSystem('minna'); loadTraverse(P234); return; }
   const cur = REFS.find(o => o.reg)?.reg;
   const pts = REG.filter(b => b.kind === 'B');
   for (let t = 0; t < 60; t++) {
@@ -1235,7 +1410,7 @@ function renderDrawn() {
   }).join('');
   box.querySelectorAll('[data-name]').forEach(i => i.onchange = () => { const f = DRAWN.find(d => d.id == i.dataset.name); f.name = i.value.trim() || f.name; renderDrawn(); });
   box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { DRAWN.splice(DRAWN.findIndex(d => d.id == b.dataset.del), 1); renderDrawn(); });
-  box.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => { const f = DRAWN.find(d => d.id == b.dataset.zoom), bb = new maplibregl.LngLatBounds(); f.coords.forEach(c => bb.extend(c)); map.fitBounds(bb, { padding: 80, maxZoom: 17, duration: 500 }); });
+  box.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => { const f = DRAWN.find(d => d.id == b.dataset.zoom), bb = new maplibregl.LngLatBounds(); f.coords.forEach(c => bb.extend(c)); map.fitBounds(bb, { padding: 80, maxZoom: 19.75, duration: 500 }); });
 }
 function wireDrawing() {
   map.on('mousemove', e => { if (!tool) return; hover = snapAt(e.point) || { c: [e.lngLat.lng, e.lngLat.lat], kind: null }; renderDraft(); info(); });
@@ -1341,9 +1516,11 @@ function setSel(id, v) {
   if (![...el.options].some(o => o.value === v || o.text === v)) el.appendChild(new Option(v, v));
   el.value = [...el.options].find(o => o.value === v || o.text === v).value;
 }
+// A blank card starts on Minna / UTM 32N, the default (surveyor, 2026-11-13).
 function setSystem(sys, belt) {
   if (sys === 'utm') $('sysUtm').checked = true;
-  else { $('sysNtm').checked = true; document.querySelector(`input[name=belt][value="${belt || '26392'}"]`).checked = true; }
+  else if (sys === 'ntm') { $('sysNtm').checked = true; document.querySelector(`input[name=belt][value="${belt || '26392'}"]`).checked = true; }
+  else $('sysMinna').checked = true;
 }
 // mode: 'upload' | 'check'; plan: an uploaded plan to fill in from (Check action), or null for a blank card.
 function openModal(mode, plan = null) {
@@ -1365,7 +1542,7 @@ function openModal(mode, plan = null) {
   $('prefillNote').innerHTML = plan ? `<i class="fas fa-circle-info"></i> Filled in from upload <b>${esc(plan.ref)}</b> (${esc(plan.pdType)}, plot ${esc(plan.pdPlot)}, ${esc(plan.pdDistrict)}, ${esc(plan.pdLga)}): the coordinate system and the reference coordinate are as the uploader entered them. Add the other beacons under the map.` : '';
   modal.hidden = false; document.body.classList.add('lock');
   modal.querySelector('.modal-b').scrollTop = 0;
-  setTimeout(() => { if (map) { map.resize(); const r = rowsOf(refBody)[0]; if (plan) goTo(r); } }, 60);
+  setTimeout(() => { if (map) { map.resize(); const r = rowsOf(refBody)[0]; if (plan?.trav && check) loadTraverse(plan.trav); else if (plan) goTo(r); } }, 60);
 }
 function closeModal() { modal.hidden = true; document.body.classList.remove('lock'); if ($('mapbox').classList.contains('full')) setFull(false); }
 $('openUpload').onclick = () => openModal('upload');
@@ -1377,11 +1554,14 @@ $('closeX').onclick = closeModal; $('closeBtn').onclick = closeModal;
 let PLANS = [];
 function buildPlans() {
   const used = new Set(), out = [];
+  out.push({ ref: 'SPU-SAMPLE-0001', sys: 'minna', refBeacon: P234.start, refX: P234.x, refY: P234.y, trav: P234,
+    pdType: 'Final Survey Plan', pdUnit: 'GKN (Public)', pdPlot: '234', pdDistrict: '', pdLga: '',
+    pdDrawn: 'Sample Surveyor', pdRemarks: 'Parcel 234 from the surveyor: traverse by bearing and distance, closes 0.000.', file: 'sample-plan-234.pdf', stage: 'Awaiting check' });
   for (const b of SORTED) {
-    if (out.length >= 3) break;
+    if (out.length >= 4) break;
     if (b.kind !== 'B' || !b.district || used.has(key(b.district)) || neighbours(b, 3).length < 3) continue;
     used.add(key(b.district));
-    out.push({ ref: `SPU-SAMPLE-${String(out.length + 1).padStart(4, '0')}`, sys: 'ntm', belt: '26392', refBeacon: b.beacon,
+    out.push({ ref: `SPU-SAMPLE-${String(out.length + 1).padStart(4, '0')}`, sys: 'minna', refBeacon: b.beacon,
       pdType: out.length % 2 ? 'Application Plan' : 'Final Survey Plan', pdUnit: 'GKN (Public)', pdPlot: `${10 + out.length * 7}`,
       pdDistrict: String(b.district).toUpperCase(), pdLga: 'Kano Municipal', pdDrawn: 'Sample Surveyor', pdRemarks: 'Sample for the preview.',
       file: `sample-plan-${out.length + 1}.pdf`, stage: 'Awaiting check' });
@@ -1395,7 +1575,7 @@ function buildPlans() {
   }
   PLANS = out;
   $('planRows').innerHTML = out.map((p, i) => `<tr><td>${i + 1}</td><td class="mono">${esc(p.ref)}</td><td>${esc(p.pdType)}</td><td>${esc(p.pdPlot)}</td><td>${esc(p.pdDistrict)}</td><td>${esc(p.pdLga)}</td>`
-    + `<td>${esc(p.pdDistrict)}, ${esc(p.pdLga)}</td><td class="mono">${esc(p.refBeacon)} <span class="sys-tag">${p.sys === 'utm' ? 'UTM' : 'NTM Mid'}</span></td><td>${esc(p.pdDrawn)}</td>`
+    + `<td>${esc([p.pdDistrict, p.pdLga].filter(Boolean).join(', '))}</td><td class="mono">${esc(p.refBeacon)} <span class="sys-tag">${p.sys === 'utm' ? 'UTM WGS 84' : p.sys === 'ntm' ? 'NTM Mid' : 'Minna UTM 32N'}</span></td><td>${esc(p.pdDrawn)}</td>`
     + `<td><span class="stage">${esc(p.stage)}</span></td><td><button type="button" class="kebab" data-plan="${i}" aria-label="Actions" aria-haspopup="menu"><i class="fas fa-ellipsis-vertical"></i></button></td></tr>`).join('')
     || '<tr><td colspan="11" class="note" style="padding:14px">No samples.</td></tr>';
 }
@@ -1450,5 +1630,6 @@ document.addEventListener('keydown', e => {
   else if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey && !modal.hidden) setFull(!$('mapbox').classList.contains('full'));
 });
 </script>
+<script src="/maps/survey-plan-scan.js?v=5"></script>
 </body>
 </html>

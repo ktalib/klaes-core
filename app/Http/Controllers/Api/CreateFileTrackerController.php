@@ -2493,7 +2493,10 @@ HTML;
                 'priority'          => FileSearchRequest::priorityFor($isOfs ? $ofsRank : ($officerRank ?: $receivingOfficer)),
             ]);
 
-            $requesterName = $user->name ?? 'A registry user';
+            // Name the officer the request is for (the File Requester picked on the
+            // form), not the clerk who keyed it in.
+            $requesterName = trim((string) $receivingOfficer)
+                ?: ($fr->requester_office ?: ($fr->requester_department ?: ($user->name ?? 'A registry user')));
             $this->notifyScbMonitors($fr, $requesterName);
 
             return response()->json([

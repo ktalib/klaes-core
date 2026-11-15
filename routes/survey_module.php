@@ -68,6 +68,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/{plan}/file', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'file'])->whereNumber('plan')->name('file');
         // CR 11112026-2 (items 4-7): reference beacon search, the four stages, SG/DSG signing list, portal uploads.
         Route::get('/beacons', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'beacons'])->name('beacons');
+        // Survey Plan Check > Export > Geodatabase (user, 2026-11-15).
+        Route::post('/export-gdb', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'gdb'])->middleware('throttle:20,1')->name('gdb');
         Route::get('/signing', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'signing'])->name('signing');
         // Survey Plan Check (user, 2026-11-12): blank, or filled in from an uploaded plan.
         Route::get('/check', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'check'])->name('check');

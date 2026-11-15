@@ -1697,6 +1697,122 @@
     }
 
     /**
+     * Record State Versions (Kunle, 2026-11-13). An FC row edited from the Edit modal
+     * gets an "Edited" button in its file-number cell; it opens each earlier version as
+     * a full row underneath, red-tinted, with the values the next edit replaced crossed
+     * out. The version numbers show only once it is open. Rows never edited get nothing.
+     * Versions come from /file-numbers/{id}/versions (FcRecordVersions).
+     */
+    function mlsfVersionEsc(v) {
+        return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function mlsfVersionFileCol(api) {
+        return api.settings()[0].aoColumns.findIndex(c => c.mData === 'mlsfNo');
+    }
+
+    // createdRow: put the button in the file-number cell of an edited row.
+    function mlsfVersionAttach(api, row, cells) {
+        const v = parseInt(row && row.version, 10) || 1;
+        const col = mlsfVersionFileCol(api);
+        if (v <= 1 || col < 0 || !cells || !cells[col]) return;
+        cells[col].insertAdjacentHTML('beforeend',
+            `<div class="rsv-label"><button type="button" class="rsv-toggle" aria-expanded="false"
+                data-id="${mlsfVersionEsc(row.id)}" data-entity="${mlsfVersionEsc(row.version_entity || 'file_number')}"
+                data-version="${v}" title="Show the earlier versions of this record">
+                <i data-lucide="chevron-right" class="rsv-chevron w-3.5 h-3.5"></i><span class="rsv-toggle-text">Edited</span>
+            </button></div>`);
+    }
+
+    // One cell of a version row, drawn by the column's own renderer so it looks exactly
+    // like the live row. Columns that act on the live record are left blank.
+    function mlsfVersionCellHtml(api, colIdx, data) {
+        const col = api.settings()[0].aoColumns[colIdx];
+        const title = String(col.sTitle || '').replace(/<[^>]*>/g, '').trim();
+        if (title === '' || title === 'S/N' || title === 'Actions') {
+            return '';
+        }
+        const key = col.mData;
+        let value = data;
+        if (typeof key === 'string' || typeof key === 'number') value = data[key];
+        try {
+            const out = typeof col.mRender === 'function'
+                ? col.mRender(value, 'display', data, { row: 0, col: colIdx, settings: api.settings()[0] })
+                : value;
+            return out == null || out === '' ? (col.sDefaultContent || '') : String(out);
+        } catch (e) {
+            return value == null ? '' : mlsfVersionEsc(value);
+        }
+    }
+
+    async function mlsfVersionToggle(btn) {
+        const api = $('#mlsfTable').DataTable();
+        const tr = btn.closest('tr');
+        const key = `${btn.dataset.entity}-${btn.dataset.id}`;
+        const open = btn.getAttribute('aria-expanded') === 'true';
+        const label = btn.querySelector('.rsv-toggle-text');
+        document.querySelectorAll(`#mlsfTable tr.rsv-row[data-rsv-of="${key}"]`).forEach(r => r.remove());
+        btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+        tr.classList.toggle('rsv-open', !open);
+        if (label) label.innerHTML = open ? 'Edited' : `V${mlsfVersionEsc(btn.dataset.version)} &middot; Current`;
+        if (open) return;
+
+        const live = api.row(tr).data();
+        const colCount = api.columns().count();
+        const fileCol = mlsfVersionFileCol(api);
+        let versions = [];
+        try {
+            const res = await fetch(`{{ url('file-numbers') }}/${encodeURIComponent(btn.dataset.id)}/versions?entity=${encodeURIComponent(btn.dataset.entity)}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || 'Request failed');
+            versions = json.versions || [];
+        } catch (e) {
+            tr.insertAdjacentHTML('afterend', `<tr class="rsv-row" data-rsv-of="${key}"><td colspan="${colCount}" class="px-4 py-3 text-sm text-red-700">Could not load the versions of this record. Close and try again.</td></tr>`);
+            return;
+        }
+
+        // Every version is drawn; the newest is the live row above and is only compared against.
+        const drawn = versions.map(v => {
+            const data = Object.assign({}, live, v.state || {});
+            const cells = [];
+            for (let i = 0; i < colCount; i++) cells.push(mlsfVersionCellHtml(api, i, data));
+            return { v, cells };
+        });
+
+        // Compared on what the cell shows: a button can carry other fields in its attributes.
+        const shown = (html) => { const t = document.createElement('div'); t.innerHTML = html; return t.textContent.replace(/\s+/g, ' ').trim(); };
+        const html = drawn.slice(0, -1).map((d, idx) => {
+            const next = drawn[idx + 1];
+            const who = d.v.by ? mlsfVersionEsc(d.v.by) : 'unknown';
+            const what = d.v.is_original ? 'Commissioned by' : 'Edited by';
+            const tds = d.cells.map((cell, i) => {
+                const replaced = next && cell !== '' && shown(cell) !== shown(next.cells[i]);
+                let inner = replaced ? `<span class="rsv-old">${cell}</span>` : cell;
+                if (i === fileCol) {
+                    inner += `<div class="rsv-label"><span class="rsv-tag rsv-tag-old">V${d.v.version}</span>
+                        <span class="rsv-sub">${what} ${who}${d.v.at ? ` &middot; ${mlsfVersionEsc(d.v.at)}` : ''}</span></div>`;
+                }
+                return `<td class="px-4 py-3${replaced ? ' rsv-was' : ''}">${inner}</td>`;
+            }).join('');
+            return `<tr class="rsv-row" data-rsv-of="${key}">${tds}</tr>`;
+        }).reverse().join('');
+
+        tr.insertAdjacentHTML('afterend', html || `<tr class="rsv-row" data-rsv-of="${key}"><td colspan="${colCount}" class="px-4 py-3 text-sm text-gray-500">No earlier versions recorded.</td></tr>`);
+        if (window.lucide) lucide.createIcons();
+    }
+
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('#mlsfTable .rsv-toggle');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        mlsfVersionToggle(btn);
+    });
+
+    /**
      * Expandable rows (Change Request 22102026, items 4-6): a chevron at the start of the
      * row when the file has any related file or a temporary file; the expansion lists
      * all of them, including the one printed in the cell. Not on OP files. The lists come from the row itself (the same ones the "View all"
@@ -1797,8 +1913,9 @@
     });
 
         table = $('#mlsfTable').DataTable({
-            createdRow: function (tr, row) {
+            createdRow: function (tr, row, dataIndex, cells) {
                 if (row.is_crossed_out) tr.classList.add('crossed-out-row');
+                mlsfVersionAttach(this.api(), row, cells);
             },
             processing: true,
             serverSide: true,

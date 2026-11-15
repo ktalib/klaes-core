@@ -22,6 +22,7 @@ use App\Models\SmsSetting;
 use App\Services\BulkSmsNgService;
 use App\Services\Sms\KlaesSmsDispatcher;
 use App\Models\StreetName;
+use App\Services\RecordVersions\FcRecordVersions;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class FileNumberController extends Controller
@@ -989,15 +990,33 @@ class FileNumberController extends Controller
             // Plot-extension rows for this page (already formatted in $plotExtRows), keyed by id.
             $plotMap = $plotExtRows->keyBy('id');
 
+            // Record State Versions: the latest version of each row on this page. A row
+            // never edited since versions began has none and shows as V1.
+            $versionEntities = ['F' => FcRecordVersions::FILE_NUMBER, 'T' => FcRecordVersions::TEMPORARY, 'P' => FcRecordVersions::PLOT_EXTENSION];
+            $versionIds = [];
+            foreach ($pageOrder as [$stype, $sid]) {
+                if (isset($versionEntities[$stype])) {
+                    $versionIds[$versionEntities[$stype]][] = (int) $sid;
+                }
+            }
+            $versionCounts = app(FcRecordVersions::class)->counts($versionIds);
+
             // Assemble the page in phase-1 (date) order, interleaving all three sources.
             $mergedData = [];
             foreach ($pageOrder as [$stype, $sid]) {
+                $entry = null;
                 if ($stype === 'F' && isset($fileMap[$sid])) {
-                    $mergedData[] = $fileMap[$sid];
+                    $entry = $fileMap[$sid];
                 } elseif ($stype === 'T' && isset($tempMap[$sid])) {
-                    $mergedData[] = $tempMap[$sid];
+                    $entry = $tempMap[$sid];
                 } elseif ($stype === 'P' && isset($plotMap[$sid])) {
-                    $mergedData[] = $plotMap[$sid];
+                    $entry = $plotMap[$sid];
+                }
+                if ($entry !== null) {
+                    $entity = $versionEntities[$stype];
+                    $entry['version_entity'] = $entity;
+                    $entry['version'] = $versionCounts[$entity][(int) $sid] ?? 1;
+                    $mergedData[] = $entry;
                 }
             }
             $mergedData = array_values($mergedData);
@@ -2238,7 +2257,13 @@ class FileNumberController extends Controller
             // fileNumber's, so they get their own save path for the same reason plot
             // extensions do — see updateTemporaryFile().
             if ($entity === \App\Support\MlsRowTarget::TEMPORARY) {
-                return $this->updateTemporaryFile($request, $id);
+                // Record State Versions: the row as the FC list shows it, before and after.
+                $versions = app(\App\Services\RecordVersions\FcRecordVersions::class);
+                $before = $versions->capture($versions::TEMPORARY, (int) $id);
+                $response = $this->updateTemporaryFile($request, $id);
+                $versions->record($versions::TEMPORARY, (int) $id, $before);
+
+                return $response;
             }
 
             // Plot Extension rows are stored in their own table with colliding ids.
@@ -2274,10 +2299,15 @@ class FileNumberController extends Controller
                 if ($request->has('phone_no'))      $peUpdate['phone_no'] = $request->phone_no;
                 if ($request->has('address'))       $peUpdate['address'] = $request->address;
 
+                $versions = app(\App\Services\RecordVersions\FcRecordVersions::class);
+                $before = $versions->capture($versions::PLOT_EXTENSION, (int) $id);
+
                 DB::connection('sqlsrv')
                     ->table('plot_extensions')
                     ->where('id', $id)
                     ->update($peUpdate);
+
+                $versions->record($versions::PLOT_EXTENSION, (int) $id, $before);
 
                 // A plot extension's sheet is keyed by its original file number.
                 if (isset($peUpdate['lga'])) {
@@ -2407,6 +2437,13 @@ class FileNumberController extends Controller
                 }
             }
 
+            // Record State Versions: each file as the FC list shows it, before the save.
+            $versions = app(\App\Services\RecordVersions\FcRecordVersions::class);
+            $versionsBefore = [];
+            foreach ($targets as $target) {
+                $versionsBefore[(int) $target->id] = $versions->capture($versions::FILE_NUMBER, (int) $target->id);
+            }
+
             // Every file in the batch moves together or not at all.
             $connection = DB::connection('sqlsrv');
             $connection->beginTransaction();
@@ -2417,6 +2454,10 @@ class FileNumberController extends Controller
                 }
 
                 $connection->commit();
+
+                foreach ($versionsBefore as $targetId => $before) {
+                    $versions->record($versions::FILE_NUMBER, $targetId, $before);
+                }
             } catch (\Exception $e) {
                 $connection->rollBack();
                 throw $e;
@@ -4279,6 +4320,30 @@ class FileNumberController extends Controller
         'separation'        => 'Separation',
         'duplex'            => 'Duplex',
     ];
+
+    /**
+     * GET /file-numbers/{id}/versions?entity= — Record State Versions for one FC row,
+     * oldest first. Each state carries the list row's own keys, so the table draws a
+     * version with the same column renderers as the live row.
+     */
+    public function versions(Request $request, $id)
+    {
+        $entity = \App\Support\MlsRowTarget::entity($request->input('entity'));
+        if (!in_array($entity, [FcRecordVersions::FILE_NUMBER, FcRecordVersions::TEMPORARY, FcRecordVersions::PLOT_EXTENSION], true)) {
+            $entity = FcRecordVersions::FILE_NUMBER;
+        }
+
+        try {
+            return response()->json([
+                'success' => true,
+                'versions' => app(FcRecordVersions::class)->versions($entity, (int) $id),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('FC versions failed', ['id' => $id, 'entity' => $entity, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Could not load the versions of this record.'], 500);
+        }
+    }
 
     /**
      * Land FC > Update File Source. Relabels a commissioned file's File Type: sets

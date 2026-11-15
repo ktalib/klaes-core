@@ -193,8 +193,7 @@
                 </div>
             </div>
         </header>
-        {{-- NIS / SURCON flash banners (CR 11112026-2, item 11). --}}
-        @include('surveyor_portal.partials.flash_banners')
+        {{-- NIS / SURCON notice bar removed from signed-in pages (user, 2026-11-13); the landing page keeps it. --}}
         <main class="ks-portal-content">
             @if (session('status'))<div class="ks-flash ok">{{ session('status') }}</div>@endif
             @if ($errors->any())

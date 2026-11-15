@@ -159,11 +159,10 @@ class SurveyPlanUploads
      */
     public function searchBeacons(string $term, int $limit = 30): array
     {
+        // No minimum length (user, 2026-11-13): an opened dropdown lists the beacons in order straight away, and
+        // typing narrows it. Before, under 2 characters gave nothing, so only "Other (specify)" showed.
         $key = strtoupper(str_replace(' ', '', trim($term)));
-        if (strlen($key) < 2) {
-            return [];
-        }
-        $like = str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $key) . '%';
+        $like =str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $key) . '%';
         $db = DB::connection('sqlsrv');
         $out = [];
 
@@ -190,7 +189,9 @@ class SurveyPlanUploads
         // X / Y from the Beacon Register (then the Control Point Register) where the beacon has a valid pair:
         // X a six-digit Easting, Y a seven-digit Northing (user, 2026-11-12, after the item 10 switch-back).
         // A pair that is still wrong is not offered; the officer types the plan's own X / Y.
-        $need = array_keys(array_filter($out, fn ($b) => $b['x'] === null || $b['y'] === null));
+        // Keys back to strings: an all-digit beacon number becomes an int key, and SQL Server would then cast every
+        // beacon name to int and fail.
+        $need = array_map('strval', array_keys(array_filter($out, fn ($b) => $b['x'] === null || $b['y'] === null)));
         if ($need) {
             foreach (['survey_beacon_register', 'survey_control_point_register'] as $table) {
                 $rows = $db->table($table)->whereNull('deleted_at')->whereNotNull('coord_x')->whereNotNull('coord_y')

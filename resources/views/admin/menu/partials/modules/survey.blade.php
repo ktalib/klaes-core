@@ -417,7 +417,7 @@
 
         {{-- f. Survey Plan Upload (Survey Update 5g, sidebar image 2026-11-10): the short form, sent to GKN or Examination/Verification. --}}
         @if($svRecords || $svGkn || $svExaminationVerification || $svPublic || $hasRole('Survey - SG'))
-        <a href="{{ route('survey-module.survey-plans.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.survey-plans.*') ? 'active' : '' }}">
+        <a href="{{ route('survey-module.survey-plans.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.survey-plans.*') && ! request()->routeIs('survey-module.survey-plans.portal', 'survey-module.survey-plans.signing') ? 'active' : '' }}">
           <i data-lucide="upload" class="h-4 w-4 text-pink-500"></i>
           <span>Survey Plan Upload</span>
         </a>

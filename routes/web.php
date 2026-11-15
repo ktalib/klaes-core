@@ -929,7 +929,10 @@ Route::get('/coroi/search', function () {
 Route::get('/coroi/demo', function () {
     return view('coroi.demo');
 })->name('coroi.demo');
-Route::get('/coroi/debug', [App\Http\Controllers\CoroiController::class, 'debug'])->name('coroi.debug');
+// Land RofO layout demo (public, sample data only; the live letter is untouched).
+Route::get('/demo/land-rofo-layout', [App\Http\Controllers\LandRofoLayoutDemoController::class, 'index'])->name('demo.land-rofo-layout');
+Route::get('/demo/land-rofo-layout/letter', [App\Http\Controllers\LandRofoLayoutDemoController::class, 'letter'])->name('demo.land-rofo-layout.letter');
+Route::get('/coroi/debug',[App\Http\Controllers\CoroiController::class, 'debug'])->name('coroi.debug');
 Route::get('/coroi/test', function () {
     return view('coroi.test');
 })->name('coroi.test');

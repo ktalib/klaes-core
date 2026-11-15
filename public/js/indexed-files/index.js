@@ -115,7 +115,9 @@ function renderRows(rows) {
   const isKangisVariant = tableVariant === 'kangis' || tableVariant === 'sltr';
   const isCadastralVariant = tableVariant === 'cadastral';
 
-  const fragments = rows.map((row, rowIndex) => {
+  // isVersion: an earlier Record State Version of a row, drawn with the same cells
+  // (see openRecordVersions); it must not replace the live row in the cache.
+  const buildRow = (row, rowIndex, isVersion = false) => {
     const viewUrl = buildViewUrl(row.view_url, row.id);
     const statusBadge = buildStatusBadge(row.status);
     const fileNumberBadge = buildFileNumberBadge(row.file_number, row.is_temp_fallback, row.kangis_fileno_placeholder);
@@ -124,7 +126,7 @@ function renderRows(rows) {
     // Row tint by gender — see the legend partial for the key.
     const genderClass = genderRowClass(row.gender);
     const genderData = `data-gender="${escapeHtml(genderAttr(row.gender))}"`;
-    rowCache.set(String(row.id), row);
+    if (!isVersion) rowCache.set(String(row.id), row);
     // Expandable Related / Temporary files (Change Request 22102026, items 4-6): the
     // row is keyed by the number it shows (temp-only records show their temp number).
     const rtFileNo = String(row.file_number || '').trim() || String(row.temp_file_no || '').trim();
@@ -346,14 +348,122 @@ function renderRows(rows) {
         ${config.hideActions ? '' : `<td class="p-3 whitespace-nowrap text-center">${row.is_crossed_out ? '<span class="text-gray-300">&mdash;</span>' : buildActionsMenu(row, viewUrl)}</td>`}
       </tr>
     `;
-  }).join('');
+  };
+
+  versionRowBuilder = buildRow;
+  const fragments = rows.map((row, rowIndex) => buildRow(row, rowIndex)).join('');
 
   dom.tableBody.innerHTML = fragments;
+  attachVersionButtons(rows);
   bindActionHandlers();
   if (window.RelatedTempExpand) window.RelatedTempExpand.scan(dom.tableBody);
   if (window.lucide && typeof window.lucide.createIcons === 'function') {
     window.lucide.createIcons();
   }
+}
+
+// ─── Record State Versions (Kunle, 2026-11-13) ─────────────────────────────
+// An edited file gets an "Edited" button in its File No cell; it opens the earlier
+// versions as rows under it: same cells as the live row, red-tinted, with the values
+// the next edit replaced crossed out. The version numbers show only once it is open.
+// Read from file_snapshots via /api/indexed-files/versions/{id}. Only on a page whose
+// config sets recordVersionsUrlTemplate (the main table).
+let versionRowBuilder = null;
+
+function versionFileCol() {
+  const ths = Array.from(dom.table.querySelectorAll('thead th'));
+  return ths.findIndex(th => th.dataset.sort === 'file_number');
+}
+
+function attachVersionButtons(rows) {
+  if (!config.recordVersionsUrlTemplate) return;
+  const col = versionFileCol();
+  if (col < 0) return;
+  rows.forEach((row) => {
+    const v = parseInt(row.version, 10) || 1;
+    if (v <= 1) return;
+    const tr = dom.tableBody.querySelector(`tr[data-row-id="${CSS.escape(String(row.id))}"]`);
+    const td = tr && tr.children[col];
+    if (!td) return;
+    td.insertAdjacentHTML('beforeend', `<div class="rsv-label"><button type="button" class="rsv-toggle" aria-expanded="false"
+        data-id="${escapeHtml(row.id)}" data-version="${v}" title="Show the earlier versions of this record">
+        <i data-lucide="chevron-right" class="rsv-chevron w-3.5 h-3.5"></i><span class="rsv-toggle-text">Edited</span>
+      </button></div>`);
+  });
+}
+
+function versionLabel(version) {
+  const who = version.by ? escapeHtml(version.by) : 'unknown';
+  const when = version.at ? ` &middot; ${escapeHtml(version.at)}` : '';
+  if (version.kind === 'indexed') return `Indexed by ${who}${when}`;
+  if (version.kind === 'earliest') return `Earliest saved state, by ${who}${when}`;
+  return `Edited by ${who}${when}`;
+}
+
+// A version row's cells, drawn by the table's own row builder.
+function versionCells(row) {
+  const tpl = document.createElement('tbody');
+  tpl.innerHTML = versionRowBuilder(row, 0, true).trim();
+  const tr = tpl.querySelector('tr');
+  return tr ? Array.from(tr.children) : [];
+}
+
+async function toggleRecordVersions(btn) {
+  const tr = btn.closest('tr');
+  const id = btn.dataset.id;
+  const open = btn.getAttribute('aria-expanded') === 'true';
+  const label = btn.querySelector('.rsv-toggle-text');
+  dom.tableBody.querySelectorAll(`tr.rsv-row[data-rsv-of="${CSS.escape(id)}"]`).forEach(r => r.remove());
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  tr.classList.toggle('rsv-open', !open);
+  if (label) label.innerHTML = open ? 'Edited' : `V${escapeHtml(btn.dataset.version)} &middot; Current`;
+  if (open || !versionRowBuilder) return;
+
+  const colCount = tr.children.length;
+  const fileCol = versionFileCol();
+  let versions = [];
+  try {
+    const json = await fetchJson(config.recordVersionsUrlTemplate.replace('__ID__', encodeURIComponent(id)));
+    if (!json.success) throw new Error(json.message || 'Request failed');
+    versions = (json.versions || []).filter(v => v && v.row);
+  } catch (e) {
+    tr.insertAdjacentHTML('afterend', `<tr class="rsv-row" data-rsv-of="${escapeHtml(id)}"><td colspan="${colCount}" class="p-3 text-sm text-red-700">Could not load the versions of this record. Close and try again.</td></tr>`);
+    return;
+  }
+
+  // Every version is drawn; the newest is the live row above and is only compared against.
+  const drawn = versions.map(v => ({ v, cells: versionCells(v.row) }));
+  const html = drawn.slice(0, -1).map((d, i) => {
+    const next = drawn[i + 1];
+    const last = d.cells.length - 1;
+    const tds = d.cells.map((td, c) => {
+      if (c === last && !config.hideActions) return '<td class="p-3"></td>';
+      // Compared on what the cell shows: a button can carry other fields in its attributes.
+      const replaced = next && next.cells[c] && td.textContent.replace(/\s+/g, ' ').trim() !== next.cells[c].textContent.replace(/\s+/g, ' ').trim();
+      if (replaced) {
+        td.classList.add('rsv-was');
+        td.innerHTML = `<span class="rsv-old">${td.innerHTML}</span>`;
+      }
+      if (c === fileCol) {
+        td.insertAdjacentHTML('beforeend', `<div class="rsv-label"><span class="rsv-tag rsv-tag-old">V${d.v.version}</span><span class="rsv-sub">${versionLabel(d.v)}</span></div>`);
+      }
+      return td.outerHTML;
+    }).join('');
+    return `<tr class="rsv-row" data-rsv-of="${escapeHtml(id)}">${tds}</tr>`;
+  }).reverse().join('');
+
+  tr.insertAdjacentHTML('afterend', html || `<tr class="rsv-row" data-rsv-of="${escapeHtml(id)}"><td colspan="${colCount}" class="p-3 text-sm text-gray-500">No earlier versions recorded.</td></tr>`);
+  if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+}
+
+if (config.recordVersionsUrlTemplate && dom.tableBody) {
+  dom.tableBody.addEventListener('click', (event) => {
+    const btn = event.target.closest('.rsv-toggle');
+    if (!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    toggleRecordVersions(btn);
+  });
 }
 
 function buildViewUrl(viewUrl, id) {

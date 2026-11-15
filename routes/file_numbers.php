@@ -59,6 +59,8 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'file-numbers'], func
     Route::get('/{id}', [FileNumberController::class, 'show'])->name('file-numbers.show');
     Route::put('/{id}', [FileNumberController::class, 'update'])->name('file-numbers.update');
     Route::post('/{id}/file-source', [FileNumberController::class, 'updateFileSource'])->name('file-numbers.update-file-source');
+    // Record State Versions: the earlier versions shown under an FC row.
+    Route::get('/{id}/versions', [FileNumberController::class, 'versions'])->whereNumber('id')->name('file-numbers.versions');
     Route::post('/bulk-destroy', [FileNumberController::class, 'bulkDestroy'])->name('file-numbers.bulk-destroy');
     Route::delete('/{id}', [FileNumberController::class, 'destroy'])->name('file-numbers.destroy');
     Route::get('/count/total', [FileNumberController::class, 'getCount'])->name('file-numbers.count');

@@ -44,7 +44,7 @@
             $fbNth = $fbSeen[$b['org']] = ($fbSeen[$b['org']] ?? 0) + 1;
             $fbSrc = $fbNth % 2 === 0 && isset($fbLogoAlt[$b['org']]) ? $fbLogoAlt[$b['org']] : ($fbLogo[$b['org']][0] ?? null);
           @endphp
-          @if (isset($fbLogo[$b['org']]))
+          @if (empty($fbNoLogos) && isset($fbLogo[$b['org']]))
             <img class="ks-notice-logo" src="{{ asset($fbSrc) }}" alt="{{ $fbLogo[$b['org']][1] }}" width="34" height="34">
           @endif
           <span class="ks-notice-badge" style="background:{{ $fbBg }};color:{{ $fbFg }};">{{ $b['org'] }}</span>

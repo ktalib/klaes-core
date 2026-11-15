@@ -597,6 +597,7 @@
 
     @push('styles')
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ asset('css/record-state-versions.css') }}?v={{ @filemtime(public_path('css/record-state-versions.css')) }}">
     @endpush
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -618,6 +619,8 @@
     <script>
         window.indexedFilesConfig = {
             tableVariant: 'main',
+            // Record State Versions: the Version column and the earlier versions under an edited row.
+            recordVersionsUrlTemplate: @json(url('api/indexed-files/versions/__ID__')),
             scanCheckUrl: @json(route('scan-check.check')),
             listUrl: @json(route('indexed-files.api.list')),
             viewListUrl: @json(route('indexed-files.api.view-list')),

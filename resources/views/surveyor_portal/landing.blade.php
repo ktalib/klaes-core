@@ -105,8 +105,7 @@
 
 @section('body')
 @include('surveyor_portal.partials.public_nav')
-{{-- NIS / SURCON flash banners (CR 11112026-2, item 11). --}}
-@include('surveyor_portal.partials.flash_banners')
+{{-- NIS / SURCON notice bar removed from the landing page too (user, 2026-11-13). --}}
 
 {{-- The hero is a slideshow (user, 2026-11-05: "add images slides"): the wordmark banner first, then the field
      photo and the seal. Every 7 s; pauses on hover or focus, and never moves by itself under reduced motion. --}}

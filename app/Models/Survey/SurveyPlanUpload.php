@@ -34,6 +34,8 @@ class SurveyPlanUpload extends SurveyModel
 
     /** The coordinate systems a plan's X / Y can be in (Survey Plan Check, user 2026-11-12), by EPSG code. */
     public const COORD_SYSTEMS = [
+        // Minna / UTM Zone 32N first: the default (user's surveyor, 2026-11-13; the Beacon Register's own system).
+        '26332' => 'Minna / UTM Zone 32N',
         '26391' => 'NTM West Belt (Minna)',
         '26392' => 'NTM Mid Belt (Minna)',
         '26393' => 'NTM East Belt (Minna)',

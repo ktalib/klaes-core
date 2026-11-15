@@ -103,7 +103,7 @@
             <textarea class="ks-input" id="remarks" name="remarks" rows="2" maxlength="1000">{{ old('remarks') }}</textarea>
         </div>
         </div>
-        @include('survey_module.survey_plans._plan_check_export', ['spcExportNo' => 6])
+        @include('survey_module.survey_plans._plan_check_export', ['spcExportNo' => 6, 'spcExportGate' => true])
         <div class="flex justify-end">
             <button class="ks-btn ks-btn-primary"><i data-lucide="send" class="w-4 h-4"></i> Upload and Send</button>
         </div>

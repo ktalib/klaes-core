@@ -85,8 +85,9 @@
 .spc .spc-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
 
 /* export: one colour per format */
-.spc .spc-exports { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
-@media (max-width: 900px) { .spc .spc-exports { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.spc .spc-exports { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 1100px) { .spc .spc-exports { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .spc .spc-exports { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .spc .spc-exports .spc-btn { justify-content: center; font-weight: 700; padding: 8px 6px; }
 .spc .spc-exports .spc-btn:hover { transform: translateY(-1px); color: #fff; }
 .spc [data-export=geojson] { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
@@ -101,6 +102,17 @@
 .spc [data-export=csv]:hover { background: #15803d; border-color: #15803d; }
 .spc [data-export=sql] { background: #f1f5f9; color: #0f3b5e; border-color: #cbd5e1; }
 .spc [data-export=sql]:hover { background: #0f3b5e; border-color: #0f3b5e; }
+.spc [data-export=gdb] { background: #fefce8; color: #a16207; border-color: #fde68a; }
+.spc [data-export=gdb]:hover { background: #a16207; border-color: #a16207; }
+/* existing layers loaded from a file (2026-11-15), listed under the map */
+.spc .spc-layers { display: grid; gap: 4px; padding: 8px 10px; background: #f8fafc; border-top: 1px solid var(--spc-line); }
+.spc .spc-layers .lyr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: #1e293b; }
+.spc .spc-layers .lyr .sw { width: 14px; height: 14px; border-radius: 3px; border: 2px solid; flex: none; }
+.spc .spc-layers .lyr .nm { font-weight: 700; overflow-wrap: anywhere; }
+.spc .spc-layers .lyr .meta { color: #64748b; font-size: 12px; }
+.spc .spc-layers .lyr button { border: 0; background: none; color: #475569; cursor: pointer; padding: 2px 6px; border-radius: 6px; font: inherit; font-size: 12px; }
+.spc .spc-layers .lyr button:hover { background: #e2e8f0; color: #0f172a; }
+.spc .spc-layers .lyr label { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; margin: 0; cursor: pointer; }
 
 /* map, with full screen as the correction board */
 .spc .spc-mapbox { border: 1px solid var(--spc-line); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: auto auto; background: #0f172a; }
@@ -160,3 +172,136 @@ body.spc-noscroll { overflow: hidden; }
 .spc .spc-sysrow .spc-guide-thumb img { object-fit: cover; object-position: center top; }
 /* Beacon No. "Other (specify)" box (user, 2026-11-12). */
 .spc .spc-bt td input.spc-other { margin-top: 6px; border-color: #fdba74; background: #fff7ed; text-transform: uppercase; }
+
+/* Other beacons by bearing and distance (traverse; user, 2026-11-13, from the prototype). */
+.spc .spc-mode { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 4px; border-radius: 12px; background: #f1f5f9; justify-self: start; }
+.spc .spc-mode label { cursor: pointer; margin: 0; }
+.spc .spc-mode input { position: absolute; opacity: 0; pointer-events: none; }
+.spc .spc-mode span { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 9px; font-size: 13px; font-weight: 700; color: #475569; }
+.spc .spc-mode label:has(input:checked) span { background: #fff; color: var(--spc-blue); box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+.spc .spc-trav { display: grid; grid-auto-rows: max-content; gap: 12px; min-width: 0; }
+.spc .spc-trav-start { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 10px 12px; border: 1px solid #fed7aa; border-radius: 10px; background: #fff7ed; }
+@media (max-width: 900px) { .spc .spc-trav-start { grid-template-columns: minmax(0, 1fr); } }
+.spc .spc-trav-start b { color: #9a3412; font-size: 13px; white-space: nowrap; }
+.spc .spc-trav-start input[type=text], .spc .spc-trav-table input[type=text] { height: 38px; padding: 8px 10px; border: 1px solid var(--spc-field); border-radius: 8px; background: #fff; color: var(--spc-ink); font-family: ui-monospace, Consolas, monospace; font-size: 13px; width: 100%; }
+.spc .spc-trav-start input:focus, .spc .spc-trav-table input:focus, .spc .spc-trav-table select:focus { outline: none; border-color: var(--spc-blue); box-shadow: 0 0 0 3px #dbeafe; }
+.spc .spc-travref { background: #fff; color: #c2410c; border-color: #fdba74; white-space: nowrap; }
+.spc .spc-travref:hover { background: #c2410c; color: #fff; }
+.spc .spc-trav-pick { display: grid; gap: 6px; min-width: 170px; }
+.spc .spc-trav-pick .select2-container { width: 100% !important; }
+.spc .spc-trav-pick .select2-container--default .select2-selection--single { height: 38px; border: 1px solid var(--spc-field); border-radius: 8px; }
+.spc .spc-trav-pick .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 36px; padding-left: 10px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; color: var(--spc-ink); }
+.spc .spc-trav-pick .select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px; }
+.spc input.spc-tother { border-color: #fdba74 !important; background: #fff7ed !important; text-transform: uppercase; }
+.spc .spc-trav-table td { vertical-align: middle; padding: 6px; border-bottom: 1px solid #f3f4f6; }
+.spc .spc-trav-table td.ln { white-space: nowrap; font-size: 13px; padding-left: 10px; }
+.spc .spc-trav-table td.mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; white-space: nowrap; color: #0f3b5e; }
+.spc .spc-trav-table td.act { white-space: nowrap; width: 1%; }
+.spc .spc-trav-table .brg { display: flex; align-items: center; gap: 3px; }
+.spc .spc-trav-table .brg select { width: 52px; height: 38px; padding: 0 4px; font-weight: 700; border: 1px solid var(--spc-field); border-radius: 8px; background: #fff; }
+.spc .spc-trav-table .brg input[type=text] { width: 62px; padding: 8px 6px; }
+.spc .spc-trav-table .brg span { color: #64748b; font-weight: 700; }
+.spc .spc-trav-table input.dist { width: 110px; }
+.spc .spc-trav-table tr.bad td { background: #fef2f2; }
+/* Phones: each line as a card, labels on the left, nothing hidden off to the side. */
+@media (max-width: 700px) {
+  .spc .spc-trav-table thead { display: none; }
+  .spc .spc-trav-table, .spc .spc-trav-table tbody { display: block; }
+  .spc .spc-trav-table tr { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 10px; border-bottom: 1px solid var(--spc-line); }
+  .spc .spc-trav-table tr:nth-child(odd) { background: #fafcff; }
+  .spc .spc-trav-table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: center; gap: 8px; padding: 0 !important; border: 0; }
+  .spc .spc-trav-table td::before { content: attr(data-label); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--spc-muted); }
+  .spc .spc-trav-table td.act { display: flex; justify-content: flex-end; gap: 4px; width: 100% !important; }
+  .spc .spc-trav-table td.act::before { content: none; }
+  .spc .spc-trav-table .brg select { width: 46px; padding: 0 2px; }
+  .spc .spc-trav-table .brg input[type=text] { width: 42px; padding: 8px 4px; }
+  .spc .spc-trav-table input.dist { width: 100%; }
+  .spc .spc-trav-pick { min-width: 0; }
+}
+/* The beacon tables' min-width must not stretch the bearing boxes. */
+.spc .spc-bt .spc-trav-table td input[type=text] { min-width: 0; }
+.spc .spc-bt .spc-trav-table .brg input[type=text] { width: 62px; padding: 8px 6px; }
+.spc .spc-bt .spc-trav-table input.dist { width: 110px; }
+@media (max-width: 700px) {
+  .spc .spc-bt .spc-trav-table .brg input[type=text] { width: 0; flex: 1 1 0; min-width: 34px; padding: 8px 4px; }
+  .spc .spc-bt .spc-trav-table input.dist { width: 100%; }
+}
+/* Export on upload pages: off until its checkbox is ticked (user, 2026-11-13). */
+.spc .spc-exbody { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 16px; }
+.spc .spc-exbody:disabled { opacity: .45; pointer-events: none; filter: grayscale(.6); }
+.spc .spc-exgate { font-weight: 700; color: var(--spc-accent); }
+/* From beacon -> To beacon on one row (user's sketch, 2026-11-13). */
+.spc .spc-mode label, .spc .spc-belt label { position: relative; }   /* the hidden radios stay inside their tab: no scroll jump (blank pop-up) */
+.spc .spc-mode input, .spc .spc-belt input { top: 0; left: 0; width: 1px; height: 1px; }
+.spc .spc-trav-table td.fb { min-width: 170px; }
+.spc .spc-trav-table td.fb, .spc .spc-trav-table td.fx, .spc .spc-trav-table td.fy { background: #fff7ed; }
+.spc .spc-trav-table td.fx, .spc .spc-trav-table td.fy { font-size: 12.5px; white-space: nowrap; color: #9a3412; }
+.spc .spc-bt .spc-trav-table td.fx input[type=text], .spc .spc-bt .spc-trav-table td.fy input[type=text] { width: 120px; }
+.spc .spc-trav-table td.tbcell { min-width: 170px; }
+.spc .spc-trav-table .tbfix { font-weight: 700; color: #0f3b5e; }
+.spc .spc-trav-table th { white-space: nowrap; }
+@media (max-width: 700px) {
+  .spc .spc-trav-table td.fb, .spc .spc-trav-table td.fx, .spc .spc-trav-table td.fy { background: transparent; }
+  .spc .spc-bt .spc-trav-table td.fx input[type=text], .spc .spc-bt .spc-trav-table td.fy input[type=text] { width: 100%; }
+  .spc .spc-trav-table td.fb, .spc .spc-trav-table td.tbcell { min-width: 0; }
+}
+@media (max-width: 700px) {
+  .spc .spc-trav-table td[data-label=Bearing] { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .spc .spc-bt .spc-trav-table .brg input[type=text] { min-width: 0; }
+  .spc .spc-trav-table .brg select { flex: none; }
+}
+/* Traverse table, round 3 (user, 2026-11-13): whole-circle bearing, point names, room for X / Y; wide = scroll sideways. */
+@media (min-width: 701px) {
+  .spc .spc-trav-table { min-width: 1240px; }
+  .spc .spc-trav-table td.fb, .spc .spc-trav-table td.tbcell { min-width: 0; width: 190px; }
+  .spc .spc-trav-table td.fb .spc-trav-pick, .spc .spc-trav-table td.tbcell .spc-trav-pick { min-width: 0; width: 140px; display: inline-grid; vertical-align: middle; }
+  .spc .spc-trav-table td.fx, .spc .spc-trav-table td.fy, .spc .spc-trav-table td.cx, .spc .spc-trav-table td.cy { min-width: 112px; }
+  .spc .spc-bt .spc-trav-table td.fx input[type=text], .spc .spc-bt .spc-trav-table td.fy input[type=text] { width: 120px; }
+  .spc .spc-bt .spc-trav-table .brg input[type=text] { width: 54px; }
+  .spc .spc-bt .spc-trav-table input.dist { width: 100px; }
+}
+.spc .spc-trav-table .ptag { display: inline-block; min-width: 26px; margin-right: 6px; padding: 2px 6px; border-radius: 6px; background: #0f3b5e; color: #fff; font: 700 11px/1.4 ui-monospace, Consolas, monospace; text-align: center; vertical-align: middle; }
+.spc .spc-trav-table .fptag { background: #c2410c; }
+.spc .spc-trav-table .fbn { font-weight: 700; color: #0f3b5e; }
+.spc .spc-trav-table td.reg { color: #7c3aed; font-style: italic; }
+.spc .spc-trav-table td.ln b { font-size: 14px; }
+@media (max-width: 700px) {
+  .spc .spc-trav-table td.fb, .spc .spc-trav-table td.tbcell { display: grid; grid-template-columns: 92px auto minmax(0, 1fr); }
+  .spc .spc-trav-table td.tbcell .tbfix { grid-column: 3; }
+}
+.spc .spc-trav-table .fbn:empty { display: none; }
+/* Pickers stay inside their column (a long placeholder made the X1 picker spill over X; user, 2026-11-13). */
+.spc .spc-trav-pick { grid-template-columns: minmax(0, 1fr); }
+.spc .spc-trav-pick .select2-container { min-width: 0; max-width: 100%; }
+.spc .spc-trav-pick .select2-selection__rendered { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A scrollbar always shown under the traverse table, so every column can be reached. */
+.spc .spc-trav .spc-bt { overflow-x: scroll; scrollbar-width: auto; scrollbar-color: #94a3b8 #f1f5f9; padding-bottom: 2px; }
+.spc .spc-trav .spc-bt::-webkit-scrollbar { height: 12px; }
+.spc .spc-trav .spc-bt::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 0 0 10px 10px; }
+.spc .spc-trav .spc-bt::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 6px; border: 2px solid #f1f5f9; }
+.spc .spc-trav .spc-bt::-webkit-scrollbar-thumb:hover { background: #64748b; }
+@media (max-width: 700px) { .spc .spc-trav .spc-bt { overflow-x: visible; } }
+.spc .spc-trav-table td.fb, .spc .spc-trav-table td.tbcell { white-space: nowrap; }
+/* Live N/S … E/W label under the whole-circle bearing (user, 2026-11-13). */
+.spc .spc-trav-table .qd { margin-top: 4px; font: 700 11.5px/1.3 ui-monospace, Consolas, monospace; color: #0f3b5e; background: #e0f2fe; border-radius: 6px; padding: 2px 8px; display: inline-block; white-space: nowrap; }
+.spc .spc-trav-table .qd.empty { color: #94a3b8; background: #f1f5f9; font-weight: 600; }
+.spc .spc-trav-table .qd.bad { color: #991b1b; background: #fee2e2; }
+.spc .spc-trav-table .brg input[type=text]::placeholder { font-size: 11px; color: #94a3b8; }
+@media (max-width: 700px) { .spc .spc-trav-table .qd { grid-column: 1 / -1; } }
+.spc .spc-trav-table .brg select:disabled { opacity: .35; }
+@media (min-width: 701px) { .spc .spc-trav-table { min-width: 1340px; } }
+
+/* Plan-sheet grid border, north arrow and scale (2026-11-14) */
+.spc .spc-gridedge { position: absolute; inset: 0; pointer-events: none; z-index: 1; border: 22px solid rgba(255,255,255,.88); box-shadow: inset 0 0 0 1px #334155; }
+.spc .spc-gridedge span { position: absolute; font: 600 10px/1 ui-monospace, Consolas, monospace; color: #1e293b; white-space: nowrap; }
+.spc .spc-gridedge .t { top: -16px; transform: translateX(-50%); }
+.spc .spc-gridedge .b { bottom: -16px; transform: translateX(-50%); }
+.spc .spc-gridedge .l { left: -19px; transform: translate(-50%, -50%) rotate(-90deg); transform-origin: center; }
+.spc .spc-gridedge .r { right: -19px; transform: translate(50%, -50%) rotate(-90deg); transform-origin: center; }
+.spc .spc-gridedge .l, .spc .spc-gridedge .r { margin-left: 0; }
+.spc .spc-north { position: absolute; left: 32px; top: 32px; z-index: 2; pointer-events: none; display: grid; justify-items: center; gap: 1px; padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.92); box-shadow: 0 1px 4px rgba(0,0,0,.2); color: #0f172a; }
+.spc .spc-north b { font: 700 12px/1 system-ui, sans-serif; }
+.spc .spc-north span { font: 600 10.5px/1.2 ui-monospace, Consolas, monospace; white-space: nowrap; }
+.spc .spc-gridedge[hidden], .spc .spc-north[hidden] { display: none; }
+.spc .spc-sheet .maplibregl-ctrl-top-right { top: 22px; right: 22px; } .spc .spc-sheet .maplibregl-ctrl-bottom-left { bottom: 22px; left: 22px; } .spc .spc-sheet .maplibregl-ctrl-bottom-right { bottom: 22px; right: 22px; }
+.spc .spc-sheet .spc-fullstats { left: 32px; bottom: 56px; }

@@ -57,7 +57,7 @@
 @unless ($isList)
 {{-- The very short form (Survey Update 5h): where the plan is, who drew it, its type and the unit it goes to. --}}
 <form method="POST" id="spuForm" action="{{ route('survey-module.survey-plans.store') }}" enctype="multipart/form-data"
-      class="farmer-entry-form {{ $open ? 'open' : '' }}" data-sv-modal="Upload Survey Plan" data-sv-modal-size="xl">
+      class="farmer-entry-form {{ $open ? 'open' : '' }}" data-sv-modal="Upload Survey Plan" data-sv-modal-size="xl" data-sv-modal-static>
     @csrf
     {{-- One card, no tabs (user, 2026-11-12, Survey Plan Check): 1 coordinate system, 2 reference coordinate,
          3 map, 4 other beacons, 5 plan details, 6 export. --}}
@@ -133,7 +133,7 @@
             <textarea name="remarks" rows="2" maxlength="1000">{{ old('remarks') }}</textarea>
         </div>
     </div>
-    <div style="margin-top:18px;">@include('survey_module.survey_plans._plan_check_export', ['spcExportNo' => 6])</div>
+    <div style="margin-top:18px;">@include('survey_module.survey_plans._plan_check_export', ['spcExportNo' => 6, 'spcExportGate' => true])</div>
     <div class="form-actions">
         <div class="left"><a class="btn btn-secondary" href="{{ route('survey-module.survey-plans.index') }}"><i class="fas fa-times"></i> Close</a></div>
         <div class="right"><button class="btn btn-success" type="submit"><i class="fas fa-paper-plane"></i> Upload and Send</button></div>

@@ -997,6 +997,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/stats', [IndexedFileTableController::class, 'stats'])->name('stats');
         Route::get('/list', [IndexedFileTableController::class, 'list'])->name('list');
         Route::get('/view-list', [IndexedFileTableController::class, 'viewList'])->name('view-list');
+        // Record State Versions: the earlier versions shown under an edited row.
+        Route::get('/versions/{id}', [IndexedFileTableController::class, 'versions'])->whereNumber('id')->name('versions');
         // Dropdown values for the Advanced Search panel, read from the rows that
         // actually exist (cached) rather than from a hand-kept list.
         Route::get('/filter-options', [IndexedFileTableController::class, 'filterOptions'])->name('filter-options');

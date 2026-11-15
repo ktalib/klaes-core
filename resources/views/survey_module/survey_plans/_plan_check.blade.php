@@ -1,7 +1,7 @@
 {{-- Survey Plan Check card, sections 1-4 (CR 11112026-2 item 8; user, 2026-11-12, from the approved prototype
      /maps/survey-plan-check.html). Shared by KLAES (Upload Survey Plan pop-up, Check Survey Plan page) and the MLPP-SG
      portal upload page. Order from the recordings: 1 coordinate system, 2 ONE reference coordinate (drives the map),
-     3 map, 4 the other beacons in survey order. The host page puts Plan details (5, upload only) and then includes
+     3 the other beacons in order of the traverse, 4 map (swapped 2026-11-13). The host page puts Plan details (5, upload only) and then includes
      _plan_check_export for Export, the styles and the script.
      $spcMode: 'upload' (the reference coordinate and the system are submitted) or 'check' (nothing is saved).
      $spcSearchUrl: the beacon search route. $spcPrefill: ['sys' => '26392', 'ref' => [...], 'others' => [[...]], 'note' => html] or null. --}}
@@ -15,7 +15,7 @@
   }
   $spcErrors = isset($errors) ? collect($errors->getMessages())->filter(fn ($m, $k) => str_starts_with($k, 'beacons') || $k === 'coord_system')->flatten() : collect();
 @endphp
-<div class="spc" id="spc" data-mode="{{ $spcMode }}" data-search="{{ $spcSearchUrl }}" data-prefill='@json($spcPrefill)'>
+<div class="spc" id="spc" data-column-picker="off" data-mode="{{ $spcMode }}" data-search="{{ $spcSearchUrl }}" data-prefill='@json($spcPrefill)'>
   @if (! empty($spcPrefill['note']))
     <div class="spc-prefill"><i class="fas fa-circle-info"></i> {!! $spcPrefill['note'] !!}</div>
   @endif
@@ -29,7 +29,12 @@
   <div class="spc-sysrow">
   <div class="spc-sys" role="radiogroup" aria-label="Coordinate system">
     <div class="spc-opt">
-      <input type="radio" name="spc_sys" value="ntm" id="spc-sysNtm" data-sys checked>
+      <input type="radio" name="spc_sys" value="minna" id="spc-sysMinna" data-sys checked>
+      <label class="t" for="spc-sysMinna">Minna / UTM Zone 32N</label>
+      <span class="d">Minna datum, Clarke 1880 (RGS) ellipsoid, central meridian 9° E, false easting 500,000 m (EPSG:26332). Kano's survey plans and the Beacon Register use this.</span>
+    </div>
+    <div class="spc-opt">
+      <input type="radio" name="spc_sys" value="ntm" id="spc-sysNtm" data-sys>
       <label class="t" for="spc-sysNtm">NTM · Nigerian Transverse Mercator (Minna datum)</label>
       <span class="d">Clarke 1880 ellipsoid, three 4° belts. Kano is in the Mid Belt.</span>
       <span class="spc-belt" role="radiogroup" aria-label="NTM belt">
@@ -74,39 +79,41 @@
   </div>
   <div class="spc-verdict" id="spc-refVerdict" hidden></div>
 
-  <div class="spc-group"><span class="n">3</span><span>Map</span>
-    <span class="aside spc-legend">
-      <span><span class="spc-dot" style="background:var(--spc-ref)"></span>Reference coordinate</span>
-      <span><span class="spc-dot" style="background:var(--spc-sv)"></span>Other beacon</span>
-      <span><span class="spc-dot" style="background:var(--spc-reg)"></span>Beacon Register</span>
-      <span><span class="spc-dot" style="background:var(--spc-ctl)"></span>Control point</span>
-      <span><span class="spc-dot" style="background:var(--spc-draw)"></span>Drawn</span>
-    </span></div>
-  <div class="spc-mapbox" id="spc-mapbox">
-    <div class="spc-mapbar" role="toolbar" aria-label="Map tools">
-      <div class="grp">
-        <button type="button" class="mb" id="spc-btn-street"><i class="fas fa-road"></i> Street</button>
-        <button type="button" class="mb active" id="spc-btn-satellite"><i class="fas fa-satellite"></i> Satellite</button>
-      </div>
-      <div class="grp" id="spc-tools">
-        <button type="button" class="mb" data-tool="point" title="Add a point"><i class="fas fa-location-dot"></i> Point</button>
-        <button type="button" class="mb" data-tool="line" title="Draw a line"><i class="fas fa-bezier-curve"></i> Line</button>
-        <button type="button" class="mb" data-tool="polygon" title="Mark out a parcel"><i class="fas fa-draw-polygon"></i> Parcel</button>
-        <label class="snap" title="Snap to beacons and lines"><input type="checkbox" id="spc-snap" checked> Snap</label>
-      </div>
-      <div class="grp"><button type="button" class="mb" id="spc-mapFit" title="Zoom to the beacons"><i class="fas fa-expand"></i> Fit</button></div>
-      <span class="grow"></span>
-      <span class="gridtag" id="spc-gridtag"></span>
-      <button type="button" class="full" id="spc-mapFull" title="Full screen"><i class="fas fa-up-right-and-down-left-from-center"></i> <span>Full screen</span></button>
-    </div>
-    <div class="spc-map" id="spc-map">
-      <div class="spc-drawinfo" id="spc-drawinfo" hidden></div>
-      <div class="spc-fullstats" id="spc-fullStats"></div>
-    </div>
+  {{-- Other Beacons (3) before the Map (4) (user, 2026-11-13): the plot shows right under the lines being typed. --}}
+  <div class="spc-group"><span class="n">3</span><span>Other Beacons (in order of the traverse)</span><span class="aside">Point 1, 2, 3… as surveyed. Each is joined to the one before.</span></div>
+  {{-- Two ways in (user, 2026-11-13, from the prototype): X / Y of each point, or a traverse from a start point by
+       bearing and distance, line by line (X1 to X2 ... back to X1). The traverse fields have no names: nothing is saved. --}}
+  <div class="spc-mode" role="radiogroup" aria-label="How the other beacons are entered">
+    <label><input type="radio" name="spc_svmode" value="xy" checked><span><i class="fas fa-table-cells"></i> X / Y coordinates</span></label>
+    <label><input type="radio" name="spc_svmode" value="brg"><span><i class="fas fa-compass"></i> Bearing and distance (traverse)</span></label>
   </div>
-
-  <div class="spc-group"><span class="n">4</span><span>Other Beacons (in order of the traverse)</span><span class="aside">Point 1, 2, 3… as surveyed. Each is joined to the one before.</span></div>
-  <div class="spc-bt">
+  <div id="spc-svBrg" class="spc-trav" hidden>
+    {{-- Each line runs From beacon -> To beacon on one row (user's sketch, 2026-11-13): line 1's From beacon is
+         picked (X1); every next line starts from the line before's To beacon. --}}
+    <div class="spc-row">
+      <span class="spc-note">Line 1: pick its From beacon (X1) or use the reference coordinate. Each next line starts at the last line's To beacon.</span>
+      <button type="button" class="spc-btn spc-travref" id="spc-trUseRef" style="margin-left:auto"><i class="fas fa-location-crosshairs"></i> Use the reference coordinate</button>
+    </div>
+    <div id="spc-trHold" hidden>
+      <div class="spc-trav-pick" id="spc-trStartWrap"><select id="spc-trStartB" aria-label="From beacon (X1)" data-no-search></select>
+        <input type="text" id="spc-trStartOther" class="spc-tother" maxlength="60" placeholder="Specify the beacon number" aria-label="Specify the From beacon" hidden></div>
+      <input type="text" id="spc-trStartX" inputmode="decimal" placeholder="X (Easting)" aria-label="From X (Easting)">
+      <input type="text" id="spc-trStartY" inputmode="decimal" placeholder="Y (Northing)" aria-label="From Y (Northing)">
+    </div>
+    <div class="spc-bt">
+      <table class="spc-trav-table">
+        <thead><tr><th>Line</th><th>From Beacon</th><th>X</th><th>Y</th><th>Bearing</th><th>Distance (m)</th><th>To Beacon</th><th>X</th><th>Y</th><th></th></tr></thead>
+        <tbody id="spc-travRows"></tbody>
+      </table>
+    </div>
+    <div class="spc-row">
+      <button type="button" class="spc-btn spc-add" id="spc-trAdd"><i class="fas fa-plus"></i> Add line</button>
+      <label class="spc-check" for="spc-trClose" style="margin-left:6px"><input type="checkbox" id="spc-trClose" checked><span>Last line closes on the first From beacon (X1)</span></label>
+      <span class="spc-note" style="margin-left:auto">Bearing as on the plan: N/S, degrees, minutes, seconds, E/W (e.g. N 84° 17′ 01″ W). A whole-circle bearing over 90° (e.g. 275° 42′ 59″) needs no N/S/E/W. Scroll the table sideways if it does not fit.</span>
+    </div>
+    <div class="spc-verdict" id="spc-trVerdict" hidden></div>
+  </div>
+  <div class="spc-bt" id="spc-svXY">
     <table>
       <thead><tr><th style="text-align:center">#</th><th>Beacon No.</th><th>X (Easting)</th><th>Y (Northing)</th><th></th></tr></thead>
       <tbody id="spc-svRows"></tbody>
@@ -119,7 +126,7 @@
     <button type="button" class="spc-btn spc-clear" id="spc-svClear"><i class="fas fa-eraser"></i> Clear</button>
   </div>
   <div class="spc-row" style="align-items:flex-start">
-    <details class="spc-opts">
+    <details class="spc-opts" id="spc-pasteBox">
       <summary>Paste from Excel</summary>
       <label for="spc-paste" style="display:grid;gap:6px;margin-top:8px;min-width:min(520px,80vw);font-size:13px;font-weight:500">One beacon per line, in survey order: number, X, Y
         <textarea id="spc-paste" rows="4" placeholder="A0876A	669007.00	912420.35"></textarea></label>
@@ -134,4 +141,41 @@
     </details>
   </div>
   <div class="spc-stats" id="spc-svStats" hidden></div>
+
+  <div class="spc-group"><span class="n">4</span><span>Map</span>
+    <span class="aside spc-legend">
+      <span><span class="spc-dot" style="background:var(--spc-ref)"></span>Reference coordinate</span>
+      <span><span class="spc-dot" style="background:var(--spc-sv)"></span>Other beacon</span>
+      <span><span class="spc-dot" style="background:var(--spc-reg)"></span>Beacon Register</span>
+      <span><span class="spc-dot" style="background:var(--spc-ctl)"></span>Control point</span>
+      <span><span class="spc-dot" style="background:var(--spc-draw)"></span>Drawn</span>
+    </span></div>
+  <div class="spc-mapbox" id="spc-mapbox">
+    <div class="spc-mapbar" role="toolbar" aria-label="Map tools">
+      <div class="grp">
+        <button type="button" class="mb" id="spc-btn-street"><i class="fas fa-road"></i> Street</button>
+        <button type="button" class="mb active" id="spc-btn-satellite"><i class="fas fa-satellite"></i> Satellite</button>
+        <label class="snap" title="Untick to plot on a plain georeferenced backdrop"><input type="checkbox" id="spc-baseOn" checked> Basemap</label>
+        <label class="snap" title="Coordinate grid in the chosen system"><input type="checkbox" id="spc-gridOn"> Grid</label>
+      </div>
+      <div class="grp" id="spc-tools">
+        <button type="button" class="mb" data-tool="point" title="Add a point"><i class="fas fa-location-dot"></i> Point</button>
+        <button type="button" class="mb" data-tool="line" title="Draw a line"><i class="fas fa-bezier-curve"></i> Line</button>
+        <button type="button" class="mb" data-tool="polygon" title="Mark out a parcel"><i class="fas fa-draw-polygon"></i> Parcel</button>
+        <label class="snap" title="Snap to beacons and lines"><input type="checkbox" id="spc-snap" checked> Snap</label>
+      </div>
+      <div class="grp"><button type="button" class="mb" id="spc-mapFit" title="Zoom to the beacons"><i class="fas fa-expand"></i> Fit</button></div>
+      {{-- Existing layers (user, 2026-11-15): parcels, beacons, lines from a file; read in the browser, not uploaded. --}}
+      <div class="grp"><button type="button" class="mb" id="spc-lyrAdd" title="Show existing parcels, beacons or lines: a shapefile (.zip, or .shp + .dbf + .prj), GeoJSON or KML"><i class="fas fa-layer-group"></i> Add layer</button></div>
+      <input type="file" id="spc-lyrFile" accept=".zip,.shp,.dbf,.prj,.cpg,.geojson,.json,.kml" multiple hidden>
+      <span class="grow"></span>
+      <span class="gridtag" id="spc-gridtag"></span>
+      <button type="button" class="full" id="spc-mapFull" title="Full screen"><i class="fas fa-up-right-and-down-left-from-center"></i> <span>Full screen</span></button>
+    </div>
+    <div class="spc-map" id="spc-map">
+      <div class="spc-drawinfo" id="spc-drawinfo" hidden></div>
+      <div class="spc-fullstats" id="spc-fullStats"></div>
+    </div>
+    <div class="spc-layers" id="spc-layers" hidden></div>
+  </div>
 </div>
