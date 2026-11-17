@@ -94,6 +94,39 @@
         ];
     }
 
+    /*
+     | Bonus modules (user, 2026-11-16): modules that belong to no department are offered under
+     | EVERY department, so e.g. Sectional Titling staff can be given Doc-WARE / File Tracker
+     | without switching to "All departments" (which cleared their own department). That is
+     | every registered module with no department or the "ALL" department, plus the modules
+     | behind the standalone "Digital File Archive" sidebar section that happen to be filed
+     | under a department (EDMS Update = DMS Update / Scan More / Type More, filed under Land),
+     | and every module behind the standalone "DMS" sidebar section (edms.blade.php), which the
+     | user says belongs to no department although the registry files them under Land.
+     */
+    $bonusExtras = [
+        'EDMS Update',
+        // DMS sidebar section
+        'Indexing',
+        'Print File Labels',
+        'Print Sign In & Out Sheet',
+        'Blind Scanning',
+        'Scanning',
+        'Document Page Types',
+        'PT Quality Control',
+        'Activity Monitoring',
+    ];
+    $bonusExtraKeys = collect($bonusExtras)->map(fn ($n) => \App\Support\Permissions\ModuleName::normalize($n))->all();
+    $isBonus = function ($key, $row) use ($bonusExtraKeys) {
+        if (!$row['registered']) {
+            return false;
+        }
+
+        return empty($row['department_id'])
+            || strcasecmp((string) $row['department'], 'ALL') === 0
+            || in_array($key, $bonusExtraKeys, true);
+    };
+
     // Shape for Alpine: filtering, counting and the bulk buttons all run client-side.
     $gridRows = [];
 
@@ -104,6 +137,7 @@
         $gridRows[] = [
             'key' => $key,
             'name' => $row['name'],
+            'bonus' => $isBonus($key, $row),
             'deptId' => (string) ($row['department_id'] ?? ''),
             'dept' => $row['department'] ?? ($row['registered'] ? 'No department' : 'Unregistered'),
             'userType' => $row['user_type'] ?? '',
@@ -142,26 +176,38 @@
         ->all();
 
     // Buckets the department list has no id for: registry rows with no department, and
-    // modules a user holds that were never registered at all.
+    // modules a user holds that were never registered at all. Keyed "~<label>" so they can
+    // be ticked alongside real departments (see deptKey() below).
     foreach ($gridRows as $row) {
         if ($row['deptId'] === '' && !collect($departmentOptions)->contains(fn ($d) => $d['label'] === $row['dept'])) {
-            $departmentOptions[] = ['id' => '', 'label' => $row['dept']];
+            $departmentOptions[] = ['id' => '~' . $row['dept'], 'label' => $row['dept']];
         }
     }
 
+    // Several departments can be selected (user, 2026-11-17): an officer may hold modules
+    // in Estate AND Physical Planning. On edit, open with every department the user already
+    // holds a module in, so their grants are on screen; Step 1's department is added on top.
+    $initialDepts = collect($gridRows)
+        ->filter(fn ($r) => $r['held'] && !$r['bonus'])
+        ->map(fn ($r) => $r['deptId'] !== '' ? $r['deptId'] : '~' . $r['dept'])
+        ->unique()
+        ->values()
+        ->all();
+
     usort($departmentOptions, fn ($a, $b) => strcasecmp($a['label'], $b['label']));
 
+    // Bonus modules first, so they sit above the chosen department's own modules.
     usort($gridRows, function ($a, $b) {
-        return [$a['dept'], $a['name']] <=> [$b['dept'], $b['name']];
+        return [!$a['bonus'], $a['dept'], $a['name']] <=> [!$b['bonus'], $b['dept'], $b['name']];
     });
 @endphp
 
-{{-- x-effect keeps this grid's department filter in step with "Step 1: Select Department"
-     above it. Alpine chains scopes, so `selectedDept` here resolves to the parent modal's
-     property; the typeof guard is what lets the partial still stand on its own, since a bare
-     undefined identifier in an Alpine expression throws. --}}
-<div class="pg" x-data="permissionGrid(@js($gridRows), @js($canGrantDelete), @js($departmentOptions))"
-     x-effect="if (typeof selectedDept !== 'undefined' && String(selectedDept ?? '') !== deptFilter) { deptFilter = String(selectedDept ?? ''); }">
+{{-- x-effect adds "Step 1: Select Department" above to the selected departments, without
+     dropping the others. Alpine chains scopes, so `selectedDept` here resolves to the parent
+     modal's property; the typeof guard is what lets the partial still stand on its own, since
+     a bare undefined identifier in an Alpine expression throws. --}}
+<div class="pg" x-data="permissionGrid(@js($gridRows), @js($canGrantDelete), @js($departmentOptions), @js($initialDepts))"
+     x-effect="addHomeDept(typeof selectedDept !== 'undefined' ? selectedDept : '')">
 
     {{-- Header: what this is, and how much is granted --}}
     <div class="pg-head">
@@ -184,20 +230,35 @@
          administrator thinks about who needs what. --}}
     <div class="pg-filters">
         <div class="pg-field">
-            <label class="pg-label">{{ __('Department') }}</label>
-            {{-- Changing it here changes Step 1 too — one department, chosen in either place.
-                 Guarded so the grid still works with no parent to write back to. --}}
-            <select x-model="deptFilter" class="pg-input"
-                    @change="if (typeof selectedDept !== 'undefined') {
-                                 selectedDept = deptFilter;
-                                 selectedDeptName = $event.target.selectedOptions[0].text;
-                                 showAll = !deptFilter;
-                             }">
-                <option value="">{{ __('All departments') }}</option>
-                <template x-for="d in departmentOptions" :key="d.id">
-                    <option :value="d.id" x-text="d.label"></option>
+            <label class="pg-label">{{ __('Departments') }}</label>
+            {{-- Several departments at once; ticking one adds its modules, unticking one only
+                 hides them (granted modules still post). Step 1 stays the user's own department. --}}
+            <div class="pg-dept" @click.outside="deptMenuOpen = false" @keydown.escape.stop="deptMenuOpen = false">
+                <button type="button" class="pg-input pg-dept-btn" @click.stop="deptMenuOpen = !deptMenuOpen"
+                        :aria-expanded="deptMenuOpen">
+                    <span class="pg-dept-text" x-text="deptSummary"></span>
+                    <i data-lucide="chevron-down" class="pg-dept-caret"></i>
+                </button>
+                <div class="pg-dept-menu" x-show="deptMenuOpen" x-cloak @click.stop>
+                    <button type="button" class="pg-dept-all" @click="deptFilters = []">
+                        <span x-text="deptFilters.length ? '{{ __('Show all departments') }}' : '{{ __('All departments shown') }}'"></span>
+                    </button>
+                    <template x-for="d in departmentOptions" :key="d.id">
+                        <label class="pg-dept-opt">
+                            <input type="checkbox" :value="d.id" x-model="deptFilters">
+                            <span x-text="d.label"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+            <div class="pg-dept-chips" x-show="deptFilters.length">
+                <template x-for="id in deptFilters" :key="'chip-' + id">
+                    <span class="pg-dept-chip">
+                        <span x-text="deptLabel(id)"></span>
+                        <button type="button" @click="removeDept(id)" aria-label="{{ __('Remove department') }}">&times;</button>
+                    </span>
                 </template>
-            </select>
+            </div>
         </div>
 
         <div class="pg-field">
@@ -267,6 +328,12 @@
                                 <span class="pg-module-name" x-text="row.name"></span>
                                 <span class="pg-module-meta">
                                     <span x-text="row.dept"></span>
+                                    <template x-if="row.bonus">
+                                        <span class="pg-chip pg-chip-bonus"
+                                              title="{{ __('Not tied to a department: offered under every department.') }}">
+                                            {{ __('Bonus · any department') }}
+                                        </span>
+                                    </template>
                                     <template x-if="row.userType">
                                         <span class="pg-chip" x-text="row.userType"></span>
                                     </template>
@@ -319,10 +386,10 @@
 
                 <tr x-show="visibleRows.length === 0">
                     <td colspan="{{ count($actions) + 1 }}" class="pg-empty">
-                        <span x-show="deptFilter !== '' && query === '' && showFilter === 'all'">
-                            {{ __('No modules are registered for this department.') }}
+                        <span x-show="deptFilters.length && query === '' && showFilter === 'all'">
+                            {{ __('No modules are registered for the selected departments.') }}
                         </span>
-                        <span x-show="!(deptFilter !== '' && query === '' && showFilter === 'all')">
+                        <span x-show="!(deptFilters.length && query === '' && showFilter === 'all')">
                             {{ __('No module matches these filters.') }}
                         </span>
                     </td>
@@ -330,6 +397,18 @@
             </tbody>
         </table>
     </div>
+
+    {{-- Granted modules the current filter hides still post, exactly as their visible rows
+         would. Only visible rows are rendered, so without this, switching the department or
+         searching before Save silently removed every grant outside the filter. --}}
+    <template x-for="row in hiddenGrantedRows" :key="'held-' + row.key">
+        <span hidden>
+            <input type="hidden" name="user_role[]" :value="row.name">
+            <template x-for="action in grantedActions(row)" :key="action">
+                <input type="hidden" :name="'module_perm[' + row.name + '][]'" :value="action">
+            </template>
+        </span>
+    </template>
 
     {{-- An emptied grid has to be saveable: with no checkbox ticked the browser posts no
          user_role key at all, which the controller would read as "unchanged" rather than
@@ -348,16 +427,51 @@
      fragments with no layout, so a pushed stack would never be rendered. Re-injecting on
      each open is harmless — the function definition simply replaces itself. --}}
 <script>
-            function permissionGrid(rows, canGrantDelete, departments) {
+            function permissionGrid(rows, canGrantDelete, departments, initialDepts) {
                 return {
                     rows: rows,
                     canGrantDelete: canGrantDelete,
                     // Supplied by the blade from the full department list. Left optional so the
                     // component still stands up when driven directly, as the tests do.
                     departments: departments || null,
-                    deptFilter: '',
+                    // Selected department keys; empty = all departments.
+                    deptFilters: (initialDepts || []).map(String),
+                    deptMenuOpen: false,
+                    lastHomeDept: null,
                     query: '',
                     showFilter: 'all',
+
+                    // Department key of a row: its id, or "~<label>" for the no-id buckets.
+                    deptKey(row) {
+                        return row.deptId !== '' ? row.deptId : '~' + row.dept;
+                    },
+
+                    deptLabel(id) {
+                        const d = this.departmentOptions.find(o => o.id === id);
+                        return d ? d.label : id.replace(/^~/, '');
+                    },
+
+                    get deptSummary() {
+                        const n = this.deptFilters.length;
+                        if (n === 0) return 'All departments';
+                        if (n === 1) return this.deptLabel(this.deptFilters[0]);
+                        return n + ' departments selected';
+                    },
+
+                    removeDept(id) {
+                        this.deptFilters = this.deptFilters.filter(d => d !== id);
+                    },
+
+                    // Step 1 (the user's own department) is added to the selection whenever
+                    // it changes; the departments already selected stay.
+                    addHomeDept(dept) {
+                        const id = String(dept ?? '');
+                        if (id === this.lastHomeDept) return;
+                        this.lastHomeDept = id;
+                        if (id !== '' && !this.deptFilters.includes(id)) {
+                            this.deptFilters = [...this.deptFilters, id];
+                        }
+                    },
 
                     get departmentOptions() {
                         if (this.departments && this.departments.length) {
@@ -377,12 +491,23 @@
                         const q = this.query.trim().toLowerCase();
 
                         return this.rows.filter(row => {
-                            if (this.deptFilter !== '' && row.deptId !== this.deptFilter) return false;
+                            // Bonus modules (no department) are offered under every department.
+                            if (this.deptFilters.length && !row.bonus && !this.deptFilters.includes(this.deptKey(row))) return false;
                             if (q && !row.name.toLowerCase().includes(q)) return false;
                             if (this.showFilter === 'granted' && !row.actions.view) return false;
                             if (this.showFilter === 'ungranted' && row.actions.view) return false;
                             return true;
                         });
+                    },
+
+                    // Granted rows the filters are hiding; posted as hidden inputs so Save keeps them.
+                    get hiddenGrantedRows() {
+                        const shown = new Set(this.visibleRows.map(r => r.key));
+                        return this.rows.filter(r => r.actions.view && !shown.has(r.key));
+                    },
+
+                    grantedActions(row) {
+                        return Object.keys(row.actions).filter(a => row.actions[a] && !this.locked(row, a));
                     },
 
                     get grantedCount() {
@@ -453,7 +578,10 @@
 </script>
 
 <style>
-            .pg { border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; overflow: hidden; }
+            /* overflow stays visible so the Departments menu is never clipped; the corners are rounded per band. */
+            .pg { border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; }
+            .pg > :first-child { border-radius: 14px 14px 0 0; }
+            .pg > .pg-note { border-radius: 0 0 14px 14px; }
             .pg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
                        padding: 16px 18px; background: linear-gradient(180deg, #f8fafc, #fff); border-bottom: 1px solid #e2e8f0; }
             .pg-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; font-weight: 700; color: #0f172a; }
@@ -491,6 +619,27 @@
             .pg-btn-clear { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
             .pg-btn-clear:hover { background: #fee2e2; }
 
+            .pg-dept { position: relative; }
+            .pg-dept-btn { display: flex; align-items: center; justify-content: space-between; gap: 6px;
+                           text-align: left; cursor: pointer; }
+            .pg-dept-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .pg-dept-caret { width: 14px; height: 14px; color: #64748b; flex-shrink: 0; }
+            .pg-dept-menu { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px);
+                            max-height: 280px; overflow-y: auto; background: #fff; border: 1px solid #d1d9e2;
+                            border-radius: 9px; box-shadow: 0 10px 24px rgba(15, 23, 42, .14); padding: 4px; }
+            .pg-dept-all { display: block; width: 100%; text-align: left; padding: 6px 8px; font-size: 12px;
+                           font-weight: 600; color: #4f46e5; background: none; border: 0;
+                           border-bottom: 1px solid #f1f5f9; cursor: pointer; }
+            .pg-dept-opt { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 13px;
+                           color: #0f172a; border-radius: 6px; cursor: pointer; }
+            .pg-dept-opt:hover { background: #f1f5f9; }
+            .pg-dept-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+            .pg-dept-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px;
+                            font-size: 11px; font-weight: 600; color: #3730a3; background: #eef2ff;
+                            border: 1px solid #c7d2fe; border-radius: 99px; }
+            .pg-dept-chip button { border: 0; background: none; color: #6366f1; font-size: 13px; line-height: 1;
+                                   padding: 0 3px; cursor: pointer; }
+
             .pg-table-wrap { max-height: 46vh; overflow: auto; }
             .pg-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
             .pg-table thead th { position: sticky; top: 0; z-index: 2; background: #f1f5f9; padding: 9px 10px;
@@ -518,6 +667,7 @@
             .pg-chip { padding: 1px 6px; font-size: 10px; font-weight: 600; border-radius: 99px;
                        background: #eff6ff; color: #1d4ed8; }
             .pg-chip-warn { background: #fef3c7; color: #92400e; cursor: help; }
+            .pg-chip-bonus { background: #dcfce7; color: #166534; cursor: help; }
 
             .pg-check { display: inline-flex; cursor: pointer; }
             .pg-check input { position: absolute; opacity: 0; width: 0; height: 0; }

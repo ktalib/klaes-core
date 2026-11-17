@@ -8,7 +8,10 @@
   $PageTitle = 'Survey Plan ' . $plan->upload_ref;
   $PageDescription = $plan->plan_type . ' · ' . $plan->unit . ' · ' . $plan->stage_status;
   $stage = $plan->stage_no;
-  $original = route('survey-module.survey-plans.file', $plan);
+  // A Digital Plotting has no file (Recording 5, 2026-11-16): its "plan" is the plotting, opened on the map.
+  $isDigital = $plan->isDigital();
+  $plotUrl = $isDigital ? route('survey-module.survey-plans.check-plan', $plan) : null;
+  $original = $isDigital ? $plotUrl : route('survey-module.survey-plans.file', $plan);
   $fileUrl = fn ($f) => route('survey-module.survey-plans.stage-file', [$plan, $f]);
   $final = $plan->latestFile(PlanFile::KIND_FINAL);
   $signed = $plan->latestFile(PlanFile::KIND_SIGNED);
@@ -109,7 +112,7 @@
 </div>
 
 <div style="display:grid;gap:12px;">
-  @include('survey_module.survey_plans._plan_summary', ['originalUrl' => $original, 'spTabs' => true])
+  @include('survey_module.survey_plans._plan_summary', ['originalUrl' => $original, 'planFileUrl' => route('survey-module.survey-plans.file', $plan), 'plotUrl' => $plotUrl, 'spTabs' => true])
 
   {{-- ============ Stage 1 -> 2 / 3: the checking unit ============ --}}
   @if ($canCheck && in_array($stage, [Plan::STAGE_UPLOADED, Plan::STAGE_CORRECTION], true))
@@ -120,9 +123,13 @@
         <div class="sp-grid2">
           <div class="sp-box sp-download">
             <div class="h"><span class="n">1</span> Download
-              <span class="sub"><a class="btn btn-secondary btn-sm" href="{{ $original }}" target="_blank" rel="noopener"><i class="fas fa-download"></i> Download plan</a></span>
+              <span class="sub">@if ($isDigital)<a class="btn btn-secondary btn-sm" href="{{ $plotUrl }}"><i class="fas fa-map-location-dot"></i> Open on the map</a>@if ($plan->file_path) <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.survey-plans.file', $plan) }}" target="_blank" rel="noopener"><i class="fas fa-download"></i> Download plan</a>@endif @else<a class="btn btn-secondary btn-sm" href="{{ $original }}" target="_blank" rel="noopener"><i class="fas fa-download"></i> Download plan</a>@endif</span>
             </div>
+            @if ($isDigital)
+            <p>{{ $plan->file_path ? 'A digital plotting, with the plan file attached:' : 'A digital plotting has no file:' }} open it on the map to check the beacons, lines and closing. Write the corrections in the note, or upload a marked copy.</p>
+            @else
             <p>Download the plan as uploaded, or mark it up on screen below. Use <strong>Full screen</strong> to see the whole plan.</p>
+            @endif
             @if ($drawable)
               <div class="sp-work" id="spWork">
                 <div class="sp-bar" id="spTools" role="toolbar" aria-label="Markup tools">
@@ -172,6 +179,8 @@
                 </div>
                 <div class="sp-hint"><span><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo</span><span><kbd>+</kbd> <kbd>-</kbd> zoom</span><span>Ctrl + mouse wheel zooms</span><span><kbd>F</kbd> full screen</span><span><kbd>Esc</kbd> close full screen</span></div>
               </div>
+            @elseif ($isDigital)
+              <div class="sp-drop"><i class="fas fa-map-location-dot"></i>Digital plotting: {{ $plan->referenceBeacons->count() }} beacons. <a href="{{ $plotUrl }}">Open on the map</a>.</div>
             @else
               <div class="sp-drop"><i class="fas fa-file-circle-exclamation"></i>This file type cannot be drawn on in the browser. Download it, mark it, and upload the marked copy under Upload.</div>
             @endif
@@ -235,7 +244,7 @@
       </form>
     </div>
   @elseif ($stage === Plan::STAGE_CORRECTION && $plan->source === 'portal')
-    <div class="sp-box"><p>Waiting for {{ $plan->uploaded_by_name }} to upload the final copy on the MLPP-SG portal.</p></div>
+    <div class="sp-box"><p>Waiting for {{ $plan->uploaded_by_name }} to upload the final copy on the KN-MLPP-SG portal.</p></div>
   @endif
 
   {{-- ============ Stage 3 -> 4: the SG/DSG signs ============ --}}

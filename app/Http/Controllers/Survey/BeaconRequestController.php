@@ -52,10 +52,13 @@ class BeaconRequestController extends Controller
         $requests = $this->requestsQuery($r)->paginate(20, ['*'], 'page')->withQueryString();
 
         $accounts = $this->accountsQuery($r)->paginate(20, ['*'], 'page')->withQueryString();
+        $accountWork = $tab === 'registrations' && $registrationTab === 'surveyors'
+            ? app(\App\Services\Survey\SurveyorAccountAdmin::class)->work($accounts->pluck('id')->all()) : [];
 
         return view('survey_module.beacon_requests.index', [
             'brEdit' => $tab === 'registrations' ? $this->editValues($registrationTab, (int) ($r->old('br_edit') ?: $r->query('edit'))) : null,
             'tab' => $tab, 'registrationTab' => $registrationTab, 'requests' => $requests, 'accounts' => $accounts, 'status' => $status,
+            'accountWork' => $accountWork,
             'companyApplications' => $this->companyApplicationsQuery($r)->paginate(20, ['*'], 'company_page')->withQueryString(),
             'maps' => $this->mapsQuery($r)->paginate(20, ['*'], 'page')->withQueryString(),
             'mapCounts' => SdiMapRequest::whereNotNull('surveyor_portal_account_id')->selectRaw('status, count(*) as n')->groupBy('status')->pluck('n', 'status'),
@@ -330,6 +333,67 @@ class BeaconRequestController extends Controller
 
         return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations', 'registration_tab' => 'surveyors'])
             ->with('success', "{$done->name}'s account updated.");
+    }
+
+    /*
+     * Surveyor row menu (user, 2026-11-16: the LAAS Portal Accounts menu, without Merge, plus Transfer to another
+     * company). The work is in SurveyorAccountAdmin.
+     */
+    private function backToSurveyors()
+    {
+        return redirect()->route('survey-module.beacon-requests.index', ['tab' => 'registrations', 'registration_tab' => 'surveyors']);
+    }
+
+    /** View profile: the pop-up's body. */
+    public function accountProfile(int $account)
+    {
+        $this->authorizeSg();
+
+        return view('survey_module.beacon_requests._surveyor_profile', app(\App\Services\Survey\SurveyorAccountAdmin::class)->profile($account));
+    }
+
+    public function accountContact(Request $r, int $account)
+    {
+        $this->authorizeSg();
+        $data = $r->validate(['phone' => 'required|string|max:30', 'email' => 'nullable|email|max:150'], ['phone.required' => 'Enter the phone number.']);
+        $a = app(\App\Services\Survey\SurveyorAccountAdmin::class)->updateContact($account, $data['phone'], $data['email'] ?? null);
+
+        return $this->backToSurveyors()->with('success', "{$a->name}'s contact updated.");
+    }
+
+    /** Issue sign-in slip: a new temporary password, on a page to print. */
+    public function accountSlip(int $account)
+    {
+        $this->authorizeSg();
+
+        return view('survey_module.beacon_requests.surveyor_slip', app(\App\Services\Survey\SurveyorAccountAdmin::class)->issueSlip($account));
+    }
+
+    public function accountTransfer(Request $r, int $account)
+    {
+        $this->authorizeSg();
+        $data = $r->validate(['company_id' => 'required|integer', 'reason' => 'required|string|max:500'],
+            ['company_id.required' => 'Choose the company to move the surveyor to.', 'reason.required' => 'Say why the surveyor is moved.']);
+        $a = app(\App\Services\Survey\SurveyorAccountAdmin::class)->transfer($account, (int) $data['company_id'], trim($data['reason']));
+
+        return $this->backToSurveyors()->with('success', "{$a->name} moved to {$a->company_name}.");
+    }
+
+    public function accountToggle(int $account)
+    {
+        $this->authorizeSg();
+        $a = app(\App\Services\Survey\SurveyorAccountAdmin::class)->toggle($account);
+
+        return $this->backToSurveyors()->with('success', $a->status === SurveyorPortalAccount::SUSPENDED
+            ? "{$a->name} is suspended and cannot sign in." : "{$a->name} is restored and can sign in again.");
+    }
+
+    public function accountDestroy(int $account)
+    {
+        $this->authorizeSg();
+        $name = app(\App\Services\Survey\SurveyorAccountAdmin::class)->delete($account);
+
+        return $this->backToSurveyors()->with('success', "{$name}'s account was deleted.");
     }
 
     /** Approve a company, make its portal login in the same transaction, send the login after commit. */

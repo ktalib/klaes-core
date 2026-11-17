@@ -1,11 +1,13 @@
 {{-- A survey plan's stage tracker, details, reference beacons and file history (CR 11112026-2), shared by the
-     KLAES plan page and the MLPP-SG portal. Self-styled. $plan; $originalUrl (the first upload);
-     $fileUrl: fn (SurveyPlanFile) => url. --}}
+     KLAES plan page and the KN-MLPP-SG portal. Self-styled. $plan; $originalUrl (the first upload);
+     $fileUrl: fn (SurveyPlanFile) => url. $plotUrl: a Digital Plotting's beacons on the map (KLAES only), or null. --}}
 @php
   use App\Models\Survey\SurveyPlanUpload as SpPlan;
   $spNow = $plan->stage_no;
   // KLAES plan page shows Details / Reference Beacons / Files as tabs (user, 2026-11-12); the portal keeps cards.
   $spTabs = $spTabs ?? false;
+  $spDigital = $plan->isDigital();
+  $plotUrl = $plotUrl ?? null;
   $spSize = fn ($b) => $b ? ($b >= 1048576 ? number_format($b / 1048576, 1) . ' MB' : max(1, round($b / 1024)) . ' KB') : '';
 @endphp
 <style>
@@ -59,7 +61,7 @@
   @if ($spTabs)
     <div class="sp-tabbar" role="tablist">
       <label for="spTab1" role="tab"><i class="fas fa-circle-info"></i> Details</label>
-      <label for="spTab2" role="tab"><i class="fas fa-location-crosshairs"></i> Reference Coordinate <span class="c">{{ $plan->referenceBeacons->count() }}</span></label>
+      <label for="spTab2" role="tab"><i class="fas fa-location-crosshairs"></i> {{ $spDigital ? 'Plotted Beacons' : 'Reference Coordinate' }} <span class="c">{{ $plan->referenceBeacons->count() }}</span></label>
       <label for="spTab3" role="tab"><i class="fas fa-folder-open"></i> Files <span class="c">{{ $plan->files->count() + 1 }}</span></label>
     </div>
     <div class="sp-pane sp-pane-1">
@@ -67,6 +69,7 @@
   <div class="sp-kv">
     <div><span>Upload Ref</span><strong class="sp-mono">{{ $plan->upload_ref }}</strong></div>
     <div><span>Type</span><strong>{{ $plan->plan_type }}</strong></div>
+    <div><span>Method</span><strong>{{ $plan->method_label }}</strong></div>
     <div><span>Sent To</span><strong>{{ $plan->unit }}</strong></div>
     <div><span>Plot No.</span><strong>{{ $plan->plot_no ?: '—' }}</strong></div>
     <div><span>District</span><strong>{{ $plan->district ?: '—' }}</strong></div>
@@ -77,6 +80,11 @@
     <div><span>Coordinate System</span><strong>{{ $plan->coord_system_label ?: '—' }}</strong></div>
     <div><span>Uploaded</span><strong>{{ $plan->created_at?->format('d M Y H:i') }} · {{ $plan->uploaded_by_name }} ({{ $plan->source_label }})</strong></div>
   </div>
+  @if ($spDigital && is_array($plan->plot_data))
+    @php $pd = $plan->plot_data; @endphp
+    <div style="font-size:13px;color:#374151;"><strong>Plotting:</strong> {{ $pd['beacons'] ?? $plan->referenceBeacons->count() }} beacons by {{ ($pd['mode'] ?? '') === 'brg' ? 'bearing and distance (' . count($pd['lines'] ?? []) . ' lines)' : 'X / Y' }}{{ ! empty($pd['closed']) ? ', closed' : '' }}{{ isset($pd['closing_error_m']) ? ' · closing error ' . number_format($pd['closing_error_m'], 3) . ' m' : '' }}{{ isset($pd['area_m2']) ? ' · area ' . number_format($pd['area_m2'], 2) . ' m²' : '' }}
+      @if ($plotUrl) · <a class="sp-link" href="{{ $plotUrl }}">Open on the map</a>@endif</div>
+  @endif
   @if ($plan->remarks)<div style="font-size:13px;color:#374151;"><strong>Remarks:</strong> {{ $plan->remarks }}</div>@endif
 @if ($spTabs)
   </div>
@@ -85,7 +93,8 @@
 @endif
 
 <div class="{{ $spTabs ? 'sp-pane sp-pane-2' : 'sp-card' }}">
-  @unless ($spTabs)<h3 class="sp-h">Reference Coordinate</h3>@endunless
+  @unless ($spTabs)<h3 class="sp-h">{{ $spDigital ? 'Plotted Beacons' : 'Reference Coordinate' }}</h3>@endunless
+  @if ($spDigital)<p style="margin:0 0 8px;font-size:12.5px;color:#6b7280;">In traverse order. The first (X1) is the reference.</p>@endif
   <div style="overflow-x:auto;">
     <table class="sp-tbl">
       <thead><tr><th>S/N</th><th>Beacon No.</th><th>X (Easting)</th><th>Y (Northing)</th><th>From</th></tr></thead>
@@ -114,9 +123,16 @@
       <tbody>
         <tr>
           <td>1</td><td>1 · Upload</td>
+          @if ($spDigital)
+            <td>@if ($plan->file_path){{ $plan->file_name ?: 'Plan' }} <span style="color:#6b7280;">{{ $spSize($plan->file_size) }}</span> · digital plotting @else Digital plotting (no file)@endif</td>
+            <td>—</td><td>{{ $plan->uploaded_by_name }}</td><td style="white-space:nowrap;">{{ $plan->created_at?->format('d M Y H:i') }}</td>
+            <td style="white-space:nowrap;">@if ($plotUrl)<a class="sp-link" href="{{ $plotUrl }}">Open on the map</a>@endif
+              @if ($plan->file_path)@if ($plotUrl) · @endif<a class="sp-link" href="{{ $planFileUrl ?? $originalUrl }}" target="_blank" rel="noopener">Download</a>@endif</td>
+          @else
           <td>{{ $plan->file_name ?: 'Plan' }} <span style="color:#6b7280;">{{ $spSize($plan->file_size) }}</span></td>
           <td>—</td><td>{{ $plan->uploaded_by_name }}</td><td style="white-space:nowrap;">{{ $plan->created_at?->format('d M Y H:i') }}</td>
           <td><a class="sp-link" href="{{ $originalUrl }}" target="_blank" rel="noopener">Download</a></td>
+          @endif
         </tr>
         @foreach ($plan->files as $f)
           <tr>

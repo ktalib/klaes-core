@@ -257,8 +257,14 @@ class AuthController extends Controller
     public function registered()
     {
         $id = session('registration_id');
+        // The registrant's own details, not just the code (user, 2026-11-15). Only right after registering (flash).
+        $account = $id ? Account::where('registration_id', $id)->first() : null;
 
-        return $id ? view('surveyor_portal.auth.registered', ['registrationId' => $id]) : redirect()->route('surveyor-portal.login');
+        return $account ? view('surveyor_portal.auth.registered', [
+            'registrationId' => $id,
+            'account'        => $account,
+            'address'        => \App\Services\Cadastral\CadastralAddress::personAddress($account, 'addr_'),
+        ]) : redirect()->route('surveyor-portal.login');
     }
 
     private function company(array $data): array

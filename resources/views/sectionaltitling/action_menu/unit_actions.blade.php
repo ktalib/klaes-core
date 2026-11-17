@@ -100,21 +100,14 @@
       </li>
 
       <hr class="my-2 border-gray-200">
-      @php
-         $edmsFile = DB::connection('sqlsrv')
-            ->table('file_indexings')
-            ->where('subapplication_id', $app->id)
-            ->first();
-      @endphp
-
-      <li>
-
-         <a href="/edms/sub/{{ $app->id }}"
-            class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center space-x-2">
-            <i data-lucide="folder-open" class="w-4 h-4 text-blue-500"></i>
-            <span>Capture Initial DMS</span>
+      {{-- Open Folio replaces Capture Initial DMS (user, 2026-11-16): the unit's ST file opens in the VFS. --}}
+      <li class="{{ empty($app->fileno) ? 'opacity-50 cursor-not-allowed' : '' }}">
+         <a href="{{ !empty($app->fileno) ? route('vfs.open', ['file_no' => $app->fileno]) : '#' }}"
+            @if(!empty($app->fileno)) target="_blank" rel="noopener" @endif
+            class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center space-x-2 {{ empty($app->fileno) ? 'pointer-events-none' : '' }}">
+            <i data-lucide="folder-tree" class="w-4 h-4 text-blue-500"></i>
+            <span>Open Folio</span>
          </a>
-
       </li>
       <hr class="my-2 border-gray-200">
       @php

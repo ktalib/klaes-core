@@ -415,11 +415,11 @@
           </div>
         @endif
 
-        {{-- f. Survey Plan Upload (Survey Update 5g, sidebar image 2026-11-10): the short form, sent to GKN or Examination/Verification. --}}
+        {{-- f. Survey Plan Management (was Survey Plan Upload; Recording 5, 2026-11-16): Manual Upload or Digital Plotting, sent to GKN or Examination/Verification. --}}
         @if($svRecords || $svGkn || $svExaminationVerification || $svPublic || $hasRole('Survey - SG'))
-        <a href="{{ route('survey-module.survey-plans.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.survey-plans.*') && ! request()->routeIs('survey-module.survey-plans.portal', 'survey-module.survey-plans.signing') ? 'active' : '' }}">
+        <a data-tab-card="survey-plan-management" href="{{ route('survey-module.survey-plans.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.survey-plans.*') && ! request()->routeIs('survey-module.survey-plans.portal', 'survey-module.survey-plans.signing') ? 'active' : '' }}">
           <i data-lucide="upload" class="h-4 w-4 text-pink-500"></i>
-          <span>Survey Plan Upload</span>
+          <span>Survey Plan Management</span>
         </a>
         @endif
 
@@ -594,7 +594,7 @@
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-kssgof">
           <div class="flex items-center gap-2">
             <i data-lucide="shield-check" class="h-4 w-4 text-pink-500"></i>
-            <span>MLPP-SG Portal Admin</span>
+            <span>KN-MLPP-SG Portal Admin</span>
           </div>
           <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200 {{ $ksOn ? 'rotate-90' : '' }}" data-chevron="survey-kssgof"></i>
         </div>

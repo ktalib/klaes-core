@@ -2,7 +2,7 @@
 
 {{-- /login (user, 2026-11-11): company or surveyor first, as the Sign in pop-up asks; this page is what shows
      without JavaScript and where sign-outs and expired sessions land. Styled as register_choice. --}}
-@section('title', 'Sign in — MLPP-SG Portal')
+@section('title', 'Sign in — KN-MLPP-SG Portal')
 @section('width', '520px')
 
 @section('card')

@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Surveyors Report — MLPP-SG Portal')
+@section('title', 'Surveyors Report — KN-MLPP-SG Portal')
 @section('heading', 'Surveyors Report')
 
 {{-- Our Beacons > Surveyors Report (user, 2026-11-10): the reports written by the company's surveyors. Read only. --}}

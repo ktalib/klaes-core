@@ -92,7 +92,8 @@ class DcivGenerationController extends Controller
                     ->distinct()
                     ->pluck('year')
                     ->map(fn ($y) => (int) $y)
-                    ->filter(fn ($y) => $y >= 2000 && $y <= (int) date('Y'));
+                    // LPCC runs back to 1981 (user, 2026-11-16: past years are manual entry from this table).
+                    ->filter(fn ($y) => $y >= 1900 && $y <= (int) date('Y'));
 
                 $ready = collect($initializedYears[$prefix] ?? []);
 
@@ -498,7 +499,8 @@ class DcivGenerationController extends Controller
             // belongs to - instead of taking last_serial + 1 in the current year. Used
             // to fill a gap the counter has run past, including one in an earlier year.
             $requestedSerial = $request->query('serial');
-            $isManual = is_numeric($requestedSerial) && (int) $requestedSerial > 0;
+            // Digits only, never starting with 0 - the same rule store() applies.
+            $isManual = preg_match('/^[1-9][0-9]*$/', (string) $requestedSerial) === 1;
             // Honoured whenever one is supplied - the form only sends a year in manual
             // mode, and the counter for that year has to be read before a serial is
             // typed, not after.
@@ -545,13 +547,7 @@ class DcivGenerationController extends Controller
             // A manual serial may name a number that was already commissioned. The
             // grouping lookup above already excludes it (mapping = 1), but say so
             // plainly rather than leaving the form showing "Not Found".
-            $taken = [];
-            if ($isManual) {
-                $taken = DcivFileNo::whereIn('full_file_number', $constructedFileNos)
-                    ->where('is_deleted', 0)
-                    ->pluck('full_file_number')
-                    ->all();
-            }
+            $taken = $isManual ? $this->alreadyIssued($constructedFileNos) : [];
 
             Log::info("DCIV Strict Lookup ({$prefix}, {$year}): Constructing: " . implode(', ', $constructedFileNos) . " | Found: {$availableCount}");
 
@@ -572,6 +568,30 @@ class DcivGenerationController extends Controller
                 'message' => 'Error fetching available DCIV records'
             ], 500);
         }
+    }
+
+    /**
+     * The given numbers that already exist: commissioned here (dciv_file_no) or indexed
+     * as a file (file_indexings). 707 issued DCIV/LPCC numbers exist only as indexed
+     * files, still free in dciv_grouping, so checking dciv_file_no alone let a manual
+     * serial issue them a second time (user, 2026-11-16).
+     *
+     * @param  array<string>  $fileNumbers
+     * @return array<string>
+     */
+    private function alreadyIssued(array $fileNumbers, bool $lock = false): array
+    {
+        $commissioned = DcivFileNo::whereIn('full_file_number', $fileNumbers)
+            ->where('is_deleted', 0)
+            ->when($lock, fn ($q) => $q->lockForUpdate())
+            ->pluck('full_file_number');
+
+        $indexed = DB::connection('sqlsrv')->table('file_indexings')
+            ->whereIn('file_number', $fileNumbers)
+            ->where(fn ($q) => $q->where('is_deleted', 0)->orWhereNull('is_deleted'))
+            ->pluck('file_number');
+
+        return $commissioned->concat($indexed)->unique()->values()->all();
     }
 
     /**
@@ -607,7 +627,8 @@ class DcivGenerationController extends Controller
             // last_serial + 1 from dciv_serial_control. Absent = auto, so older
             // callers keep the behaviour they had.
             'serial_mode' => 'nullable|in:auto,manual',
-            'serial_number' => 'required_if:serial_mode,manual|nullable|integer|min:1',
+            // Digits only, never starting with 0 (user, 2026-11-16).
+            'serial_number' => ['required_if:serial_mode,manual', 'nullable', 'regex:/^[1-9][0-9]*$/'],
             // Only read in manual mode; an auto generate is always the current year.
             'year' => 'nullable|integer|min:1900|max:2100',
             'land_use_id' => 'nullable|integer',
@@ -630,6 +651,8 @@ class DcivGenerationController extends Controller
             'relatedFiles.*.file_number' => 'nullable|string|max:255',
             'relatedFiles.*.secondary_title' => 'nullable|string|max:500',
             'reason' => 'nullable|string|max:1000',
+        ], [
+            'serial_number.regex' => 'The serial number must be digits only and cannot start with 0.',
         ]);
 
         $batchMode = $validated['batch_mode'] ?? false;
@@ -662,6 +685,10 @@ class DcivGenerationController extends Controller
             if (!$initialized && !$manualSerial) {
                 throw new \Exception("Serial numbering for {$selectedPrefix} in {$currentYear} has not been initialized.");
             }
+            // The current year is Auto only; a typed serial is for earlier years (user, 2026-11-16).
+            if ($manualSerial && $currentYear >= (int) date('Y')) {
+                throw new \Exception("{$selectedPrefix} {$currentYear} numbers are issued by Auto only. Switch to Auto, or pick an earlier year for a manual serial.");
+            }
 
             $nextSerial = $manualSerial
                 ? (int) $validated['serial_number']
@@ -678,11 +705,7 @@ class DcivGenerationController extends Controller
             // grouping table's "insufficient records", which is what an already
             // mapped row would otherwise look like.
             if ($manualSerial) {
-                $alreadyIssued = DcivFileNo::whereIn('full_file_number', $constructedFileNos)
-                    ->where('is_deleted', 0)
-                    ->lockForUpdate()
-                    ->pluck('full_file_number')
-                    ->all();
+                $alreadyIssued = $this->alreadyIssued($constructedFileNos, true);
 
                 if (!empty($alreadyIssued)) {
                     throw new \Exception("Already commissioned: " . implode(', ', $alreadyIssued));
@@ -863,6 +886,19 @@ class DcivGenerationController extends Controller
                             'dciv_reason' => $dcivReason,
                         ]);
                 }
+            }
+
+            // Every file captured or commissioned here shows on the DCIV Master Link Table
+            // (user, 2026-11-16): one with no related files gets the standalone row the
+            // table already lists with an empty related-files cell.
+            if (!MasterDcivLink::where('dciv_file_number', $dcivNumber)->exists()) {
+                MasterDcivLink::create([
+                    'dciv_file_no_id' => $dcivRecord->id,
+                    'dciv_file_number' => $dcivNumber,
+                    'dciv_reason' => $dcivReason,
+                    'related_file_number' => null,
+                    'created_by' => $userId,
+                ]);
             }
 
             // 'source' is not in FileIndexing::$fillable, so create() silently

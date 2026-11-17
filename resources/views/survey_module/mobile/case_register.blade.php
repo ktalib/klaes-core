@@ -744,6 +744,97 @@
         return total;
     }
 
+    /* ------------------- existing farmer (as on the web) ------------------- */
+    // Typed name / phone / NIN are matched against the farmers on record and offered; a pick keeps
+    // their Farmer ID and, when chosen, the Farm ID. Needs a signal; offline the farmer is just new.
+    var FARMER_URL = @json(route('survey-module.mobile.farmer-lookup'));
+
+    function benField(card, f) { return card.querySelector('[name$="[' + f + ']"]'); }
+
+    function farmerClear(card) {
+        card._farmer = null;
+        benField(card, 'survey_farmer_id').value = '';
+        benField(card, 'farm_id_no').value = '';
+        var box = card.querySelector('.ben-matches'); box.hidden = true; box.textContent = '';
+        card.querySelector('.ben-farm').hidden = true;
+        card.querySelector('.ben-farm-sel').innerHTML = '';
+    }
+
+    function farmerPick(card, f) {
+        card._farmer = f;
+        benField(card, 'survey_farmer_id').value = f.id;
+        benField(card, 'farm_id_no').value = '';
+        benField(card, 'full_name').value = f.full_name;
+        if (f.phone) benField(card, 'phone').value = f.phone;
+        if (f.nin) benField(card, 'nin').value = f.nin;
+        var box = card.querySelector('.ben-matches');
+        box.textContent = '';
+        var note = document.createElement('div');
+        note.style.cssText = 'padding:8px 12px;background:#f0fdfa;';
+        note.textContent = 'Existing farmer ' + f.farmer_id_no + '. Their Farmer ID stays the same.';
+        box.appendChild(note);
+        box.hidden = false;
+        var sel = card.querySelector('.ben-farm-sel');
+        sel.innerHTML = '';
+        sel.add(new Option('A different farm (new Farm ID)', ''));
+        (f.farms || []).forEach(function (x) { sel.add(new Option(x.label, x.farm_id_no)); });
+        card.querySelector('.ben-farm').hidden = !(f.farms || []).length;
+        dirty = true;
+    }
+
+    function farmerSearch(card, field) {
+        var name = (benField(card, 'full_name').value || '').trim();
+        if (benField(card, 'survey_farmer_id').value) {
+            // A pick stays while phone / NIN are edited; changing the name drops it, and what it filled.
+            if (field !== 'full_name' || (card._farmer && name === card._farmer.full_name)) return;
+            var filled = !!card._farmer;
+            farmerClear(card);
+            if (filled) { benField(card, 'phone').value = ''; benField(card, 'nin').value = ''; }
+        }
+        clearTimeout(card._ft);
+        var phone = (benField(card, 'phone').value || '').trim(), nin = (benField(card, 'nin').value || '').trim();
+        var box = card.querySelector('.ben-matches');
+        if ((name.length < 3 && !phone && !nin) || !navigator.onLine) { box.hidden = true; box.textContent = ''; return; }
+        var mine = card._fs = (card._fs || 0) + 1;
+        card._ft = setTimeout(function () {
+            fetch(FARMER_URL + '?name=' + encodeURIComponent(name) + '&phone=' + encodeURIComponent(phone) + '&nin=' + encodeURIComponent(nin),
+                  { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : []; })
+                .then(function (rows) {
+                    if (mine !== card._fs || card._farmer) return;
+                    box.textContent = '';
+                    box.hidden = !rows.length;
+                    if (!rows.length) return;
+                    var head = document.createElement('div');
+                    head.style.cssText = 'padding:6px 12px;font-size:12px;font-weight:600;background:#f9fafb;';
+                    head.textContent = 'Is this an existing farmer?';
+                    box.appendChild(head);
+                    rows.forEach(function (f) {
+                        var b = document.createElement('button');
+                        b.type = 'button';
+                        b.style.cssText = 'display:block;width:100%;text-align:left;padding:10px 12px;border:0;border-top:1px solid #f3f4f6;background:#fff;font-size:13px;';
+                        b.textContent = f.farmer_id_no + ' · ' + f.full_name + (f.phone ? ' · ' + f.phone : '') + (f.nin ? ' · NIN ' + f.nin : '');
+                        b.addEventListener('click', function () { farmerPick(card, f); });
+                        box.appendChild(b);
+                    });
+                }).catch(function () {});
+        }, 300);
+    }
+
+    document.addEventListener('input', function (ev) {
+        var t = ev.target, card = t.closest && t.closest('#benRows .row-card');
+        var m = card && /\[(full_name|phone|nin)\]$/.exec(t.name || '');
+        if (m) farmerSearch(card, m[1]);
+    });
+
+    document.addEventListener('change', function (ev) {
+        var sel = ev.target.closest && ev.target.closest('#benRows .ben-farm-sel');
+        if (!sel) return;
+        var card = sel.closest('.row-card');
+        benField(card, 'farm_id_no').value = card._farmer ? sel.value : '';
+        dirty = true;
+    });
+
     document.addEventListener('click', function (ev) {
         var del = ev.target.closest('.row-card .del');
         if (!del) return;

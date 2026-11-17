@@ -1961,6 +1961,14 @@ class LegalSearchService
             }
 
             $needle = strtoupper($fileNo);
+            // An ST primary's predecessor is its own land file, whose commissioning the page
+            // already shows as "Land File Commissioning"; a second one from this pair repeated it
+            // (ST-RES-2026-18 / RES-RC-1982-47, user 2026-11-17). Only the decommission row is kept.
+            $stLandFile = null;
+            if (stripos($fileNo, 'ST-') === 0 && $schema->hasTable('st_file_numbers')) {
+                $stLandFile = strtoupper(trim((string) $conn->table('st_file_numbers')
+                    ->where('np_fileno', $fileNo)->where('file_no_type', 'PRIMARY')->value('fileno'))) ?: null;
+            }
             $out = [];
             foreach ($candidates as $d) {
                 // successor_file_no may be a CSV list (batch subdivision) â require an exact
@@ -2017,7 +2025,7 @@ class LegalSearchService
                 $commHolder = $this->resolveCommissioningHolder($conn, $oldNo)
                     ?: ($this->resolveFileTitleForNumber($conn, $oldNo) ?: (trim((string) $d->file_name) ?: '-'));
 
-                $out[] = array_merge($this->blankLineageRow(), [
+                if ($stLandFile === null || $stLandFile !== strtoupper($oldNo)) $out[] = array_merge($this->blankLineageRow(), [
                     'id'                => (int) $d->id,
                     'file_number'       => $oldNo,
                     'mlsFNo'            => $oldNo,

@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Beacon Request — MLPP-SG Portal')
+@section('title', 'Beacon Request — KN-MLPP-SG Portal')
 @section('heading', 'Beacon Request')
 
 @push('styles')
@@ -83,11 +83,12 @@
                 <div class="ks-input" style="background:#F1F3F5;">{{ $me->name }}</div>
             </div>
         </div>
-        {{-- Survey Update 5b (user, 2026-11-10): every request quotes the Job No of the survey's Computation File. --}}
-        <div>
+        {{-- Survey Update 5b (user, 2026-11-10): a Single request quotes the Job No of the survey's Computation File.
+             A Bulk request has none (user, 2026-11-17): the beacons are used later, on different surveys. --}}
+        <div id="brqJobBlock">
             <label class="ks-label" for="job_no">Job No. <span class="ks-req">*</span></label>
             @if ($jobs)
-                <select class="ks-input" id="job_no" name="job_no" required>
+                <select class="ks-input" id="job_no" name="job_no">
                     <option value="">Select Job No…</option>
                     @foreach ($jobs as $no => $j)
                         <option value="{{ $no }}" data-plot="{{ $j['plot_no'] }}" data-district="{{ $j['district'] }}" data-lga="{{ $j['lga'] }}" @selected(old('job_no') === $no)>{{ $j['label'] }} ({{ $j['kind'] }})</option>
@@ -208,8 +209,8 @@
             <textarea class="ks-input" id="remarks" name="remarks" rows="3" maxlength="2000">{{ old('remarks') }}</textarea>
         </div>
         <div class="flex justify-end">
-            <button class="ks-btn ks-btn-primary" @disabled($blocked || ! $jobs)>
-                {{ $blocked ? 'Use your balance first' : (! $jobs ? 'No Job No yet' : 'Send to the Surveyor General') }}
+            <button class="ks-btn ks-btn-primary" id="brqSend" data-no-jobs="{{ $jobs ? '0' : '1' }}" @disabled($blocked || (! $jobs && old('request_type') !== 'bulk'))>
+                {{ $blocked ? 'Use your balance first' : (! $jobs && old('request_type') !== 'bulk' ? 'No Job No yet' : 'Send to the Surveyor General') }}
             </button>
         </div>
     </form>
@@ -260,6 +261,15 @@
         });
         // No map for a Bulk request; a pin dropped before switching is cleared, not sent.
         var bulk = requestType && requestType.value === 'bulk', mapBlock = document.getElementById('brqMapBlock');
+        // Job No: needed for a Single request only; hidden and not sent for Bulk.
+        var jobBlock = document.getElementById('brqJobBlock'), jobSel = document.getElementById('job_no'), send = document.getElementById('brqSend');
+        if (jobBlock) jobBlock.style.display = bulk ? 'none' : '';
+        if (jobSel) { jobSel.required = !bulk; jobSel.disabled = bulk; }
+        if (send && send.textContent.trim() !== 'Use your balance first') {
+            var noJob = send.dataset.noJobs === '1' && !bulk;
+            send.disabled = noJob;
+            send.textContent = noJob ? 'No Job No yet' : 'Send to the Surveyor General';
+        }
         if (mapBlock) {
             mapBlock.style.display = bulk ? 'none' : '';
             document.dispatchEvent(new CustomEvent(bulk ? 'brq:map-hidden' : 'brq:map-shown'));

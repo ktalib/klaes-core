@@ -70,12 +70,20 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::get('/beacons', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'beacons'])->name('beacons');
         // Survey Plan Check > Export > Geodatabase (user, 2026-11-15).
         Route::post('/export-gdb', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'gdb'])->middleware('throttle:20,1')->name('gdb');
+        // Add layer > Geodatabase: its catalog, then the layers picked (Recording 5, 2026-11-16).
+        Route::post('/gdb-catalog', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'gdbCatalog'])->middleware('throttle:20,1')->name('gdb-catalog');
+        Route::post('/gdb-catalog/read', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'gdbCatalogRead'])->middleware('throttle:60,1')->name('gdb-catalog.read');
         // Kano GIS layers (F:\GIS Data) for the card's Layers panel, signed-in only (2026-11-15).
         Route::get('/gis-tiles/{layer}.pmtiles', [\App\Http\Controllers\Survey\GisTilesController::class, 'show'])->where('layer', '[a-z-]+')->name('gis-tiles');
         Route::get('/signing', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'signing'])->name('signing');
         // Survey Plan Check (user, 2026-11-12): blank, or filled in from an uploaded plan.
         Route::get('/check', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'check'])->name('check');
+        // Digital Plotting (Recording 5, 2026-11-16): its own page; Manual Upload stays the pop-up on the list.
+        Route::get('/digital', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'digital'])->name('digital');
         Route::get('/{plan}/check', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'checkPlan'])->whereNumber('plan')->name('check-plan');
+        // The Ministry's Application Plan form filled from the upload, the parcel on the map in its frame (user, 2026-11-17).
+        Route::get('/{plan}/application-plan', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'applicationPlan'])->whereNumber('plan')->name('application-plan');
+        Route::post('/{plan}/application-plan', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'saveApplicationPlan'])->whereNumber('plan')->name('application-plan.save');
         Route::get('/portal', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'portalPlans'])->name('portal');
         Route::get('/{plan}', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'show'])->whereNumber('plan')->name('show');
         Route::post('/{plan}/corrections', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'corrections'])->whereNumber('plan')->name('corrections');
@@ -522,6 +530,13 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Edit on Company / Surveyor Registrations (user, 2026-11-12).
         Route::put('/companies/{company}', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'updateCompany'])->whereNumber('company')->name('companies.update');
         Route::put('/accounts/{account}', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'updateSurveyor'])->whereNumber('account')->name('accounts.update');
+        // Surveyor row menu (2026-11-16): View profile, Update contact, sign-in slip, Transfer, Suspend / Restore, Delete.
+        Route::get('/accounts/{account}/profile', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'accountProfile'])->whereNumber('account')->name('accounts.profile');
+        Route::post('/accounts/{account}/contact', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'accountContact'])->whereNumber('account')->name('accounts.contact');
+        Route::post('/accounts/{account}/slip', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'accountSlip'])->whereNumber('account')->name('accounts.slip');
+        Route::post('/accounts/{account}/transfer', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'accountTransfer'])->whereNumber('account')->name('accounts.transfer');
+        Route::post('/accounts/{account}/toggle', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'accountToggle'])->whereNumber('account')->name('accounts.toggle');
+        Route::delete('/accounts/{account}', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'accountDestroy'])->whereNumber('account')->name('accounts.destroy');
         Route::post('/companies/{company}/reject', [\App\Http\Controllers\Survey\BeaconRequestController::class, 'rejectCompany'])->whereNumber('company')->name('companies.reject');
     });
 
@@ -604,6 +619,8 @@ Route::prefix('survey-module/mobile')->name('survey-module.mobile.')->group(func
         Route::middleware(['auth'])->group(function () {
             Route::get('/', [MobileCaseController::class, 'index'])->name('index');
             Route::get('/register', [MobileCaseController::class, 'create'])->name('register');
+            // Existing farmer on Add farmer, as on the web register (2026-11-15).
+            Route::get('/farmer-lookup', [MobileCaseController::class, 'farmerLookup'])->name('farmer-lookup');
             Route::post('/cases', [MobileCaseController::class, 'store'])->name('cases.store');
             Route::get('/cases/{case}', [MobileCaseController::class, 'show'])->name('cases.show');
             Route::post('/cases/{case}/submit', [MobileCaseController::class, 'submit'])->name('cases.submit');
@@ -614,7 +631,10 @@ Route::prefix('survey-module/mobile')->name('survey-module.mobile.')->group(func
             Route::get('/observations', [MobileObservationController::class, 'index'])->name('observations');
             Route::get('/observations/{its}', [MobileObservationController::class, 'show'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.show');
             Route::post('/observations/{its}', [MobileObservationController::class, 'store'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.store');
-            Route::post('/observations/{its}/coordinates', [MobileObservationController::class, 'storeCoordinate'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.coords.store');
+            // Beacon Number dropdown on the phone (2026-11-15): the same search as the web Survey Plan card.
+            Route::get('/beacon-search', [MobileObservationController::class, 'beaconSearch'])->name('beacon-search');
+            Route::post('/observations/{its}/traverse',[MobileObservationController::class, 'storeTraverse'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.traverse.store');
+            Route::post('/observations/{its}/coordinates',[MobileObservationController::class, 'storeCoordinate'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.coords.store');
             Route::post('/observations/{its}/sketch-plan', [SurveySketchPlanController::class, 'store'])->where('its', '(survey|cadastral|private)-[0-9]+')->name('observations.sketch.store');
 
             Route::prefix('plots')->name('plots.')->group(function () {

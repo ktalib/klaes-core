@@ -84,43 +84,16 @@
 
         <hr class="my-2 border-gray-200">
 
-        @php
-            $edmsId = $PrimaryApplication->id;
-
-            // Count total scannings for this application via file_indexings join
-            $totalScannings = DB::connection('sqlsrv')
-                ->table('scannings')
-                ->join('file_indexings', 'scannings.file_indexing_id', '=', 'file_indexings.id')
-                ->where('file_indexings.main_application_id', $PrimaryApplication->id)
-                ->count();
-
-            // Count page typings with scanning_id for this application
-            $completedPageTypings = DB::connection('sqlsrv')
-                ->table('pagetypings')
-                ->join('file_indexings', 'pagetypings.file_indexing_id', '=', 'file_indexings.id')
-                ->where('file_indexings.main_application_id', $PrimaryApplication->id)
-                ->whereNotNull('pagetypings.scanning_id')
-                ->count();
-
-            // Page typing is completed when all scannings have been typed
-            $pageTypingCompleted = ($totalScannings > 0 && $totalScannings == $completedPageTypings);
-        @endphp
-
-        @if($pageTypingCompleted)
-            <button
-                class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center space-x-2 opacity-50 cursor-not-allowed"
-                disabled title="All scanned documents have been typed ({{ $completedPageTypings }}/{{ $totalScannings }})">
-                <i data-lucide="folder-open" class="w-4 h-4 text-gray-500"></i>
-                <span>Capture Initial DMS</span>
-            </button>
-        @else
-            <a href="{{ route('edms.index', $edmsId) }}"
-                class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center space-x-2"
-                title="{{ $totalScannings > 0 ? 'Page typing in progress (' . $completedPageTypings . '/' . $totalScannings . ')' : 'Start document scanning and page typing' }}">
-                <i data-lucide="folder-open" class="w-4 h-4 text-blue-500"></i>
-                <span>Capture Initial DMS</span>
+        {{-- Open Folio replaces Capture Initial DMS (user, 2026-11-16): the ST file opens in the VFS;
+             scanning goes through the main DMS (Scan Upload / Blind Scan). --}}
+        <li class="{{ empty($PrimaryApplication->np_fileno) ? 'opacity-50 cursor-not-allowed' : '' }}">
+            <a href="{{ !empty($PrimaryApplication->np_fileno) ? route('vfs.open', ['file_no' => $PrimaryApplication->np_fileno]) : '#' }}"
+                @if(!empty($PrimaryApplication->np_fileno)) target="_blank" rel="noopener" @endif
+                class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center space-x-2 {{ empty($PrimaryApplication->np_fileno) ? 'pointer-events-none' : '' }}">
+                <i data-lucide="folder-tree" class="w-4 h-4 text-blue-500"></i>
+                <span>Open Folio</span>
             </a>
-        @endif
+        </li>
 
 
         <hr class="my-2 border-gray-200">

@@ -18,7 +18,8 @@ class SurveyCompanyLoginDetails extends Mailable
     public function __construct(
         public string $companyName,
         public string $username,
-        public string $password,
+        // Null: an approved surveyor who chose their own password at registration (user, 2026-11-15).
+        public ?string $password,
         public string $loginUrl,
         // A surveyor's login (added by the SG, 2026-11-10): their Surveyor ID; null for a company.
         public ?string $surveyorId = null,
@@ -27,7 +28,7 @@ class SurveyCompanyLoginDetails extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: $this->surveyorId ? 'Your MLPP-SG Portal surveyor login' : 'Your MLPP-SG Portal company login');
+        return new Envelope(subject: $this->surveyorId ? 'Your KN-MLPP-SG Portal surveyor login' : 'Your KN-MLPP-SG Portal company login');
     }
 
     public function content(): Content

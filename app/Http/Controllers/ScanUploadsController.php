@@ -129,7 +129,11 @@ class ScanUploadsController extends Controller
                 ], 404);
             }
 
-            $selectedFiles = (isset($validated['files']) && $validated['files'] !== null) ? $validated['files'] : [];
+            if ($refused = $this->registryRefusal($request, $fileIndexing->file_number, $validated['registry'])) {
+                return $refused;
+            }
+
+            $selectedFiles =(isset($validated['files']) && $validated['files'] !== null) ? $validated['files'] : [];
 
             // Same rule as a direct upload: the operator's pick wins, otherwise the
             // file keeps whatever master folder it is already classified under.
@@ -251,6 +255,25 @@ class ScanUploadsController extends Controller
     }
 
     /**
+     * The file number's own registry against the one picked (user, 2026-11-16: ST files were
+     * going into other registries' folders). The page asks first; this refuses anything that
+     * skips it. A warning passes once the user confirmed (registry_confirmed=1).
+     */
+    private function registryRefusal(Request $request, ?string $fileNumber, ?string $registry)
+    {
+        $mismatch = \App\Support\RegistrySeries::mismatch($fileNumber, $registry);
+        if (!$mismatch || ($mismatch['level'] === 'warn' && $request->boolean('registry_confirmed'))) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => $mismatch['message'],
+            'registry_mismatch' => $mismatch,
+        ], 409);
+    }
+
+    /**
      * Handle single file upload.
      */
     public function upload(Request $request)
@@ -293,6 +316,10 @@ class ScanUploadsController extends Controller
                     'success' => false,
                     'message' => 'Unable to find the specified indexed file.',
                 ], 404);
+            }
+
+            if ($refused = $this->registryRefusal($request, $fileIndexing->file_number, $payload['registry'])) {
+                return $refused;
             }
 
             // Extract file metadata

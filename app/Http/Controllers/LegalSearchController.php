@@ -683,8 +683,8 @@ class LegalSearchController extends Controller
             ], 404);
         }
 
+        // file_title is never written from Legal Search (user, 2026-11-16): a sent value is ignored.
         $record->fill([
-            'file_title' => $validated['file_title'] ?? null,
             'plot_number' => $validated['plot_no'] ?? null,
             'plot_size' => $validated['size'] ?? null,
             'tp_no' => $validated['tp_no'] ?? null,

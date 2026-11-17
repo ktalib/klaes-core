@@ -13,6 +13,15 @@
       $coverKind = 'land';
   }
 @endphp
+{{-- ST has no cover of its own yet: COVERS/st.jpeg is a Land cover (user, 2026-11-16), so ST
+     cards show a plain placeholder with the file's details until the right cover is supplied. --}}
+@if($coverKind === 'st')
+<div class="flex-1 flex flex-col items-center justify-center gap-2 w-full h-full bg-gray-50 px-3 text-center" @if(!empty($hidden)) style="display:none" @endif>
+    <i data-lucide="folder" class="h-10 w-10 text-gray-300"></i>
+    <span class="text-xs font-bold text-gray-800 break-all">{{ $file->file_number }}</span>
+    <span class="text-xs text-gray-500 line-clamp-2">{{ $file->file_title ?: '—' }}</span>
+</div>
+@else
 <div class="flex-1 relative overflow-hidden w-full h-full" @if(!empty($hidden)) style="display:none" @endif>
     <img src="{{ route('filearchive.cover-template', ['kind' => $coverKind]) }}"
          alt="File cover"
@@ -43,3 +52,4 @@
         </span>
     </div>
 </div>
+@endif

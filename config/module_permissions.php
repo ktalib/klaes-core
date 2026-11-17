@@ -108,6 +108,7 @@ return [
         'laas', 'laas/*',
         'kssgof', 'kssgof/*',
         'mlpp-sg', 'mlpp-sg/*',
+        'kn-mlpp-sg', 'kn-mlpp-sg/*',
         'phs', 'phs/*',
         'online-legal-search', 'online-legal-search/*',
         'api/*',

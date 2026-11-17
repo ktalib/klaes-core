@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Signed Survey Plans — MLPP-SG Portal')
+@section('title', 'Signed Survey Plans — KN-MLPP-SG Portal')
 @section('heading', 'Signed Survey Plans')
 
 {{-- Survey Plan Upload > Signed (user, 2026-11-12): the surveyor's plans the SG/DSG has signed. --}}

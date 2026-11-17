@@ -17,7 +17,9 @@
   @if ($plan)
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a class="btn btn-secondary" href="{{ route('survey-module.survey-plans.show', $plan) }}"><i class="fas fa-layer-group"></i> Open (stages)</a>
+      @if ($plan->file_path)
       <a class="btn btn-secondary" href="{{ route('survey-module.survey-plans.file', $plan) }}" target="_blank" rel="noopener"><i class="fas fa-file-lines"></i> Open Plan</a>
+      @endif
     </div>
   @endif
 </div>

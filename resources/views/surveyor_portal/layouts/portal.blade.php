@@ -160,7 +160,7 @@
                 $onSigned = request()->routeIs('surveyor-portal.survey-plans.signed');
                 $onOriginal = request()->routeIs('surveyor-portal.survey-plans.*') && ! $onSigned;
             @endphp
-            <div class="ks-side-group {{ $onSigned || $onOriginal ? 'in' : '' }}"><i data-lucide="upload" class="w-[18px] h-[18px]"></i> Survey Plan Upload</div>
+            <div class="ks-side-group {{ $onSigned || $onOriginal ? 'in' : '' }}"><i data-lucide="upload" class="w-[18px] h-[18px]"></i> Survey Plan Management</div>
             <div class="ks-side-sub">
                 <a class="{{ $onOriginal ? 'on' : '' }}" href="{{ route('surveyor-portal.survey-plans.index') }}" @if ($onOriginal) aria-current="page" @endif><i data-lucide="file-text" class="w-4 h-4"></i> Original</a>
                 <a class="{{ $onSigned ? 'on' : '' }}" href="{{ route('surveyor-portal.survey-plans.signed') }}" @if ($onSigned) aria-current="page" @endif><i data-lucide="file-check-2" class="w-4 h-4"></i> Signed</a>

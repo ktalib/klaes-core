@@ -98,7 +98,7 @@ class PortalController extends Controller
 
         $data = $r->validate([
             'request_type' => 'required|in:single,bulk',
-            'job_no'      => 'required|string|max:40',
+            'job_no'      => 'required_if:request_type,single|nullable|string|max:40',
             'job_name'    => 'nullable|string|max:255',
             'quantity'    => 'required|integer|min:1|max:' . BeaconRequests::MAX_QUANTITY,
             'plot_no'     => 'nullable|string|max:100',
@@ -113,7 +113,7 @@ class PortalController extends Controller
             'payment_evidence' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ], [
             'quantity.required' => 'Enter the number of beacons.',
-            'job_no.required' => 'Choose the Job No for this survey.',
+            'job_no.required_if' => 'Choose the Job No for this survey.',
             'request_type.required' => 'Choose whether this is a Single or Bulk request.',
             'amount_paid.required' => 'Enter the amount paid to SURCON.',
             'amount_paid.decimal' => 'Enter an amount with no more than two decimal places.',
@@ -125,8 +125,12 @@ class PortalController extends Controller
             'lga.required_if' => 'Choose the LGA for a Single request.',
         ]);
         $data['layout_type'] = $this->me()->surveyor_type;
+        // A Bulk request has no Job No: the beacons are used later, on different surveys (user, 2026-11-17).
+        if ($data['request_type'] === 'bulk') {
+            $data['job_no'] = null;
+        }
         // The Job No must be one given to this surveyor (Survey Update 5b, 2026-11-10).
-        if (! array_key_exists($data['job_no'], $this->requests->jobChoices($this->me()))) {
+        if ($data['job_no'] !== null && ! array_key_exists($data['job_no'], $this->requests->jobChoices($this->me()))) {
             throw \Illuminate\Validation\ValidationException::withMessages(['job_no' => 'Choose a Job No given to you.']);
         }
 

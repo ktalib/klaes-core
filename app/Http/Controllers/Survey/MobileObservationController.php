@@ -103,7 +103,7 @@ class MobileObservationController extends Controller
             'bearing_m'         => 'nullable|integer|min:0|max:59',
             'bearing_s'         => 'nullable|numeric|min:0|lt:60',
             'observed_distance' => 'required|numeric|gt:0|max:1000000',
-            'observed_on'       => 'nullable|date',
+            'observed_on'       => 'nullable|date|before_or_equal:today',
             'remarks'           => 'nullable|string|max:500',
         ], ['to_station.different' => 'A reading goes from one station to another.']);
 
@@ -158,7 +158,7 @@ class MobileObservationController extends Controller
             'gps_longitude'  => 'nullable|numeric|between:-180,180|required_with:gps_latitude',
             'gps_accuracy_m' => 'nullable|numeric|min:0|max:100000',
         ], [
-            'beacon_id.required' => 'Give the beacon ID.',
+            'beacon_id.required' => 'Give the beacon number.',
             'northing.required'  => 'Give the northing.',
             'easting.required'   => 'Give the easting.',
         ]);
@@ -196,6 +196,127 @@ class MobileObservationController extends Controller
         }
 
         return $this->answerCoord($r, $its, $coord, false);
+    }
+
+    /**
+     * A whole traverse from the Survey Plan Check card on the job page (user, 2026-11-15: "this and the map
+     * form the Computation and Field Observation app"). Each line becomes a reading; each beacon's worked-out
+     * X / Y joins the List of Coordinates, except beacons already on it (never overwritten). Safe to resend:
+     * client_uuid is per save, row keys are client_uuid + L/P + index.
+     */
+    public function storeTraverse(Request $r, string $its)
+    {
+        $anchor = $this->writable($its);
+
+        // method gps (Walk & mark, 2026-11-15): points marked with the phone's GPS go to the List of
+        // Coordinates with their fix and accuracy; they are not field readings, so no lines are needed.
+        $gps = $r->input('method') === 'gps';
+        $data = $r->validate([
+            'client_uuid'           => 'required|string|max:30',
+            'method'                => 'nullable|in:traverse,gps',
+            'coord_system'          => 'nullable|string|max:10',
+            'observed_on'           => 'nullable|date|before_or_equal:today',
+            'lines'                 => ($gps ? 'nullable' : 'required|min:1') . '|array|max:200',
+            'lines.*.from_station'  => 'required|string|max:50',
+            'lines.*.to_station'    => 'required|string|max:50|different:lines.*.from_station',
+            'lines.*.bearing'       => 'required|numeric|min:0|lt:360',
+            'lines.*.distance'      => 'required|numeric|gt:0|max:1000000',
+            'points'                => ($gps ? 'required|min:1|' : '') . 'array|max:200',
+            'points.*.beacon_id'    => 'required|string|max:50',
+            'points.*.easting'      => 'required|numeric|min:-99999999|max:99999999',
+            'points.*.northing'     => 'required|numeric|min:-99999999|max:99999999',
+            'points.*.gps_latitude'   => 'nullable|numeric|between:-90,90',
+            'points.*.gps_longitude'  => 'nullable|numeric|between:-180,180',
+            'points.*.gps_accuracy_m' => 'nullable|numeric|min:0|max:100000',
+        ], [
+            'points.*.beacon_id.required'   => 'Name every point before saving.',
+            'lines.*.from_station.required' => 'Name the start beacon (X1) before saving.',
+            'lines.*.to_station.required'   => 'Name every To beacon before saving.',
+            'lines.*.to_station.different'  => 'A line goes from one beacon to another.',
+            'lines.*.bearing.required'      => 'Every line needs its bearing.',
+            'lines.*.distance.required'     => 'Every line needs its distance.',
+        ]);
+
+        $uuid = $data['client_uuid'];
+        $key = fn (string $s) => mb_strtoupper(trim(preg_replace('/\s+/', ' ', $s)));
+        $note = ($gps ? 'GPS walk on the phone' : 'Traverse on the phone') . ($data['coord_system'] ? ', EPSG:' . $data['coord_system'] : '');
+
+        if (Obs::where('client_uuid', $uuid . 'L0')->exists() || Coord::where('client_uuid', $uuid . 'P0')->exists()) {
+            return $this->answerTraverse($r, $its, 0, 0, 0, true);
+        }
+
+        $saved = DB::connection('sqlsrv')->transaction(function () use ($data, $anchor, $uuid, $key, $note, $r) {
+            $obsScope = fn () => Obs::query()->tap(fn ($q) => SurveyItsAnchors::scope($q, $anchor));
+            $coordScope = fn () => Coord::query()->tap(fn ($q) => SurveyItsAnchors::scope($q, $anchor));
+            $sort = (int) $obsScope()->max('sort_order');
+            foreach (array_values($data['lines'] ?? []) as $i => $l) {
+                Obs::create($anchor['keys'] + [
+                    'client_uuid'       => $uuid . 'L' . $i,
+                    'its_number'        => $anchor['prefill']['its_number'],
+                    'file_number'       => $anchor['prefill']['file_number'],
+                    'sort_order'        => ++$sort,
+                    'from_station'      => $key($l['from_station']),
+                    'to_station'        => $key($l['to_station']),
+                    'observed_bearing'  => round((float) $l['bearing'], 8),
+                    'observed_distance' => (float) $l['distance'],
+                    'observed_on'       => $data['observed_on'] ?? now()->toDateString(),
+                    'observer'          => $r->user()?->name,
+                    'source'            => 'mobile',
+                    'remarks'           => $note,
+                ]);
+            }
+
+            $have = $coordScope()->get(['beacon_id'])->map(fn ($c) => $key($c->beacon_id))->flip();
+            $csort = (int) $coordScope()->max('sort_order');
+            $added = $skipped = 0;
+            foreach (array_values($data['points'] ?? []) as $i => $p) {
+                $b = $key($p['beacon_id']);
+                if ($have->has($b)) { $skipped++; continue; }
+                $have[$b] = true;
+                Coord::create($anchor['keys'] + [
+                    'client_uuid' => $uuid . 'P' . $i,
+                    'its_number'  => $anchor['prefill']['its_number'],
+                    'file_number' => $anchor['prefill']['file_number'],
+                    'sort_order'  => ++$csort,
+                    'beacon_id'   => $b,
+                    'northing'    => round((float) $p['northing'], 3),
+                    'easting'     => round((float) $p['easting'], 3),
+                    'remarks'     => $note . (isset($p['gps_accuracy_m']) ? ' (±' . round((float) $p['gps_accuracy_m'], 1) . ' m)' : ''),
+                    'gps_latitude'   => $p['gps_latitude'] ?? null,
+                    'gps_longitude'  => $p['gps_longitude'] ?? null,
+                    'gps_accuracy_m' => $p['gps_accuracy_m'] ?? null,
+                    'source'      => 'mobile',
+                ]);
+                $added++;
+            }
+
+            return [count($data['lines'] ?? []), $added, $skipped];
+        });
+
+        return $this->answerTraverse($r, $its, ...$saved);
+    }
+
+    private function answerTraverse(Request $r, string $its, int $lines, int $added, int $skipped, bool $duplicate = false)
+    {
+        $msg = $duplicate ? 'This was already saved.'
+            : ($lines ? "Traverse saved: {$lines} reading(s), {$added} beacon(s) added to the List of Coordinates" : "GPS points saved: {$added} added to the List of Coordinates")
+              . ($skipped ? ", {$skipped} already on it (kept as they were)" : '') . '.';
+        if ($r->expectsJson()) {
+            return response()->json(['ok' => true, 'message' => $msg, 'duplicate' => $duplicate,
+                'redirect' => route('survey-module.mobile.observations.show', ['its' => $its, 'app' => \App\Support\SurveyMobileApps::current()])]);
+        }
+
+        return redirect()->route('survey-module.mobile.observations.show', ['its' => $its, 'app' => \App\Support\SurveyMobileApps::current()])
+            ->with('success', $msg);
+    }
+
+    /**
+     * Beacon Number dropdown (user, 2026-11-15): issued / captured beacon numbers, then the Extant Beacons list,
+     * with Beacon Register X / Y where the pair is valid. The same search as the web Survey Plan card.
+     */
+    public function beaconSearch(Request $r, \App\Services\Survey\SurveyPlanUploads $plans)
+    {
+        return response()->json(['data' => $plans->searchBeacons((string) $r->query('q', ''))]);
     }
 
     /* ------------------------------------------------------------------ */

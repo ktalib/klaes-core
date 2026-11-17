@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', $m->request_ref . ' — MLPP-SG Portal')
+@section('title', $m->request_ref . ' — KN-MLPP-SG Portal')
 @section('heading', 'Map Request ' . $m->request_ref)
 
 @push('styles')

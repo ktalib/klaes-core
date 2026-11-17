@@ -1,6 +1,6 @@
 @extends(auth('surveyor')->check() ? 'surveyor_portal.layouts.portal' : 'surveyor_portal.layouts.public')
 
-@section('title', 'Request Map — MLPP-SG Portal')
+@section('title', 'Request Map — KN-MLPP-SG Portal')
 @section('heading', 'Request Map')
 
 @push('styles')

@@ -355,6 +355,7 @@ function renderRows(rows) {
 
   dom.tableBody.innerHTML = fragments;
   attachVersionButtons(rows);
+  attachBlockButtons(rows);
   bindActionHandlers();
   if (window.RelatedTempExpand) window.RelatedTempExpand.scan(dom.tableBody);
   if (window.lucide && typeof window.lucide.createIcons === 'function') {
@@ -463,6 +464,86 @@ if (config.recordVersionsUrlTemplate && dom.tableBody) {
     event.preventDefault();
     event.stopPropagation();
     toggleRecordVersions(btn);
+  });
+}
+
+// ─── Land Block Indexing (user, 2026-11-16) ─────────────────────────────────
+// A block-indexed file gets a "Block · N files" button in its File No cell; it opens
+// the files held in the block (one per holder / plot) as a small table under the row.
+// The files come with the list row (block_files), so nothing more is fetched.
+// Styles live here, not in a stylesheet: this script also draws the shared indexed-files table component.
+function ensureBlockStyles() {
+  if (document.getElementById('blk-styles')) return;
+  const css = `
+    .blk-toggle { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:2px 8px 2px 4px;
+      margin-top:4px; border-radius:9999px; border:1px solid #c7d2fe; background:#eef2ff; color:#4338ca; cursor:pointer; }
+    .blk-toggle:hover { background:#e0e7ff; }
+    .blk-toggle:focus-visible { outline:2px solid #4f46e5; outline-offset:2px; }
+    .blk-toggle .blk-chevron { transition:transform .15s; }
+    .blk-toggle[aria-expanded="true"] .blk-chevron { transform:rotate(90deg); }
+    tr.blk-open > td { background:#eef2ff !important; }
+    tr.blk-row > td { background:#f8fafc !important; padding:8px 12px 12px 12px !important; }
+    .blk-panel { position:sticky; left:12px; display:inline-block; width:max-content; max-width:min(1000px, calc(100vw - 420px)); border:1px solid #c7d2fe; border-radius:10px; background:#fff; overflow-x:auto; }
+    .blk-title { display:flex; align-items:center; gap:6px; margin:0; padding:8px 12px; font-size:12px; font-weight:700; color:#4338ca; border-bottom:1px solid #e0e7ff; }
+    .blk-table { width:auto; border-collapse:collapse; font-size:12.5px; }
+    .blk-table thead, .blk-table thead tr, .blk-table th { position:static !important; height:auto !important; top:auto !important; }
+    .blk-table th { text-align:left; padding:6px 12px; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; white-space:nowrap; }
+    .blk-table td { padding:6px 12px; border-top:1px solid #f1f5f9; color:#334155; white-space:nowrap; }
+    @media (prefers-reduced-motion: reduce) { .blk-toggle .blk-chevron { transition:none; } }`;
+  document.head.insertAdjacentHTML('beforeend', `<style id="blk-styles">${css}</style>`);
+}
+
+function attachBlockButtons(rows) {
+  const col = versionFileCol();
+  if (col < 0) return;
+  ensureBlockStyles();
+  rows.forEach((row) => {
+    const files = Array.isArray(row.block_files) ? row.block_files : [];
+    if (!files.length) return;
+    const tr = dom.tableBody.querySelector(`tr[data-row-id="${CSS.escape(String(row.id))}"]`);
+    const td = tr && tr.children[col];
+    if (!td) return;
+    td.insertAdjacentHTML('beforeend', `<div class="rsv-label"><button type="button" class="blk-toggle" aria-expanded="false"
+        data-id="${escapeHtml(row.id)}" title="Show the files in this block">
+        <i data-lucide="chevron-right" class="blk-chevron w-3.5 h-3.5"></i><i data-lucide="layers" class="w-3 h-3"></i>
+        <span>Block &middot; ${files.length} file${files.length === 1 ? '' : 's'}</span>
+      </button></div>`);
+    td.querySelector('.blk-toggle')._blockFiles = files;
+  });
+}
+
+function toggleBlockFiles(btn) {
+  const tr = btn.closest('tr');
+  const id = btn.dataset.id;
+  const open = btn.getAttribute('aria-expanded') === 'true';
+  dom.tableBody.querySelectorAll(`tr.blk-row[data-blk-of="${CSS.escape(id)}"]`).forEach(r => r.remove());
+  btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+  tr.classList.toggle('blk-open', !open);
+  if (open) return;
+  const files = btn._blockFiles || [];
+  const dash = '<span class="text-gray-400">-</span>';
+  const cell = v => (v === null || v === undefined || String(v).trim() === '') ? dash : escapeHtml(v);
+  // Property order: Plot No., District, LGA, Location.
+  const body = files.map((f, i) => `<tr>
+      <td>${i + 1}</td><td class="font-semibold">${cell(f.file_number)}</td><td>${cell(f.holder)}</td>
+      <td>${cell(f.plot_number)}</td><td>${cell(f.district)}</td><td>${cell(f.lga)}</td><td>${cell(f.location)}</td>
+    </tr>`).join('');
+  tr.insertAdjacentHTML('afterend', `<tr class="blk-row" data-blk-of="${escapeHtml(id)}"><td colspan="${tr.children.length}">
+      <div class="blk-panel" data-column-picker="off">
+        <p class="blk-title"><i data-lucide="layers" class="w-3.5 h-3.5"></i> Files in this block (${files.length})</p>
+        <table class="blk-table"><thead><tr><th>S/N</th><th>File No.</th><th>Holder</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th></tr></thead>
+        <tbody>${body}</tbody></table>
+      </div></td></tr>`);
+  if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+}
+
+if (dom.tableBody) {
+  dom.tableBody.addEventListener('click', (event) => {
+    const btn = event.target.closest('.blk-toggle');
+    if (!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    toggleBlockFiles(btn);
   });
 }
 

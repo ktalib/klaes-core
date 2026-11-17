@@ -455,14 +455,15 @@
                                                     <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Year</label>
                                                     {{-- The serial series is per year, so a manual serial picks its year too:
                                                          DCIV-2025-400 and DCIV-2026-400 are different numbers issued by
-                                                         different counters. Only years with an initialized counter for the
-                                                         selected prefix are offered. Auto is always the current year. --}}
+                                                         different counters. Auto is always the current year, the only one with a
+                                                         counter; earlier years are manual entry from dciv_grouping and never get
+                                                         one (user, 2026-11-16), so only an unset current year is flagged. --}}
                                                     <template x-if="serialMode === 'manual' && !editMode">
                                                         <select x-model="formData.year" @change="onYearPicked()"
                                                             class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm">
                                                             <template x-for="y in availableYears" :key="y.year">
                                                                 <option :value="String(y.year)"
-                                                                        x-text="y.initialized ? y.year : y.year + ' — no counter'"></option>
+                                                                        x-text="(y.initialized || y.year < {{ (int) date('Y') }}) ? y.year : y.year + ' — no counter'"></option>
                                                             </template>
                                                         </select>
                                                     </template>
@@ -485,7 +486,10 @@
                                                                 class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest transition">Auto</button>
                                                         </div>
                                                     </div>
-                                                    <input type="number" min="1" x-model="formData.serial_number"
+                                                    {{-- Digits only, never starting with 0 (user, 2026-11-16). --}}
+                                                    <input type="number" min="1" step="1" x-model="formData.serial_number"
+                                                        @keydown="['e', 'E', '+', '-', '.', ','].includes($event.key) && $event.preventDefault()"
+                                                        @input="cleanSerial($event)"
                                                         @input.debounce.400ms="onSerialTyped()"
                                                         :disabled="serialMode === 'auto' || editMode"
                                                         :class="(serialMode === 'auto' || editMode)

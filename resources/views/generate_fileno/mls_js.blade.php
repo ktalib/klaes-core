@@ -1837,12 +1837,21 @@
             const sup = row.superseded || null;
             const relatedList = (sup && sup.successor ? [{ file_no: sup.successor, title: null }] : [])
                 .concat(mlsfRelatedFilesFor(row));
+            // The cell names a related file by both numbers ("CON-COM-2005-8 (MLKN 456)"),
+            // so the expansion lists the KANGIS one on its own line too, right after it --
+            // otherwise the officer sees two numbers in the cell and one in the expansion.
+            const expandList = [];
+            relatedList.forEach(e => {
+                expandList.push(e);
+                const alias = String((e && e.alias) || '').trim();
+                if (alias) expandList.push({ file_no: alias, title: e.title || null });
+            });
             const temps = [row.source_temp_fileno, row.temp_fileno, row.temp_file_no]
                 .map(v => String(v || '').trim())
                 .filter(v => v !== '' && v !== '-' && v.toUpperCase() !== 'N/A');
             window.RelatedTempExpand.prime(
                 fileNo,
-                relatedList.map(e => ({ file_number: String(e.file_no).trim(), file_title: e.title || null })),
+                expandList.map(e => ({ file_number: String(e.file_no).trim(), file_title: e.title || null })),
                 temps.map(v => ({ file_number: v, file_title: null }))
             );
             tr.dataset.rtFileno = fileNo;

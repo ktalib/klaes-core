@@ -1220,6 +1220,7 @@
                 file_number: state.selectedFileNumberForUpload,
                 file_indexing_id: Number(state.selectedIndexedFile) || null,
                 registry: blindScanElements.registry?.value,
+                registry_confirmed: isScanRegistryConfirmed(state.selectedFileNumberForUpload) ? 1 : 0,
                 // Same master folder a direct upload would use; omitted when blank
                 // so the file keeps whatever it is already classified as.
                 edms_file_type: elements.scanUploadFileType?.value || null,
@@ -2504,6 +2505,9 @@
         formData.append('original_filename', doc.file?.name || doc.fileName || 'document');
         formData.append('display_order', computedDisplayOrder);
         formData.append('registry', registryValue);
+        if (isScanRegistryConfirmed(indexedFile.fileNumber)) {
+            formData.append('registry_confirmed', '1');
+        }
 
         // The EDMS master folder these scans go into. Blank is a valid answer —
         // the file then stays directly under its registry until someone classifies
@@ -2719,6 +2723,13 @@
 
         if (state.uploadDocuments.length === 0) {
             alert('Please select files to upload');
+            return;
+        }
+
+        // The registry can be changed after the file was picked (2026-11-16). Blind scans were
+        // discovered in the picked registry's folder, so those are not switched here.
+        const fileForRegistryCheck = findIndexedFileById(state.selectedIndexedFile);
+        if (fileForRegistryCheck && !(await ensureRegistryFits(fileForRegistryCheck.fileNumber, { allowSwitch: state.selectedUploadMethod !== 'blind' }))) {
             return;
         }
 
@@ -2972,6 +2983,30 @@
         updateSelectedUploadMethodLabel();
     }
 
+    // "Search by: File number / File name" is offered for the Cadastral Registry only.
+    function smartSearchBy() {
+        const box = document.getElementById('smart-search-by');
+        if (!box || box.classList.contains('hidden')) return 'number';
+        return box.querySelector('input[name="smart-search-by"]:checked')?.value || 'number';
+    }
+
+    function syncSmartSearchBy() {
+        const box = document.getElementById('smart-search-by');
+        if (!box) return;
+        const cadastral = blindScanElements.registry?.value === 'Cadastral Registry';
+        box.classList.toggle('hidden', !cadastral);
+        if (!cadastral) box.querySelector('input[value="number"]').checked = true;
+        updateSmartSearchPlaceholder();
+    }
+
+    function updateSmartSearchPlaceholder() {
+        const selectElement = elements.globalSelectedFileNoSelect;
+        if (!selectElement || typeof $ === 'undefined' || !$(selectElement).data('select2')) return;
+        const text = smartSearchBy() === 'name' ? 'Search file name' : 'Search file number';
+        $(selectElement).data('select2').$container.find('.select2-selection__placeholder').text(text);
+        $(selectElement).data('select2').options.options.placeholder = text;
+    }
+
     function initializeSmartFileNumberSelector() {
         const selectElement = elements.globalSelectedFileNoSelect;
         if (!selectElement) {
@@ -3016,6 +3051,9 @@
                     if (term) {
                         query.append('search', term);
                     }
+                    if (smartSearchBy() === 'name') {
+                        query.append('by', 'name');
+                    }
 
                     fetch(`${indexedFilesEndpoint}?${query.toString()}`, {
                         headers: { 'Accept': 'application/json' }
@@ -3029,9 +3067,10 @@
                         .then((data) => {
                             const files = data.success && Array.isArray(data.indexed_files) ? data.indexed_files : [];
                             indexedFiles = files;
+                            const byName = smartSearchBy() === 'name';
                             const results = files.map((file) => ({
                                 id: String(file.id),
-                                text: file.fileNumber || '',
+                                text: byName && file.fileTitle ? `${file.fileNumber || ''} - ${file.fileTitle}` : (file.fileNumber || ''),
                                 file
                             }));
                             success({ results });
@@ -6350,9 +6389,136 @@
         rotateRight();
     }
 
-    function selectIndexedFileTemp(fileId, skipWarning = false) {
+    /*
+     | Registry check (user, 2026-11-16: "fix the scan upload for the ST"). Same rules as the
+     | Blind Scan page and the server (App\Support\RegistrySeries, which refuses the upload anyway):
+     |   block  a dedicated-series number (ST-, SLTR-, DCIV-, SIT-, Survey, KANGIS) picked for another
+     |          series registry: its scans go to its own registry (offered as a switch).
+     |   warn   a Lands number picked for a dedicated-series registry: the user confirms.
+     | Cadastral, Secret, Deeds and Physical Planning are never checked.
+     */
+    const SERIES_REGISTRY_NAMES = { LANDS: 'Lands Registry', SIT: 'SIT Registry', ST: 'ST Registry', SLTR: 'SLTR Registry', DCIV: 'DCIV Registry', GKN: 'Survey Registry', KANGIS: 'KANGIS Registry' };
+    function expectedRegistryCode(fileNumber) {
+        const f = String(fileNumber || '').trim().toUpperCase();
+        if (!f) return null;
+        if (f.startsWith('ST-')) return 'ST';
+        if (f.startsWith('DCIV-') || f.startsWith('DCIV/')) return 'DCIV';
+        if (f.startsWith('SLTR-') || f.startsWith('SLTR/')) return 'SLTR';
+        if (f.startsWith('SIT-') || f.startsWith('SIT/')) return 'SIT';
+        if (/^(GKN[-\/ ]|LPKN[-\/ ]|LPPL-|RDKN-|MISC KN)/.test(f)) return 'GKN';
+        if (/^(KNML|MLKN|MNKL|KNGP)/.test(f)) return 'KANGIS';
+        if (/^(RES[-\/]|COM[-\/]|IND[-\/]|AG[-\/]|MISC[-\/]|CON-(RES|COM|IND|AG|MISC))/.test(f)) return 'LANDS';
+        return null;
+    }
+    function scanRegistryMismatch(fileNumber, registryName) {
+        const expected = expectedRegistryCode(fileNumber);
+        const chosen = Object.keys(SERIES_REGISTRY_NAMES).find(code => SERIES_REGISTRY_NAMES[code] === registryName) || null;
+        if (!expected || !chosen || expected === chosen) return null;
+        if (expected === 'SIT') {
+            // SIT files are kept under Land (user, 2026-11-15).
+            if (chosen === 'LANDS' || chosen === 'SIT') return null;
+            return { level: 'block', expectedName: SERIES_REGISTRY_NAMES.LANDS, chosenName: registryName };
+        }
+        return { level: expected === 'LANDS' ? 'warn' : 'block', expectedName: SERIES_REGISTRY_NAMES[expected], chosenName: registryName };
+    }
+    function registryConfirmKey(fileNumber, registryName) {
+        return String(fileNumber || '').trim().toUpperCase() + '|' + (registryName || '');
+    }
+    function currentScanRegistry() {
+        return elements.blindScanRegistry?.value || blindScanElements.registry?.value || '';
+    }
+    function isScanRegistryConfirmed(fileNumber) {
+        return state.registryConfirmedKey === registryConfirmKey(fileNumber, currentScanRegistry());
+    }
+    function scanRegistryHasOption(registryName) {
+        const select = blindScanElements.registry || elements.blindScanRegistry;
+        return Boolean(select) && [...select.options].some(o => o.value === registryName);
+    }
+    function switchScanRegistry(registryName) {
+        const select = blindScanElements.registry || elements.blindScanRegistry;
+        if (!scanRegistryHasOption(registryName)) return false;
+        select.value = registryName;
+        select.dispatchEvent(new Event('change'));
+        return true;
+    }
+    /** Resolves true when the file may go into the picked registry (after a switch or a confirm). */
+    async function ensureRegistryFits(fileNumber, { allowSwitch = true } = {}) {
+        const registryName = currentScanRegistry();
+        const mismatch = scanRegistryMismatch(fileNumber, registryName);
+        if (!mismatch || (mismatch.level === 'warn' && isScanRegistryConfirmed(fileNumber))) {
+            return true;
+        }
+        const canSwitch = allowSwitch && scanRegistryHasOption(mismatch.expectedName);
+        const text = mismatch.level === 'block'
+            ? `${fileNumber} is a ${mismatch.expectedName} file number, so its scans cannot go into the ${mismatch.chosenName}.`
+                + (canSwitch ? '' : ` Choose the ${mismatch.expectedName} and select the file again.`)
+            : `${fileNumber} is a ${mismatch.expectedName} file number but the ${mismatch.chosenName} was picked. Confirm the physical file is kept in the ${mismatch.chosenName}, or upload it to the ${mismatch.expectedName}.`;
+
+        let choice = 'cancel';
+        if (typeof Swal !== 'undefined') {
+            const result = await Swal.fire({
+                title: mismatch.level === 'block' ? 'Wrong registry' : 'Check the registry',
+                text,
+                icon: mismatch.level === 'block' ? 'error' : 'warning',
+                showConfirmButton: mismatch.level === 'warn' || canSwitch,
+                confirmButtonText: mismatch.level === 'warn' ? `Keep in ${mismatch.chosenName}` : `Upload to ${mismatch.expectedName}`,
+                showDenyButton: mismatch.level === 'warn' && canSwitch,
+                denyButtonText: `Upload to ${mismatch.expectedName}`,
+                showCancelButton: true,
+                cancelButtonText: 'Cancel',
+                reverseButtons: true
+            });
+            if (result.isConfirmed) choice = mismatch.level === 'warn' ? 'keep' : 'switch';
+            else if (result.isDenied) choice = 'switch';
+        } else if (mismatch.level === 'warn') {
+            choice = confirm(`${text}\n\nOK = keep in ${mismatch.chosenName}`) ? 'keep' : 'cancel';
+        } else if (canSwitch) {
+            choice = confirm(`${text}\n\nOK = upload to ${mismatch.expectedName}`) ? 'switch' : 'cancel';
+        } else {
+            alert(text);
+        }
+
+        if (choice === 'keep') {
+            state.registryConfirmedKey = registryConfirmKey(fileNumber, registryName);
+            return true;
+        }
+        if (choice === 'switch') {
+            return switchScanRegistry(mismatch.expectedName);
+        }
+        return false;
+    }
+    function resetSmartFileSelection() {
+        const selectElement = elements.globalSelectedFileNoSelect;
+        if (selectElement) {
+            if (typeof $ !== 'undefined' && typeof $.fn.select2 !== 'undefined' && $(selectElement).data('select2')) {
+                $(selectElement).val(null).trigger('change');
+            } else {
+                selectElement.value = '';
+            }
+        }
+        clearIndexedFileSelection();
+        renderIndexedFiles();
+    }
+
+    function selectIndexedFileTemp(fileId, skipWarning = false, skipRegistryCheck = false) {
         const normalizedId = String(fileId);
         const selectedFile = findIndexedFileById(normalizedId);
+
+        // The registry must fit the file number before anything else (2026-11-16).
+        if (!skipRegistryCheck && selectedFile) {
+            const mismatch = scanRegistryMismatch(selectedFile.fileNumber, currentScanRegistry());
+            if (mismatch && !(mismatch.level === 'warn' && isScanRegistryConfirmed(selectedFile.fileNumber))) {
+                ensureRegistryFits(selectedFile.fileNumber).then((ok) => {
+                    if (ok) {
+                        selectIndexedFileTemp(fileId, skipWarning, true);
+                        renderIndexedFiles();
+                    } else {
+                        resetSmartFileSelection();
+                    }
+                });
+                return;
+            }
+        }
 
         // Check if the file already has uploads and show warning if not skipped
         if (!skipWarning && selectedFile && selectedFile.has_scans) {
@@ -6370,7 +6536,7 @@
                 }).then((result) => {
                     if (result.isConfirmed) {
                         // Re-run this function but skip the warning to proceed with selection
-                        selectIndexedFileTemp(fileId, true);
+                        selectIndexedFileTemp(fileId, true, true);
                         renderIndexedFiles();
                     } else {
                         // Reset selection if canceled
@@ -7254,6 +7420,9 @@
         }
 
         initializeSmartFileNumberSelector();
+        blindScanElements.registry?.addEventListener('change', syncSmartSearchBy);
+        document.querySelectorAll('input[name="smart-search-by"]').forEach((radio) => radio.addEventListener('change', updateSmartSearchPlaceholder));
+        syncSmartSearchBy();
 
         // "Next" — stages the discovered files and shows them in Preview.
         if (blindScanElements.transferBtn) {

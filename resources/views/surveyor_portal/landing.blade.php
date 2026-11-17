@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.app')
 
-@section('title', 'MLPP-SG Portal · Ministry of Land and Physical Planning – Surveyor General\'s Office')
+@section('title', 'KN-MLPP-SG Portal · Ministry of Land and Physical Planning – Surveyor General\'s Office')
 
 @push('styles')
 <style>
@@ -119,7 +119,7 @@
         'MLPP-SG' => [$portalSettings['logo_seal'] ?? 'assets/logo/mlppsg-logo.png'],
     ];
     $hbColour = ['SURCON' => '#0B3A7E', 'NIS' => '#15803D', 'MLPP-SG' => '#8A6A12'];
-    $hbNames = ['SURCON' => 'Surveyors Council of Nigeria (SURCON) logo', 'NIS' => 'Nigerian Institution of Surveyors (NIS) logo', 'MLPP-SG' => 'MLPP-SG seal'];
+    $hbNames = ['SURCON' => 'Surveyors Council of Nigeria (SURCON) logo', 'NIS' => 'Nigerian Institution of Surveyors (NIS) logo', 'MLPP-SG' => 'KN-MLPP-SG seal'];
     $hbSeen = [];
     $heroBodySlides = [];
     foreach ($hbOn ? (array) ($portalSettings['flash_banners'] ?? []) : [] as $b) {
@@ -133,7 +133,7 @@
     }
     $heroTotal = 3 + count($heroBodySlides);
 @endphp
-<section class="ks-hero" id="ksSlides" aria-roledescription="carousel" aria-label="About the MLPP-SG portal">
+<section class="ks-hero" id="ksSlides" aria-roledescription="carousel" aria-label="About the KN-MLPP-SG portal">
     <div class="ks-slide-stack">
         <div class="ks-slide is-on" role="group" aria-roledescription="slide" aria-label="1 of {{ $heroTotal }}">
         {{-- A traverse between beacons, drawn behind the banner. Decoration only. --}}

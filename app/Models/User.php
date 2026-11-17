@@ -160,11 +160,21 @@ class User extends Authenticatable implements MustVerifyEmail
                 ? \App\Services\PhoneOtpService::CHANNEL_EMAIL
                 : \App\Services\PhoneOtpService::CHANNEL_SMS;
 
+            /*
+             | "Changed" means a different number or mailbox, not a different spelling of
+             | the same one. The verification card stores 234XXXXXXXXXX while the admin
+             | edit form normalises to 0XXXXXXXXXX, so a raw isDirty() threw every
+             | phone-verified user back behind the card whenever a Super Admin saved
+             | their account (NS Umar, 2026-11-16). Email case/spaces are ignored too.
+             */
+            $phoneChanged = $user->isDirty('phone_number') && static::comparablePhone($user->getOriginal('phone_number')) !== static::comparablePhone($user->phone_number);
+            $emailChanged = $user->isDirty('email') && static::comparableEmail($user->getOriginal('email')) !== static::comparableEmail($user->email);
+
             $addressChanged = $otp->recordedChannel($user) === \App\Services\PhoneOtpService::CHANNEL_BOTH
-                ? ($user->isDirty('email') || $user->isDirty('phone_number'))
+                ? ($emailChanged || $phoneChanged)
                 : ($provedBy === \App\Services\PhoneOtpService::CHANNEL_EMAIL
-                ? $user->isDirty('email')
-                : $user->isDirty('phone_number'));
+                ? $emailChanged
+                : $phoneChanged);
 
             if (!$addressChanged) {
                 return;
@@ -198,6 +208,19 @@ class User extends Authenticatable implements MustVerifyEmail
                     ]);
             }
         });
+    }
+
+    /** 0806..., +234 806..., 234806... all compare equal; anything unparseable compares by its digits. */
+    protected static function comparablePhone($phone): string
+    {
+        $raw = (string) ($phone ?? '');
+
+        return \App\Services\BulkSmsNgService::normalizeNumber($raw) ?? (preg_replace('/\D+/', '', $raw) ?? '');
+    }
+
+    protected static function comparableEmail($email): string
+    {
+        return mb_strtolower(trim((string) ($email ?? '')));
     }
 
     protected static function ensurePayrollRate(User $user): void

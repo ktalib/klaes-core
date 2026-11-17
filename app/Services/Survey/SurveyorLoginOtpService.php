@@ -315,7 +315,7 @@ class SurveyorLoginOtpService
                 recipientName: (string) ($account->name ?: 'there'),
                 expiresInMinutes: $this->ttlMinutes(),
                 requestedFrom: $request->ip(),
-                subjectLine: (string) $this->config('email_subject', 'Your MLPP-SG Portal sign-in code'),
+                subjectLine: (string) $this->config('email_subject', 'Your KN-MLPP-SG Portal sign-in code'),
             ));
         } catch (\Throwable $e) {
             Log::warning('SurveyorLoginOtpService: sign-in code not delivered by email', [

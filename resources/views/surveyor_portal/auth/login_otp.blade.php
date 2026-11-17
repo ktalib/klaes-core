@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.guest')
 
-@section('title', 'Sign-in code — MLPP-SG Portal')
+@section('title', 'Sign-in code — KN-MLPP-SG Portal')
 
 {{-- Steps 2-3 of signing in: the password has been checked, the surveyor is not signed in yet.
      See SurveyorLoginOtpService / SurveyorPortal\LoginOtpController. --}}

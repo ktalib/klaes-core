@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Change Password — MLPP-SG Portal')
+@section('title', 'Change Password — KN-MLPP-SG Portal')
 @section('heading', 'Change Password')
 
 {{-- Change password (user, 2026-11-10). A company login is held here until it replaces the password sent by SMS and email. --}}

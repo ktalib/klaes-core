@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', "New Surveyor's Report — MLPP-SG Portal")
+@section('title', "New Surveyor's Report — KN-MLPP-SG Portal")
 @section('heading', "New Surveyor's Report")
 
 @include('surveyor_portal.reports._assets')

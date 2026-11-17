@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Beacon Register — MLPP-SG Portal')
+@section('title', 'Beacon Register — KN-MLPP-SG Portal')
 @section('heading', 'Beacon Register')
 
 {{-- The beacons this surveyor has used (user, 2026-11-09: "Beacon Register will contain the used Beacons only"). --}}

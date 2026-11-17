@@ -1,10 +1,10 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Add Surveyor — MLPP-SG Portal')
+@section('title', 'Add Surveyor — KN-MLPP-SG Portal')
 @section('heading', 'Add Surveyor')
 
 {{-- Our Surveyors > Add Surveyor (user, 2026-11-13): the registration form, under this company. The account waits for
-     the Surveyor General's approval in KLAES (MLPP-SG Portal Admin > Registrations), like any registration. --}}
+     the Surveyor General's approval in KLAES (KN-MLPP-SG Portal Admin > Registrations), like any registration. --}}
 @push('styles')
 <style>
     @media (min-width: 1100px) {

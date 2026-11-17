@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Dashboard — MLPP-SG Portal')
+@section('title', 'Dashboard — KN-MLPP-SG Portal')
 @section('heading', 'Dashboard')
 
 @push('styles')

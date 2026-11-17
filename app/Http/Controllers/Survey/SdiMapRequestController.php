@@ -126,7 +126,7 @@ class SdiMapRequestController extends Controller
         }
         // A surveyor is waiting on this one: rejecting it gives them the reason, deleting would only make it vanish.
         if ($mapRequest->surveyor_portal_account_id) {
-            return back()->with('error', "{$mapRequest->request_ref} came from the MLPP-SG portal. Reject it in the Production Unit so the surveyor sees the reason.");
+            return back()->with('error', "{$mapRequest->request_ref} came from the KN-MLPP-SG portal. Reject it in the Production Unit so the surveyor sees the reason.");
         }
 
         $ref = $mapRequest->request_ref;

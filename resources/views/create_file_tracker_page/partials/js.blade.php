@@ -6250,13 +6250,20 @@
             // Completed Files tab only: who logged each entry, and who completed the
             // file (the entry that set it to Completed / logged it back in).
             const showCompletionCols = !isKangisView && window._fileLogView === 'completed';
+            // "Logged By" now has its own column (after Log Out) on every tab, so the
+            // Completed Files tab keeps only Completed By here.
             const completionCells = (entry, cellCls) => {
                 if (!showCompletionCols) return '';
-                if (!entry) return `<td class="${cellCls}">—</td><td class="${cellCls}">—</td>`;
+                if (!entry) return `<td class="${cellCls}">—</td>`;
                 const by = entry.createdByName ? sanitize(entry.createdByName) : '';
                 const lbl = String(resolveStatusDisplay(entry, (entry.status || 'completed').toLowerCase()).label || '').toLowerCase();
                 const isCompletion = /completed/i.test(String(entry.newStatus || '')) || lbl === 'completed';
-                return `<td class="${cellCls}">${by || '—'}</td><td class="${cellCls}">${isCompletion && by ? `<span class="font-semibold text-blue-700">${by}</span>` : '—'}</td>`;
+                return `<td class="${cellCls}">${isCompletion && by ? `<span class="font-semibold text-blue-700">${by}</span>` : '—'}</td>`;
+            };
+            // Logged By: the account that logged this movement entry (file_trackers log created_by_name).
+            const logByCell = (entry) => {
+                const by = entry && entry.createdByName ? sanitize(entry.createdByName) : '';
+                return `<td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700">${by || '<span class="text-gray-400">—</span>'}</td>`;
             };
 
             const kangisAwaitingOfficeDetails = isKangisAwaitingOfficeDetails(tracker);
@@ -6513,6 +6520,7 @@
                                 <div>${sanitize(entry.logOutDate || '—')}</div>
                                 <div class="text-xs text-gray-500">${sanitize(entry.logOutTime || '—')}</div>
                             </td>
+                            ${logByCell(entry)}
                             <td class="whitespace-nowrap px-4 py-3 text-sm">
                                 <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusClass}">
                                     <span class="mr-1 inline-flex h-2 w-2 rounded-full ${statusDotClass}"></span>
@@ -6644,6 +6652,7 @@
                             <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-700">Archive</td>
                             <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-700">${homeLogInCell}</td>
                             <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-400">—</td>
+                            <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-400">—</td>
                             <td class="whitespace-nowrap px-4 py-3 text-sm">
                                 <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
                                     <span class="mr-1 inline-flex h-2 w-2 rounded-full bg-indigo-500"></span>
@@ -6729,6 +6738,7 @@
                                 <div>${sanitize(entry.logOutDate || '—')}</div>
                                 <div class="text-xs text-gray-400">${sanitize(entry.logOutTime || '—')}</div>
                             </td>
+                            ${logByCell(entry)}
                             <td class="whitespace-nowrap px-4 py-3 text-sm">
                                 <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusClass}">
                                     <span class="mr-1 inline-flex h-2 w-2 rounded-full ${statusDotClass}"></span>
@@ -7086,13 +7096,14 @@
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Receiving Officer</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Log In</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Log Out</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Logged By</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Request Purpose</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Timeline</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Expected Return Date</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Notes</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Delay Reason</th>
-                                        ${showCompletionCols ? `<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Logged By</th><th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Completed By</th>` : ''}
+                                        ${showCompletionCols ? `<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Completed By</th>` : ''}
                                         <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Actions</th>
                                         `}
                                     </tr>

@@ -722,6 +722,11 @@ class VfsFolioPresenter
                 ->merge($blindById->get($row->id, collect()))
                 ->unique(fn ($b) => $b->file_number . '|' . $b->file_indexing_id)
                 ->sum('total');
+            // An ST file's Commissioning / LGA Confirmation Sheets are pages of its folio even before
+            // anything is scanned, so they count too (user, 2026-11-16). Issued sheets only.
+            $row->vfs_sheets = stripos((string) $row->file_number, 'ST-') === 0
+                ? collect($this->systemDocuments($row))->where('available', true)->count()
+                : 0;
 
             $events = collect([$row->file_number, $row->temp_file_no])
                 ->filter()

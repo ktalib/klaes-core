@@ -4,6 +4,7 @@
  | 1 coordinate system · 2 one reference coordinate (drives the map) · 3 map · 4 other beacons in order of the traverse,
  | by X / Y or by bearing and distance from X1 (2026-11-13)
  | (joined, polygon) · export. Upload mode submits coord_system and beacons[0][...]; check mode saves nothing.
+ | Digital mode (Digital Plotting, Recording 5 2026-11-16): no reference section; every plotted beacon is submitted.
  | Starts on window load: jQuery and select2 load at the foot of both layouts.
  */
 window.addEventListener('load', function () {
@@ -130,6 +131,13 @@ window.addEventListener('load', function () {
       addGis();
       tocApply();
       map.on('moveend', drawGrid); map.on('resize', drawGrid);
+      // The cursor's X / Y in the chosen system, as ArcMap shows them (Recording 5, 2026-11-16).
+      const xy = document.createElement('div'); xy.className = 'spc-xy'; xy.setAttribute('aria-live', 'off');
+      xy.innerHTML = '<i class="fas fa-crosshairs"></i> <span>Move over the map for X / Y</span>';
+      $('map').appendChild(xy);
+      map.on('mousemove', e => { const [x, y] = toXY(gridCode(), e.lngLat.lng, e.lngLat.lat);
+        xy.querySelector('span').innerHTML = `X <b>${fmt(x, 2)}</b> mE · Y <b>${fmt(y, 2)}</b> mN <em>${esc(GRID_NAME[gridCode()].replace(/ \(EPSG:\d+\)/, ''))}</em> · ${fmt(e.lngLat.lat, 6)}, ${fmt(e.lngLat.lng, 6)}`; });
+      map.getCanvas().addEventListener('mouseleave', () => { xy.querySelector('span').textContent = 'Move over the map for X / Y'; });
       wireDrawing();
       loadRegister();
       refresh();
@@ -142,7 +150,7 @@ window.addEventListener('load', function () {
     BASE = m;
     const sat = m === 'satellite', base = $('baseOn').checked;
     map.getStyle().layers.forEach(l => {
-      if (OUR.includes(l.id) || l.id.startsWith('lyr') || l.id.startsWith('img-')) return;
+      if (OUR.includes(l.id) || l.id.startsWith('lyr') || l.id.startsWith('img-') || l.id.startsWith('gis-')) return;   // basemap layers only
       const vis = base && (l.id === 'satellite' ? sat : !(sat && l.type !== 'symbol'));
       map.setLayoutProperty(l.id, 'visibility', vis ? 'visible' : 'none');
     });
@@ -261,7 +269,8 @@ window.addEventListener('load', function () {
   }
   function number() {
     rowsOf(refBody).forEach(tr => tr.querySelector('.n').textContent = 'R');
-    rowsOf(svBody).forEach((tr, i) => tr.querySelector('.n').textContent = i + 1);
+    // Digital Plotting: point 1 (X1) is the reference, labelled so (user, 2026-11-16).
+    rowsOf(svBody).forEach((tr, i) => tr.querySelector('.n').innerHTML = (i + 1) + (MODE === 'digital' && i === 0 ? '<div class="spc-reftag">Reference</div>' : ''));
   }
   function syncSource(tr) {
     const s = tr.querySelector('.spc-src'), n = tr.querySelector('.spc-bno');
@@ -397,14 +406,17 @@ window.addEventListener('load', function () {
     drawGrid();
     const ex = $('ex-grid'); if (ex) ex.textContent = 'X / Y in ' + GRID_NAME[code];
     const fs = $('fullStats');
-    fs.innerHTML = !svOk.length && !ref ? '' : `<b>${ref ? 'Reference ' + esc(ref.beacon || '') : 'No reference'} · ${svOk.length} other beacon(s)</b>`
+    fs.innerHTML = !svOk.length && !ref ? '' : `<b>${MODE === 'digital' ? `${svOk.length} beacon(s)${svOk[0] ? ' from ' + esc(svOk[0].beacon || 'X1') : ''}` : `${ref ? 'Reference ' + esc(ref.beacon || '') : 'No reference'} · ${svOk.length} other beacon(s)`}</b>`
       + (st.hidden ? '' : [...st.querySelectorAll('.spc-stat')].map(s => `<span>${s.querySelector('span').textContent}: ${s.querySelector('b').textContent}</span>`).join(''));
 
     if (!mapReady) return;
     const pt = (o, kind, label) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [o.lon, o.lat] },
       properties: { beacon: o.beacon || '?', label, x: o.x, y: o.y, lon: o.lon, lat: o.lat, kind, grid: GRID_NAME[code] } });
-    map.getSource('ref').setData({ type: 'FeatureCollection', features: ref ? [pt(ref, 'R', ref.beacon)] : [] });
-    map.getSource('sv').setData({ type: 'FeatureCollection', features: svOk.map((o, i) => pt(o, 'S', `${i + 1}${o.beacon ? ' · ' + o.beacon : ''}`)) });
+    // Digital Plotting has no reference section: X1 (the first beacon) is the reference, drawn on its own layer (2026-11-16).
+    const svLbl = (o, i) => `${i + 1}${o.beacon ? ' · ' + o.beacon : ''}`;
+    const x1 = MODE === 'digital' ? svOk[0] : null;
+    map.getSource('ref').setData({ type: 'FeatureCollection', features: x1 ? [pt(x1, 'R', svLbl(x1, 0))] : ref ? [pt(ref, 'R', ref.beacon)] : [] });
+    map.getSource('sv').setData({ type: 'FeatureCollection', features: svOk.map((o, i) => pt(o, 'S', svLbl(o, i))).slice(x1 ? 1 : 0) });
     const ring = svOk.map(o => [o.lon, o.lat]);
     map.getSource('svline').setData(ring.length >= 2 ? { type: 'Feature', geometry: { type: 'LineString', coordinates: POLY ? [...ring, ring[0]] : ring }, properties: {} } : empty);
     map.getSource('poly').setData(POLY ? { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[...ring, ring[0]]] }, properties: {} } : empty);
@@ -454,7 +466,8 @@ window.addEventListener('load', function () {
     const lines = $('paste').value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     if (!lines.length) return;
     clearBody(svBody); POLY = false;
-    lines.forEach(l => { const p = l.split(/[\t,;]+|\s{2,}|\s(?=[\d.-]+(\s|$))/).map(s => s.trim()).filter(Boolean); addRow(svBody, String(p[0] || '').toUpperCase(), (p[1] || '').replace(/,/g, ''), (p[2] || '').replace(/,/g, '')); });
+    // (?:…): a capturing group here put undefined into the split and broke every pasted row (fixed 2026-11-16).
+    lines.forEach(l => { const p = l.split(/[\t,;]+|\s{2,}|\s(?=[\d.-]+(?:\s|$))/).map(s => s.trim()).filter(Boolean); addRow(svBody, String(p[0] || '').toUpperCase(), (p[1] || '').replace(/,/g, ''), (p[2] || '').replace(/,/g, '')); });
     refresh(); fitAll();
   };
 
@@ -628,7 +641,7 @@ window.addEventListener('load', function () {
     rows.forEach((tr, i) => {
       const last = close && i === lines - 1 && lines >= 3;
       const fromTag = 'X' + (i + 1), toTag = last ? 'X1' : 'X' + (i + 2);
-      tr.querySelector('.ln').innerHTML = `<b>${i + 1}</b>${last ? '<div class="spc-note">closes</div>' : ''}`;
+      tr.querySelector('.ln').innerHTML = `<b>${i + 1}</b>${MODE === 'digital' && i === 0 ? '<div class="spc-reftag">Reference</div>' : ''}${last ? '<div class="spc-note">closes</div>' : ''}`;
       tr.querySelector('.fptag').textContent = fromTag; tr.querySelector('.tptag').textContent = toTag;
       // From: line 1 is the picker (above); later lines start at the line before's To beacon.
       if (i > 0) {
@@ -1001,14 +1014,13 @@ window.addEventListener('load', function () {
       const n = f.name, lo = n.toLowerCase();
       if (lo.endsWith('.zip')) {
         const z = await unzip(await f.arrayBuffer()), inner = Object.keys(z);
-        if (inner.some(k => /\.gdb\//i.test(k))) throw new Error(`${n} is a Geodatabase. Open it in ArcGIS or QGIS and export the layer as a shapefile or GeoJSON first.`);
         fromShapefiles(z).forEach(fc => { fc.fileName = `${n} › ${fc.fileName}`; out.push(fc); });
         inner.filter(k => /\.(geo)?json$/i.test(k)).forEach(k => { const fc = fromGeoJson(dec.decode(z[k])); fc.fileName = `${n} › ${k.split('/').pop()}`; out.push(fc); });
         inner.filter(k => /\.kml$/i.test(k)).forEach(k => { const fc = fromKml(dec.decode(z[k])); fc.fileName = `${n} › ${k.split('/').pop()}`; out.push(fc); });
       } else if (/\.(shp|dbf|prj|cpg)$/.test(lo)) parts[n] = await f.arrayBuffer();
       else if (/\.(geo)?json$/.test(lo)) { const fc = fromGeoJson(await f.text()); fc.fileName = n; out.push(fc); }
       else if (lo.endsWith('.kml')) { const fc = fromKml(await f.text()); fc.fileName = n; out.push(fc); }
-      else throw new Error(`${n}: use a shapefile (.zip, or .shp with its .dbf and .prj), GeoJSON or KML.`);
+      else throw new Error(`${n}: use a shapefile (.zip, or .shp with its .dbf and .prj), GeoJSON, KML or a zipped Geodatabase.`);
     }
     if (Object.keys(parts).length) {
       if (!Object.keys(parts).some(n => /\.shp$/i.test(n))) throw new Error('Pick the .shp too (with its .dbf and .prj).');
@@ -1037,40 +1049,21 @@ window.addEventListener('load', function () {
     l.fc.features.forEach(f => lyrParts(f.geometry, c => { bb.extend(c); any = true; }, () => {}));
     if (any) map.fitBounds(bb, { padding: 60, maxZoom: 18, duration: 500 });
   }
-  function renderLayers() {
-    const box = $('tocLoaded');
-    if (!box) return;
-    if (!LYR.length) { box.innerHTML = '<p class="toc-none">None. Add a shapefile, GeoJSON or KML.</p>'; return; }
-    box.innerHTML = LYR.map(l => {
-      const kinds = {};
-      l.fc.features.forEach(f => { const t = f.geometry.type.replace('Multi', ''); kinds[t] = (kinds[t] || 0) + 1; });
-      const what = Object.entries(kinds).map(([t, c]) => `${c} ${({ Point: 'point', LineString: 'line', Polygon: 'parcel' }[t] || t.toLowerCase())}${c === 1 ? '' : 's'}`).join(', ');
-      const out = l.fc.features.some(f => { let o = false; lyrParts(f.geometry, c => { o = o || !inKano(c); }, () => {}); return o; });
-      return `<div class="lyr"><label class="toc-row"><input type="checkbox" data-lyr-on="${l.id}" ${l.on ? 'checked' : ''}><span class="sw sw-poly" style="--c:${l.colour}"></span><span class="nm">${esc(l.name)}</span></label>
-        <div class="meta">${what ? esc(what) : 'no shapes'}${l.fc._from ? ' · converted from ' + esc(l.fc._from) : ''}${out ? ' · <b style="color:#b91c1c">some shapes are outside Kano: check the file\'s coordinate system</b>' : ''}</div>
-        <div class="acts"><button type="button" data-lyr-zoom="${l.id}"><i class="fas fa-magnifying-glass"></i> Zoom</button><button type="button" data-lyr-del="${l.id}"><i class="fas fa-xmark"></i> Remove</button></div></div>`;
-    }).join('');
-    box.querySelectorAll('[data-lyr-on]').forEach(i => i.onchange = () => {
-      const l = LYR.find(x => x.id === i.dataset.lyrOn);
-      l.on = i.checked;
-      ['fill', 'line', 'point', 'label'].forEach(s => map.setLayoutProperty(`${l.id}-${s}`, 'visibility', l.on ? 'visible' : 'none'));
-    });
-    box.querySelectorAll('[data-lyr-zoom]').forEach(b => b.onclick = () => zoomLayer(LYR.find(x => x.id === b.dataset.lyrZoom)));
-    box.querySelectorAll('[data-lyr-del]').forEach(b => b.onclick = () => {
-      const i = LYR.findIndex(x => x.id === b.dataset.lyrDel), l = LYR[i];
-      ['fill', 'line', 'point', 'label'].forEach(s => map.removeLayer(`${l.id}-${s}`));
-      map.removeSource(l.id); LYR.splice(i, 1); renderLayers();
-    });
-  }
   function pickLayerFile() { if (!mapReady) return; $('lyrFile').value = ''; $('lyrFile').click(); }
   $('lyrFile').onchange = async () => {
-    const list = [...$('lyrFile').files];
+    let list = [...$('lyrFile').files];
+    if (!list.length) return;
+    // A zipped geodatabase opens its Catalog (read on the server); the rest are read here.
+    const gdbs = [];
+    for (const f of list) if (await isGdbZip(f).catch(() => false)) gdbs.push(f);
+    list = list.filter(f => !gdbs.includes(f));
+    gdbs.forEach(f => openCatalog(f, f.name));
     if (!list.length) return;
     try {
       const fcs = await readLayerFiles(list);
       if (!fcs.some(fc => fc.features.length)) throw new Error('no shapes were found in it.');
       fcs.filter(fc => fc.features.length).forEach(addLayer);
-    } catch (e) { alert('That layer could not be loaded: ' + e.message); }
+    } catch (e) { topMsg('That layer could not be loaded: ' + e.message); }
   };
 
   /* ---------- Imagery (our own tiles) ---------- */
@@ -1096,9 +1089,75 @@ window.addEventListener('load', function () {
   const imageryRows = () => IMAGERY.map(i => {
     const t = IMG_INFO[i.key];
     if (!t) return `<div class="toc-row toc-off"><input type="checkbox" disabled><span>${esc(i.name)}<small class="toc-meta">Not available yet</small></span></div>`;
-    return `<div class="toc-row"><label class="toc-lbl"><input type="checkbox" data-img="${i.key}" ${IMG_ON[i.key] ? 'checked' : ''}><span class="sw sw-img"></span><span>${esc(i.name)}<small class="toc-meta">${esc(i.note)}</small></span></label>
-      <button type="button" class="toc-zoom" data-img-zoom="${i.key}" title="Zoom to this imagery" aria-label="Zoom to ${esc(i.name)}"><i class="fas fa-magnifying-glass-location"></i></button></div>`;
+    const op = IMG_FX[i.key]?.op ?? 100;
+    return `<div class="toc-row" data-imgrow="${i.key}"><label class="toc-lbl"><input type="checkbox" data-img="${i.key}" ${IMG_ON[i.key] ? 'checked' : ''}><span class="sw sw-img"></span><span>${esc(i.name)}<small class="toc-meta">${esc(i.note)}${op < 100 ? ` · shown ${op}%` : ''}</small></span></label>
+      <button type="button" class="toc-zoom" data-img-zoom="${i.key}" title="Zoom to this imagery" aria-label="Zoom to ${esc(i.name)}"><i class="fas fa-magnifying-glass-location"></i></button>
+      <button type="button" class="tl-menu" data-img-menu="${i.key}" aria-label="Layer actions: ${esc(i.name)}" title="Layer actions"><i class="fas fa-ellipsis-vertical"></i></button></div>`;
   }).join('');
+  // Action menu for our imagery (user, 2026-11-16): on/off, zoom, transparency, draw order, properties. For this map
+  // only; nothing is saved.
+  const IMG_FX = {};
+  const fxOf = key => (IMG_FX[key] = IMG_FX[key] || { op: 100, br: 0, ct: 0 });
+  function applyImgFx(key) {
+    const f = fxOf(key), id = 'img-' + key;
+    if (!mapReady || !map.getLayer(id)) return;
+    map.setPaintProperty(id, 'raster-opacity', f.op / 100);
+    // Brightness -50..50 moves the dark and light ends together; contrast -50..50 maps to -0.5..0.5.
+    map.setPaintProperty(id, 'raster-brightness-min', Math.max(0, f.br / 100));
+    map.setPaintProperty(id, 'raster-brightness-max', Math.min(1, 1 + f.br / 100));
+    map.setPaintProperty(id, 'raster-contrast', f.ct / 100);
+  }
+  function imgToTop(key) {
+    if (!mapReady || !map.getLayer('img-' + key)) return;
+    const firstLabel = map.getStyle().layers.find(l => l.type === 'symbol' && !OUR.includes(l.id))?.id;
+    // Back under the basemap's labels (or under our grid and layers when there are none), above the other imagery.
+    const under = IMAGERY.map(x => 'img-' + x.key);
+    const next = firstLabel || map.getStyle().layers.find(l => !under.includes(l.id) && l.type !== 'raster' && l.type !== 'background')?.id;
+    map.moveLayer('img-' + key, next);
+  }
+  function imageryMenu(key, btn, ev) {
+    const i = IMAGERY.find(x => x.key === key), t = IMG_INFO[key];
+    if (!i || !t) return;
+    const f = fxOf(key), other = IMAGERY.filter(x => x.key !== key && IMG_INFO[x.key]);
+    showMenu([
+      { head: i.name },
+      { label: IMG_ON[key] ? 'Turn off' : 'Turn on', icon: IMG_ON[key] ? 'fa-eye-slash' : 'fa-eye', run: () => { showImagery(key, !IMG_ON[key]); if (IMG_ON[key]) zoomIfAway(key); renderToc(); } },
+      { label: 'Zoom To Layer', icon: 'fa-magnifying-glass-location', run: () => zoomImagery(key) },
+      { label: 'Zoom to full resolution', icon: 'fa-magnifying-glass-plus', hint: 'zoom ' + t.maxzoom, run: () => { const b = t.bounds; if (!IMG_ON[key]) { showImagery(key, true); renderToc(); }
+        const c = map.getCenter(), inside = c.lng >= b[0] && c.lng <= b[2] && c.lat >= b[1] && c.lat <= b[3];
+        map.easeTo({ center: inside ? c : [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], zoom: t.maxzoom, duration: 600 }); } },
+      '-',
+      { label: 'Transparency', icon: 'fa-circle-half-stroke', hint: (100 - f.op) + '%', run: b => showMenu([{ head: 'See-through: ' + i.name },
+        ...[0, 25, 50, 75].map(p => ({ label: p ? p + '% see-through' : 'Solid (0%)', checked: 100 - f.op === p, run: () => { f.op = 100 - p; applyImgFx(key); renderToc(); } }))], b) },
+      { label: 'Draw above the other imagery', icon: 'fa-layer-group', disabled: !other.length, run: () => imgToTop(key) },
+      { label: 'Properties…', icon: 'fa-sliders', run: () => imgProps(key) },
+      '-',
+      { label: 'Remove', icon: 'fa-trash-can', danger: true, disabled: true, hint: 'part of the card' },
+    ], btn, ev);
+  }
+  function imgProps(key) {
+    const i = IMAGERY.find(x => x.key === key), t = IMG_INFO[key] || {}, f = fxOf(key);
+    const b = t.bounds || [];
+    const deg = v => (typeof v === 'number' ? v.toFixed(5) : '—');
+    propsEl.innerHTML = `<div class="ph"><b><i class="fas fa-image"></i> ${esc(i.name)}</b><button type="button" class="x" aria-label="Close"><i class="fas fa-xmark"></i></button></div>
+      <div class="spc-imginfo">
+        <div><span>Source</span><b>${esc(t.source || '—')}</b></div>
+        <div><span>Covers</span><b>${esc(i.note)}</b></div>
+        <div><span>Extent</span><b>${deg(b[0])}, ${deg(b[1])} to ${deg(b[2])}, ${deg(b[3])}</b></div>
+        <div><span>Zoom levels</span><b>${t.minzoom ?? '—'} to ${t.maxzoom ?? '—'}</b></div>
+        <div><span>Tiles</span><b>${(t.tiles ?? 0).toLocaleString('en')} (${esc(t.format || '')}), made ${esc(t.made || '—')}</b></div>
+      </div>
+      <label>Shown <input type="range" data-p="op" min="10" max="100" step="5" value="${f.op}"><span class="v">${f.op}%</span></label>
+      <label>Brightness <input type="range" data-p="br" min="-50" max="50" step="5" value="${f.br}"><span class="v">${f.br}</span></label>
+      <label>Contrast <input type="range" data-p="ct" min="-50" max="50" step="5" value="${f.ct}"><span class="v">${f.ct}</span></label>
+      <p class="spc-note">For this map only; not saved.</p>`;
+    propsEl.hidden = false;
+    $('mapbody').appendChild(propsEl);
+    propsEl.querySelectorAll('input[type=range]').forEach(r => r.oninput = () => {
+      f[r.dataset.p] = +r.value; r.nextElementSibling.textContent = r.value + (r.dataset.p === 'op' ? '%' : ''); applyImgFx(key);
+    });
+    propsEl.querySelector('.x').onclick = () => { propsEl.hidden = true; renderToc(); };
+  }
 
 
   /* ---------- Kano GIS layers (F:\GIS Data), 2026-11-15 ---------- */
@@ -1201,58 +1260,371 @@ window.addEventListener('load', function () {
     g.ids.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'); });
     if (on && map.getZoom() < g.minzoom) map.easeTo({ zoom: g.minzoom + 0.5, duration: 500 });
   }
-  const gisRows = () => !GIS_URL ? '<p class="toc-none">Not available here.</p>' : GIS.map(g =>
-    `<label class="toc-row"><input type="checkbox" data-gis="${g.key}" ${GIS_ON[g.key] ? 'checked' : ''}>${tocSwatch(g.sw)}<span>${esc(g.name)}<small class="toc-meta">${esc(g.note)}</small></span></label>`).join('');
 
-  /* ---------- Table of Contents (CR 141102026 item 4, Kunle 2026-11-15) ---------- */
-  // Every layer on the map, ArcMap style, each turned on / off on its own: this plan, loaded layers, the Beacon
-  // Register, the grid, scanned plans (GeoTIFF), imagery and the online basemap. All off = a blank space.
-  const TOC_PLAN = [
-    { key: 'ref', name: 'Reference coordinate', ids: ['ref', 'ref-label'], sw: ['#ea580c', 'pt'] },
-    { key: 'sv', name: 'Other beacons', ids: ['sv', 'sv-label'], sw: ['#0891b2', 'pt'] },
-    { key: 'bnd', name: 'Boundary and polygon', ids: ['sv-line', 'poly-fill', 'sides'], sw: ['#22d3ee', 'poly'] },
-    { key: 'drawn', name: 'Drawn shapes', ids: ['drawn-fill', 'drawn-line', 'drawn-point', 'drawn-label'], sw: ['#16a34a', 'poly'] },
-    { key: 'links', name: 'Distance to Register beacons', ids: ['links'], sw: ['#dc2626', 'line'] },
+  /* ---------- Table of Contents (CR 141102026 item 4; Recording 5, 2026-11-16: ArcMap style) ---------- */
+  // Layers in groups that turn on / off and fold. Drag a layer (or a group) to change the order: the map draws the
+  // list from the bottom up, so the top of the list is on top. New layers come in on, points above lines above
+  // polygons. Each layer has a menu (the ⋮ button or a right-click): Zoom to Layer, Open Attribute Table, Label
+  // Features, Visible Scale Range, Properties, Export, Move to group, Remove. Scanned plans, imagery and the basemap
+  // stay at the bottom, as in ArcMap.
+  const KIND_RANK = { pt: 0, line: 1, poly: 2 };
+  const ENTRY = {};
+  const ent = o => (ENTRY[o.key] = Object.assign({ on: true, labelsOn: true, minScale: 0, labels: [] }, o));
+  const ptFeat = (o, extra = {}) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [o.lon, o.lat] },
+    properties: { beacon: o.beacon || '', x: +(+o.x).toFixed(3), y: +(+o.y).toFixed(3), lat: +o.lat.toFixed(7), lon: +o.lon.toFixed(7), ...extra } });
+  const placedOf = list => list.filter(o => o.lon !== undefined && !o.bad);
+  ent({ key: 'ref', name: MODE === 'digital' ? 'X1 (reference)' : 'Reference coordinate', kind: 'pt', sw: ['#ea580c', 'pt'], ids: ['ref'], labels: ['ref-label'], group: 'plan',
+    feats: () => (MODE === 'digital' ? placedOf(SV) : placedOf(REFS)).slice(0, 1).map(o => ptFeat(o)) });
+  ent({ key: 'sv', name: MODE === 'digital' ? 'Beacons' : 'Other beacons', kind: 'pt', sw: ['#0891b2', 'pt'], ids: ['sv'], labels: ['sv-label'], group: 'plan',
+    feats: () => placedOf(SV).map((o, i) => ptFeat(o, { point: i + 1 })).slice(MODE === 'digital' ? 1 : 0) });
+  ent({ key: 'links', name: 'Distance to Register beacons', kind: 'line', sw: ['#dc2626', 'line'], ids: ['links'], group: 'plan',
+    feats: () => (srcData('links')?.features || []) });
+  ent({ key: 'bnd', name: 'Boundary and polygon', kind: 'poly', sw: ['#22d3ee', 'poly'], ids: ['poly-fill', 'sv-line'], labels: ['sides'], group: 'plan',
+    feats: () => { const s = srcData(POLY ? 'poly' : 'svline'); return s && s.geometry ? [{ ...s, properties: { kind: POLY ? 'parcel' : 'line', points: placedOf(SV).length } }] : []; } });
+  ent({ key: 'drawn', name: 'Drawn shapes', kind: 'poly', sw: ['#16a34a', 'poly'], ids: ['drawn-fill', 'drawn-line', 'drawn-point'], labels: ['drawn-label'], group: 'plan',
+    feats: () => (srcData('drawn')?.features || []) });
+  ent({ key: 'reg', name: 'Beacon Register', kind: 'pt', sw: ['#2563eb', 'pt'], ids: ['register'], labels: ['register-label'], group: 'ref',
+    feats: () => REG.map(b => { const [x, y] = toXY(gridCode(), b.lon, b.lat); return ptFeat({ ...b, x, y }, { kind: b.kind === 'C' ? 'control point' : 'beacon', plan_no: b.plan_no || '', district: b.district || '' }); }) });
+  if (GIS_URL) GIS.forEach(g => ent({ key: 'gis-' + g.key, gis: g.key, name: g.name, note: g.note, kind: g.sw[1], sw: g.sw, group: 'ref', on: false,
+    ids: g.ids.filter(id => !id.endsWith('-label')), labels: g.ids.filter(id => id.endsWith('-label')),
+    feats: () => {
+      const id = g.ids[0], lyr = map.getLayer(id); if (!lyr) return [];
+      const seen = new Set();
+      return map.querySourceFeatures('gis-' + g.key, { sourceLayer: lyr.sourceLayer }).filter(f => { const k = JSON.stringify(f.properties); if (seen.has(k)) return false; seen.add(k); return true; })
+        .slice(0, 5000).map(f => ({ type: 'Feature', geometry: f.geometry, properties: { ...f.properties } }));
+    } }));
+  ent({ key: 'grid', name: 'Coordinate grid', kind: 'line', sw: ['#1e293b', 'line'], ids: ['grid-halo', 'grid-line'], group: 'ref', on: false, grid: true, feats: () => [] });
+  const byKind = keys => keys.sort((a, b) => KIND_RANK[ENTRY[a].kind] - KIND_RANK[ENTRY[b].kind]);
+  let groupSeq = 0;
+  const GROUPS = [
+    { id: 'plan', name: 'This plan', on: true, open: true, keys: byKind(['ref', 'sv', 'links', 'bnd', 'drawn']) },
+    { id: 'added', name: 'Added layers', on: true, open: true, keys: [], empty: 'None. Use Add layer: shapefile, GeoJSON, KML or a Geodatabase.' },
+    { id: 'ref', name: 'Reference layers', on: true, open: true, keys: byKind(Object.keys(ENTRY).filter(k => ENTRY[k].group === 'ref')) },
   ];
-  const TOC_REG = { key: 'reg', name: 'Beacon Register', ids: ['register', 'register-label'], sw: ['#2563eb', 'pt'] };
-  const TOC_VIS = {};
-  const tocSwatch = ([c, k]) => `<span class="sw sw-${k}" style="--c:${c}"></span>`;
-  function tocShow(entry, on) {
-    TOC_VIS[entry.key] = on;
-    if (!mapReady) return;
-    entry.ids.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'); });
+  const groupOf = k => GROUPS.find(g => g.keys.includes(k));
+  const effOn = e => e.on && (groupOf(e.key)?.on !== false);
+  const fold = { scan: true, base: true };   // the fixed groups at the bottom
+
+  // Loaded files are layers of their own in "Added layers" (on top of it, switched on).
+  function syncAdded() {
+    LYR.forEach(l => {
+      if (ENTRY[l.id]) { ENTRY[l.id].on = l.on; return; }
+      const kinds = {};
+      l.fc.features.forEach(f => { const t = f.geometry.type.replace('Multi', ''); kinds[t] = (kinds[t] || 0) + 1; });
+      const top = Object.entries(kinds).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Polygon';
+      const kind = { Point: 'pt', LineString: 'line' }[top] || 'poly';
+      ent({ key: l.id, name: l.name, kind, sw: [l.colour, kind], ids: [l.id + '-fill', l.id + '-line', l.id + '-point'], labels: [l.id + '-label'], group: 'added', lyr: l, removable: true,
+        meta: () => Object.entries(kinds).map(([t, c]) => `${c} ${({ Point: 'point', LineString: 'line', Polygon: 'parcel' }[t] || t.toLowerCase())}${c === 1 ? '' : 's'}`).join(', ')
+          + (l.fc._from ? ' · from ' + l.fc._from : '')
+          + (l.fc.features.some(f => { let o = false; lyrParts(f.geometry, c => { o = o || !inKano(c); }, () => {}); return o; }) ? ' · some shapes are outside Kano: check the coordinate system' : ''),
+        feats: () => l.fc.features });
+      const g = GROUPS.find(x => x.id === 'added') || GROUPS[0];
+      g.keys.unshift(l.id); g.on = true;
+    });
+    Object.keys(ENTRY).filter(k => ENTRY[k].lyr && !LYR.includes(ENTRY[k].lyr)).forEach(k => { const g = groupOf(k); if (g) g.keys.splice(g.keys.indexOf(k), 1); delete ENTRY[k]; });
   }
-  const tocRow = e => `<label class="toc-row"><input type="checkbox" data-toc="${e.key}" ${TOC_VIS[e.key] !== false ? 'checked' : ''}>${tocSwatch(e.sw)}<span>${esc(e.name)}</span></label>`;
+
+  // Visibility: a layer shows when it and its group are on; its labels when "Label Features" is ticked too.
+  function applyVis(e, user) {
+    const on = effOn(e);
+    if (e.grid) { if ($('gridOn').checked !== on) { $('gridOn').checked = on; drawGrid(); } return; }
+    if (e.lyr) e.lyr.on = on;
+    if (e.gis) { GIS_ON[e.gis] = on; const g = GIS.find(x => x.key === e.gis); if (user && on && mapReady && g && map.getZoom() < g.minzoom) map.easeTo({ zoom: g.minzoom + 0.5, duration: 500 }); }
+    if (!mapReady) return;
+    e.ids.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'); });
+    e.labels.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on && e.labelsOn ? 'visible' : 'none'); });
+  }
+  // Draw order = the list, bottom up; every label above every shape. The drawing aids (draft, snap) stay on top.
+  function applyOrder() {
+    if (!mapReady) return;
+    const anchor = map.getLayer('draft-line') ? 'draft-line' : undefined, geo = [], lab = [];
+    [...GROUPS].reverse().forEach(g => [...g.keys].reverse().forEach(k => { const e = ENTRY[k]; if (!e) return; geo.push(...e.ids); lab.push(...e.labels); }));
+    [...geo, ...lab].forEach(id => { if (map.getLayer(id)) map.moveLayer(id, anchor); });
+  }
+
+  const tocSwatch = ([c, k]) => `<span class="sw sw-${k}" style="--c:${c}"></span>`;
+  const tocRow = e => `<div class="tl${effOn(e) ? '' : ' dim'}" draggable="true" data-k="${esc(e.key)}">
+      <span class="grip" title="Drag to change the order" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>
+      <label class="tl-lbl"><input type="checkbox" data-on="${esc(e.key)}" ${e.on ? 'checked' : ''}>${tocSwatch(e.sw)}<span class="nm">${esc(e.name)}${e.note || e.meta ? `<small class="toc-meta">${esc(e.meta ? e.meta() : e.note)}</small>` : ''}${e.minScale ? `<small class="toc-meta">Shown closer than 1 : ${e.minScale.toLocaleString('en')}</small>` : ''}${e.group === 'plan' ? '<small class="toc-meta toc-empty" hidden>Nothing on the map yet</small>' : ''}</span></label>
+      <button type="button" class="tl-menu" data-menu="${esc(e.key)}" aria-label="Layer actions: ${esc(e.name)}" title="Layer actions"><i class="fas fa-ellipsis-vertical"></i></button></div>`;
   function renderToc() {
-    const box = $('toc');
+    const box = $('tocTree') || $('toc');
     if (!box) return;
+    syncAdded();
     const base = $('baseOn').checked ? BASE : 'none';
+    const grp = g => `<div class="tg${g.on ? '' : ' off'}" data-g="${g.id}">
+        <div class="tg-h" draggable="true" data-gh="${g.id}">
+          <button type="button" class="tg-fold" data-fold="${g.id}" aria-expanded="${g.open}" aria-label="${g.open ? 'Fold' : 'Open'} ${esc(g.name)}"><i class="fas fa-caret-${g.open ? 'down' : 'right'}"></i></button>
+          <label class="tg-lbl"><input type="checkbox" data-gon="${g.id}" ${g.on ? 'checked' : ''}><span>${esc(g.name)}</span><span class="tg-c">${g.keys.length}</span></label>
+          <button type="button" class="tl-menu" data-gmenu="${g.id}" aria-label="Group actions: ${esc(g.name)}" title="Group actions"><i class="fas fa-ellipsis-vertical"></i></button>
+        </div>
+        <div class="tg-b" data-gb="${g.id}" ${g.open ? '' : 'hidden'}>${g.keys.map(k => tocRow(ENTRY[k])).join('') || `<p class="toc-none">${esc(g.empty || 'Empty. Drag layers here.')}</p>`}</div></div>`;
+    const fixed = (id, name, body) => `<div class="tg tg-fixed" data-fixed="${id}"><div class="tg-h"><button type="button" class="tg-fold" data-ffold="${id}" aria-expanded="${!fold[id] ? 'false' : 'true'}"><i class="fas fa-caret-${fold[id] ? 'down' : 'right'}"></i></button><span class="tg-name">${name}</span></div><div class="tg-b" ${fold[id] ? '' : 'hidden'}>${body}</div></div>`;
     box.innerHTML = `
-      <div class="toc-head"><b><i class="fas fa-layer-group"></i> Layers</b><button type="button" class="toc-add" id="spc-tocAdd" title="Show existing parcels, beacons or lines: a shapefile (.zip, or .shp + .dbf + .prj), GeoJSON or KML"><i class="fas fa-plus"></i> Add layer</button></div>
-      <div class="toc-grp"><div class="toc-gname">This plan</div>${TOC_PLAN.map(tocRow).join('')}</div>
-      <div class="toc-grp"><div class="toc-gname">Loaded layers</div><div id="spc-tocLoaded"></div></div>
-      <div class="toc-grp"><div class="toc-gname">Reference</div>${tocRow(TOC_REG)}
-        <label class="toc-row"><input type="checkbox" data-toc-grid ${$('gridOn').checked ? 'checked' : ''}>${tocSwatch(['#1e293b', 'line'])}<span>Coordinate grid</span></label></div>
-      <div class="toc-grp"><div class="toc-gname">Kano GIS</div>${gisRows()}</div>
-      <div class="toc-grp"><div class="toc-gname">Scanned plans (GeoTIFF)</div><div id="spc-tocScan"><p class="toc-none">None on this map yet.</p></div></div>
-      <div class="toc-grp"><div class="toc-gname">Imagery</div>${imageryRows()}</div>
-      <div class="toc-grp"><div class="toc-gname">Basemap</div>
-        ${[['satellite', 'Online satellite'], ['street', 'Online street map'], ['none', 'None (blank)']].map(([v, t]) => `<label class="toc-row"><input type="radio" name="spc_tocbase" value="${v}" ${base === v ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>`;
-    box.querySelectorAll('[data-toc]').forEach(i => i.onchange = () => tocShow([...TOC_PLAN, TOC_REG].find(e => e.key === i.dataset.toc), i.checked));
+      <div class="toc-head"><b><i class="fas fa-layer-group"></i> Layers</b>
+        <span class="toc-hbtns"><button type="button" class="toc-add" id="spc-tocGroup" title="A new group: drag layers into it"><i class="fas fa-folder-plus"></i></button>
+        <button type="button" class="toc-add" id="spc-tocAdd" title="Add existing parcels, beacons or lines: a shapefile (.zip, or .shp + .dbf + .prj), GeoJSON, KML or a Geodatabase (.gdb zipped)"><i class="fas fa-plus"></i> Add layer</button></span></div>
+      <p class="toc-tip">Drag <i class="fas fa-grip-vertical"></i> to reorder · right-click a layer for its menu</p>
+      ${GROUPS.map(grp).join('')}
+      ${fixed('scan', 'Scanned plans (GeoTIFF)', '<div id="spc-tocScan"><p class="toc-none">None on this map yet.</p></div>')}
+      ${fixed('base', 'Base layers', imageryRows() + [['satellite', 'Online satellite'], ['street', 'Online street map'], ['none', 'None (blank)']].map(([v, t]) => `<label class="toc-row"><input type="radio" name="spc_tocbase" value="${v}" ${base === v ? 'checked' : ''}><span>${t}</span></label>`).join(''))}`;
+    box.querySelectorAll('[data-on]').forEach(i => i.onchange = () => { const e = ENTRY[i.dataset.on]; e.on = i.checked; applyVis(e, true); i.closest('.tl').classList.toggle('dim', !effOn(e)); });
+    box.querySelectorAll('[data-gon]').forEach(i => i.onchange = () => { const g = GROUPS.find(x => x.id === i.dataset.gon); g.on = i.checked; g.keys.forEach(k => applyVis(ENTRY[k], true)); renderToc(); });
+    box.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const g = GROUPS.find(x => x.id === b.dataset.fold); g.open = !g.open; renderToc(); });
+    box.querySelectorAll('[data-ffold]').forEach(b => b.onclick = () => { fold[b.dataset.ffold] = !fold[b.dataset.ffold]; renderToc(); });
     box.querySelectorAll('[data-img]').forEach(i => i.onchange = () => { showImagery(i.dataset.img, i.checked); if (i.checked) zoomIfAway(i.dataset.img); });
     box.querySelectorAll('[data-img-zoom]').forEach(b => b.onclick = () => zoomImagery(b.dataset.imgZoom));
-    box.querySelectorAll('[data-gis]').forEach(i => i.onchange = () => showGis(i.dataset.gis, i.checked));
-    box.querySelector('[data-toc-grid]').onchange = e => { $('gridOn').checked = e.target.checked; $('gridOn').dispatchEvent(new Event('change')); };
+    box.querySelectorAll('[data-img-menu]').forEach(b => b.onclick = ev => { ev.stopPropagation(); imageryMenu(b.dataset.imgMenu, b); });
+    box.querySelectorAll('[data-imgrow]').forEach(r => r.addEventListener('contextmenu', ev => { ev.preventDefault(); imageryMenu(r.dataset.imgrow, null, ev); }));
     box.querySelectorAll('[name=spc_tocbase]').forEach(r => r.onchange = () => {
       if (!map || !mapReady) return;
       if (r.value === 'none') { $('baseOn').checked = false; $('baseOn').dispatchEvent(new Event('change')); }
       else pickBase(r.value);
       renderToc();
     });
-    $('tocAdd').onclick = pickLayerFile;
-    renderLayers();
+    box.querySelectorAll('[data-menu]').forEach(b => b.onclick = ev => { ev.stopPropagation(); layerMenu(ENTRY[b.dataset.menu], b); });
+    box.querySelectorAll('[data-gmenu]').forEach(b => b.onclick = ev => { ev.stopPropagation(); groupMenu(GROUPS.find(x => x.id === b.dataset.gmenu), b); });
+    box.querySelectorAll('.tl').forEach(r => r.addEventListener('contextmenu', ev => { ev.preventDefault(); layerMenu(ENTRY[r.dataset.k], null, ev); }));
+    box.querySelectorAll('.tg-h[data-gh]').forEach(h => h.addEventListener('contextmenu', ev => { ev.preventDefault(); groupMenu(GROUPS.find(x => x.id === h.dataset.gh), null, ev); }));
+    $('tocAdd').onclick = e => { e.stopPropagation(); addLayerMenu(e.currentTarget); };
+    $('tocGroup').onclick = () => newGroup();
+    wireDrag(box);
     if (window.SpcScanToc) window.SpcScanToc();   // survey-plan-scan.js fills its group
+    markEmpty();
   }
+  // A ticked box on an empty layer changes nothing on the map: say so under the name (2026-11-16).
+  function markEmpty() {
+    const box = $('toc'); if (!box) return;
+    box.querySelectorAll('.tl').forEach(r => { const e = ENTRY[r.dataset.k], n = r.querySelector('.toc-empty'); if (!e || !n) return;
+      let has = true; try { has = e.feats().length > 0; } catch (x) { /* not drawn yet */ } n.hidden = has; });
+  }
+  // Loaded files: kept for the old callers (addLayer); the list is the ToC now.
+  function renderLayers() { renderToc(); applyOrder(); }
+
+  /* drag and drop: layers within or between groups, groups among themselves */
+  let DRAG = null;
+  function wireDrag(box) {
+    const clear = () => box.querySelectorAll('.drop-above, .drop-below, .drop-in').forEach(x => x.classList.remove('drop-above', 'drop-below', 'drop-in'));
+    box.querySelectorAll('.tl').forEach(r => {
+      r.addEventListener('dragstart', ev => { DRAG = { k: r.dataset.k }; r.classList.add('dragging'); ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', r.dataset.k); ev.stopPropagation(); });
+      r.addEventListener('dragend', () => { r.classList.remove('dragging'); clear(); DRAG = null; });
+    });
+    box.querySelectorAll('.tg-h[data-gh]').forEach(h => {
+      h.addEventListener('dragstart', ev => { DRAG = { g: h.dataset.gh }; ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', h.dataset.gh); });
+      h.addEventListener('dragend', () => { clear(); DRAG = null; });
+    });
+    box.querySelectorAll('.tg[data-g]').forEach(gEl => {
+      gEl.addEventListener('dragover', ev => {
+        if (!DRAG) return;
+        ev.preventDefault(); clear();
+        const row = ev.target.closest('.tl');
+        if (DRAG.k && row && row.dataset.k !== DRAG.k) { const r = row.getBoundingClientRect(); row.classList.add(ev.clientY < r.top + r.height / 2 ? 'drop-above' : 'drop-below'); }
+        else if (DRAG.k) gEl.querySelector('.tg-b').classList.add('drop-in');
+        else if (DRAG.g && DRAG.g !== gEl.dataset.g) { const r = gEl.getBoundingClientRect(); gEl.classList.add(ev.clientY < r.top + r.height / 2 ? 'drop-above' : 'drop-below'); }
+      });
+      gEl.addEventListener('drop', ev => {
+        if (!DRAG) return;
+        ev.preventDefault();
+        const to = GROUPS.find(x => x.id === gEl.dataset.g);
+        if (DRAG.k) {
+          const from = groupOf(DRAG.k), row = ev.target.closest('.tl');
+          from.keys.splice(from.keys.indexOf(DRAG.k), 1);
+          let at = to.keys.length;
+          if (row && row.dataset.k !== DRAG.k) { const r = row.getBoundingClientRect(); at = to.keys.indexOf(row.dataset.k) + (ev.clientY < r.top + r.height / 2 ? 0 : 1); }
+          to.keys.splice(Math.max(0, at), 0, DRAG.k); to.open = true;
+          applyVis(ENTRY[DRAG.k]);
+        } else if (DRAG.g && DRAG.g !== to.id) {
+          const i = GROUPS.findIndex(x => x.id === DRAG.g), g = GROUPS.splice(i, 1)[0], r = gEl.getBoundingClientRect();
+          GROUPS.splice(GROUPS.indexOf(to) + (ev.clientY < r.top + r.height / 2 ? 0 : 1), 0, g);
+        }
+        DRAG = null; renderToc(); applyOrder();
+      });
+    });
+  }
+
+  /* the menu: one floating list, by the ⋮ button or at the right-click */
+  const menuEl = document.createElement('div');
+  menuEl.className = 'spc-ctx'; menuEl.hidden = true; menuEl.setAttribute('role', 'menu');
+  root.appendChild(menuEl);
+  const closeMenu = () => { menuEl.hidden = true; menuEl.innerHTML = ''; };
+  document.addEventListener('click', ev => { if (!menuEl.hidden && !menuEl.contains(ev.target)) closeMenu(); });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !menuEl.hidden) closeMenu(); });
+  // The page scrolling away closes it (not the panel's own scroll, nor the scroll that brought the row into view).
+  let menuAt = 0;
+  window.addEventListener('scroll', () => { if (!menuEl.hidden && Date.now() - menuAt > 400) closeMenu(); });
+  function showMenu(items, btn, ev) {
+    menuEl.innerHTML = items.map((it, i) => it === '-' ? '<div class="sep"></div>' : it.head ? `<div class="hd">${esc(it.head)}</div>`
+      : `<button type="button" role="menuitem" data-i="${i}" ${it.disabled ? 'disabled' : ''} class="${it.danger ? 'danger' : ''}${it.checked ? ' on' : ''}"><i class="fas ${it.icon || (it.checked ? 'fa-check' : '')}"></i>${esc(it.label)}${it.hint ? `<small>${esc(it.hint)}</small>` : ''}</button>`).join('');
+    menuEl.hidden = false; menuAt = Date.now();
+    const r = btn ? btn.getBoundingClientRect() : { left: ev.clientX, right: ev.clientX, bottom: ev.clientY, top: ev.clientY };
+    const w = menuEl.offsetWidth, h = menuEl.offsetHeight;
+    menuEl.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, btn ? r.right - w : r.left)) + 'px';
+    menuEl.style.top = Math.max(8, Math.min(window.innerHeight - h - 8, r.bottom + 4)) + 'px';
+    menuEl.querySelectorAll('[data-i]').forEach(b => b.onclick = e2 => { e2.stopPropagation(); const it = items[+b.dataset.i]; if (!it.keep) closeMenu(); it.run(b); });
+    menuEl.querySelector('button')?.focus();
+  }
+  // Scale ↔ zoom at Kano's latitude, on a 96 dpi screen.
+  const zoomFor = scale => Math.log2(40075016.686 * Math.cos(12 * Math.PI / 180) / (512 * scale * 0.00026458));
+  const SCALES = [0, 50000, 10000, 5000, 2500, 1000];
+  function setScaleRange(e, s) {
+    e.minScale = s;
+    if (!mapReady) return;
+    [...e.ids, ...e.labels].forEach(id => {
+      const l = map.getLayer(id); if (!l) return;
+      if (l._spcMin === undefined) l._spcMin = l.minzoom || 0;
+      map.setLayerZoomRange(id, s ? Math.max(l._spcMin, zoomFor(s)) : l._spcMin, 24);
+    });
+    renderToc();
+  }
+  function layerMenu(e, btn, ev) {
+    if (!e) return;
+    const g = groupOf(e.key);
+    const items = [
+      { head: e.name },
+      { label: 'Zoom To Layer', icon: 'fa-magnifying-glass-location', run: () => zoomEntry(e), disabled: e.grid },
+      { label: 'Open Attribute Table', icon: 'fa-table', run: () => openAttr(e), disabled: e.grid },
+      '-',
+      { label: 'Label Features', checked: e.labelsOn && !!e.labels.length, disabled: !e.labels.length, run: () => { e.labelsOn = !e.labelsOn; applyVis(e); } },
+      { label: 'Visible Scale Range', icon: 'fa-ruler', hint: e.minScale ? 'closer than 1 : ' + e.minScale.toLocaleString('en') : 'always', disabled: e.grid,
+        run: b => showMenu([{ head: 'Show ' + e.name }, ...SCALES.map(s => ({ label: s ? `Only closer than 1 : ${s.toLocaleString('en')}` : 'At every scale', checked: e.minScale === s, run: () => setScaleRange(e, s) }))], b) },
+      { label: 'Properties…', icon: 'fa-sliders', run: () => openProps(e), disabled: e.grid },
+      { label: 'Export data (GeoJSON)', icon: 'fa-file-export', run: () => exportEntry(e), disabled: e.grid },
+      '-',
+      { label: 'Move to group', icon: 'fa-folder-tree', run: b => showMenu([{ head: 'Move ' + e.name + ' to' }, ...GROUPS.filter(x => x !== g).map(x => ({ label: x.name, icon: 'fa-folder', run: () => moveTo(e.key, x) })), '-', { label: 'New group…', icon: 'fa-folder-plus', run: () => newGroup([e.key]) }], b) },
+      { label: 'Remove', icon: 'fa-trash-can', danger: true, disabled: !e.removable, hint: e.removable ? '' : 'part of the card', run: () => removeEntry(e) },
+    ];
+    showMenu(items, btn, ev);
+  }
+  function groupMenu(g, btn, ev) {
+    if (!g) return;
+    const fixed = ['plan', 'added', 'ref'].includes(g.id);
+    showMenu([
+      { head: g.name },
+      { label: g.on ? 'Turn the group off' : 'Turn the group on', icon: g.on ? 'fa-eye-slash' : 'fa-eye', run: () => { g.on = !g.on; g.keys.forEach(k => applyVis(ENTRY[k], true)); renderToc(); } },
+      { label: 'Zoom To Group', icon: 'fa-magnifying-glass-location', run: () => zoomFeats(g.keys.flatMap(k => ENTRY[k].grid ? [] : ENTRY[k].feats())), disabled: !g.keys.length },
+      { label: g.open ? 'Fold' : 'Open', icon: g.open ? 'fa-caret-up' : 'fa-caret-down', run: () => { g.open = !g.open; renderToc(); } },
+      '-',
+      { label: 'Rename…', icon: 'fa-pen', run: () => renameGroup(g) },
+      { label: 'Ungroup', icon: 'fa-folder-minus', danger: true, disabled: fixed, hint: fixed ? 'a group of the card' : 'layers go back', run: () => ungroup(g) },
+    ], btn, ev);
+  }
+  function moveTo(k, g) { const f = groupOf(k); f.keys.splice(f.keys.indexOf(k), 1); g.keys.unshift(k); g.open = true; applyVis(ENTRY[k]); renderToc(); applyOrder(); }
+  // A group's name typed in place in the panel (no browser prompt).
+  function nameInPlace(g, done) {
+    renderToc();
+    const lbl = $('toc').querySelector(`[data-gh="${g.id}"] .tg-lbl span`); if (!lbl) return;
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'tg-name-in'; inp.value = g.name; inp.maxLength = 60; inp.setAttribute('aria-label', 'Group name');
+    lbl.replaceWith(inp); inp.focus(); inp.select();
+    const finish = ok => { if (ok && inp.value.trim()) g.name = inp.value.trim(); done && done(); renderToc(); };
+    inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); finish(true); } if (ev.key === 'Escape') finish(false); });
+    inp.addEventListener('blur', () => finish(true));
+    inp.addEventListener('click', ev => ev.preventDefault());
+  }
+  function newGroup(keys = []) {
+    const g = { id: 'grp' + (++groupSeq), name: 'New group ' + groupSeq, on: true, open: true, keys: [], user: true };
+    const at = keys.length ? GROUPS.indexOf(groupOf(keys[0])) : 0;
+    GROUPS.splice(Math.max(0, at), 0, g);
+    keys.forEach(k => { const f = groupOf(k); f.keys.splice(f.keys.indexOf(k), 1); g.keys.push(k); });
+    applyOrder(); nameInPlace(g);
+  }
+  const renameGroup = g => nameInPlace(g);
+  function ungroup(g) {
+    g.keys.forEach(k => { const home = GROUPS.find(x => x.id === ENTRY[k].group) || GROUPS[0]; home.keys.push(k); });
+    GROUPS.splice(GROUPS.indexOf(g), 1);
+    GROUPS.forEach(x => { if (!x.user) byKind(x.keys); });
+    GROUPS.forEach(x => x.keys.forEach(k => applyVis(ENTRY[k])));
+    renderToc(); applyOrder();
+  }
+  function removeEntry(e) {
+    if (!e.removable || !e.lyr) return;
+    const i = LYR.indexOf(e.lyr);
+    [...e.ids, ...e.labels].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+    if (map.getSource(e.lyr.id)) map.removeSource(e.lyr.id);
+    if (i >= 0) LYR.splice(i, 1);
+    if (ATTR && ATTR.e === e) closeAttr();
+    renderToc();
+  }
+
+  /* zoom, export */
+  function zoomFeats(fs) {
+    const bb = new maplibregl.LngLatBounds(); let any = false;
+    fs.forEach(f => lyrParts(f.geometry, c => { bb.extend(c); any = true; }, () => {}));
+    if (any && mapReady) map.fitBounds(bb, { padding: 60, maxZoom: 18, duration: 500 });
+    return any;
+  }
+  function zoomEntry(e) {
+    if (e.lyr) return zoomLayer(e.lyr);
+    if (zoomFeats(e.feats())) return;
+    if (e.gis) { const g = GIS.find(x => x.key === e.gis); map.easeTo({ zoom: Math.max(map.getZoom(), g.minzoom + 0.5), duration: 500 }); topMsg(e.name + ': zoomed in to where the layer shows.'); return; }
+    topMsg(e.name + ': nothing on the map yet.');
+  }
+  function exportEntry(e) {
+    const fs = e.feats();
+    if (!fs.length) { topMsg(e.name + ': nothing to export.'); return; }
+    save(new Blob([JSON.stringify({ type: 'FeatureCollection', name: e.name, features: fs.map(f => ({ type: 'Feature', geometry: f.geometry, properties: Object.fromEntries(Object.entries(f.properties || {}).filter(([k]) => !k.startsWith('_'))) })) })], { type: 'application/geo+json' }),
+      e.name.replace(/[^\w.-]+/g, '_') + '.geojson');
+  }
+
+  /* Properties: colour, size / width and how see-through, on the map at once */
+  const propsEl = document.createElement('div');
+  propsEl.className = 'spc-props'; propsEl.hidden = true; propsEl.setAttribute('role', 'dialog');
+  function openProps(e) {
+    const kinds = e.ids.map(id => map.getLayer(id)?.type).filter(Boolean);
+    const paint = (id, p) => { try { return map.getPaintProperty(id, p); } catch (x) { return undefined; } };
+    const first = (t, p) => { const id = e.ids.find(i => map.getLayer(i)?.type === t); return id ? paint(id, p) : undefined; };
+    const colour = [first('circle', 'circle-color'), first('line', 'line-color'), first('fill', 'fill-color')].find(c => typeof c === 'string' && /^#/.test(c)) || e.sw[0];
+    const size = kinds.includes('circle') ? (typeof first('circle', 'circle-radius') === 'number' ? first('circle', 'circle-radius') : 5) : (typeof first('line', 'line-width') === 'number' ? first('line', 'line-width') : 2);
+    e._op = e._op ?? 100;
+    propsEl.innerHTML = `<div class="ph"><b><i class="fas fa-sliders"></i> ${esc(e.name)}</b><button type="button" class="x" aria-label="Close"><i class="fas fa-xmark"></i></button></div>
+      <label>Colour <input type="color" data-p="c" value="${esc(colour)}"></label>
+      <label>${kinds.includes('circle') ? 'Point size' : 'Line width'} <input type="range" data-p="s" min="1" max="${kinds.includes('circle') ? 14 : 8}" step="0.5" value="${size}"><span class="v">${size}</span></label>
+      <label>Shown <input type="range" data-p="o" min="10" max="100" step="5" value="${e._op}"><span class="v">${e._op}%</span></label>
+      <p class="spc-note">For this map only; not saved.</p>`;
+    propsEl.hidden = false;
+    $('mapbody').appendChild(propsEl);
+    const set = (t, p, v) => e.ids.forEach(id => { if (map.getLayer(id)?.type === t) map.setPaintProperty(id, p, v); });
+    const base = {}; e.ids.forEach(id => { const t = map.getLayer(id)?.type; if (t) base[id] = paint(id, t + '-opacity') ?? 1; });
+    e._base = e._base || base;
+    propsEl.querySelector('[data-p=c]').oninput = ev => { const c = ev.target.value; set('circle', 'circle-color', c); set('line', 'line-color', c); set('fill', 'fill-color', c); e.sw = [c, e.sw[1]]; };
+    propsEl.querySelector('[data-p=s]').oninput = ev => { const v = +ev.target.value; ev.target.nextElementSibling.textContent = v; set('circle', 'circle-radius', v); set('line', 'line-width', v); };
+    propsEl.querySelector('[data-p=o]').oninput = ev => { const v = +ev.target.value; e._op = v; ev.target.nextElementSibling.textContent = v + '%';
+      e.ids.forEach(id => { const t = map.getLayer(id)?.type, b = e._base[id]; if (t && typeof b === 'number') map.setPaintProperty(id, t + '-opacity', b * v / 100); }); };
+    propsEl.querySelector('.x').onclick = () => { propsEl.hidden = true; renderToc(); };
+  }
+
+  /* Attribute table: docked under the map, as in ArcMap. Click a row to go to it. */
+  let ATTR = null;
+  const attrEl = document.createElement('div');
+  attrEl.className = 'spc-attr'; attrEl.hidden = true;
+  function closeAttr() { attrEl.hidden = true; ATTR = null; $('mapbody').classList.remove('withattr'); if (map) { map.getSource('attr-hl')?.setData(empty); setTimeout(() => map.resize(), 0); } }
+  function openAttr(e) {
+    const fs = e.feats(), MAX = 2000;
+    const cols = [...new Set(fs.slice(0, 500).flatMap(f => Object.keys(f.properties || {})))].filter(k => !k.startsWith('_')).slice(0, 30);
+    ATTR = { e, fs };
+    const cell = v => v === null || v === undefined ? '' : esc(typeof v === 'object' ? JSON.stringify(v) : String(v).replace(/T00:00:00$/, ''));
+    attrEl.innerHTML = `<div class="ah"><b><i class="fas fa-table"></i> ${esc(e.name)}</b><span class="spc-note">${fs.length.toLocaleString()} feature${fs.length === 1 ? '' : 's'}${e.gis ? ' in the part of the map loaded so far' : ''}${fs.length > MAX ? ` · first ${MAX.toLocaleString()} shown` : ''}</span>
+        <input type="search" class="af" placeholder="Filter…" aria-label="Filter the rows"><button type="button" class="x" aria-label="Close the attribute table"><i class="fas fa-xmark"></i></button></div>
+      <div class="ab">${fs.length ? `<table><thead><tr><th>S/N</th>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${fs.slice(0, MAX).map((f, i) => `<tr data-r="${i}"><td>${i + 1}</td>${cols.map(c => `<td>${cell(f.properties?.[c])}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<p class="toc-none" style="padding:10px">No features on this layer yet.</p>'}</div>`;
+    attrEl.hidden = false;
+    $('mapbody').appendChild(attrEl); $('mapbody').classList.add('withattr');
+    setTimeout(() => map && map.resize(), 0);
+    attrEl.querySelector('.x').onclick = closeAttr;
+    attrEl.querySelector('.af').oninput = ev => { const q = ev.target.value.trim().toLowerCase(); let n = 0; attrEl.querySelectorAll('tbody tr').forEach(tr => { const show = !q || tr.textContent.toLowerCase().includes(q); tr.hidden = !show; if (show) tr.firstElementChild.textContent = ++n; }); };
+    attrEl.querySelectorAll('tbody tr').forEach(tr => tr.onclick = () => {
+      attrEl.querySelectorAll('tr.sel').forEach(x => x.classList.remove('sel')); tr.classList.add('sel');
+      const f = ATTR.fs[+tr.dataset.r]; if (!f || !mapReady) return;
+      if (!map.getSource('attr-hl')) {
+        map.addSource('attr-hl', { type: 'geojson', data: empty });
+        map.addLayer({ id: 'attr-hl-line', type: 'line', source: 'attr-hl', filter: ['!=', ['geometry-type'], 'Point'], paint: { 'line-color': '#00e5ff', 'line-width': 4 } });
+        map.addLayer({ id: 'attr-hl-pt', type: 'circle', source: 'attr-hl', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 11, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#00e5ff', 'circle-stroke-width': 3 } });
+        OUR.push('attr-hl-line', 'attr-hl-pt');
+      }
+      map.getSource('attr-hl').setData({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: f.geometry, properties: {} }] });
+      if (f.geometry.type === 'Point') map.flyTo({ center: f.geometry.coordinates, zoom: Math.max(map.getZoom(), 18), duration: 500 }); else zoomFeats([f]);
+    });
+  }
+
   // Ticking an imagery layer while looking somewhere it does not cover takes the map to it.
   function zoomIfAway(key) {
     const b = IMG_INFO[key]?.bounds;
@@ -1266,13 +1638,182 @@ window.addEventListener('load', function () {
     if (map) setTimeout(() => map.resize(), 0);
   }
   $('tocBtn').onclick = () => setToc($('mapbody').classList.contains('notoc'));
+  if ($('addLayerBtn')) $('addLayerBtn').onclick = e => { e.stopPropagation(); addLayerMenu(e.currentTarget); };
+  // Entry beside the map (Recording 5, 2026-11-16): the system and beacon sections move into a card on the map's right,
+  // so the map keeps its room while the beacons are typed; "Back under the map" puts them back.
+  function setSide(on) {
+    const entry = $('entry'); if (!entry) return;
+    (on ? $('side') : $('entryHome')).appendChild(entry);
+    $('mapbody').classList.toggle('withside', on);
+    $('sideBtn').classList.toggle('active', on);
+    if (map) setTimeout(() => { map.resize(); drawGrid(); }, 0);
+  }
+  if ($('sideBtn')) { $('sideBtn').onclick = () => setSide(!$('mapbody').classList.contains('withside')); $('sideClose').onclick = () => setSide(false); }
   // The bar's own controls keep the panel in step.
   ['btn-street', 'btn-satellite'].forEach(id => $(id).addEventListener('click', () => setTimeout(renderToc, 0)));
-  ['baseOn', 'gridOn'].forEach(id => $(id).addEventListener('change', () => setTimeout(renderToc, 0)));
+  // Basemap off ticks the grid on (drawGrid): the panel follows.
+  $('baseOn').addEventListener('change', () => { ENTRY.grid.on = $('gridOn').checked; setTimeout(renderToc, 0); });
+  $('gridOn').addEventListener('change', () => { ENTRY.grid.on = $('gridOn').checked; const g = groupOf('grid'); if (ENTRY.grid.on && g) g.on = true; setTimeout(renderToc, 0); });
   if (window.matchMedia('(max-width: 700px)').matches) setToc(false);
   renderToc();
-  // Turned off before the map was ready: applied once it is.
-  function tocApply() { [...TOC_PLAN, TOC_REG].forEach(e => { if (TOC_VIS[e.key] === false) tocShow(e, false); }); renderToc(); }
+  // Applied once the map is ready: what was turned off before, and the order.
+  // Our GeoJSON sources keep a copy of what they were last given (attribute table, export, zoom).
+  let markT = 0;
+  const srcData = id => map && map.getSource(id) ? map.getSource(id)._spcData : null;
+  function tocApply() {
+    ['links', 'poly', 'svline', 'drawn', 'ref', 'sv'].forEach(id => { const s = map.getSource(id); if (!s || s._spcWrapped) return; const set = s.setData.bind(s); s.setData = d => { s._spcData = d; clearTimeout(markT); markT = setTimeout(markEmpty, 50); return set(d); }; s._spcWrapped = true; });
+    Object.values(ENTRY).forEach(e => applyVis(e)); applyOrder(); renderToc();
+  }
+
+  /* ---------- Geodatabase Catalog (Recording 5, 2026-11-16: "a catalog ... select the ones that you want to load") ---------- */
+  // A zipped .gdb (or the .gdb folder itself, zipped here) goes to the server, which lists its feature datasets and
+  // layers; the ones ticked come back as GeoJSON in their own coordinates and are added, switched on, in a group
+  // named after the geodatabase and dataset. "Only what is in the map view" reads a part of a big layer.
+  const GDB_URL = root.dataset.gdbCatalog || '', GDB_READ = root.dataset.gdbRead || '';
+  // The names in a zip, from its central directory only (a big zip is never read whole for this).
+  async function zipNames(file) {
+    const tail = new DataView(await file.slice(Math.max(0, file.size - 65558)).arrayBuffer());
+    let e = -1;
+    for (let i = tail.byteLength - 22; i >= 0; i--) if (tail.getUint32(i, true) === 0x06054b50) { e = i; break; }
+    if (e < 0) return [];
+    const size = tail.getUint32(e + 12, true), off = tail.getUint32(e + 16, true);
+    const cd = new DataView(await file.slice(off, off + size).arrayBuffer()), dec = new TextDecoder(), out = [];
+    for (let p = 0; p + 46 <= cd.byteLength && cd.getUint32(p, true) === 0x02014b50;) {
+      const n = cd.getUint16(p + 28, true), x = cd.getUint16(p + 30, true), c = cd.getUint16(p + 32, true);
+      out.push(dec.decode(new Uint8Array(cd.buffer, cd.byteOffset + p + 46, n)));
+      p += 46 + n + x + c;
+    }
+    return out;
+  }
+  const isGdbZip = async f => /\.zip$/i.test(f.name) && (await zipNames(f)).some(n => /\.gdb\//i.test(n.replace(/\\/g, '/')));
+  // A .gdb folder picked as a folder: its files zipped (stored, not compressed) for the upload.
+  async function gdbFolderZip(files) {
+    const own = files.filter(f => /\.gdb\/[^/]+$/i.test((f.webkitRelativePath || f.name).replace(/\\/g, '/')));
+    if (!own.length) throw new Error('That folder is not a geodatabase: pick the folder whose name ends in .gdb.');
+    const parts = {};
+    for (const f of own) { const rel = f.webkitRelativePath.replace(/\\/g, '/'), m = rel.match(/([^/]+\.gdb)\/([^/]+)$/i); parts[m[1] + '/' + m[2]] = new Uint8Array(await f.arrayBuffer()); }
+    const name = Object.keys(parts)[0].split('/')[0];
+    return { blob: await zipDeflate(parts), name };
+  }
+  // A zip with each file deflated by the browser (CompressionStream): a geodatabase shrinks several times for the upload.
+  async function zipDeflate(files) {
+    if (!window.CompressionStream) return zipStore(files);
+    const enc = new TextEncoder(), parts = [], dir = [];
+    let off = 0;
+    for (const [name, u] of Object.entries(files)) {
+      const z = new Uint8Array(await new Response(new Blob([u]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
+      const nm = enc.encode(name), c = crc32(u);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(8, 8, true); h.setUint32(14, c, true); h.setUint32(18, z.length, true); h.setUint32(22, u.length, true); h.setUint16(26, nm.length, true);
+      const d = new DataView(new ArrayBuffer(46));
+      d.setUint32(0, 0x02014b50, true); d.setUint16(4, 20, true); d.setUint16(6, 20, true); d.setUint16(10, 8, true); d.setUint32(16, c, true); d.setUint32(20, z.length, true); d.setUint32(24, u.length, true); d.setUint16(28, nm.length, true); d.setUint32(42, off, true);
+      parts.push(h, nm, z); dir.push(d, nm); off += 30 + nm.length + z.length;
+    }
+    const size = dir.reduce((t, x) => t + x.byteLength, 0), e = new DataView(new ArrayBuffer(22)), n = Object.keys(files).length;
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, n, true); e.setUint16(10, n, true); e.setUint32(12, size, true); e.setUint32(16, off, true);
+    return new Blob([...parts, ...dir, e]);
+  }
+  const catEl = document.createElement('div');
+  catEl.className = 'spc-cat'; catEl.hidden = true; catEl.setAttribute('role', 'dialog'); catEl.setAttribute('aria-modal', 'true'); catEl.setAttribute('aria-label', 'Geodatabase Catalog');
+  root.appendChild(catEl);
+  const closeCat = () => { catEl.hidden = true; catEl.innerHTML = ''; };
+  catEl.addEventListener('click', e => { if (e.target === catEl) closeCat(); });
+  const geomIcon = g => /point/i.test(g) ? ['pt', '#e11d48'] : /line/i.test(g) ? ['line', '#f59e0b'] : ['poly', '#0ea5e9'];
+  function catShell(title, body, foot = '') {
+    catEl.innerHTML = `<div class="cat-box"><div class="cat-h"><i class="fas fa-database"></i><div><b>Catalog</b><small>${esc(title)}</small></div><button type="button" class="cat-x" aria-label="Close"><i class="fas fa-xmark"></i></button></div>
+      <div class="cat-b">${body}</div>${foot ? `<div class="cat-f">${foot}</div>` : ''}</div>`;
+    catEl.hidden = false;
+    catEl.querySelector('.cat-x').onclick = closeCat;
+  }
+  async function postJson(url, body) {
+    const r = await fetch(url, { method: 'POST', credentials: 'same-origin', body,
+      headers: Object.assign({ 'X-CSRF-TOKEN': root.dataset.csrf || '', Accept: 'application/json' }, body instanceof FormData ? {} : { 'Content-Type': 'application/json' }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.message || Object.values(j.errors || {}).flat()[0] || 'The server could not read it (' + r.status + ').');
+    return j;
+  }
+  async function openCatalog(blob, label) {
+    if (!GDB_URL) { topMsg('Geodatabases cannot be read here.'); return; }
+    catShell(label, `<p class="cat-wait"><i class="fas fa-spinner fa-spin"></i> Reading ${esc(label)} (${(blob.size / 1048576).toFixed(1)} MB)…</p>`);
+    let cat;
+    try {
+      const fd = new FormData(); fd.append('gdb', blob, /\.zip$/i.test(label) ? label : label + '.zip');
+      cat = await postJson(GDB_URL, fd);
+    } catch (e) { catShell(label, `<p class="cat-err"><i class="fas fa-triangle-exclamation"></i> ${esc(e.message)}</p>`); return; }
+    const sets = {};
+    cat.layers.forEach(l => (sets[l.dataset || ''] = sets[l.dataset || ''] || []).push(l));
+    const keys = Object.keys(sets).sort((a, b) => (a === '') - (b === '') || a.localeCompare(b));
+    const row = l => { const [k, c] = geomIcon(l.geometry); return `<label class="cat-l"><input type="checkbox" data-l="${esc(l.name)}"><span class="sw sw-${k}" style="--c:${c}"></span><span class="nm">${esc(l.name)}</span><small>${esc(l.geometry.replace('Multi', '').replace(' Z', ''))} · ${l.count === null ? '?' : l.count.toLocaleString()} · ${esc(l.crs || 'no CRS')}</small></label>`; };
+    catShell(cat.name, `<p class="spc-note">${cat.layers.length} layer${cat.layers.length === 1 ? '' : 's'} with shapes. Tick the ones to load.</p>
+      <div class="cat-tree">${keys.map(k => `<div class="cat-ds" data-ds="${esc(k)}"><label class="cat-dsh"><input type="checkbox" data-ds-all="${esc(k)}"><i class="fas ${k ? 'fa-folder' : 'fa-folder-open'}"></i><b>${k ? esc(k) : 'Outside a feature dataset'}</b><small>${sets[k].length}</small></label>
+        <div class="cat-ls">${sets[k].map(row).join('')}</div></div>`).join('')}</div>`,
+      `<label class="spc-check"><input type="checkbox" id="spc-catView"><span>Only what is in the map view</span></label>
+       <span class="cat-n" id="spc-catN">0 ticked</span><button type="button" class="spc-btn spc-clear" id="spc-catCancel">Cancel</button><button type="button" class="spc-btn spc-plot" id="spc-catAdd" disabled><i class="fas fa-plus"></i> Add to map</button>`);
+    const picked = () => [...catEl.querySelectorAll('[data-l]:checked')].map(i => i.dataset.l);
+    const sync = () => {
+      const n = picked().length, big = picked().some(nm => (cat.layers.find(l => l.name === nm)?.count || 0) > cat.max_features);
+      $('catN').textContent = `${n} ticked` + (big && !$('catView').checked ? ` · big layers: the first ${cat.max_features.toLocaleString()} shapes, or tick "Only what is in the map view"` : '');
+      $('catAdd').disabled = !n;
+      catEl.querySelectorAll('[data-ds-all]').forEach(a => { const all = [...catEl.querySelectorAll(`.cat-ds[data-ds="${CSS.escape(a.dataset.dsAll)}"] [data-l]`)]; a.checked = all.every(i => i.checked); a.indeterminate = !a.checked && all.some(i => i.checked); });
+    };
+    catEl.querySelectorAll('[data-l]').forEach(i => i.onchange = sync);
+    catEl.querySelectorAll('[data-ds-all]').forEach(a => a.onchange = () => { catEl.querySelectorAll(`.cat-ds[data-ds="${CSS.escape(a.dataset.dsAll)}"] [data-l]`).forEach(i => { i.checked = a.checked; }); sync(); });
+    $('catView').onchange = sync;
+    $('catCancel').onclick = closeCat;
+    $('catAdd').onclick = () => catalogAdd(cat, picked(), $('catView').checked);
+  }
+  async function catalogAdd(cat, names, inView) {
+    const b = $('catAdd'); b.disabled = true; b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading…';
+    let bbox = null;
+    if (inView && mapReady) {
+      const first = cat.layers.find(l => l.name === names[0]), sys = systemOf(first?.crs), bb = map.getBounds();
+      const cs = [[bb.getWest(), bb.getSouth()], [bb.getEast(), bb.getSouth()], [bb.getEast(), bb.getNorth()], [bb.getWest(), bb.getNorth()]];
+      const pts = sys === 'll' ? cs : sys ? cs.map(c => toXY(sys, c[0], c[1])) : null;
+      if (pts) bbox = [Math.min(...pts.map(p => p[0])), Math.min(...pts.map(p => p[1])), Math.max(...pts.map(p => p[0])), Math.max(...pts.map(p => p[1]))];
+    }
+    let res;
+    try { res = await postJson(GDB_READ, JSON.stringify({ token: cat.token, layers: names, bbox })); }
+    catch (e) { b.disabled = false; b.innerHTML = '<i class="fas fa-plus"></i> Add to map'; topMsg(e.message); $('catN').textContent = e.message; return; }
+    const added = {}, notes = [];
+    res.layers.forEach(l => {
+      if (!l.fc.features?.length) { notes.push(`${l.name}: nothing${l.bbox ? ' in the map view' : ''}`); return; }
+      const fc = toLatLon(l.fc, systemOf(l.crs), l.crs_wkt);
+      fc.fileName = l.name;
+      addLayer(fc);
+      const ds = cat.layers.find(x => x.name === l.name)?.dataset || '';
+      (added[ds] = added[ds] || []).push(LYR[LYR.length - 1].id);
+      if (l.truncated) notes.push(`${l.name}: first ${l.fc.features.length.toLocaleString()} of ${l.count.toLocaleString()}`);
+    });
+    // One group per feature dataset, named after the geodatabase, at the top of the panel.
+    Object.entries(added).forEach(([ds, ids]) => {
+      const g = { id: 'grp' + (++groupSeq), name: cat.name.replace(/\.gdb$/i, '') + (ds ? ' › ' + ds : ''), on: true, open: true, keys: [], user: true };
+      ids.forEach(k => { const f = groupOf(k); if (f) f.keys.splice(f.keys.indexOf(k), 1); g.keys.push(k); });
+      byKind(g.keys); GROUPS.unshift(g);
+    });
+    renderToc(); applyOrder();
+    const all = Object.values(added).flat();
+    if (all.length && !inView) zoomFeats(all.flatMap(k => ENTRY[k].feats()));
+    closeCat();
+    topMsg(`Added ${all.length} layer${all.length === 1 ? '' : 's'} from ${cat.name}.` + (notes.length ? ' ' + notes.join('; ') + '.' : ''));
+  }
+  // Add layer: files (shapefile, GeoJSON, KML, or a zipped .gdb) or a .gdb folder.
+  const dirIn = document.createElement('input');
+  dirIn.type = 'file'; dirIn.hidden = true; dirIn.webkitdirectory = true; dirIn.multiple = true;
+  root.appendChild(dirIn);
+  dirIn.onchange = async () => {
+    const files = [...dirIn.files]; dirIn.value = '';
+    if (!files.length) return;
+    try { topMsg('Preparing the geodatabase…'); const z = await gdbFolderZip(files); openCatalog(z.blob, z.name); }
+    catch (e) { topMsg(e.message); }
+  };
+  function addLayerMenu(btn) {
+    if (!mapReady) return;
+    showMenu([{ head: 'Add layer' },
+      { label: 'Files…', icon: 'fa-file-import', hint: 'shapefile (.zip or .shp + .dbf + .prj), GeoJSON, KML or a zipped .gdb', run: () => { $('lyrFile').value = ''; $('lyrFile').click(); } },
+      { label: 'Geodatabase folder (.gdb)…', icon: 'fa-database', hint: 'the folder itself; its catalog opens', disabled: !GDB_URL, run: () => dirIn.click() },
+      // Scanned plan moved here from the map header (user, 2026-11-16); survey-plan-scan.js still listens on #spc-scanBtn.
+      { label: 'Scanned plan / GeoTIFF…', icon: 'fa-file-image', hint: 'a GeoTIFF places itself; a plain scan needs 4 points', disabled: !$('scanBtn'), run: () => $('scanBtn').click() }], btn);
+  }
 
   /* ---------- export ---------- */
   function exportFeatures() {
@@ -1423,12 +1964,44 @@ window.addEventListener('load', function () {
     topMsg('Reset: the card is blank again.');
   };
 
+  /* ---------- Digital Plotting (Recording 5, 2026-11-16): the plotting is what is sent ---------- */
+  // Every plotted beacon in traverse order (X1, the reference, first) as beacons[i][...], and the plotting as JSON
+  // (X / Y or traverse, closed, each line's bearing and distance, closing error, area). Nothing plotted, nothing sent.
+  const form = MODE === 'digital' ? root.closest('form') : null;
+  if (form) form.addEventListener('submit', e => {
+    if (brgMode()) computeTraverse(); else refresh();
+    const pts = SV.filter(o => o.lon !== undefined && !o.bad), box = $('plotInputs');
+    if (pts.length < 3 || SV.some(o => o.bad)) {
+      e.preventDefault();
+      const v = brgMode() ? $('trVerdict') : $('refVerdict').parentElement.hidden ? null : $('refVerdict');
+      topMsg(pts.length < 3 ? 'Plot the plan first: at least three beacons.' : 'Check the beacons marked in red before sending.');
+      (v && !v.hidden ? v : $(brgMode() ? 'svBrg' : 'svXY')).scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return;
+    }
+    const src = o => o.tr._reg || o.tr._src === 'captured' ? 'captured' : o.tr._src === 'extant' ? 'extant' : 'typed';
+    const hid = (name, value) => { const i = document.createElement('input'); i.type = 'hidden'; i.name = name; i.value = value; box.appendChild(i); };
+    box.innerHTML = '';
+    pts.forEach((o, i) => {
+      hid(`beacons[${i}][beacon_no]`, o.beacon || 'X' + (i + 1));
+      hid(`beacons[${i}][x]`, o.x.toFixed(3)); hid(`beacons[${i}][y]`, o.y.toFixed(3)); hid(`beacons[${i}][source]`, src(o));
+    });
+    const lines = brgMode() ? [...travBody.children].map((tr, i, all) => {
+      const b = lineAzimuth(tr), last = $('trClose').checked && i === all.length - 1 && all.length >= 3;
+      const to = last ? pickedName($('trStartB'), $('trStartOther')) || 'X1' : pickedName(tr.querySelector('.tb'), tr.querySelector('.tbo')) || 'X' + (i + 2);
+      return { from: fromNameOf(tr) || 'X' + (i + 1), to, azimuth: b.az, distance: tr.querySelector('.dist').value.replace(/[,\s]/g, '') };
+    }).filter(l => l.azimuth !== undefined && l.distance !== '') : [];
+    const area = POLY ? Math.abs(pts.reduce((s, o, i) => { const n = pts[(i + 1) % pts.length]; return s + o.x * n.y - n.x * o.y; }, 0) / 2) : null;
+    hid('plot', JSON.stringify({ mode: brgMode() ? 'brg' : 'xy', closed: POLY, lines, closing_error: TRAV ? TRAV.err : null, area }));
+  });
+
   /* ---------- start: the system and reference from the upload (Check), or blank ---------- */
   setSystem(PREFILL?.sys || '26332');
   const pr = PREFILL?.ref || {};
   addRow(refBody, pr.beacon_no || '', pr.x || '', pr.y || '', pr.source || '');
   (PREFILL?.others || []).forEach(o => addRow(svBody, o.beacon_no || '', o.x || '', o.y || '', o.source || ''));
   if (!(PREFILL?.others || []).length) addRow(svBody);
+  // A digital plotting that closed opens as its polygon.
+  if (PREFILL?.closed && (PREFILL?.others || []).length >= 3) POLY = true;
   refresh();
   initMap();
 

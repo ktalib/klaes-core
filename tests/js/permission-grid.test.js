@@ -109,7 +109,7 @@ let g = grid();
 check('all rows visible by default', g.visibleRows.length, 3);
 
 g = grid();
-g.deptFilter = '4';
+g.deptFilters = ['4'];
 check('department filter narrows to that department', g.visibleRows.map((r) => r.name), [
   'Survey - Records',
   'Survey - Approvals',
@@ -120,7 +120,7 @@ g.query = 'bill';
 check('search matches on name, case-insensitively', g.visibleRows.map((r) => r.name), ['Billing']);
 
 g = grid();
-g.deptFilter = '4';
+g.deptFilters = ['4'];
 g.query = 'approv';
 check('department and search combine', g.visibleRows.map((r) => r.name), ['Survey - Approvals']);
 
@@ -157,7 +157,7 @@ check('ticking an action implies view', g.rows[0].actions.view, true);
 // -- bulk actions ---------------------------------------------------------------------------
 
 g = grid();
-g.deptFilter = '4';
+g.deptFilters = ['4'];
 g.grantVisible(['view', 'create', 'edit', 'print', 'export']);
 check('bulk grant applies to visible rows only', [
   g.rows[0].actions.create, g.rows[1].actions.create, g.rows[2].actions.create,
@@ -228,8 +228,59 @@ g = grid();
 check('counter starts at zero', g.grantedCount, 0);
 g.grantVisible(['view']);
 check('counter reflects granted modules, not filters', g.grantedCount, 3);
-g.deptFilter = '7';
+g.deptFilters = ['7'];
 check('counter ignores the department filter', g.grantedCount, 3);
+
+// ---- 3. Bonus modules (no department) and grants hidden by the filter -------------------
+
+function bonusGrid() {
+  const docware = row('file digital library - doc-ware', 'File Digital Library - Doc-WARE', '', 'No department');
+  docware.bonus = true;
+  const st = row('st eregistry', 'ST eRegistry', '11', 'Sectional Titling', { view: true, print: true });
+  const land = row('indexing', 'Indexing', '3', 'Land', { view: true });
+  const survey = row('survey - records', 'Survey - Records', '4', 'Survey');
+  return permissionGrid([docware, st, land, survey], true);
+}
+
+g = bonusGrid();
+g.deptFilters = ['11'];
+check('bonus module is offered under any department', g.visibleRows.map(r => r.name), ['File Digital Library - Doc-WARE', 'ST eRegistry']);
+check('other departments stay hidden', g.visibleRows.some(r => r.name === 'Survey - Records'), false);
+check('granted module outside the filter is still posted', g.hiddenGrantedRows.map(r => r.name), ['Indexing']);
+check('posted actions are the granted ones only', g.grantedActions(g.rows[1]), ['view', 'print']);
+g.rows[0].actions.view = true;
+check('ticking a bonus module does not drop the department grants', g.grantedCount, 3);
+g.deptFilters = [];
+check('nothing is hidden-but-granted with all departments shown', g.hiddenGrantedRows.length, 0);
+g.query = 'survey';
+check('a search hiding granted rows still posts them', g.hiddenGrantedRows.map(r => r.name).sort(), ['File Digital Library - Doc-WARE', 'Indexing', 'ST eRegistry']);
+
+// ---- 4. Several departments at once (user, 2026-11-17) ----------------------------------
+
+g = bonusGrid();
+g.deptFilters = ['11', '4'];
+check('two departments show both sets plus bonus', g.visibleRows.map(r => r.name), ['File Digital Library - Doc-WARE', 'ST eRegistry', 'Survey - Records']);
+check('a third department\'s grant still posts', g.hiddenGrantedRows.map(r => r.name), ['Indexing']);
+
+g = permissionGrid(bonusGrid().rows, true, null, ['11']);
+check('opens with the departments passed in', g.deptFilters, ['11']);
+g.addHomeDept('3');
+check('Step 1 department is added, not swapped in', g.deptFilters, ['11', '3']);
+g.addHomeDept('3');
+g.removeDept('3');
+check('removing a department is not undone while Step 1 is unchanged', g.deptFilters, ['11']);
+g.addHomeDept('4');
+check('changing Step 1 adds the new department and keeps the rest', g.deptFilters, ['11', '4']);
+g.addHomeDept('');
+check('clearing Step 1 leaves the selection alone', g.deptFilters, ['11', '4']);
+
+const loose = row('old module', 'Old Module', '', 'Unregistered', { view: true });
+loose.registered = false;
+g = permissionGrid([loose, row('billing', 'Billing', '7', 'Account/Finance')], true);
+g.deptFilters = ['~Unregistered'];
+check('no-id bucket is selectable by its key', g.visibleRows.map(r => r.name), ['Old Module']);
+check('summary names a single department', permissionGrid([], true, [{ id: '7', label: 'Account/Finance' }], ['7']).deptSummary, 'Account/Finance');
+check('summary counts several', permissionGrid([], true, null, ['7', '4']).deptSummary, '2 departments selected');
 
 console.log(`\n${pass}/${total} passed`);
 process.exit(pass === total ? 0 : 1);

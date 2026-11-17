@@ -41,7 +41,10 @@
     let PLACED = null;       // { code, T, corners, w, h, adj, canvas }
     let pts = [];            // control points: { c, r, b, x, y }
     let quickPt = null;      // the one beacon clicked (quick method)
-    let method = 'quick';
+    // A plain scan is placed from control points only, at least four (user, Recording 5, 2026-11-16: "you can't use one
+    // coordinate ... at least four beacons"). The one-beacon-and-scale way is no longer offered.
+    let method = 'cps';
+    const MIN_CPS = 4;
     let savedBounds = null;  // the card's Kano bounds while a scan outside Kano is on the map
 
     const cv = $('gvCanvas'), ctx = cv.getContext('2d');
@@ -66,7 +69,7 @@
     panel.querySelectorAll('input[name=spc_geomethod]').forEach(r => r.addEventListener('change', () => { method = r.value; showMethod(); draw(); }));
     function showMethod() {
       $('geoQuick').hidden = method !== 'quick'; $('geoCps').hidden = method !== 'cps';
-      $('gvHint').textContent = !SRC ? 'Open a scan first.' : method === 'quick' ? 'Click the beacon whose coordinates you know (zoom in with the mouse wheel).' : 'Click a beacon on the scan, then type its X / Y. Two or more points.';
+      $('gvHint').textContent = !SRC ? 'Open a scan first.' : method === 'quick' ? 'Click the beacon whose coordinates you know (zoom in with the mouse wheel).' : `Click a beacon on the scan, then type its X / Y. At least ${MIN_CPS} points, spread out (the corners of the sheet if you can).`;
       solve();
     }
     const showSys = () => { $('geoSys').textContent = NAME(gridCode()); solve(); };
@@ -251,11 +254,8 @@
       } else {
         const ok = pts.filter(p => num(p.x) !== null && num(p.y) !== null);
         $('gcRows').querySelectorAll('.res').forEach(td => td.textContent = '—');
-        if (ok.length < 2) { out.textContent = `Still needed: ${2 - ok.length} more point${ok.length ? '' : 's'} with X and Y (3 or more checks each other).`; $('geoPlace').disabled = true; return; }
-        if (ok.length === 2) {   // scale + turn + shift, exact
-          const A = [], L = []; ok.forEach(p => { A.push([p.c, p.r, 1, 0]); L.push(num(p.x)); A.push([-p.r, p.c, 0, 1]); L.push(num(p.y)); });
-          const s = lsq(A, L); if (s) FIT = { a: s[0], b: s[1], tx: s[2], d: s[1], e: -s[0], ty: s[3] };
-        } else {                 // best fit (affine): takes paper stretch, and shows each point's miss
+        if (ok.length < MIN_CPS) { const n = MIN_CPS - ok.length; out.textContent = `Still needed: ${n} more point${n === 1 ? '' : 's'} with X and Y. A scan is placed from at least ${MIN_CPS} beacons (X1 Y1 … X${MIN_CPS} Y${MIN_CPS}), spread over the sheet.`; $('geoPlace').disabled = true; return; }
+        {                        // best fit (affine): takes paper stretch, and shows each point's miss
           const A = ok.map(p => [p.c, p.r, 1]), sx = lsq(A, ok.map(p => num(p.x))), sy = lsq(A, ok.map(p => num(p.y)));
           if (sx && sy) FIT = { a: sx[0], b: sx[1], tx: sx[2], d: sy[0], e: sy[1], ty: sy[2] };
         }

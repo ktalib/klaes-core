@@ -24,6 +24,8 @@ class LaasDashboardController extends Controller
             'cadastral'      => app(\App\Services\Laas\LaasCadastralProgress::class)->forFiles(
                 $applications->reject->isTransferredOut()->pluck('file_number')->all()
             ),
+            // The department pipeline per application, read in one batch (user's LAAS Portal Flow doc, 2026-11-16).
+            'pipelines'      => app(\App\Services\Laas\LaasFilePipeline::class)->forApplications($applications),
             'unreadUpdates'  => $this->unreadCount($applicant->id),
         ]);
     }

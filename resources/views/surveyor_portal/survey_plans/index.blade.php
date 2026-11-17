@@ -1,136 +1,63 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Survey Plan Upload — MLPP-SG Portal')
-@section('heading', 'Survey Plan Upload')
+@section('title', 'Survey Plan Management — KN-MLPP-SG Portal')
+@section('heading', 'Survey Plan Management')
 
 @php
     use App\Models\Survey\SurveyPlanUpload as Plan;
-    $district = old('district');
 @endphp
 
 @section('main')
-    {{-- Survey Update 5g/5h (user, 2026-11-10): the very short form. The unit chosen receives the plan in KLAES. --}}
+    {{-- Survey Plan Management (Recording 5, 2026-11-16): Manual Upload here (1 coordinate system, 2 reference beacon,
+         3 plan details with the file; no map) or Digital Plotting on its own page. A table each below. --}}
+    <style>
+        .spm-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+        @media (max-width: 640px) { .spm-pick { grid-template-columns: minmax(0, 1fr); } }
+        .spm-pick a { display: flex; gap: 12px; align-items: center; padding: 14px 16px; border: 1.5px solid var(--ks-line); border-radius: 12px; background: #fff; color: var(--ks-ink); text-decoration: none; }
+        .spm-pick a:hover { border-color: var(--ks-blue); }
+        .spm-pick a.on { border-color: var(--ks-blue); background: #EFF5FF; box-shadow: 0 0 0 3px #DCE8FB; }
+        .spm-pick .ic { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--ks-blue); color: #fff; }
+        .spm-pick a.dig .ic { background: #0F766E; }
+        .spm-pick b { display: block; font-size: 15px; }
+        .spm-pick small { color: var(--ks-soft); font-size: 12.5px; }
+        .spm-tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--ks-line); margin: 22px 0 10px; flex-wrap: wrap; }
+        .spm-tabs a { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; margin-bottom: -2px; border-bottom: 2px solid transparent; font-weight: 700; font-size: 13.5px; color: var(--ks-soft); text-decoration: none; }
+        .spm-tabs a.on { color: var(--ks-blue); border-bottom-color: var(--ks-blue); }
+        .spm-tabs .c { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: #E2E8F0; color: #334155; }
+        .spm-tabs a.on .c { background: var(--ks-blue); color: #fff; }
+    </style>
+    {{-- Both cards always show (user, 2026-11-16: "bring back the digital tab"); the current one is highlighted.
+         The Manual Upload form below still shows only on the Manual side. --}}
+    <div class="spm-pick">
+        <a href="{{ route('surveyor-portal.survey-plans.index', ['method' => 'manual']) }}#spPortalForm" class="{{ $method !== 'digital' ? 'on' : '' }}">
+            <span class="ic"><i data-lucide="file-up" class="w-5 h-5"></i></span>
+            <span><b>Manual Upload</b><small>A scanned or hard copy plan: the coordinate system, the reference beacon and the file.</small></span>
+        </a>
+        <a href="{{ route('surveyor-portal.survey-plans.digital') }}" class="dig {{ $method === 'digital' ? 'on' : '' }}">
+            <span class="ic"><i data-lucide="map-pinned" class="w-5 h-5"></i></span>
+            <span><b>Digital Plotting</b><small>Plot the plan on the map by X / Y or by bearing and distance. The plan file is optional.</small></span>
+        </a>
+    </div>
+
+    @if ($method !== 'digital')
+
     <form method="POST" id="spPortalForm" action="{{ route('surveyor-portal.survey-plans.store') }}" enctype="multipart/form-data" class="ks-card p-6 space-y-4">
         @csrf
-        <p class="ks-help" style="margin:0;">Send a survey plan for checking: GKN for public plans, Examination/Verification for private.</p>
-        {{-- One card, no tabs (user, 2026-11-12, Survey Plan Check): 1 coordinate system, 2 reference coordinate, 3 map,
-             4 other beacons, 5 plan details, 6 export. --}}
-        <style>
-            .ks-searchable + .select2-container { width: 100% !important; }
-            .ks-searchable + .select2-container .select2-selection--single { height: 44px; border: 1px solid #B8BEC5; border-radius: 8px; }
-            .ks-searchable + .select2-container .select2-selection__rendered { line-height: 42px; padding-left: 12px; color: var(--ks-ink); font-size: 14px; }
-            .ks-searchable + .select2-container .select2-selection__arrow { height: 42px; }
-            .sp-preview { border: 1px solid var(--ks-line); border-radius: 10px; overflow: hidden; }
-            .sp-preview-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; background: #F5F7FA; border-bottom: 1px solid var(--ks-line); font-size: 13px; }
-            .sp-preview-head > span { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; word-break: break-all; }
-            .sp-preview-body { background: #fff; }
-            .sp-preview-body iframe { display: block; width: 100%; height: 520px; border: 0; }
-            .sp-preview-body img { display: block; max-width: 100%; max-height: 520px; margin: 0 auto; }
-            .sp-preview-note { padding: 18px; color: var(--ks-soft); font-size: 13px; text-align: center; }
-            @media (max-width: 640px) { .sp-preview-body iframe { height: 380px; } }
-        </style>
-        @include('survey_module.survey_plans._plan_check', ['spcMode' => 'upload', 'spcSearchUrl' => route('surveyor-portal.survey-plans.beacons')])
-        <div class="spc"><div class="spc-group"><span class="n">5</span><span>Plan details</span></div></div>
-        <div class="space-y-4">
-        <div class="grid sm:grid-cols-2 gap-4">
-            <div>
-                <label class="ks-label" for="plan_type">Type <span class="ks-req">*</span></label>
-                <select class="ks-input" id="plan_type" name="plan_type" required>
-                    <option value="">Select…</option>
-                    @foreach (Plan::TYPES as $t)<option value="{{ $t }}" @selected(old('plan_type') === $t)>{{ $t }}</option>@endforeach
-                </select>
-                @error('plan_type')<p class="ks-error">{{ $message }}</p>@enderror
-            </div>
-            <div>
-                <label class="ks-label" for="unit">Send To <span class="ks-req">*</span></label>
-                <select class="ks-input" id="unit" name="unit" required>
-                    <option value="">Select unit…</option>
-                    @foreach (Plan::UNITS as $u => $label)<option value="{{ $u }}" @selected(old('unit') === $u)>{{ $label }}</option>@endforeach
-                </select>
-                @error('unit')<p class="ks-error">{{ $message }}</p>@enderror
-            </div>
-        </div>
-        <div class="grid sm:grid-cols-3 gap-4">
-            <div>
-                <label class="ks-label" for="plot_no">Plot No.</label>
-                <input class="ks-input" id="plot_no" name="plot_no" value="{{ old('plot_no') }}" maxlength="100">
-            </div>
-            <div>
-                <label class="ks-label" for="spDistrict">District <span class="ks-req">*</span></label>
-                <select class="ks-input ks-searchable" id="spDistrict" name="district" data-placeholder="Search district…" required>
-                    <option value="">Select district…</option>
-                    @foreach ($districts as $d)<option value="{{ $d }}" @selected($district === $d)>{{ $d }}</option>@endforeach
-                    <option value="other" @selected($district === 'other')>Other (specify)</option>
-                </select>
-                <input class="ks-input" id="spDistrictOther" name="district_other" value="{{ old('district_other') }}" maxlength="150" placeholder="Specify district"
-                       style="margin-top:6px;{{ $district === 'other' ? '' : 'display:none;' }}" @disabled($district !== 'other') @required($district === 'other')>
-                @error('district')<p class="ks-error">{{ $message }}</p>@enderror
-                @error('district_other')<p class="ks-error">{{ $message }}</p>@enderror
-            </div>
-            <div>
-                <label class="ks-label" for="lga">LGA <span class="ks-req">*</span></label>
-                <select class="ks-input" id="lga" name="lga" required>
-                    <option value="">Select LGA…</option>
-                    @foreach ($lgas as $l)<option value="{{ $l }}" @selected(old('lga') === $l)>{{ $l }}</option>@endforeach
-                </select>
-                @error('lga')<p class="ks-error">{{ $message }}</p>@enderror
-            </div>
-        </div>
-        {{-- Map sheet, Metric and Imperial (CR 141102026 item 3, 2026-11-15). Optional: blank when not known. --}}
-        <div class="grid sm:grid-cols-2 gap-4">
-            <div>
-                <label class="ks-label" for="map_sheet_metric">Map Sheet (Metric)</label> <button type="button" class="spc-sheet-link" data-spc-guide="sheets"><i class="fas fa-map"></i> View sheet index</button>
-                <select class="ks-input ks-searchable" id="map_sheet_metric" name="map_sheet_metric" data-placeholder="Search sheet…">
-                    <option value="">Select sheet…</option>
-                    @foreach (\App\Services\Survey\MapSheets::METRIC as $c)<option value="{{ $c }}" @selected(old('map_sheet_metric') === $c)>{{ $c }}</option>@endforeach
-                </select>
-                <p class="ks-help" style="margin-top:4px;">Kano metropolitan index grid. Leave blank if not known.</p>
-                @error('map_sheet_metric')<p class="ks-error">{{ $message }}</p>@enderror
-            </div>
-            <div>
-                <label class="ks-label" for="map_sheet_imperial">Map Sheet (Imperial)</label> <button type="button" class="spc-sheet-link" data-spc-guide="sheets"><i class="fas fa-map"></i> View sheet index</button>
-                <select class="ks-input ks-searchable" id="map_sheet_imperial" name="map_sheet_imperial" data-placeholder="Search sheet…">
-                    <option value="">Select sheet…</option>
-                    @foreach (\App\Services\Survey\MapSheets::IMPERIAL as $c => $n)<option value="{{ $c }}" @selected(old('map_sheet_imperial') === $c)>{{ $c }} · {{ $n }}</option>@endforeach
-                </select>
-                <p class="ks-help" style="margin-top:4px;">1:50,000 topo sheet. Leave blank if not known.</p>
-                @error('map_sheet_imperial')<p class="ks-error">{{ $message }}</p>@enderror
-            </div>
-        </div>
-        <div class="grid sm:grid-cols-2 gap-4">
-            <div>
-                <label class="ks-label" for="drawn_by">Drawn By <span class="ks-req">*</span></label>
-                <input class="ks-input" id="drawn_by" name="drawn_by" value="{{ old('drawn_by', $me->name) }}" maxlength="255" required>
-                <p class="ks-help" style="margin-top:4px;">Who drew the plan. Change it if it was not you.</p>
-                @error('drawn_by')<p class="ks-error">{{ $message }}</p>@enderror
-            </div>
-            <div>
-                <label class="ks-label" for="plan_file">Plan File <span class="ks-req">*</span></label>
-                <input class="ks-input" id="plan_file" type="file" name="plan_file" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff" required>
-                <p class="ks-help" style="margin-top:4px;">PDF, JPG, PNG or TIFF; at most 25 MB.</p>
-                @error('plan_file')<p class="ks-error">{{ $message }}</p>@enderror
-            </div>
-        </div>
-        {{-- Preview of the chosen plan before it is sent (user, 2026-11-12). PDF and images show in place; a TIFF cannot be shown by the browser. --}}
-        <div id="spPreview" class="sp-preview" hidden>
-            <div class="sp-preview-head">
-                <span><i data-lucide="eye" class="w-4 h-4"></i> Preview: <strong id="spPreviewName"></strong> <span id="spPreviewSize" class="ks-help" style="margin:0;"></span></span>
-                <button type="button" class="ks-btn" id="spPreviewClear"><i data-lucide="x" class="w-4 h-4"></i> Remove</button>
-            </div>
-            <div id="spPreviewBody" class="sp-preview-body"></div>
-        </div>
-        <div>
-            <label class="ks-label" for="remarks">Remarks</label>
-            <textarea class="ks-input" id="remarks" name="remarks" rows="2" maxlength="1000">{{ old('remarks') }}</textarea>
-        </div>
-        </div>
-        @include('survey_module.survey_plans._plan_check_export', ['spcExportNo' => 6, 'spcExportGate' => true])
+        <input type="hidden" name="plan_method" value="manual">
+        <p class="ks-help" style="margin:0;"><b>Manual Upload.</b> Send a survey plan for checking: GKN for public plans, Examination/Verification for private.</p>
+        @include('survey_module.survey_plans._manual_reference', ['mrSearchUrl' => route('surveyor-portal.survey-plans.beacons')])
+        @include('surveyor_portal.survey_plans._plan_details_portal', ['no' => 3, 'withFile' => true])
         <div class="flex justify-end">
             <button class="ks-btn ks-btn-primary"><i data-lucide="send" class="w-4 h-4"></i> Upload and Send</button>
         </div>
     </form>
+    @endif
 
-    <h2 style="margin:22px 0 10px;font-size:16px;font-weight:800;">My uploads</h2>
+    <nav class="spm-tabs" aria-label="My survey plans">
+        @foreach (Plan::METHODS as $m => $label)
+            <a href="{{ route('surveyor-portal.survey-plans.index', ['method' => $m]) }}" class="{{ $method === $m ? 'on' : '' }}" @if ($method === $m) aria-current="page" @endif>My {{ $label }}s <span class="c">{{ number_format($methodCounts[$m]) }}</span></a>
+        @endforeach
+    </nav>
     <div class="ks-card overflow-x-auto">
         <table class="ks-table">
             <thead>
@@ -153,7 +80,7 @@
                         <td style="white-space:nowrap;"><a href="{{ route('surveyor-portal.survey-plans.show', $p->id) }}" style="color:var(--ks-blue);font-weight:600;">Open</a></td>
                     </tr>
                 @empty
-                    <tr><td colspan="12" class="ks-help" style="text-align:center;padding:24px;">No survey plans uploaded yet.</td></tr>
+                    <tr><td colspan="12" class="ks-help" style="text-align:center;padding:24px;">No {{ strtolower(Plan::METHODS[$method]) }} yet.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -169,37 +96,12 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
-// The reference coordinate is required: submitting without it opens its Beacon No. list.
-(function () {
-    var form = document.getElementById('spPortalForm');
-    form.addEventListener('submit', function (e) {
-        var no = form.querySelector('#spc-refRows select.spc-b'), val = form.querySelector('input[name="beacons[0][beacon_no]"]');
-        if (no && val && !val.value && no.value !== '__other') { e.preventDefault(); no.closest('.spc-bt').scrollIntoView({ block: 'center' }); if (window.jQuery && jQuery(no).data('select2')) jQuery(no).select2('open'); }
-    });
-})();
-// District: a searchable list (user, 2026-11-12). "Other (specify)" reveals a required box; any other choice hides, clears and disables it.
-(function () {
-    var pick = document.getElementById('spDistrict'), box = document.getElementById('spDistrictOther');
-    var sync = function () {
-        var on = pick.value === 'other';
-        box.style.display = on ? '' : 'none';
-        box.disabled = !on; box.required = on;
-        if (on) box.focus(); else box.value = '';
-    };
-    if (window.jQuery && jQuery.fn.select2) {
-        // "Other (specify)" stays in the list whatever is typed, so an unlisted district can always be given.
-        var matcher = jQuery.fn.select2.defaults.defaults.matcher;
-        jQuery(pick).select2({
-            width: '100%', placeholder: pick.dataset.placeholder || '',
-            matcher: function (params, data) { return data.id === 'other' ? data : matcher(params, data); },
-        }).on('change', sync);
-    } else {
-        pick.addEventListener('change', sync);
-    }
-})();
+
+
 // Preview of the chosen plan file: PDF and images in place; anything else (TIFF) by name and size only.
 (function () {
     var input = document.getElementById('plan_file'), wrap = document.getElementById('spPreview'), body = document.getElementById('spPreviewBody');
+    if (!input || !wrap) return; // the Digital tab has no Manual Upload form
     var url = null;
     var clear = function () {
         if (url) { URL.revokeObjectURL(url); url = null; }

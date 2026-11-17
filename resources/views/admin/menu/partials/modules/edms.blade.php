@@ -119,8 +119,15 @@
               <span>File Indexing Assistant (old)</span>
             </a> --}}
 
-            {{-- Supervisor Monitor (fileindexing.activity-log) link removed from the sidebar (user,
-                 2026-11-01): Activity Monitoring covers it. The page and route remain. --}}
+            {{-- Supervisor Monitor: indexers for the day, each one's files folded under the name. Removed
+                 2026-11-01 for Activity Monitoring, restored 2026-11-16 (user could not find the list). --}}
+            @if($hasRole('Indexing Activity Log'))
+              <a href="{{route('fileindexing.activity-log')}}"
+                class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('fileindexing.activity-log') ? 'active' : '' }}">
+                <i data-lucide="activity" class="h-3.5 w-3.5 text-emerald-400"></i>
+                <span>Supervisor Monitor</span>
+              </a>
+            @endif
             {{-- Indexing piece-rate pay: indexers' own progress & earnings (admins: any indexer's). --}}
             @if(\App\Http\Controllers\IndexingPay\IndexingEarningsController::canSeeProgress(auth()->user()))
               <a href="{{ route('indexing-earnings.me') }}"

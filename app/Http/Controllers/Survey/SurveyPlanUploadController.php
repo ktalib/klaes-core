@@ -67,7 +67,15 @@ class SurveyPlanUploadController extends Controller
         return view('survey_module.survey_plans.index', [
             'unit'      => $unit,
             'listScope' => $scope,
-            'rows'      => $this->listQuery($r, $unit, $scope)->paginate(25)->withQueryString(),
+            // Survey Plan Management (Recording 5, 2026-11-16): a table each for Manual Upload and Digital Plotting.
+            'method'    => $this->method($r),
+            'methodCounts' => [
+                Plan::METHOD_MANUAL  => (clone $base)->ofMethod(Plan::METHOD_MANUAL)->count(),
+                Plan::METHOD_DIGITAL => (clone $base)->ofMethod(Plan::METHOD_DIGITAL)->count(),
+            ],
+            'rows'      => $this->listQuery($r, $unit, $scope)
+                ->when(\App\Models\Survey\SurveyApplicationPlan::installed(), fn ($q) => $q->with('applicationPlan'))
+                ->paginate(25)->withQueryString(),
             'term'      => trim((string) $r->query('q', '')),
             'stats'     => [
                 'total'   => (clone $base)->count(),
@@ -77,22 +85,53 @@ class SurveyPlanUploadController extends Controller
             ],
             'districts' => LookupController::options('districts'),
             'lgas'      => CompensationListReader::LGAS,
-            'surveyors' => SurveyorListEntry::query()->where('is_active', true)->orderBy('first_name')->orderBy('surname')->get(['id', 'first_name', 'surname', 'other_name', 'rank']),
+            'surveyors' => $this->surveyors(),
+        ]);
+    }
+
+    private function surveyors()
+    {
+        return SurveyorListEntry::query()->where('is_active', true)->orderBy('first_name')->orderBy('surname')->get(['id', 'first_name', 'surname', 'other_name', 'rank']);
+    }
+
+    /** The list's tab: Manual Upload (default) or Digital Plotting. */
+    private function method(Request $r): string
+    {
+        return $r->query('method') === Plan::METHOD_DIGITAL ? Plan::METHOD_DIGITAL : Plan::METHOD_MANUAL;
+    }
+
+    /**
+     * Digital Plotting (Recording 5, 2026-11-16): its own page, for the room the map needs. 1 coordinate system,
+     * 2 the beacons (X / Y or traverse; the first is the reference), 3 map, 4 plan details (no file), 5 export.
+     */
+    public function digital()
+    {
+        abort_unless(Plan::installed(), 404);
+
+        return view('survey_module.survey_plans.digital', [
+            'districts' => LookupController::options('districts'),
+            'lgas'      => CompensationListReader::LGAS,
+            'surveyors' => $this->surveyors(),
         ]);
     }
 
     public function store(Request $r)
     {
         abort_unless(Plan::installed(), 404);
-        $plan = $this->plans->store($this->plans->validated($r, true), $r->file('plan_file'), Auth::user());
+        $method = $r->input('plan_method') === Plan::METHOD_DIGITAL ? Plan::METHOD_DIGITAL : Plan::METHOD_MANUAL;
+        $plan = $this->plans->store($this->plans->validated($r, true, $method), $r->file('plan_file'), Auth::user());
 
-        return redirect()->route('survey-module.survey-plans.index')
-            ->with('success', "{$plan->upload_ref} uploaded and sent to {$plan->unit}.");
+        return redirect()->route('survey-module.survey-plans.index', ['method' => $method])
+            ->with('success', "{$plan->upload_ref} " . ($plan->isDigital() ? 'plotted' : 'uploaded') . " and sent to {$plan->unit}.");
     }
 
     /** The plan file, from the private disk. */
     public function file(Plan $plan)
     {
+        // A Digital Plotting without a file opens on the map; its file is optional (2026-11-16).
+        if ($plan->isDigital() && ! $plan->file_path) {
+            return redirect()->route('survey-module.survey-plans.check-plan', $plan);
+        }
         abort_unless($plan->file_path && Storage::disk(Plan::DISK)->exists($plan->file_path), 404);
 
         return Storage::disk(Plan::DISK)->response($plan->file_path, $plan->file_name ?: basename($plan->file_path), [
@@ -116,6 +155,7 @@ class SurveyPlanUploadController extends Controller
         $like = '%' . str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term) . '%';
 
         return $this->scoped(Plan::query(), $unit, $scope)
+            ->ofMethod($this->method($r))
             ->when(ctype_digit((string) $r->query('stage')), fn ($q) => $q->where('stage', (int) $r->query('stage')))
             ->when(! $unit && in_array($r->query('unit'), array_keys(Plan::UNITS), true), fn ($q) => $q->where('unit', $r->query('unit')))
             ->when(in_array($r->query('type'), Plan::TYPES, true), fn ($q) => $q->where('plan_type', $r->query('type')))
@@ -131,10 +171,10 @@ class SurveyPlanUploadController extends Controller
         $scope = in_array($r->query('scope'), ['signing', 'portal'], true) ? $r->query('scope') : null;
 
         return $this->exportRecords($r, fn () => $this->listQuery($r, $unit, $scope), [
-            'ref' => 'Upload Ref', 'type' => 'Type', 'unit' => 'Sent To', 'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA',
+            'ref' => 'Upload Ref', 'method' => 'Method', 'type' => 'Type', 'unit' => 'Sent To', 'plot_no' => 'Plot No.', 'district' => 'District', 'lga' => 'LGA',
             'location' => 'Location', 'drawn_by' => 'Drawn By', 'source' => 'From', 'uploaded_by' => 'Uploaded By', 'uploaded' => 'Uploaded', 'status' => 'Status', 'stage' => 'Stage',
         ], fn ($x) => [
-            'ref' => $x->upload_ref, 'type' => $x->plan_type, 'unit' => $x->unit, 'plot_no' => $x->plot_no, 'district' => $x->district, 'lga' => $x->lga,
+            'ref' => $x->upload_ref, 'method' => $x->method_label, 'type' => $x->plan_type, 'unit' => $x->unit, 'plot_no' => $x->plot_no, 'district' => $x->district, 'lga' => $x->lga,
             'location' => $x->location, 'drawn_by' => $x->drawn_by, 'source' => $x->source_label, 'uploaded_by' => $x->uploaded_by_name,
             'uploaded' => $this->exportDate($x->created_at), 'status' => $x->status, 'stage' => $x->stage_no . ' ' . $x->stage_label,
         ], 'created_at');
@@ -160,6 +200,18 @@ class SurveyPlanUploadController extends Controller
         $row = fn ($b) => ['beacon_no' => (string) $b->beacon_no, 'x' => (string) $b->coord_x, 'y' => (string) $b->coord_y, 'source' => (string) $b->source];
         $beacons = $plan->referenceBeacons->values();
         $place = collect([$plan->plot_no ? 'plot ' . $plan->plot_no : null, $plan->district, $plan->lga])->filter()->implode(', ');
+        if ($plan->isDigital()) {
+            $pd = (array) $plan->plot_data;
+
+            return view('survey_module.survey_plans.check', ['plan' => $plan, 'prefill' => [
+                'sys'    => $plan->coord_system,
+                'ref'    => $beacons->isNotEmpty() ? $row($beacons->first()) : null,
+                'others' => $beacons->map($row)->values()->all(),
+                'closed' => ! empty($pd['closed']),
+                'note'   => 'Digital plotting <b>' . e($plan->upload_ref) . '</b> (' . e($plan->plan_type) . ($place !== '' ? ', ' . e($place) : '') . '): '
+                    . $beacons->count() . ' beacons as plotted' . (($pd['mode'] ?? '') === 'brg' ? ' by bearing and distance' : '') . ', in traverse order.',
+            ]]);
+        }
         $note = 'Filled in from upload <b>' . e($plan->upload_ref) . '</b> (' . e($plan->plan_type) . ($place !== '' ? ', ' . e($place) : '') . ')'
             . ($plan->coord_system
                 ? ': the coordinate system and the reference coordinate are as the uploader entered them. Add the other beacons under the map.'
@@ -171,6 +223,70 @@ class SurveyPlanUploadController extends Controller
             'others' => $beacons->slice(1)->map($row)->values()->all(),
             'note'   => $note,
         ]]);
+    }
+
+    /**
+     * The Ministry's Application Plan (A4), filled from the upload (user, 2026-11-17): its particulars, and in the big
+     * frame the parcel plotted to scale over the map. Blanks print as lines to fill by hand.
+     */
+    public function applicationPlan(Plan $plan)
+    {
+        $plan->load('referenceBeacons');
+
+        return view('survey_module.survey_plans.application_plan', [
+            'ap' => \App\Models\Survey\SurveyApplicationPlan::entriesFor($plan),
+            'beacons' => $plan->referenceBeacons
+                ->map(fn ($b) => ['no' => (string) $b->beacon_no, 'e' => $b->coord_x, 'n' => $b->coord_y])->all(),
+            'coordSystem' => $plan->coord_system ?: '26332',
+            'coordSystemLabel' => $plan->coord_system_label ?: Plan::COORD_SYSTEMS['26332'],
+        ]);
+    }
+
+    /**
+     * Save the Application Plan pop-up (user, 2026-11-17), then open the printout. Text is tidied per field
+     * (development standard 3): names capitalised word by word, numbers and references kept as typed.
+     */
+    public function saveApplicationPlan(Request $r, Plan $plan)
+    {
+        $AP = \App\Models\Survey\SurveyApplicationPlan::class;
+        abort_unless($AP::installed(), 404);
+        $rules = [];
+        foreach (array_keys($AP::FIELDS) as $k) {
+            $rules[$k] = ['nullable', 'string', 'max:' . (in_array($k, ['address', 'location', 'purpose'], true) ? 300 : 120)];
+        }
+        $rules['scale'] = ['nullable', 'in:' . implode(',', $AP::SCALES)];
+        $rules['ground_open'] = ['nullable', 'in:Yes,No'];
+        $rules['date'] = ['nullable', 'date'];
+        $rules['amount_paid'] = ['nullable', 'numeric', 'min:0', 'max:999999999999'];
+        $d = $r->validate($rules, [
+            'scale.in' => 'Choose a scale from the list, or Auto.',
+            'amount_paid.numeric' => 'Amount Paid must be a number.',
+            'date.date' => 'Date must be a date.',
+        ], $AP::FIELDS);
+
+        $N = \App\Services\CadastralDept\Normalise::class;
+        $fields = [];
+        foreach (array_keys($AP::FIELDS) as $k) {
+            $v = $N::text($d[$k] ?? null);
+            // People's names in title case (initials kept), the Survey module's rule; Rank keeps acronyms (SSG, DSG).
+            $fields[$k] = match (true) {
+                in_array($k, ['applicant', 'surveyed_by', 'drawn_by', 'checked_by', 'passed_by'], true) => app(\App\Services\Survey\CompensationListReader::class)->personName($v),
+                $k === 'rank' => $N::name($v),
+                default => $v,
+            };
+        }
+        // The "lies on" entries only count when the ground is not open.
+        if ($fields['ground_open'] !== 'No') {
+            foreach ($AP::LIES_ON as $k) $fields[$k] = '';
+        }
+
+        $row = $AP::query()->firstOrNew(['survey_plan_upload_id' => $plan->id]);
+        $before = $row->exists ? $row->fields : null;
+        $row->fields = $fields;
+        $row->save();
+        \Illuminate\Support\Facades\Log::info('Application Plan details saved', ['plan' => $plan->upload_ref, 'by' => Auth::id(), 'before' => $before, 'after' => $fields]);
+
+        return redirect()->route('survey-module.survey-plans.application-plan', $plan);
     }
 
     public function show(Plan $plan)
@@ -234,6 +350,28 @@ class SurveyPlanUploadController extends Controller
             'Cache-Control' => 'private, max-age=3600',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    /** Add layer > Geodatabase (Recording 5, 2026-11-16): the zipped .gdb's catalog, its datasets and layers. */
+    public function gdbCatalog(Request $r, \App\Services\Survey\GdbCatalog $catalog)
+    {
+        $r->validate(['gdb' => 'required|file|max:' . (\App\Services\Survey\GdbCatalog::MAX_MB * 1024)], ['gdb.max' => 'The geodatabase zip can be at most ' . \App\Services\Survey\GdbCatalog::MAX_MB . ' MB.']);
+        try {
+            return response()->json($catalog->open($r->file('gdb')));
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+    }
+
+    /** The layers picked in the catalog, as GeoJSON in their own coordinates (the card converts them). */
+    public function gdbCatalogRead(Request $r, \App\Services\Survey\GdbCatalog $catalog)
+    {
+        $d = $r->validate(['token' => 'required|string|max:40', 'layers' => 'required|array|max:50', 'layers.*' => 'string|max:160', 'bbox' => 'nullable|array|size:4', 'bbox.*' => 'numeric']);
+        try {
+            return response()->json($catalog->read($d['token'], $d['layers'], $d['bbox'] ?? null));
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
     }
 
     /** Reference beacon dropdown: captured beacons (with X / Y) and the Extant Beacons list. */

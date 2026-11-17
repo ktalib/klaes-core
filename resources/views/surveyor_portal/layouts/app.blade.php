@@ -8,7 +8,7 @@
         // A title given as a section string arrives escaped already; decode it so the title tag escapes it once.
         $portalPageTitle = html_entity_decode(trim($__env->yieldContent('title', '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $portalPageTitle = str_replace(
-            ["MLPP-SG Portal", "Ministry of Land and Physical Planning – Surveyor General's Office"],
+            ["KN-MLPP-SG Portal", "Ministry of Land and Physical Planning – Surveyor General's Office"],
             [$portalSettings['portal_name'], $portalSettings['office_name']],
             $portalPageTitle
         );
@@ -61,7 +61,7 @@
     @stack('styles')
 </head>
 <body>
-    <div id="ks-preloader" aria-hidden="true"><img src="{{ asset('assets/logo/mlppsg-preloader.webp') }}" alt=""></div>
+    <div id="ks-preloader" aria-hidden="true"><img src="{{ asset('assets/logo/knmlppsg-preloader.webp') }}" alt=""></div>
     <script>
         (function () {
             var hide = function () { var p = document.getElementById('ks-preloader'); if (p) { p.classList.add('done'); setTimeout(function () { p.remove(); }, 400); } };

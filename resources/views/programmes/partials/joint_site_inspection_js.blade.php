@@ -4227,6 +4227,45 @@ document.addEventListener('DOMContentLoaded', function() {
         return { formData, csrfToken: csrfTokenInput.value };
     }
 
+    // Plain-English reason for a failed save/generate/submit, instead of a bare "Server Error"
+    function describeJsiRequestFailure(status, data) {
+        const serverMessage = data && typeof data.message === 'string' ? data.message.trim() : '';
+        // Laravel's built-in texts mean nothing to staff; explain those by status instead
+        const genericServerText = /^(server error|the given data was invalid|csrf token mismatch|page expired|unauthenticated|this action is unauthorized|forbidden|not found|too many attempts|service unavailable)\.?$/i;
+
+        if (status === 422 && data && data.errors && typeof data.errors === 'object') {
+            const problems = Object.values(data.errors).flat().filter(Boolean);
+            if (problems.length) {
+                return 'The report was not saved. Please correct: ' + problems.slice(0, 5).join(' ')
+                    + (problems.length > 5 ? ` (and ${problems.length - 5} more)` : '');
+            }
+        }
+        if (serverMessage && !genericServerText.test(serverMessage)) {
+            return serverMessage;
+        }
+        switch (status) {
+            case 401:
+                return 'You have been signed out. Sign in again in another tab, then press Save again (your entries are still on this form).';
+            case 403:
+                return 'Your account is not allowed to save this report. Ask an administrator for Planning Recommendation access.';
+            case 404:
+                return 'The application for this report could not be found. Close the form, reload the page and open the file again.';
+            case 413:
+                return 'The report was not saved: the attached files are too large. Remove or shrink the attachments, then press Save again.';
+            case 419:
+                return 'Your session has expired. Reload the page (your entries on this form will be lost), sign in if asked, and enter the report again.';
+            case 429:
+                return 'Too many attempts in a short time. Wait a minute, then press Save again.';
+            case 502: case 503: case 504:
+                return 'The server is busy or restarting. Wait a minute, then press Save again.';
+        }
+        if (status >= 500) {
+            const when = new Date().toLocaleString();
+            return `The report was not saved because of a problem on the server (error ${status}, ${when}). Nothing you entered was stored. Send a screenshot of this message to ICT.`;
+        }
+        return `The report was not saved (error ${status}). Please try again, and send a screenshot to ICT if it keeps happening.`;
+    }
+
     // Shared function to submit form data
     function submitFormData(formData, csrfToken, action = 'save') {
         // Add action type to form data
@@ -4242,8 +4281,13 @@ document.addEventListener('DOMContentLoaded', function() {
             body: formData,
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
                 'X-CSRF-TOKEN': csrfToken
             }
+        })
+        .catch(networkError => {
+            console.error('JSI request did not reach the server:', networkError);
+            throw new Error('The report was not saved: the server could not be reached. Check your network connection, then press Save again.');
         })
         .then(async response => {
             let data;
@@ -4251,11 +4295,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 data = await response.json();
             } catch (parseError) {
                 console.error('Failed to parse response JSON:', parseError);
-                throw new Error('Received an unexpected response from the server.');
+                throw new Error(describeJsiRequestFailure(response.status, null));
             }
 
             if (!response.ok) {
-                throw new Error(data.message || 'An error occurred while processing the request.');
+                throw new Error(describeJsiRequestFailure(response.status, data));
             }
 
             if (!data.success) {

@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Dashboard — MLPP-SG Portal')
+@section('title', 'Dashboard — KN-MLPP-SG Portal')
 @section('heading', 'Dashboard')
 
 {{-- A company's dashboard (user, 2026-11-10): its surveyors, its beacons and its surveyors' reports, read only. --}}

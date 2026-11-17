@@ -9,17 +9,19 @@ use Illuminate\Support\Facades\DB;
 class SurveyorPortalSettings
 {
     public const DEFAULT_LOGO_PATHS = [
-        // MLPP-SG artwork (user, 2026-11-10); the KNSSGOF files stay on disk, unused.
-        'wordmark' => 'assets/logo/mlppsg-wordmark.jpg',
-        'seal' => 'assets/logo/mlppsg-logo.png',
-        'registration_banner' => 'assets/logo/mlppsg-register-banner.jpg',
-        'favicon' => 'assets/logo/mlppsg-favicon.png',
+        // KN-MLPP-SG artwork (user, 2026-11-16): the banner serves as wordmark and registration banner.
+        // The older MLPP-SG / KNSSGOF files stay on disk, unused.
+        'wordmark' => 'assets/logo/knmlppsg-banner.jpg',
+        'seal' => 'assets/logo/knmlppsg-logo.png',
+        'registration_banner' => 'assets/logo/knmlppsg-banner.jpg',
+        'favicon' => 'assets/logo/knmlppsg-favicon.png',
     ];
 
     public const DEFAULTS = [
         // Renamed from KNSSGOF (user, 2026-11-10): "MLPP- Surveyor General Portal", acronym "MLPP-SG portal".
-        'brand_name' => 'MLPP-SG',
-        'portal_name' => 'MLPP - Surveyor General Portal',
+        // Renamed again KN-MLPP-SG (user, 2026-11-16), wording from the new banner.
+        'brand_name' => 'KN-MLPP-SG',
+        'portal_name' => "KN-MLPP-SG Surveyor General's Portal",
         'office_name' => "Ministry of Land and Physical Planning – Surveyor General's Office",   // wording image, 2026-11-10
         // Survey Update 5j (user, 2026-11-10): shown on the portal's pages.
         'ministry_line' => 'Under the Kano State Ministry of Land and Physical Planning',

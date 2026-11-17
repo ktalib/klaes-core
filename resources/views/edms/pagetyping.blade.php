@@ -163,5 +163,5 @@
     };
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha512-1QrHy+RUrK3mDaN44EWJ5PJpj6EaveQyGVF8aRTsz3wL1osppcrPuPuheurdePPNyAaqmJesHYA/Ecc8kalZ2g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="{{ asset('js/edms-pagetyping.js') }}"></script>
+<script src="{{ asset('js/edms-pagetyping.js') }}?v={{ filemtime(public_path('js/edms-pagetyping.js')) }}"></script>
 @endsection

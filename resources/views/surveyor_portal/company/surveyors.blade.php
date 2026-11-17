@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', 'Our Surveyors — MLPP-SG Portal')
+@section('title', 'Our Surveyors — KN-MLPP-SG Portal')
 @section('heading', 'Our Surveyors')
 
 {{-- The surveyors registered on the portal under this company (user, 2026-11-10); Add Surveyor since 2026-11-13. --}}

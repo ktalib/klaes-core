@@ -1,5 +1,5 @@
 {{-- Flash banners (CR 11112026-2, item 11): NIS and SURCON notices rotating in a strip at the top of the
-     MLPP-SG portal. Wording, links and on/off in Configurable Entries > Surveyor Portal. Turns every 7 s,
+     KN-MLPP-SG portal. Wording, links and on/off in Configurable Entries > Surveyor Portal. Turns every 7 s,
      pauses on hover or focus, and stays still for people who ask for reduced motion. --}}
 @php
   $fbOn = (string) ($portalSettings['flash_banners_on'] ?? '1') === '1';
@@ -9,7 +9,7 @@
   $fbLogo = [
     'SURCON' => ['assets/logo/surcon-logo.png', 'Surveyors Council of Nigeria (SURCON) logo'],
     'NIS' => ['assets/logo/nis-logo.png', 'Nigerian Institution of Surveyors (NIS) logo'],
-    'MLPP-SG' => [$portalSettings['logo_seal'] ?? 'assets/logo/mlppsg-logo.png', 'MLPP-SG seal'],
+    'MLPP-SG' => [$portalSettings['logo_seal'] ?? 'assets/logo/mlppsg-logo.png', 'KN-MLPP-SG seal'],
   ];
   // A second notice from the same body shows that body's second logo, if it has one.
   $fbLogoAlt = ['SURCON' => 'assets/logo/surcon-logo-2.png'];

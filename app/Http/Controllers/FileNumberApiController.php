@@ -1102,10 +1102,14 @@ class FileNumberApiController extends Controller
                 // The buyer list holds the name the unit was sold under; the register's
                 // own parts are the fallback for files with no buyer row (primaries).
                 ->leftJoin('buyer_list as bl', 'bl.id', '=', 'stf.buyer_list_id')
+                // A primary's fileno is its LAND file (e.g. KNGP 247) and np_fileno its ST number (ST-RES-2026-1);
+                // a unit's fileno is its own ST number. The selector lists and searches the ST number, so primaries
+                // show up and ST-RES-2026-1 is found; the land file comes along as land_file_no (2026-11-16).
                 ->select([
                     'stf.id',
-                    DB::raw('stf.fileno as file_number'),
-                    DB::raw('stf.fileno as mlsFNo'),
+                    DB::raw("CASE WHEN stf.fileno LIKE 'ST-%' OR NULLIF(LTRIM(RTRIM(stf.np_fileno)), '') IS NULL THEN stf.fileno ELSE stf.np_fileno END as file_number"),
+                    DB::raw("CASE WHEN stf.fileno LIKE 'ST-%' OR NULLIF(LTRIM(RTRIM(stf.np_fileno)), '') IS NULL THEN stf.fileno ELSE stf.np_fileno END as mlsFNo"),
+                    DB::raw("CASE WHEN stf.fileno LIKE 'ST-%' THEN NULL ELSE stf.fileno END as land_file_no"),
                     DB::raw("COALESCE(NULLIF(LTRIM(RTRIM(bl.buyer_name)), ''), stf.corporate_name, NULLIF(LTRIM(RTRIM(ISNULL(stf.first_name, '') + ' ' + ISNULL(stf.surname, ''))), ''), stf.applicant_type) as FileName"),
                     DB::raw("'ST Registry' as location")
                 ])
@@ -1114,7 +1118,9 @@ class FileNumberApiController extends Controller
                 ->whereIn('stf.status', ['ACTIVE', 'USED', 'RESERVED']);
 
             if (!empty($search)) {
-                $query->where('stf.fileno', 'LIKE', '%' . $search . '%');
+                $query->where(fn ($q) => $q->where('stf.fileno', 'LIKE', '%' . $search . '%')->orWhere('stf.np_fileno', 'LIKE', '%' . $search . '%'))
+                    // The number typed in full comes first (a primary before its units).
+                    ->orderByRaw("CASE WHEN stf.np_fileno = ? AND stf.fileno NOT LIKE 'ST-%' THEN 0 WHEN stf.fileno = ? THEN 0 ELSE 1 END", [trim($search), trim($search)]);
             }
 
             return response()->json([

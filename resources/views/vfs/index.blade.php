@@ -93,7 +93,8 @@
             @if($filters['q'] && !$filters['scope'])
                 <div class="mt-3 text-xs text-gray-600">
                     Searching all {{ number_format($stats['indexed']) }} indexed files.
-                    <span class="font-semibold text-red-700">Rows in red have no pages in EDMS.</span>
+                    <span class="font-semibold text-red-700">Rows in red have no pages in DMS.</span>
+                    <span class="font-semibold text-amber-700">Amber ST rows hold only their commissioning sheets so far.</span>
                 </div>
             @elseif($activeScope === 'mapped')
                 {{-- Most indexed files have never been scanned, so an unfiltered register
@@ -128,10 +129,14 @@
                              still in the Blind Scanning folder. --}}
                         @php
                             $vfsBlindOnly = $row->vfs_pages === 0 && ($row->vfs_blind ?? 0) > 0;
+                            // ST: the Commissioning / LGA Confirmation Sheets count as pages; a file holding only those is amber, not red.
+                            $vfsSheets = (int) ($row->vfs_sheets ?? 0);
+                            $vfsSheetsOnly = $row->vfs_pages === 0 && $vfsSheets > 0 && !$vfsBlindOnly;
                         @endphp
-                        <tr class="border-b {{ $vfsBlindOnly ? 'bg-purple-50 border-purple-100 text-purple-900' : ($row->vfs_pages === 0 ? 'bg-red-50 border-red-100 text-red-900' : 'border-gray-100') }}"
+                        <tr class="border-b {{ $vfsBlindOnly ? 'bg-purple-50 border-purple-100 text-purple-900' : ($vfsSheetsOnly ? 'bg-amber-50 border-amber-100 text-amber-900' : ($row->vfs_pages === 0 ? 'bg-red-50 border-red-100 text-red-900' : 'border-gray-100')) }}"
                             @if($vfsBlindOnly) title="Pages are in the Blind Scanning folder, not yet page-typed"
-                            @elseif($row->vfs_pages === 0) title="{{ $row->vfs_scans ? 'Scanned but no page has been typed' : 'No EDMS record: never scanned or uploaded' }}" @endif>
+                            @elseif($vfsSheetsOnly) title="Only the KLAES-issued commissioning sheets so far: {{ $row->vfs_scans ? 'scanned but no page has been typed' : 'not scanned yet' }}"
+                            @elseif($row->vfs_pages === 0) title="{{ $row->vfs_scans ? 'Scanned but no page has been typed' : 'No DMS record: never scanned or uploaded' }}" @endif>
                             <td class="px-4 py-3 text-xs text-gray-600">{{ $row->prop_id ?: '—' }}</td>
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2">
@@ -160,8 +165,11 @@
                                     {{ $row->vfs_registry_badge['label'] }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-xs {{ $vfsBlindOnly ? 'text-purple-700 font-bold' : ($row->vfs_pages === 0 ? 'text-red-700 font-bold' : 'text-gray-600') }}">
-                                {{ $row->vfs_pages }}
+                            <td class="px-4 py-3 text-xs {{ $vfsBlindOnly ? 'text-purple-700 font-bold' : ($vfsSheetsOnly ? 'text-amber-700 font-bold' : ($row->vfs_pages === 0 ? 'text-red-700 font-bold' : 'text-gray-600')) }}">
+                                {{ $row->vfs_pages + $vfsSheets }}
+                                @if($vfsSheets > 0)
+                                    <span class="block text-xs font-semibold text-amber-700">incl. {{ $vfsSheets }} commissioning {{ \Illuminate\Support\Str::plural('sheet', $vfsSheets) }}</span>
+                                @endif
                                 @if(($row->vfs_blind ?? 0) > 0)
                                     <span class="block text-xs font-semibold text-purple-700">+{{ number_format($row->vfs_blind) }} in blind scan</span>
                                 @endif
@@ -186,8 +194,8 @@
                                 @elseif($row->vfs_is_temporary)
                                     <span class="inline-block text-xs font-bold px-2 py-1 rounded bg-yellow-100 text-yellow-800 border border-yellow-300">TEMPORARY FILE</span>
                                 @elseif($row->vfs_pages === 0 && !$vfsBlindOnly)
-                                    <span class="inline-block text-xs font-bold px-2 py-1 rounded bg-red-100 text-red-700 border border-red-300">
-                                        {{ $row->vfs_scans ? 'NOT PAGE-TYPED (' . $row->vfs_scans . ' ' . \Illuminate\Support\Str::plural('scan', $row->vfs_scans) . ')' : 'NO EDMS RECORD' }}
+                                    <span class="inline-block text-xs font-bold px-2 py-1 rounded {{ $vfsSheetsOnly ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-red-100 text-red-700 border border-red-300' }}">
+                                        {{ $row->vfs_scans ? 'NOT PAGE-TYPED (' . $row->vfs_scans . ' ' . \Illuminate\Support\Str::plural('scan', $row->vfs_scans) . ')' : ($vfsSheetsOnly ? 'NOT SCANNED YET' : 'NO DMS RECORD') }}
                                     </span>
                                 @else
                                     <span class="text-xs text-gray-400">—</span>

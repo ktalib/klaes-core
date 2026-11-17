@@ -94,7 +94,7 @@ class ConfigurableEntriesController extends Controller
         'deeds-workflow' => ['label' => 'Valuation - Consent - Registration', 'icon' => 'workflow', 'accent' => '#4d7c0f', 'tint' => '#f7fee7'],
         'land-rates' => ['label' => 'Land Rates (G.Rent & LUC)', 'icon' => 'map', 'accent' => '#0f766e', 'tint' => '#f0fdfa'],
         'logos' => ['label' => 'Logos', 'icon' => 'image', 'accent' => '#4338ca', 'tint' => '#eef2ff'],
-        'surveyor-portal' => ['label' => 'MLPP-SG Portal', 'icon' => 'globe-2', 'accent' => '#1d4ed8', 'tint' => '#eff6ff'],
+        'surveyor-portal' => ['label' => 'KN-MLPP-SG Portal', 'icon' => 'globe-2', 'accent' => '#1d4ed8', 'tint' => '#eff6ff'],
         'signatories' => ['label' => 'Signatories', 'icon' => 'pen-line', 'accent' => '#9d174d', 'tint' => '#fdf2f8'],
         // The Kano State MDAs list (OP Source = Kano MDAs, File Movement External sender).
         'kano-mdas' => ['label' => 'Kano MDAs', 'icon' => 'landmark', 'accent' => '#0369a1', 'tint' => '#f0f9ff'],
@@ -2358,7 +2358,7 @@ class ConfigurableEntriesController extends Controller
 
         return redirect()
             ->route('configurable-entries.index', ['tab' => 'surveyor-portal'])
-            ->with('success', 'MLPP-SG Portal settings saved.');
+            ->with('success', 'KN-MLPP-SG Portal settings saved.');
     }
 
     /** Replace one slot's image. The upload is kept beside the shipped logos, named for its slot. */

@@ -1,9 +1,11 @@
 {{-- Survey Plan Check card, sections 1-4 (CR 11112026-2 item 8; user, 2026-11-12, from the approved prototype
-     /maps/survey-plan-check.html). Shared by KLAES (Upload Survey Plan pop-up, Check Survey Plan page) and the MLPP-SG
+     /maps/survey-plan-check.html). Shared by KLAES (Upload Survey Plan pop-up, Check Survey Plan page) and the KN-MLPP-SG
      portal upload page. Order from the recordings: 1 coordinate system, 2 ONE reference coordinate (drives the map),
      3 the other beacons in order of the traverse, 4 map (swapped 2026-11-13). The host page puts Plan details (5, upload only) and then includes
      _plan_check_export for Export, the styles and the script.
-     $spcMode: 'upload' (the reference coordinate and the system are submitted) or 'check' (nothing is saved).
+     $spcMode: 'upload' (the reference coordinate and the system are submitted), 'check' (nothing is saved) or 'digital'
+     (Digital Plotting, Recording 5 2026-11-16: no reference section, the plotted beacons are submitted, X1 first, as the
+     reference; sections 1 system, 2 beacons, 3 map).
      $spcSearchUrl: the beacon search route. $spcPrefill: ['sys' => '26392', 'ref' => [...], 'others' => [[...]], 'note' => html] or null. --}}
 @php
   $spcMode = $spcMode ?? 'upload';
@@ -13,6 +15,13 @@
       $ob = (array) (old('beacons')[0] ?? []);
       $spcPrefill = ['sys' => old('coord_system'), 'ref' => ['beacon_no' => $ob['beacon_no'] ?? '', 'x' => $ob['x'] ?? '', 'y' => $ob['y'] ?? '', 'source' => $ob['source'] ?? '']];
   }
+  // Digital Plotting: after a failed send, the plotted beacons come back as X / Y rows.
+  if ($spcMode === 'digital' && ! $spcPrefill && (old('coord_system') || old('beacons'))) {
+      $spcPrefill = ['sys' => old('coord_system'), 'ref' => null, 'others' => collect((array) old('beacons'))->map(fn ($b) => ['beacon_no' => $b['beacon_no'] ?? '', 'x' => $b['x'] ?? '', 'y' => $b['y'] ?? '', 'source' => $b['source'] ?? ''])->values()->all()];
+  }
+  $spcDigital = $spcMode === 'digital';
+  // Section numbers: Digital Plotting has no reference section (2).
+  $spcN = $spcDigital ? ['beacons' => 2, 'map' => 3] : ['beacons' => 3, 'map' => 4];
   $spcErrors = isset($errors) ? collect($errors->getMessages())->filter(fn ($m, $k) => str_starts_with($k, 'beacons') || $k === 'coord_system')->flatten() : collect();
 @endphp
 @php
@@ -21,12 +30,12 @@
         ? route('surveyor-portal.survey-plans.gis-tiles', ['layer' => '__LAYER__'])
         : route('survey-module.survey-plans.gis-tiles', ['layer' => '__LAYER__']);
 @endphp
-<div class="spc" id="spc" data-column-picker="off" data-mode="{{ $spcMode }}" data-search="{{ $spcSearchUrl }}" data-gis="{{ $spcGisUrl }}" data-gis-full="{{ request()->routeIs('surveyor-portal.*') ? '0' : '1' }}" data-prefill='@json($spcPrefill)'>
+<div class="spc" id="spc" data-gdb-catalog="{{ request()->routeIs('surveyor-portal.*') ? route('surveyor-portal.survey-plans.gdb-catalog') : route('survey-module.survey-plans.gdb-catalog') }}" data-gdb-read="{{ request()->routeIs('surveyor-portal.*') ? route('surveyor-portal.survey-plans.gdb-catalog.read') : route('survey-module.survey-plans.gdb-catalog.read') }}" data-csrf="{{ csrf_token() }}" data-column-picker="off" data-mode="{{ $spcMode }}" data-search="{{ $spcSearchUrl }}" data-gis="{{ $spcGisUrl }}" data-gis-full="{{ request()->routeIs('surveyor-portal.*') ? '0' : '1' }}" data-prefill='@json($spcPrefill)'>
   {{-- Coloured top bar with Refresh and Reset, as on the FC commissioning card (user, 2026-11-15).
        Refresh reloads the Beacon Register and redraws, keeping what is typed; Reset clears what was entered. --}}
   <div class="spc-topbar">
     <div class="spc-topbar-t"><span class="spc-topbar-ic"><i class="fas fa-map-location-dot"></i></span>
-      <div><b>Survey Plan Check</b><small>Coordinates, beacons and the plan on the map</small></div></div>
+      <div><b>{{ $spcDigital ? 'Digital Plotting' : 'Survey Plan Check' }}</b><small>{{ $spcDigital ? 'Plot the plan: beacons by X / Y or by bearing and distance' : 'Coordinates, beacons and the plan on the map' }}</small></div></div>
     <span class="spc-topbar-msg" id="spc-topMsg" hidden></span>
     <div class="spc-topbar-btns">
       <button type="button" class="spc-top-btn reset" id="spc-resetBtn" title="Clear everything entered on this card and start again"><i class="fas fa-eraser"></i> Reset</button>
@@ -40,8 +49,10 @@
     <div class="spc-err">@foreach ($spcErrors as $m)<div>{{ $m }}</div>@endforeach</div>
   @endif
 
+  {{-- The entry sections (system, beacons): moved beside the map by "Entry beside map" (Recording 5, 2026-11-16). --}}
+  <div class="spc-entry-home" id="spc-entryHome"><div class="spc-entry" id="spc-entry">
   <div class="spc-group"><span class="n">1</span><span>Reference coordinate system <span class="spc-req">*</span></span><span class="aside">The X / Y on the plan are read in this system.</span></div>
-  <input type="hidden" id="spc-coord" @if ($spcMode === 'upload') name="coord_system" @endif value="">
+  <input type="hidden" id="spc-coord" @if (in_array($spcMode, ['upload', 'digital'], true)) name="coord_system" @endif value="">
   {{-- Two halves (user, 2026-11-12): the systems on the left, the NTM vs UTM chart on the right. --}}
   <div class="spc-sysrow">
   <div class="spc-sys" role="radiogroup" aria-label="Coordinate system">
@@ -108,7 +119,10 @@
     </div>
     <script type="application/json" id="spc-guideData">{!! $spcGuideJson !!}</script>
 
-  <div class="spc-group"><span class="n">2</span><span>Reference coordinate <span class="spc-req">*</span></span><span class="aside" id="spc-data-note">Loading the Beacon Register…</span></div>
+  {{-- Digital Plotting has no reference section: line 1's From beacon (X1) is the reference (Recording 5, 2026-11-16).
+       The rows stay on the page, hidden, as the card's script works with them. --}}
+  <div @if ($spcDigital) hidden @endif>
+  <div class="spc-group"><span class="n">2</span><span>Reference coordinate <span class="spc-req">*</span></span><span class="aside" @unless ($spcDigital) id="spc-data-note" @endunless>Loading the Beacon Register…</span></div>
   <p class="spc-note">One reference beacon. Search the Beacon No. list: a beacon in the Beacon Register fills X and Y for you. If it is not listed, type the number, pick <b>Not listed</b>, and enter X (Easting) and Y (Northing) as on the plan. <b>Go to point</b> takes the map there.</p>
   <div class="spc-bt">
     <table>
@@ -117,9 +131,15 @@
     </table>
   </div>
   <div class="spc-verdict" id="spc-refVerdict" hidden></div>
+  </div>
 
   {{-- Other Beacons (3) before the Map (4) (user, 2026-11-13): the plot shows right under the lines being typed. --}}
+  @if ($spcDigital)
+    <div class="spc-group"><span class="n">{{ $spcN['beacons'] }}</span><span>Beacons (in order of the traverse) <span class="spc-req">*</span></span><span class="aside" id="spc-data-note">Loading the Beacon Register…</span></div>
+    <p class="spc-note">Point 1 (X1) is the reference: pick it from the Beacon Register or type its X / Y. Then the next beacons in order, by X / Y or by bearing and distance. At least three.</p>
+  @else
   <div class="spc-group"><span class="n">3</span><span>Other Beacons (in order of the traverse)</span><span class="aside">Point 1, 2, 3… as surveyed. Each is joined to the one before.</span></div>
+  @endif
   {{-- Two ways in (user, 2026-11-13, from the prototype): X / Y of each point, or a traverse from a start point by
        bearing and distance, line by line (X1 to X2 ... back to X1). The traverse fields have no names: nothing is saved. --}}
   <div class="spc-mode" role="radiogroup" aria-label="How the other beacons are entered">
@@ -130,8 +150,8 @@
     {{-- Each line runs From beacon -> To beacon on one row (user's sketch, 2026-11-13): line 1's From beacon is
          picked (X1); every next line starts from the line before's To beacon. --}}
     <div class="spc-row">
-      <span class="spc-note">Line 1: pick its From beacon (X1) or use the reference coordinate. Each next line starts at the last line's To beacon.</span>
-      <button type="button" class="spc-btn spc-travref" id="spc-trUseRef" style="margin-left:auto"><i class="fas fa-location-crosshairs"></i> Use the reference coordinate</button>
+      <span class="spc-note">Line 1: pick its From beacon (X1){{ $spcDigital ? ', the reference' : ' or use the reference coordinate' }}. Each next line starts at the last line's To beacon.</span>
+      <button type="button" class="spc-btn spc-travref" id="spc-trUseRef" style="margin-left:auto" @if ($spcDigital) hidden @endif><i class="fas fa-location-crosshairs"></i> Use the reference coordinate</button>
     </div>
     <div id="spc-trHold" hidden>
       <div class="spc-trav-pick" id="spc-trStartWrap"><select id="spc-trStartB" aria-label="From beacon (X1)" data-no-search></select>
@@ -174,38 +194,48 @@
     <details class="spc-opts" style="margin-left:auto">
       <summary>Check options</summary>
       <div style="display:grid;gap:8px;margin-top:8px;max-width:360px">
-        <label for="spc-tol" style="font-size:13px;font-weight:500">Register tolerance (m)<input type="number" id="spc-tol" value="1" min="0.01" step="0.1" style="margin-top:4px"></label>
+        <label for="spc-tol" style="font-size:13px;font-weight:500">Register tolerance (m)<input type="number" id="spc-tol" value="1" min="0.01" step="any" style="margin-top:4px"></label>
         <label class="spc-check" for="spc-autofix"><input type="checkbox" id="spc-autofix" checked><span>Switch X and Y back when they were typed the wrong way round</span></label>
       </div>
     </details>
   </div>
   <div class="spc-stats" id="spc-svStats" hidden></div>
+  </div></div>
 
-  <div class="spc-group"><span class="n">4</span><span>Map</span>
+  <div class="spc-group"><span class="n">{{ $spcN['map'] }}</span><span>Map</span>
     <span class="aside spc-legend">
-      <span><span class="spc-dot" style="background:var(--spc-ref)"></span>Reference coordinate</span>
-      <span><span class="spc-dot" style="background:var(--spc-sv)"></span>Other beacon</span>
+      <span><span class="spc-dot" style="background:var(--spc-ref)"></span>{{ $spcDigital ? 'X1 (reference)' : 'Reference coordinate' }}</span>
+      <span><span class="spc-dot" style="background:var(--spc-sv)"></span>{{ $spcDigital ? 'Beacon' : 'Other beacon' }}</span>
       <span><span class="spc-dot" style="background:var(--spc-reg)"></span>Beacon Register</span>
       <span><span class="spc-dot" style="background:var(--spc-ctl)"></span>Control point</span>
       <span><span class="spc-dot" style="background:var(--spc-draw)"></span>Drawn</span>
     </span></div>
   <div class="spc-mapbox" id="spc-mapbox">
+    {{-- Map tools as ArcMap-style toolbars above the map header (user, 2026-11-16): icon buttons, grips and separators; toggles stay checkboxes for the JS. --}}
+    <div class="spc-toctools" id="spc-tocTools" role="toolbar" aria-label="Map tools">
+      <div class="tb">
+        <span class="grip" aria-hidden="true"></span>
+        <button type="button" class="mb" id="spc-btn-street" title="Street map" aria-label="Street map"><i class="fas fa-road"></i></button>
+        <button type="button" class="mb active" id="spc-btn-satellite" title="Satellite imagery" aria-label="Satellite imagery"><i class="fas fa-satellite"></i></button>
+        <span class="sep" aria-hidden="true"></span>
+        <label class="mb tg" title="Basemap on/off (off = plain georeferenced backdrop)"><input type="checkbox" id="spc-baseOn" checked><i class="fas fa-earth-africa"></i><span class="sr">Basemap</span></label>
+        <label class="mb tg" title="Coordinate grid in the chosen system"><input type="checkbox" id="spc-gridOn"><i class="fas fa-border-all"></i><span class="sr">Grid</span></label>
+        <span class="sep" aria-hidden="true"></span>
+        <button type="button" class="mb" id="spc-mapFit" title="Full extent: zoom to the beacons" aria-label="Full extent"><i class="fas fa-expand"></i></button>
+      </div>
+      <div class="tb" id="spc-tools">
+        <span class="grip" aria-hidden="true"></span>
+        <button type="button" class="mb" data-tool="point" title="Add a point" aria-label="Add a point"><i class="fas fa-location-dot"></i></button>
+        <button type="button" class="mb" data-tool="line" title="Draw a line" aria-label="Draw a line"><i class="fas fa-bezier-curve"></i></button>
+        <button type="button" class="mb" data-tool="polygon" title="Mark out a parcel" aria-label="Mark out a parcel"><i class="fas fa-draw-polygon"></i></button>
+        <span class="sep" aria-hidden="true"></span>
+        <label class="mb tg" title="Snap to beacons and lines"><input type="checkbox" id="spc-snap" checked><i class="fas fa-magnet"></i><span class="sr">Snap</span></label>
+      </div>
+    </div>
     <div class="spc-mapbar" role="toolbar" aria-label="Map tools">
-      <div class="grp">
-        <button type="button" class="mb" id="spc-btn-street"><i class="fas fa-road"></i> Street</button>
-        <button type="button" class="mb active" id="spc-btn-satellite"><i class="fas fa-satellite"></i> Satellite</button>
-        <label class="snap" title="Untick to plot on a plain georeferenced backdrop"><input type="checkbox" id="spc-baseOn" checked> Basemap</label>
-        <label class="snap" title="Coordinate grid in the chosen system"><input type="checkbox" id="spc-gridOn"> Grid</label>
-      </div>
-      <div class="grp" id="spc-tools">
-        <button type="button" class="mb" data-tool="point" title="Add a point"><i class="fas fa-location-dot"></i> Point</button>
-        <button type="button" class="mb" data-tool="line" title="Draw a line"><i class="fas fa-bezier-curve"></i> Line</button>
-        <button type="button" class="mb" data-tool="polygon" title="Mark out a parcel"><i class="fas fa-draw-polygon"></i> Parcel</button>
-        <label class="snap" title="Snap to beacons and lines"><input type="checkbox" id="spc-snap" checked> Snap</label>
-      </div>
-      <div class="grp"><button type="button" class="mb" id="spc-mapFit" title="Zoom to the beacons"><i class="fas fa-expand"></i> Fit</button></div>
       {{-- A scanned plan or GeoTIFF under the plotting (public/js/survey-plan-scan.js, 2026-11-15). --}}
-      <div class="grp"><button type="button" class="mb spc-scan-btn" id="spc-scanBtn" title="Put a scanned plan or GeoTIFF on the map"><i class="fas fa-file-image"></i> Scanned plan</button></div>
+      {{-- The button stays (survey-plan-scan.js opens the panel from it) but is hidden: Add layer > Scanned plan opens it (user, 2026-11-16). --}}
+      <div class="grp" hidden><button type="button" class="mb spc-scan-btn" id="spc-scanBtn" title="Put a scanned plan or GeoTIFF on the map"><i class="fas fa-file-image"></i> Scanned plan</button></div>
       <div class="grp spc-scan-grp" id="spc-scanGrp" hidden>
         <label class="snap" title="Show or hide the scanned plan"><input type="checkbox" id="spc-scanVis" checked> <span id="spc-scanTag" class="spc-scan-tag">Scan</span></label>
         <label class="snap" title="See-through" for="spc-scanOp"><i class="fas fa-circle-half-stroke"></i><input type="range" id="spc-scanOp" min="10" max="100" value="75" aria-label="Scan opacity"></label>
@@ -216,21 +246,25 @@
       </div>
       {{-- Table of Contents (CR 141102026 item 4): every layer on / off. Existing layers (2026-11-15) are added from
            its Add layer: parcels, beacons, lines from a file, read in the browser and never uploaded. --}}
-      <div class="grp"><button type="button" class="mb active" id="spc-tocBtn" title="Table of contents: turn each layer on or off"><i class="fas fa-list-check"></i> Layers</button></div>
+      {{-- Layers panel and Add layer together (Recording 5, 2026-11-16). --}}
+      <div class="grp"><button type="button" class="mb active" id="spc-tocBtn" title="Table of contents: turn each layer on or off, drag to reorder, right-click for its menu"><i class="fas fa-list-check"></i> Layers</button>
+        <button type="button" class="mb" id="spc-addLayerBtn" title="Add existing parcels, beacons or lines: a shapefile, GeoJSON, KML or a Geodatabase"><i class="fas fa-plus"></i> Add layer</button>
+        <button type="button" class="mb" id="spc-sideBtn" title="Put the coordinate system and the beacons beside the map, for more room"><i class="fas fa-table-columns"></i> Entry beside map</button></div>
       <input type="file" id="spc-lyrFile" accept=".zip,.shp,.dbf,.prj,.cpg,.geojson,.json,.kml" multiple hidden>
       <span class="grow"></span>
       <span class="gridtag" id="spc-gridtag"></span>
       <button type="button" class="full" id="spc-mapFull" title="Full screen"><i class="fas fa-up-right-and-down-left-from-center"></i> <span>Full screen</span></button>
     </div>
     <div class="spc-mapbody" id="spc-mapbody">
-    <aside class="spc-toc" id="spc-toc" aria-label="Layers"></aside>
+    <aside class="spc-toc" id="spc-toc" aria-label="Layers"><div id="spc-tocTree"></div>
+      {{-- Map tools sit in the Layers panel, after Base layers (user, 2026-11-16: "the tools should be after Base layers
+           and remove them from the card header"). --}}
+    </aside>
     <div class="spc-map" id="spc-map">
-      @if ($spcMode === 'upload')
-        <span class="spc-map-watermark" aria-hidden="true">Dev-SDK4.3-Demo</span>
-      @endif
       <div class="spc-drawinfo" id="spc-drawinfo" hidden></div>
       <div class="spc-fullstats" id="spc-fullStats"></div>
     </div>
+    <aside class="spc-side" id="spc-side" aria-label="Entry beside the map"><div class="spc-side-h"><i class="fas fa-table-columns"></i> Entry <button type="button" id="spc-sideClose">Back under the map</button></div></aside>
     </div>
   </div>
   {{-- Scanned plan panel (survey-plan-scan.js). The file is read in the browser; nothing is uploaded. --}}
@@ -238,7 +272,7 @@
     <div class="spc-geo-box">
       <div class="spc-geo-h">
         <i class="fas fa-file-image" style="color:var(--spc-blue)"></i>
-        <div><h3 id="spc-geoTitle">Put a scanned plan on the map</h3><p class="spc-note">A GeoTIFF places itself. A plain scan (TIFF, JPG, PNG) is placed from a beacon on it. The file stays in your browser: nothing is uploaded.</p></div>
+        <div><h3 id="spc-geoTitle">Put a scanned plan on the map</h3><p class="spc-note">A GeoTIFF places itself from the georeferencing inside it: no coordinates to type. A plain scan (TIFF, JPG, PNG) is placed from at least four beacons on it (X1 Y1 … X4 Y4). The file stays in your browser: nothing is uploaded.</p></div>
         <span style="flex:1"></span>
         <label class="spc-geo-btn spc-geo-btn-primary" for="spc-geoFile"><i class="fas fa-folder-open"></i> Open scan<input type="file" id="spc-geoFile" accept=".tif,.tiff,.jpg,.jpeg,.png,image/tiff,image/jpeg,image/png" hidden></label>
         <button type="button" class="spc-geo-btn" id="spc-geoSample" title="A GeoTIFF layout plan from Abia, until the Kano plans are added"><i class="fas fa-flask"></i> Load the sample (GeoTIFF)</button>
@@ -255,22 +289,24 @@
         </div>
         <div class="spc-geo-side">
           <p class="spc-note" id="spc-geoMsg">Open a scan, or load the sample.</p>
-          <div class="spc-geo-method" role="radiogroup" aria-label="How to place the scan">
-            <label><input type="radio" name="spc_geomethod" value="quick" checked><span><i class="fas fa-location-dot"></i> One beacon + scale</span></label>
-            <label><input type="radio" name="spc_geomethod" value="cps"><span><i class="fas fa-crosshairs"></i> Control points</span></label>
+          {{-- Control points only, at least four (Recording 5, 2026-11-16); the one-beacon way is gone. --}}
+          <div class="spc-geo-method" role="radiogroup" aria-label="How to place the scan" hidden>
+            <label><input type="radio" name="spc_geomethod" value="quick"><span><i class="fas fa-location-dot"></i> One beacon + scale</span></label>
+            <label><input type="radio" name="spc_geomethod" value="cps" checked><span><i class="fas fa-crosshairs"></i> Control points</span></label>
           </div>
+          <p class="spc-note"><b>Control points:</b> click a beacon on the scan, then give its number or X / Y. At least four, spread over the sheet.</p>
           <p class="spc-note">Coordinates in <b id="spc-geoSys"></b> (section 1).</p>
-          <div id="spc-geoQuick" class="spc-geo-form">
+          <div id="spc-geoQuick" class="spc-geo-form" hidden>
             <label class="lbl">Beacon clicked on the scan <span class="spc-note" id="spc-gqPx">not clicked yet</span></label>
             <input type="text" id="spc-gqName" placeholder="Beacon No." aria-label="Beacon No.">
             <div class="spc-geo-two"><label class="lbl">X (Easting)<input type="text" id="spc-gqX" inputmode="decimal"></label><label class="lbl">Y (Northing)<input type="text" id="spc-gqY" inputmode="decimal"></label></div>
             <div class="spc-geo-three"><label class="lbl">Scale 1 :<input type="text" id="spc-gqScale" inputmode="decimal" value="2500"></label><label class="lbl">Scan dpi<input type="text" id="spc-gqDpi" inputmode="decimal" value="200"></label><label class="lbl">Turn (&deg;)<input type="text" id="spc-gqRot" inputmode="decimal" value="0" title="How far the sheet&#39;s north is turned clockwise from grid north"></label></div>
             <p class="spc-note">The scale is printed on the plan. Turn stays 0 when the sheet&#39;s north arrow points straight up.</p>
           </div>
-          <div id="spc-geoCps" class="spc-geo-form" hidden>
+          <div id="spc-geoCps" class="spc-geo-form">
             <div class="spc-geo-tablewrap"><table class="spc-geo-table"><thead><tr><th>#</th><th>On scan</th><th>Beacon No.</th><th>X (Easting)</th><th>Y (Northing)</th><th>Miss</th><th></th></tr></thead><tbody id="spc-gcRows"></tbody></table></div>
             <div><button type="button" class="spc-geo-btn" id="spc-gcClear"><i class="fas fa-eraser"></i> Clear points</button>
-              <span class="spc-note">A Beacon Register number fills its X / Y. 3 or more points also take paper stretch.</span></div>
+              <span class="spc-note">A Beacon Register number fills its X / Y. The fit takes paper stretch and shows each point's miss.</span></div>
           </div>
           <div class="spc-geo-fit" id="spc-geoFit"></div>
           <button type="button" class="spc-geo-btn spc-geo-btn-success" id="spc-geoPlace" disabled><i class="fas fa-map-location-dot"></i> Place on map</button>
@@ -278,5 +314,9 @@
       </div>
     </div>
   </div>
+  @if ($spcDigital)
+    {{-- The plotted beacons and lines, written by the script when the form is sent. --}}
+    <div id="spc-plotInputs" hidden></div>
+  @endif
 
 </div>

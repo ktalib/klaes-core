@@ -1078,8 +1078,10 @@
           <form id="edit-file-info-form" class="px-6 py-5 space-y-4" onsubmit="return false;">
             <input type="hidden" id="edit-file-info-file-number">
             <div>
-              <label class="block text-xs font-medium text-gray-700 mb-1">File Title <span class="text-red-500">*</span></label>
-              <input type="text" id="edit-file-info-title" maxlength="255" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="File title / current holder">
+              {{-- File Title is shown for reference only: it is not editable from Legal Search (user, 2026-11-16). --}}
+              <label class="block text-xs font-medium text-gray-700 mb-1">File Title</label>
+              <input type="text" id="edit-file-info-title" readonly disabled tabindex="-1" aria-readonly="true" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed" placeholder="File title / current holder">
+              <p class="mt-1 text-xs text-gray-500">File Title cannot be edited here.</p>
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
@@ -1301,7 +1303,6 @@
             file_number: document.getElementById('edit-file-info-file-number').value.trim(),
             kangis_file_no: panelValue('kangis-file-number-value'),
             new_kangis_file_no: panelValue('new-kangis-file-number-value'),
-            file_title: document.getElementById('edit-file-info-title').value.trim(),
             plot_no: document.getElementById('edit-file-info-plot-no').value.trim(),
             size: document.getElementById('edit-file-info-size').value.trim(),
             tp_no: lookupValue('edit-file-info-tpno'),
@@ -1310,12 +1311,6 @@
             land_use: document.getElementById('edit-file-info-land-use').value.trim(),
             term: document.getElementById('edit-file-info-term').value.trim(),
           };
-
-          if (!payload.file_title) {
-            errorEl.textContent = 'File Title is required.';
-            errorEl.classList.remove('hidden');
-            return;
-          }
 
           saveBtn.disabled = true;
           var originalLabel = saveBtn.textContent;

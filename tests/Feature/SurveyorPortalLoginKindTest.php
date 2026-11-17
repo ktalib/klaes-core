@@ -14,28 +14,28 @@ class SurveyorPortalLoginKindTest extends TestCase
 {
     public function test_login_asks_company_or_surveyor_and_each_has_its_own_page(): void
     {
-        $this->get('/mlpp-sg/login')
+        $this->get('/kn-mlpp-sg/login')
             ->assertOk()
             ->assertSee('Sign in as')
             ->assertSee(route('surveyor-portal.login.as', 'surveyor'), false)
             ->assertSee(route('surveyor-portal.login.as', 'company'), false);
 
-        $this->get('/mlpp-sg/login/company')
+        $this->get('/kn-mlpp-sg/login/company')
             ->assertOk()
             ->assertSee('Sign in as a company')
             ->assertSee('name="as" value="company"', false);
 
-        $this->get('/mlpp-sg/login/surveyor')
+        $this->get('/kn-mlpp-sg/login/surveyor')
             ->assertOk()
             ->assertSee('Sign in as a surveyor')
             ->assertSee('name="as" value="surveyor"', false);
 
-        $this->get('/mlpp-sg/login/anything')->assertNotFound();
+        $this->get('/kn-mlpp-sg/login/anything')->assertNotFound();
     }
 
     public function test_every_public_sign_in_link_opens_the_choice_pop_up(): void
     {
-        $this->get('/mlpp-sg')
+        $this->get('/kn-mlpp-sg')
             ->assertOk()
             ->assertSee('<dialog id="ksSignInDialog"', false)
             ->assertSee('data-signin-dialog-trigger', false);
@@ -51,17 +51,17 @@ class SurveyorPortalLoginKindTest extends TestCase
         // The password is taken as right, so only the kind check can refuse; refused before any code is sent.
         Hash::shouldReceive('check')->andReturn(true);
 
-        $this->from('/mlpp-sg/login/surveyor')
-            ->post('/mlpp-sg/login', ['username' => $company->username, 'password' => 'x', 'as' => 'surveyor'])
-            ->assertRedirect('/mlpp-sg/login/surveyor')
+        $this->from('/kn-mlpp-sg/login/surveyor')
+            ->post('/kn-mlpp-sg/login', ['username' => $company->username, 'password' => 'x', 'as' => 'surveyor'])
+            ->assertRedirect('/kn-mlpp-sg/login/surveyor')
             ->assertSessionHasErrors(['username' => 'This is a company\'s login. Use "Sign in as a company".']);
 
-        $this->from('/mlpp-sg/login/company')
-            ->post('/mlpp-sg/login', ['username' => $surveyor->username, 'password' => 'x', 'as' => 'company'])
-            ->assertRedirect('/mlpp-sg/login/company')
+        $this->from('/kn-mlpp-sg/login/company')
+            ->post('/kn-mlpp-sg/login', ['username' => $surveyor->username, 'password' => 'x', 'as' => 'company'])
+            ->assertRedirect('/kn-mlpp-sg/login/company')
             ->assertSessionHasErrors(['username' => 'This is a surveyor\'s login. Use "Sign in as a surveyor".']);
 
-        $this->post('/mlpp-sg/login', ['username' => $company->username, 'password' => 'x'])
+        $this->post('/kn-mlpp-sg/login', ['username' => $company->username, 'password' => 'x'])
             ->assertSessionHasErrors('as');
     }
 }

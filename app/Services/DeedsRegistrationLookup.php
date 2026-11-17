@@ -245,7 +245,13 @@ class DeedsRegistrationLookup
         foreach (array_chunk($files, 1000) as $chunk) {
             $rows = DB::connection('sqlsrv')->table('deed_registrations')
                 ->whereIn(DB::raw('UPPER(LTRIM(RTRIM(fileno)))'), $chunk)
-                ->where('instrument_type', 'like', 'ST Assignment%')
+                // Some units were registered as a plain "Deed of Assignment" (RES-RC-1988-40, user 2026-11-16);
+                // the Fragmentation placeholder (0/0/0) is never a unit's registration.
+                ->where(fn ($q) => $q->where('instrument_type', 'like', 'ST Assignment%')
+                    ->orWhere('instrument_type', 'like', '%Assignment%')
+                    ->orWhere('instrument_type', 'like', '%Transfer%')
+                    ->orWhere('instrument_type', 'like', '%Purchase%'))
+                ->where('instrument_type', 'not like', '%Fragmentation%')
                 ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
                 ->orderBy('id')
                 ->get(['fileno', 'registration_number', 'instrument_type', 'deeds_date']);
@@ -309,7 +315,52 @@ class DeedsRegistrationLookup
                 }
             }
         }
+        $map += $direct;
 
-        return $map + $direct;
+        // Valuations still without one take the registration Deeds Applications shows for a consent on
+        // the same file (or billed on the report), which includes its party-matched fallback: the
+        // capture often never named the consent (user, 2026-11-16: CON-COM-2010-38/44/46).
+        $unmatched = array_diff_key(array_flip($ids), $map);
+        if ($unmatched) {
+            $unmatchedFiles = [];
+            foreach ($files as $file => $reportIds) {
+                if (array_intersect($reportIds, array_keys($unmatched))) {
+                    $unmatchedFiles[] = $file;
+                }
+            }
+            $consents = collect();
+            foreach (array_chunk(array_keys($unmatched), 1000) as $chunk) {
+                $consents = $consents->concat(DB::connection('sqlsrv')->table('consent_applications')
+                    ->whereIn('valuation_report_id', $chunk)->get(['id', 'file_number', 'valuation_report_id']));
+            }
+            foreach (array_chunk($unmatchedFiles, 500) as $chunk) {
+                $consents = $consents->concat(DB::connection('sqlsrv')->table('consent_applications')
+                    ->whereIn(DB::raw('UPPER(LTRIM(RTRIM(file_number)))'), $chunk)->get(['id', 'file_number', 'valuation_report_id']));
+            }
+            $consents = $consents->unique('id')->sortBy('id'); // latest consent wins below
+            $consentRegs = $consents->isNotEmpty() ? $this->forConsentIds($consents->pluck('id')->all()) : [];
+
+            $viaReport = [];
+            $viaFile = [];
+            foreach ($consents as $consent) {
+                $reg = $consentRegs[(int) $consent->id] ?? null;
+                if (!$reg) {
+                    continue;
+                }
+                if ($consent->valuation_report_id !== null) {
+                    $viaReport[(int) $consent->valuation_report_id] = $reg;
+                }
+                $viaFile[strtoupper(trim((string) $consent->file_number))] = $reg;
+            }
+            foreach ($files as $file => $reportIds) {
+                foreach ($reportIds as $id) {
+                    if (!isset($map[$id]) && ($reg = $viaReport[$id] ?? $viaFile[$file] ?? null)) {
+                        $map[$id] = $reg;
+                    }
+                }
+            }
+        }
+
+        return $map;
     }
 }

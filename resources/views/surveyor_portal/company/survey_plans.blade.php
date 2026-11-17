@@ -1,7 +1,7 @@
 @extends('surveyor_portal.layouts.portal')
 
 @php $isSigned = $which === 'signed'; @endphp
-@section('title', ($isSigned ? 'Signed Survey Plans' : 'Uploaded Survey Plans') . ' — MLPP-SG Portal')
+@section('title', ($isSigned ? 'Signed Survey Plans' : 'Uploaded Survey Plans') . ' — KN-MLPP-SG Portal')
 @section('heading', $isSigned ? 'Signed Survey Plans' : 'Uploaded Survey Plans')
 
 {{-- Uploaded Survey Plans > Original / Signed (user, 2026-11-12): the company's surveyors' plans. Read only. --}}

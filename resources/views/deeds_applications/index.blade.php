@@ -474,7 +474,7 @@
                   </td>
                   <td class="px-4 py-3 text-slate-600">${party1}</td>
                   <td class="px-4 py-3 text-slate-600">${unit.party2_name || 'N/A'}</td>
-                  <td class="px-4 py-3 font-bold font-mono" style="color:#0f766e;">${unit.registration_number || '<span class="text-slate-300 font-normal">—</span>'}</td>
+                  <td class="px-4 py-3 font-bold font-mono" style="color:#0f766e;">${unit.registration_number ? unit.registration_number + (unit.reg_date ? '<div class="font-sans font-semibold text-[11px]">Reg Date: ' + unit.reg_date + '</div>' : '') : '<span class="text-slate-300 font-normal">—</span>'}</td>
                 </tr>
               `;
           });
@@ -780,7 +780,7 @@
                               </td>
                               <td class="px-4 py-3 text-slate-600">${party1}</td>
                               <td class="px-4 py-3 text-slate-600">${unit.party2_name || 'N/A'}</td>
-                              <td class="px-4 py-3 font-bold font-mono" style="color:#0f766e;">${unit.registration_number || '<span class="text-slate-300 font-normal">—</span>'}</td>
+                              <td class="px-4 py-3 font-bold font-mono" style="color:#0f766e;">${unit.registration_number ? unit.registration_number + (unit.reg_date ? '<div class="font-sans font-semibold text-[11px]">Reg Date: ' + unit.reg_date + '</div>' : '') : '<span class="text-slate-300 font-normal">—</span>'}</td>
                           </tr>
                       `;
           });

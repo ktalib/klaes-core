@@ -98,10 +98,34 @@ class SurveyCompanyLogins
      * @param string|null $toPhone send here instead of the login's own phone (its stamps are then left alone)
      * @param string|null $toEmail send here instead of the login's own email
      */
+    /**
+     * An approved surveyor who chose their own password at registration (user, 2026-11-15: approval sent no email):
+     * Surveyor ID, username and the sign-in link by email; the password is theirs, so none is sent. Never throws.
+     */
+    public function sendApproved(Account $account): bool
+    {
+        $email = $this->phoneOtp->normaliseEmail((string) $account->email);
+        if (! $email || $this->phoneOtp->isPlaceholderEmail($email) || ! $account->username) {
+            return false;
+        }
+        $url = rtrim((string) config('app.url'), '/') . '/kn-mlpp-sg/login/' . ($account->isCompany() ? 'company' : 'surveyor');
+        try {
+            Mail::to($email)->send(new SurveyCompanyLoginDetails((string) $account->name, (string) $account->username, null, $url,
+                $account->isCompany() ? null : (string) $account->surveyor_id_no));
+        } catch (\Throwable $e) {
+            Log::warning('MLPP-SG approved login: email not delivered', ['account' => $account->id, 'message' => $e->getMessage()]);
+
+            return false;
+        }
+        $account->forceFill(['login_email_sent_at' => now()])->save();
+
+        return true;
+    }
+
     public function send(Account $account, string $password, ?string $toPhone = null, ?string $toEmail = null): array
     {
         // Straight to the right sign-in page: companies and surveyors sign in apart (2026-11-11).
-        $url = rtrim((string) config('app.url'), '/') . '/mlpp-sg/login/' . ($account->isCompany() ? 'company' : 'surveyor');
+        $url = rtrim((string) config('app.url'), '/') . '/kn-mlpp-sg/login/' . ($account->isCompany() ? 'company' : 'surveyor');
         $sms = false;
         $mail = false;
 
@@ -113,11 +137,11 @@ class SurveyCompanyLogins
                 : '';
             $prefixLine = $prefix !== '' ? " Beacon prefix: {$prefix}." : '';
             $sms = $this->gateway->sendFirstAccepted($phone, $account->isCompany() ? [
-                "MLPP-SG Portal: {$account->company_name} is approved.{$prefixLine} Sign in at {$url} Username: {$account->username} Password: {$password} You will choose a new password at first sign-in.",
-                "MLPP-SG company sign-in.{$prefixLine} Username {$account->username} Password {$password} Site {$url}",
+                "KN-MLPP-SG Portal: {$account->company_name} is approved.{$prefixLine} Sign in at {$url} Username: {$account->username} Password: {$password} You will choose a new password at first sign-in.",
+                "KN-MLPP-SG company sign-in.{$prefixLine} Username {$account->username} Password {$password} Site {$url}",
             ] : [
-                "MLPP-SG Portal: your surveyor account is ready, Surveyor ID {$account->surveyor_id_no}. Sign in at {$url} Username: {$account->username} Password: {$password} You will choose a new password at first sign-in.",
-                "MLPP-SG surveyor sign-in. Username {$account->username} Password {$password} Site {$url}",
+                "KN-MLPP-SG Portal: your surveyor account is ready, Surveyor ID {$account->surveyor_id_no}. Sign in at {$url} Username: {$account->username} Password: {$password} You will choose a new password at first sign-in.",
+                "KN-MLPP-SG surveyor sign-in. Username {$account->username} Password {$password} Site {$url}",
             ], \App\Models\SmsSetting::senderFor(\App\Models\SmsSetting::KEY_PHONE_OTP)) !== null;
             if (! $sms) {
                 Log::warning('MLPP-SG company login: SMS not delivered', ['account' => $account->id, 'reason' => $this->gateway->lastFailureReason()]);

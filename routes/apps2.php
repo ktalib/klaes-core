@@ -341,6 +341,10 @@ Route::middleware(['auth'])->group(function () {
         // Stream a card cover from the resolved EDMS source (rather than relying
         // on a public /storage path that may not map to the archive disk).
         Route::get('/cover-image/{pageTyping}', [FilearchiveController::class, 'coverImage'])->name('filearchive.cover-image');
+        // ST scan preview (2026-11-16): a single-picture scan PDF as its JPEG, anything else streamed inline, same site.
+        Route::get('/scan-preview/{scanning}', [FilearchiveController::class, 'scanPreview'])
+            ->where('scanning', '[0-9]+')
+            ->name('filearchive.scan-preview');
         // Blank Land / ST / SLTR cover used when a file's own cover is missing.
         Route::get('/cover-template/{kind}', [FilearchiveController::class, 'coverTemplate'])
             ->where('kind', 'land|st|sltr')

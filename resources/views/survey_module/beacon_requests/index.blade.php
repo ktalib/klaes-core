@@ -68,7 +68,7 @@
             @endif
         @endif
     </div>
-    @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.beacon-requests.export'), 'title' => $tab === 'registrations' ? ($registrationTab === 'companies' ? 'Company Registrations' : 'Surveyor Registrations') : ($tab === 'maps' ? 'MLPP-SG Map Requests' : 'Beacon Requests')])
+    @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.beacon-requests.export'), 'title' => $tab === 'registrations' ? ($registrationTab === 'companies' ? 'Company Registrations' : 'Surveyor Registrations') : ($tab === 'maps' ? 'KN-MLPP-SG Map Requests' : 'Beacon Requests')])
 </div>
 
 <form method="GET" class="table-toolbar">
@@ -414,7 +414,26 @@
                                 <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                      :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                    {{-- Row menu as on LAAS Portal Accounts, without Merge; Transfer instead (user, 2026-11-16). --}}
+                                    @php $work = $accountWork[$a->id] ?? []; @endphp
+                                    <button type="button" class="{{ $item }}" @click="open = false" data-acc-profile data-url="{{ route('survey-module.beacon-requests.accounts.profile', $a->id) }}"><i data-lucide="user" class="w-4 h-4 text-gray-500"></i> View profile</button>
                                     <a href="{{ request()->fullUrlWithQuery(['edit' => $a->id]) }}" class="{{ $item }}"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i> Edit account</a>
+                                    <button type="button" class="{{ $item }}" @click="open = false" data-acc-contact data-url="{{ route('survey-module.beacon-requests.accounts.contact', $a->id) }}" data-name="{{ $a->name }}" data-phone="{{ $a->phone }}" data-email="{{ $a->email }}"><i data-lucide="phone" class="w-4 h-4 text-gray-500"></i> Update contact</button>
+                                    @if ($a->status === 'active' && $a->username)
+                                        <form method="POST" action="{{ route('survey-module.beacon-requests.accounts.slip', $a->id) }}" target="_blank" data-acc-slip data-name="{{ $a->name }}">
+                                            @csrf
+                                            <button type="submit" class="{{ $item }}"><i data-lucide="printer" class="w-4 h-4 text-gray-500"></i> Issue sign-in slip</button>
+                                        </form>
+                                    @endif
+                                    @if ($a->status !== 'rejected')
+                                        <button type="button" class="{{ $item }}" @click="open = false" data-acc-transfer data-url="{{ route('survey-module.beacon-requests.accounts.transfer', $a->id) }}" data-name="{{ $a->name }}" data-company="{{ $a->company_id }}" data-company-name="{{ $a->company_name }}"><i data-lucide="arrow-left-right" class="w-4 h-4 text-gray-500"></i> Transfer to another company</button>
+                                    @endif
+                                    @if (in_array($a->status, ['active', 'suspended'], true))
+                                        <form method="POST" action="{{ route('survey-module.beacon-requests.accounts.toggle', $a->id) }}" data-acc-toggle data-name="{{ $a->name }}" data-suspend="{{ $a->status === 'active' ? 1 : 0 }}">
+                                            @csrf
+                                            <button type="submit" class="{{ $item }}"><i data-lucide="{{ $a->status === 'active' ? 'pause-circle' : 'play-circle' }}" class="w-4 h-4 text-gray-500"></i> {{ $a->status === 'active' ? 'Suspend' : 'Restore' }}</button>
+                                        </form>
+                                    @endif
                                     @if ($a->status === 'pending')
                                         <form method="POST" action="{{ route('survey-module.beacon-requests.accounts.approve', $a) }}" onsubmit="return confirm('Approve {{ addslashes($a->name) }}? They will be able to sign in.');">
                                             @csrf
@@ -424,6 +443,12 @@
                                                 data-acc-reject data-url="{{ route('survey-module.beacon-requests.accounts.reject', $a) }}" data-name="{{ $a->name }}">
                                             <i data-lucide="x-circle" class="w-4 h-4 text-red-500"></i> Do Not Approve
                                         </button>
+                                    @endif
+                                    @if (! $work)
+                                        <form method="POST" action="{{ route('survey-module.beacon-requests.accounts.destroy', $a->id) }}" data-acc-delete data-name="{{ $a->name }}">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="{{ $item }} text-red-600"><i data-lucide="trash-2" class="w-4 h-4 text-red-500"></i> Delete</button>
+                                        </form>
                                     @endif
                                 </div>
                             </div>
@@ -475,6 +500,103 @@
         document.getElementById('accRejectHead').textContent = b.dataset.name;
         f.classList.add('open');
     });
+</script>
+{{-- Surveyor row menu pop-ups (2026-11-16) --}}
+<div id="accProfile" class="farmer-entry-form" data-sv-modal="Surveyor Profile" data-sv-modal-size="md">
+    <div id="accProfileBody"><p class="helper-text">Loading…</p></div>
+    <div class="form-actions"><div class="right"><button type="button" class="btn btn-secondary" onclick="document.getElementById('accProfile').classList.remove('open')">Close</button></div></div>
+</div>
+<form method="POST" id="accContact" action="" class="farmer-entry-form" data-sv-modal="Update Contact" data-sv-modal-size="sm">
+    @csrf
+    <p id="accContactHead" style="font-weight:600;margin:0 0 12px;"></p>
+    <div class="form-group">
+        <label>Phone <span class="required">*</span></label>
+        <input type="tel" name="phone" maxlength="30" required placeholder="08031234567">
+    </div>
+    <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" maxlength="150">
+        <p class="helper-text">Sign-in codes go to this phone and email.</p>
+    </div>
+    <div class="form-actions">
+        <div class="left"><button type="button" class="btn btn-secondary" onclick="document.getElementById('accContact').classList.remove('open')">Cancel</button></div>
+        <div class="right"><button class="btn btn-primary" type="submit">Save Contact</button></div>
+    </div>
+</form>
+<form method="POST" id="accTransfer" action="" class="farmer-entry-form" data-sv-modal="Transfer to Another Company" data-sv-modal-size="sm">
+    @csrf
+    <p id="accTransferHead" style="font-weight:600;margin:0 0 4px;"></p>
+    <p id="accTransferFrom" class="helper-text" style="margin:0 0 12px;"></p>
+    <div class="form-group">
+        <label>Move to <span class="required">*</span></label>
+        <select name="company_id" required>
+            <option value="">Choose the company…</option>
+            @foreach ($companies as $co)
+                <option value="{{ $co->id }}">{{ $co->name }}{{ !empty($co->beacon_letters) ? ' (' . $co->beacon_letters . ')' : '' }}</option>
+            @endforeach
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Reason <span class="required">*</span></label>
+        <textarea name="reason" rows="2" maxlength="500" required placeholder="e.g. Wrong company chosen at registration"></textarea>
+        <p class="helper-text">Beacon requests already made stay with the old company, because their numbers carry its prefix.</p>
+    </div>
+    <div class="form-actions">
+        <div class="left"><button type="button" class="btn btn-secondary" onclick="document.getElementById('accTransfer').classList.remove('open')">Cancel</button></div>
+        <div class="right"><button class="btn btn-primary" type="submit">Transfer</button></div>
+    </div>
+</form>
+<script>
+    (function () {
+        var ask = function (opts, go) {
+            if (!window.Swal) { if (window.confirm(opts.title)) go(); return; }
+            Swal.fire(Object.assign({ icon: 'warning', showCancelButton: true, cancelButtonText: 'Cancel', reverseButtons: true }, opts)).then(function (r) { if (r.isConfirmed) go(); });
+        };
+        var esc = function (v) { var d = document.createElement('div'); d.textContent = v == null ? '' : v; return d.innerHTML; };
+        document.addEventListener('submit', function (e) {
+            var f = e.target;
+            if (f.dataset.ok === '1') { f.dataset.ok = ''; return; }
+            var opts = null;
+            if (f.matches('[data-acc-slip]')) opts = { title: 'Issue a sign-in slip?', html: 'This gives <b>' + esc(f.dataset.name) + '</b> a new temporary password and opens a slip to print. Their current password stops working.', confirmButtonText: 'Issue slip' };
+            else if (f.matches('[data-acc-toggle]')) opts = f.dataset.suspend === '1'
+                ? { title: 'Suspend ' + f.dataset.name + '?', text: 'They are signed out and cannot sign in until restored.', confirmButtonText: 'Suspend', confirmButtonColor: '#dc2626' }
+                : { title: 'Restore ' + f.dataset.name + '?', text: 'They can sign in again.', icon: 'question', confirmButtonText: 'Restore' };
+            else if (f.matches('[data-acc-delete]')) opts = { title: 'Delete ' + f.dataset.name + '?', text: 'The portal account is deleted. Its SURCON register entry stays. This cannot be undone.', confirmButtonText: 'Delete', confirmButtonColor: '#dc2626' };
+            if (!opts) return;
+            e.preventDefault();
+            ask(opts, function () { f.dataset.ok = '1'; if (f.requestSubmit) f.requestSubmit(); else f.submit(); });
+        });
+        document.addEventListener('click', function (e) {
+            var b = e.target.closest('[data-acc-profile], [data-acc-contact], [data-acc-transfer]');
+            if (!b) return;
+            if (b.matches('[data-acc-profile]')) {
+                var m = document.getElementById('accProfile'), body = document.getElementById('accProfileBody');
+                body.innerHTML = '<p class="helper-text">Loading…</p>';
+                m.classList.add('open');
+                fetch(b.dataset.url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'text/html' } })
+                    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+                    .then(function (h) { body.innerHTML = h; if (window.lucide) lucide.createIcons(); })
+                    .catch(function () { body.innerHTML = '<p class="helper-text" style="color:#dc2626">The profile could not be loaded. Try again.</p>'; });
+                return;
+            }
+            if (b.matches('[data-acc-contact]')) {
+                var f = document.getElementById('accContact');
+                f.action = b.dataset.url;
+                document.getElementById('accContactHead').textContent = b.dataset.name;
+                f.phone.value = b.dataset.phone || ''; f.email.value = b.dataset.email || '';
+                f.classList.add('open');
+                return;
+            }
+            var t = document.getElementById('accTransfer');
+            t.action = b.dataset.url;
+            document.getElementById('accTransferHead').textContent = b.dataset.name;
+            document.getElementById('accTransferFrom').textContent = 'Now under: ' + (b.dataset.companyName || '—');
+            t.reset();
+            Array.prototype.forEach.call(t.company_id.options, function (o) { o.disabled = o.value !== '' && o.value === b.dataset.company; });
+            if (window.jQuery && jQuery(t.company_id).data('select2')) jQuery(t.company_id).val('').trigger('change');
+            t.classList.add('open');
+        });
+    })();
 </script>
 <form method="POST" id="companyReject" action="" class="farmer-entry-form" data-sv-modal="Do Not Approve Company" data-sv-modal-size="sm">
     @csrf

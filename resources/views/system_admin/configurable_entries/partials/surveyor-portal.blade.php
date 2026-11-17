@@ -9,7 +9,7 @@
 
 <div class="iw-alert info">
     <i data-lucide="globe-2" class="h-4 w-4 mt-0.5"></i>
-    <div>Manage MLPP-SG Portal logos, identity, theme colours and support contact details.</div>
+    <div>Manage KN-MLPP-SG Portal logos, identity, theme colours and support contact details.</div>
 </div>
 
 @if($errors->any())

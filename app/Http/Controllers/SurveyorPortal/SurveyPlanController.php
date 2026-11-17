@@ -27,12 +27,35 @@ class SurveyPlanController extends Controller
         return Auth::guard('surveyor')->user();
     }
 
-    public function index()
+    /**
+     * Survey Plan Management (Recording 5, 2026-11-16): Manual Upload (the short form, the plan file, the coordinate
+     * system and one reference beacon) and the surveyor's uploads, a table each for Manual Upload and Digital Plotting.
+     */
+    public function index(Request $r)
+    {
+        abort_unless(Plan::installed(), 404);
+        $method = $r->query('method') === Plan::METHOD_DIGITAL ? Plan::METHOD_DIGITAL : Plan::METHOD_MANUAL;
+        $mine = fn () => Plan::where('surveyor_portal_account_id', $this->me()->id);
+
+        return view('surveyor_portal.survey_plans.index', [
+            'rows' => $mine()->ofMethod($method)->orderByDesc('id')->paginate(20)->withQueryString(),
+            'method' => $method,
+            'methodCounts' => [
+                Plan::METHOD_MANUAL => $mine()->ofMethod(Plan::METHOD_MANUAL)->count(),
+                Plan::METHOD_DIGITAL => $mine()->ofMethod(Plan::METHOD_DIGITAL)->count(),
+            ],
+            'districts' => LookupController::options('districts'),
+            'lgas' => CompensationListReader::LGAS,
+            'me' => $this->me(),
+        ]);
+    }
+
+    /** Digital Plotting: its own page, for the map's room. No file: the plotting is the plan. */
+    public function digital()
     {
         abort_unless(Plan::installed(), 404);
 
-        return view('surveyor_portal.survey_plans.index', [
-            'rows' => Plan::where('surveyor_portal_account_id', $this->me()->id)->orderByDesc('id')->paginate(20),
+        return view('surveyor_portal.survey_plans.digital', [
             'districts' => LookupController::options('districts'),
             'lgas' => CompensationListReader::LGAS,
             'me' => $this->me(),
@@ -57,10 +80,11 @@ class SurveyPlanController extends Controller
     public function store(Request $r)
     {
         abort_unless(Plan::installed(), 404);
-        $plan = $this->plans->store($this->plans->validated($r, false), $r->file('plan_file'), null, $this->me());
+        $method = $r->input('plan_method') === Plan::METHOD_DIGITAL ? Plan::METHOD_DIGITAL : Plan::METHOD_MANUAL;
+        $plan = $this->plans->store($this->plans->validated($r, false, $method), $r->file('plan_file'), null, $this->me());
 
-        return redirect()->route('surveyor-portal.survey-plans.index')
-            ->with('status', "{$plan->upload_ref} uploaded and sent to {$plan->unit}.");
+        return redirect()->route('surveyor-portal.survey-plans.index', ['method' => $method])
+            ->with('status', "{$plan->upload_ref} " . ($plan->isDigital() ? 'plotted' : 'uploaded') . " and sent to {$plan->unit}.");
     }
 
     /** The surveyor's own plan: its stage, reference beacons, corrections and signed copy (CR 11112026-2). */
@@ -94,6 +118,28 @@ class SurveyPlanController extends Controller
         ]);
     }
 
+    /** Add layer > Geodatabase (Recording 5, 2026-11-16): the zipped .gdb's catalog, its datasets and layers. */
+    public function gdbCatalog(Request $r, \App\Services\Survey\GdbCatalog $catalog)
+    {
+        $r->validate(['gdb' => 'required|file|max:' . (\App\Services\Survey\GdbCatalog::MAX_MB * 1024)], ['gdb.max' => 'The geodatabase zip can be at most ' . \App\Services\Survey\GdbCatalog::MAX_MB . ' MB.']);
+        try {
+            return response()->json($catalog->open($r->file('gdb')));
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+    }
+
+    /** The layers picked in the catalog, as GeoJSON in their own coordinates (the card converts them). */
+    public function gdbCatalogRead(Request $r, \App\Services\Survey\GdbCatalog $catalog)
+    {
+        $d = $r->validate(['token' => 'required|string|max:40', 'layers' => 'required|array|max:50', 'layers.*' => 'string|max:160', 'bbox' => 'nullable|array|size:4', 'bbox.*' => 'numeric']);
+        try {
+            return response()->json($catalog->read($d['token'], $d['layers'], $d['bbox'] ?? null));
+        } catch (\InvalidArgumentException|\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+    }
+
     public function beacons(Request $r)
     {
         return response()->json(['data' => $this->plans->searchBeacons((string) $r->query('q', ''))]);
@@ -103,6 +149,9 @@ class SurveyPlanController extends Controller
     public function file(int $plan)
     {
         $p = Plan::where('surveyor_portal_account_id', $this->me()->id)->findOrFail($plan);
+        if ($p->isDigital() && ! $p->file_path) {
+            return redirect()->route('surveyor-portal.survey-plans.show', $p->id);
+        }
         abort_unless($p->file_path && Storage::disk(Plan::DISK)->exists($p->file_path), 404);
 
         return Storage::disk(Plan::DISK)->response($p->file_path, $p->file_name ?: basename($p->file_path), [

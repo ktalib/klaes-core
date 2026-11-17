@@ -431,7 +431,7 @@
                 <div id="reservationDetailsWrapper" class="hidden grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">Existing Reservation <span class="text-red-500">*</span></label>
-                        <input type="text" id="conversionRightOfWay" maxlength="100" autocomplete="off" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" placeholder="Type the existing reservation on site" data-jsi-validate>
+                        <input type="text" id="conversionRightOfWay" maxlength="1000" autocomplete="off" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" placeholder="Type the existing reservation on site" data-jsi-validate>
                     </div>
 
                     <div>
@@ -444,7 +444,7 @@
                         </select>
                         <div id="conversionRecommendedReservationOtherWrapper" class="hidden mt-2">
                             <label class="block text-xs font-medium text-gray-700 mb-1">Recommended Reservation (Specify) <span class="text-red-500">*</span></label>
-                            <input type="text" id="conversionRecommendedReservationOther" maxlength="100" autocomplete="off" disabled class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" placeholder="Specify recommended reservation">
+                            <input type="text" id="conversionRecommendedReservationOther" maxlength="1000" autocomplete="off" disabled class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" placeholder="Specify recommended reservation">
                         </div>
                     </div>
 

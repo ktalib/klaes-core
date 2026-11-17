@@ -47,7 +47,45 @@ class SurveyPlanUpload extends SurveyModel
         return $this->coord_system ? (self::COORD_SYSTEMS[$this->coord_system] ?? $this->coord_system) : null;
     }
 
-    protected $casts = ['file_size' => 'integer'];
+    protected $casts = ['file_size' => 'integer', 'plot_data' => 'array'];
+
+    /*
+     | Survey Plan Management (user, Recording 5, 2026-11-16): a Manual Upload is a scanned / hard copy plan with its
+     | coordinate system and one reference beacon; a Digital Plotting has no file, its beacons and traverse are plotted
+     | on the map (plot_data). Plans from before have no method: they are all manual uploads.
+     */
+    public const METHOD_MANUAL = 'manual';
+    public const METHOD_DIGITAL = 'digital';
+
+    public const METHODS = [
+        self::METHOD_MANUAL => 'Manual Upload',
+        self::METHOD_DIGITAL => 'Digital Plotting',
+    ];
+
+    public function getMethodAttribute(): string
+    {
+        return $this->plan_method === self::METHOD_DIGITAL ? self::METHOD_DIGITAL : self::METHOD_MANUAL;
+    }
+
+    public function getMethodLabelAttribute(): string
+    {
+        return self::METHODS[$this->method];
+    }
+
+    public function isDigital(): bool
+    {
+        return $this->method === self::METHOD_DIGITAL;
+    }
+
+    /** Manual includes the plans from before the split (no method). */
+    public function scopeOfMethod($q, ?string $method)
+    {
+        return match ($method) {
+            self::METHOD_DIGITAL => $q->where('plan_method', self::METHOD_DIGITAL),
+            self::METHOD_MANUAL => $q->where(fn ($w) => $w->whereNull('plan_method')->orWhere('plan_method', '<>', self::METHOD_DIGITAL)),
+            default => $q,
+        };
+    }
 
     public static function installed(): bool
     {
@@ -63,7 +101,7 @@ class SurveyPlanUpload extends SurveyModel
 
     public function getSourceLabelAttribute(): string
     {
-        return $this->source === 'portal' ? 'MLPP-SG Portal' : 'KLAES (Web)';
+        return $this->source === 'portal' ? 'KN-MLPP-SG Portal' : 'KLAES (Web)';
     }
 
     /*
@@ -110,6 +148,12 @@ class SurveyPlanUpload extends SurveyModel
     public function files()
     {
         return $this->hasMany(SurveyPlanFile::class, 'survey_plan_upload_id')->orderBy('id');
+    }
+
+    /** The Application Plan's entries saved from the pop-up (user, 2026-11-17). */
+    public function applicationPlan()
+    {
+        return $this->hasOne(SurveyApplicationPlan::class, 'survey_plan_upload_id');
     }
 
     public function referenceBeacons()

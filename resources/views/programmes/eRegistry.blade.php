@@ -211,91 +211,59 @@
                 <div class="flex gap-4">
                     <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-center min-w-[120px]">
                         <div class="text-2xl font-bold text-blue-600">
-                            {{ isset($primaryApplications) ? count($primaryApplications) : 0 }}
+                            {{ $primarySummary['total'] }}
                         </div>
                         <div class="text-xs text-blue-700 font-medium">Primary Apps</div>
                         <div class="text-xs text-blue-600">
-                            @if(isset($primaryApplications))
-                                @php
-                                    $completedPrimary = collect($primaryApplications)->where('processing_status', 'Completed')->count();
-                                    $inProgressPrimary = collect($primaryApplications)->where('processing_status', 'In Progress')->count();
-                                @endphp
-                                {{ $completedPrimary }} completed, {{ $inProgressPrimary }} in progress
-                            @else
-                                0 completed, 0 in progress
-                            @endif
+                            {{ $primarySummary['completed'] }} completed, {{ $primarySummary['in_progress'] }} in progress
                         </div>
                     </div>
-                    
+
                     <div class="bg-purple-50 border border-purple-200 rounded-lg px-4 py-3 text-center min-w-[120px]">
                         <div class="text-2xl font-bold text-purple-600">
-                            {{ isset($unitApplications) ? count($unitApplications) : 0 }}
+                            {{ $unitSummary['total'] }}
                         </div>
                         <div class="text-xs text-purple-700 font-medium">Unit Apps</div>
                         <div class="text-xs text-purple-600">
-                            @if(isset($unitApplications))
-                                @php
-                                    $completedUnit = collect($unitApplications)->where('processing_status', 'Completed')->count();
-                                    $inProgressUnit = collect($unitApplications)->where('processing_status', 'In Progress')->count();
-                                @endphp
-                                {{ $completedUnit }} completed, {{ $inProgressUnit }} in progress
-                            @else
-                                0 completed, 0 in progress
-                            @endif
+                            {{ $unitSummary['completed'] }} completed, {{ $unitSummary['in_progress'] }} in progress
                         </div>
                     </div>
-                    
+
                     <div class="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-center min-w-[120px]">
                         <div class="text-2xl font-bold text-green-600">
-                            @php
-                                $totalPrimary = isset($primaryApplications) ? count($primaryApplications) : 0;
-                                $totalUnit = isset($unitApplications) ? count($unitApplications) : 0;
-                                $totalApps = $totalPrimary + $totalUnit;
-                            @endphp
-                            {{ $totalApps }}
+                            {{ $primarySummary['total'] + $unitSummary['total'] }}
                         </div>
                         <div class="text-xs text-green-700 font-medium">Total Apps</div>
                         <div class="text-xs text-green-600">
-                            @php
-                                $totalCompleted = 0;
-                                $totalInProgress = 0;
-                                if(isset($primaryApplications)) {
-                                    $totalCompleted += collect($primaryApplications)->where('processing_status', 'Completed')->count();
-                                    $totalInProgress += collect($primaryApplications)->where('processing_status', 'In Progress')->count();
-                                }
-                                if(isset($unitApplications)) {
-                                    $totalCompleted += collect($unitApplications)->where('processing_status', 'Completed')->count();
-                                    $totalInProgress += collect($unitApplications)->where('processing_status', 'In Progress')->count();
-                                }
-                            @endphp
-                            {{ $totalCompleted }} completed, {{ $totalInProgress }} in progress
+                            {{ $primarySummary['completed'] + $unitSummary['completed'] }} completed, {{ $primarySummary['in_progress'] + $unitSummary['in_progress'] }} in progress
                         </div>
                     </div>
                 </div>
             </div>
             
             <!-- Tab Buttons -->
+            @php $activeTab = request('tab') === 'unit' ? 'unit' : 'primary'; @endphp
             <div class="flex space-x-1 mb-6">
                 <button id="primary-applications-tab" onclick="showTab('primary-applications')" 
-                        class="px-6 py-3 rounded-lg font-medium transition-all duration-200 bg-blue-600 text-white">
+                        class="px-6 py-3 rounded-lg font-medium transition-all duration-200 {{ $activeTab === 'primary' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50' }}">
                     <i data-lucide="building" class="w-4 h-4 mr-2 inline"></i>
                     Primary Applications
                     <span class="ml-2 bg-white bg-opacity-20 px-2 py-1 rounded text-xs">
-                        {{ isset($primaryApplications) ? count($primaryApplications) : 0 }}
+                        {{ $primarySummary['total'] }}
                     </span>
                 </button>
                 <button id="unit-applications-tab" onclick="showTab('unit-applications')" 
-                        class="px-6 py-3 rounded-lg font-medium transition-all duration-200 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50">
+                        class="px-6 py-3 rounded-lg font-medium transition-all duration-200 {{ $activeTab === 'unit' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50' }}">
                     <i data-lucide="home" class="w-4 h-4 mr-2 inline"></i>
                     Unit Applications
                     <span class="ml-2 bg-gray-100 px-2 py-1 rounded text-xs">
-                        {{ isset($unitApplications) ? count($unitApplications) : 0 }}
+                        {{ $unitSummary['total'] }}
                     </span>
                 </button>
             </div>
             
             <!-- Primary Applications Tab Content -->
-            <div id="primary-applications" class="tab-content">
+            <div id="primary-applications" class="tab-content {{ $activeTab === 'primary' ? '' : 'hidden' }}">
                 <div class="overflow-x-auto">
                     <table id="primary-eRegistry-table" class="min-w-full divide-y divide-gray-200">
                         <thead>
@@ -313,10 +281,10 @@
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                            @if(isset($primaryApplications) && count($primaryApplications) > 0)
-                                @foreach($primaryApplications as $index => $application)
+                            @if($primaryApplications->count() > 0)
+                                @foreach($primaryApplications as $application)
                                     <tr class="text-xs hover:bg-gray-50">
-                                        <td class="table-cell font-medium text-gray-900">{{ $index + 1 }}</td>
+                                        <td class="table-cell font-medium text-gray-900">{{ $primaryApplications->firstItem() + $loop->index }}</td>
                                         <td class="table-cell">{{ $application->fileno ?? 'N/A' }}</td>
                                         <td class="table-cell">{{ $application->np_fileno ?? 'N/A' }}</td>
                                         <td class="table-cell">
@@ -361,19 +329,22 @@
                                         <td class="table-cell">{{ $application->Current_Office ?? 'N/A' }}</td>
                                         <td class="table-cell">
                                             <div class="dropdown">
-                                                <button class="dropdown-toggle" onclick="toggleDropdown('primary-dropdown-{{ $index }}')">
+                                                <button class="dropdown-toggle" onclick="toggleDropdown('primary-dropdown-{{ $application->application_id }}')">
                                                     <i data-lucide="more-vertical" class="w-3 h-3 mr-1"></i>
                                                    
                                                 </button>
-                                                <div id="primary-dropdown-{{ $index }}" class="dropdown-content">
+                                                <div id="primary-dropdown-{{ $application->application_id }}" class="dropdown-content">
+                                                    {{-- The ST file's folio in the VFS (user, 2026-11-16). --}}
+                                                    @if(!empty($application->np_fileno))
+                                                        <a href="{{ route('vfs.open', ['file_no' => $application->np_fileno]) }}" target="_blank" rel="noopener" class="dropdown-item">
+                                                            <i data-lucide="folder-tree" class="w-3 h-3 mr-2"></i>
+                                                            Open Folio
+                                                        </a>
+                                                    @endif
                                                     @if($application->processing_status == 'Completed')
                                                         <a href="{{ route('file-viewer.primary', $application->application_id) }}" class="dropdown-item">
                                                             <i data-lucide="folder-open" class="w-3 h-3 mr-2"></i>
                                                             View File
-                                                        </a>
-                                                        <a href="{{ url('edms/' . $application->application_id . '?url=more') }}" class="dropdown-item">
-                                                            <i data-lucide="refresh-cw" class="w-3 h-3 mr-2"></i>
-                                                            Update EDMS
                                                         </a>
                                                     @else
                                                         <div class="dropdown-item disabled" title="Files not available - Processing {{ strtolower($application->processing_status) }}">
@@ -384,10 +355,6 @@
                                                                 No File
                                                             @endif
                                                         </div>
-                                                        <a href="{{ url('edms/' . $application->application_id . '?url=more') }}" class="dropdown-item">
-                                                            <i data-lucide="refresh-cw" class="w-3 h-3 mr-2"></i>
-                                                            Update EDMS
-                                                        </a>
                                                     @endif
                                                 </div>
                                             </div>
@@ -402,10 +369,13 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="mt-4 px-4 py-3 bg-gray-50 border-t border-gray-200">
+                    {{ $primaryApplications->appends(['tab' => 'primary'])->links() }}
+                </div>
             </div>
             
             <!-- Unit Applications Tab Content -->
-            <div id="unit-applications" class="tab-content hidden">
+            <div id="unit-applications" class="tab-content {{ $activeTab === 'unit' ? '' : 'hidden' }}">
                 <div class="overflow-x-auto">
                     <table id="unit-eRegistry-table" class="min-w-full divide-y divide-gray-200">
                         <thead>
@@ -423,10 +393,10 @@
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                            @if(isset($unitApplications) && count($unitApplications) > 0)
-                                @foreach($unitApplications as $index => $application)
+                            @if($unitApplications->count() > 0)
+                                @foreach($unitApplications as $application)
                                     <tr class="text-xs hover:bg-gray-50">
-                                        <td class="table-cell font-medium text-gray-900">{{ $index + 1 }}</td>
+                                        <td class="table-cell font-medium text-gray-900">{{ $unitApplications->firstItem() + $loop->index }}</td>
                                         <td class="table-cell">{{ $application->parent_fileno ?? 'N/A' }}</td>
                                         <td class="table-cell">{{ $application->fileno ?? 'N/A' }}</td>
                                         <td class="table-cell">
@@ -471,19 +441,22 @@
                                         <td class="table-cell">{{ $application->Current_Office ?? 'N/A' }}</td>
                                         <td class="table-cell">
                                             <div class="dropdown">
-                                                <button class="dropdown-toggle" onclick="toggleDropdown('unit-dropdown-{{ $index }}')">
+                                                <button class="dropdown-toggle" onclick="toggleDropdown('unit-dropdown-{{ $application->sub_application_id }}')">
                                                     <i data-lucide="more-vertical" class="w-3 h-3 mr-1"></i>
                                                 
                                                 </button>
-                                                <div id="unit-dropdown-{{ $index }}" class="dropdown-content">
+                                                <div id="unit-dropdown-{{ $application->sub_application_id }}" class="dropdown-content">
+                                                    {{-- The unit ST file's folio in the VFS (user, 2026-11-16). --}}
+                                                    @if(!empty($application->fileno))
+                                                        <a href="{{ route('vfs.open', ['file_no' => $application->fileno]) }}" target="_blank" rel="noopener" class="dropdown-item">
+                                                            <i data-lucide="folder-tree" class="w-3 h-3 mr-2"></i>
+                                                            Open Folio
+                                                        </a>
+                                                    @endif
                                                     @if($application->processing_status == 'Completed')
                                                         <a href="{{ route('file-viewer.unit', $application->sub_application_id) }}" class="dropdown-item">
                                                             <i data-lucide="folder-open" class="w-3 h-3 mr-2"></i>
                                                             View File
-                                                        </a>
-                                                        <a href="{{ url('edms/sub/' . $application->sub_application_id . '?url=more') }}" class="dropdown-item">
-                                                            <i data-lucide="refresh-cw" class="w-3 h-3 mr-2"></i>
-                                                            Update EDMS
                                                         </a>
                                                     @else
                                                         <div class="dropdown-item disabled" title="Files not available - Processing {{ strtolower($application->processing_status) }}">
@@ -494,10 +467,6 @@
                                                                 No File
                                                             @endif
                                                         </div>
-                                                        <a href="{{ url('edms/sub/' . $application->sub_application_id . '?url=more') }}" class="dropdown-item">
-                                                            <i data-lucide="refresh-cw" class="w-3 h-3 mr-2"></i>
-                                                            Update EDMS
-                                                        </a>
                                                     @endif
                                                 </div>
                                             </div>
@@ -511,6 +480,9 @@
                             @endif
                         </tbody>
                     </table>
+                </div>
+                <div class="mt-4 px-4 py-3 bg-gray-50 border-t border-gray-200">
+                    {{ $unitApplications->appends(['tab' => 'unit'])->links() }}
                 </div>
             </div>
 

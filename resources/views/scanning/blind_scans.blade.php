@@ -293,7 +293,7 @@
                 <span class="text-gray-600">Destination:</span>
                 <code
                   class="bg-white px-2 py-1 rounded border @if($isSTEDMS ?? false) text-green-600 @else text-indigo-600 @endif font-mono text-xs">
-                    storage/EDMS/BLIND_SCAN/[FileNumber]
+                    storage/DMS/BLIND_SCAN/[FileNumber]
                   </code>
               </div>
               @if($isSTEDMS ?? false)
@@ -412,6 +412,19 @@
                   </button>
                 </div>
                 <p class="text-xs text-muted-foreground mt-1">Choose the file with 'Select'. The field cannot be typed into.</p>
+                {{-- Cadastral Registry (user, 2026-11-16): some cards were saved under the holder's name, not the file
+                     number, so the file can also be found by its name (file title). Picking one fills File Number. --}}
+                <div id="fileNameSearchBox" class="hidden mt-2 border rounded-md p-3 bg-blue-50/60">
+                  <div class="flex items-center gap-4 text-xs mb-2">
+                    <span class="font-semibold">Search by:</span>
+                    <label class="inline-flex items-center gap-1 cursor-pointer"><input type="radio" name="fileSearchBy" value="number" checked> File number</label>
+                    <label class="inline-flex items-center gap-1 cursor-pointer"><input type="radio" name="fileSearchBy" value="name"> File Title</label>
+                  </div>
+                  <div id="fileNameSearchWrap" class="hidden relative">
+                    <input id="fileNameSearch" type="search" autocomplete="off" class="w-full border rounded-md px-3 py-2 bg-white text-sm" placeholder="Type the file title (holder's name)" />
+                    <div id="fileNameResults" class="hidden absolute z-50 left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-white border rounded-md shadow-lg text-sm"></div>
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -467,7 +480,7 @@
               <div class="flex items-center justify-between mb-2">
                 <div>
                   <h2 class="text-xl font-bold">Server Storage & Logs</h2>
-                  <p class="text-muted-foreground">Browse <code>storage/EDMS/BLIND_SCAN</code>, preview files, and review
+                  <p class="text-muted-foreground">Browse <code>storage/DMS/BLIND_SCAN</code>, preview files, and review
                     migration logs.</p>
                 </div>
                 <div id="userModeIndicator" class="hidden">
@@ -488,7 +501,7 @@
               <div class="flex items-center justify-between mb-2">
                 <div>
                   <div class="text-sm"><span class="mr-2">Path:</span><span id="srvPath"
-                      class="font-mono">/storage/EDMS/BLIND_SCAN</span></div>
+                      class="font-mono">/storage/DMS/BLIND_SCAN</span>{{-- label only: the folder on disk is still EDMS/BLIND_SCAN --}}</div>
                   <div id="srvCrumbs" class="text-xs text-muted-foreground mt-1">Root</div>
                 </div>
                 <div class="flex items-center gap-2">
@@ -806,6 +819,63 @@
           if ($('#fileNo').val()) {
             $('#clearFileNoBtn').removeClass('hidden');
           }
+
+          // Cadastral Registry: find the file by its name (file title) as well as by its number.
+          (function () {
+            const box = document.getElementById('fileNameSearchBox');
+            const wrap = document.getElementById('fileNameSearchWrap');
+            const input = document.getElementById('fileNameSearch');
+            const list = document.getElementById('fileNameResults');
+            const registry = document.getElementById('registryType');
+            if (!box || !registry) return;
+            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const byName = () => !box.classList.contains('hidden') && document.querySelector('input[name="fileSearchBy"]:checked')?.value === 'name';
+            const sync = () => {
+              const opt = registry.options[registry.selectedIndex];
+              const cadastral = /cadastral/i.test((opt?.text || '') + ' ' + registry.value);
+              box.classList.toggle('hidden', !cadastral);
+              if (!cadastral) document.querySelector('input[name="fileSearchBy"][value="number"]').checked = true;
+              wrap.classList.toggle('hidden', !byName());
+              // Searching by File Title: the file number comes only from the title picked, so Select is off.
+              $('#openFileNoModalBtn').prop('disabled', byName()).toggleClass('opacity-50 cursor-not-allowed', byName());
+              list.classList.add('hidden');
+            };
+            registry.addEventListener('change', sync);
+            document.querySelectorAll('input[name="fileSearchBy"]').forEach(r => r.addEventListener('change', () => { sync(); if (byName()) input.focus(); }));
+            sync();
+
+            let timer = null, seq = 0;
+            input.addEventListener('input', () => {
+              clearTimeout(timer);
+              const term = input.value.trim();
+              if (term.length < 2) { list.classList.add('hidden'); list.innerHTML = ''; return; }
+              timer = setTimeout(() => {
+                const mine = ++seq;
+                list.innerHTML = '<div class="px-3 py-2 text-muted-foreground">Searching…</div>';
+                list.classList.remove('hidden');
+                fetch(`{{ route('scan-uploads.api.indexed-files.quick') }}?` + new URLSearchParams({ search: term, by: 'name' }), { headers: { Accept: 'application/json' } })
+                  .then(r => r.json())
+                  .then(data => {
+                    if (mine !== seq) return;
+                    const files = data.success && Array.isArray(data.indexed_files) ? data.indexed_files : [];
+                    list.innerHTML = files.length
+                      ? files.map(f => `<button type="button" class="block w-full text-left px-3 py-2 hover:bg-blue-50 border-b last:border-b-0" data-fileno="${esc(f.fileNumber)}"><span class="font-mono font-semibold">${esc(f.fileNumber)}</span> <span class="text-gray-600">- ${esc(f.fileTitle || '')}</span></button>`).join('')
+                      : '<div class="px-3 py-2 text-muted-foreground">No indexed file has that title.</div>';
+                  })
+                  .catch(() => { if (mine === seq) list.innerHTML = '<div class="px-3 py-2 text-red-600">The search failed. Try again.</div>'; });
+              }, 300);
+            });
+            list.addEventListener('click', (ev) => {
+              const btn = ev.target.closest('[data-fileno]');
+              if (!btn) return;
+              $('#fileNo').val(btn.dataset.fileno);
+              $('#clearFileNoBtn').removeClass('hidden');
+              list.classList.add('hidden');
+              input.value = '';
+              if (typeof validateUploadSection === 'function') validateUploadSection(); else $('#fileNo').trigger('input');
+            });
+            document.addEventListener('click', (ev) => { if (!wrap.contains(ev.target)) list.classList.add('hidden'); });
+          })();
 
           // Handle the "Select" button click
           $('#openFileNoModalBtn').on('click', function () {

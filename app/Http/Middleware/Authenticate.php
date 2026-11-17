@@ -46,7 +46,7 @@ class Authenticate extends Middleware
             }
 
             // MLPP-SG portal (was KSSGOF): its own sign-in, not the staff login.
-            if ($request->is('mlpp-sg*', 'kssgof*')) {
+            if ($request->is('kn-mlpp-sg*', 'mlpp-sg*', 'kssgof*')) {
                 return route('surveyor-portal.login');
             }
 

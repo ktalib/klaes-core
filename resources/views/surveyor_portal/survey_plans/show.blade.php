@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', $plan->upload_ref . ' — Survey Plan — MLPP-SG Portal')
+@section('title', $plan->upload_ref . ' — Survey Plan — KN-MLPP-SG Portal')
 @section('heading', 'Survey Plan ' . $plan->upload_ref)
 
 @php

@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', $request->request_no . ' — MLPP-SG Portal')
+@section('title', $request->request_no . ' — KN-MLPP-SG Portal')
 @section('heading', 'Request ' . $request->request_no)
 
 @section('main')

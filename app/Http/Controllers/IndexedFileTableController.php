@@ -506,7 +506,22 @@ class IndexedFileTableController extends Controller
 
         $versionCounts = app(IndexingVersionHistory::class)->counts($indexedIds->all());
 
-        $data = $items->map(function ($item) use ($scanningCounts, $pageTypingCounts, $workflowScanningCounts, $workflowTypingCounts, $creators, $groupingFallbacks, $relatedFileCounts, $edmsFolderMap, $duplicateSet, $shelfLookup, $oldKangisLookup, $kangisLinks, $versionCounts) {
+        // Land Block Indexing: the files held in each block (one entry per holder / plot),
+        // listed under the File No when the row's Block button is opened (user, 2026-11-16).
+        // indexing_type is not in the list query's columns, so it is checked here.
+        $pageIds = $items->pluck('id')->map(fn ($v) => (int) $v)->filter()->values()->all();
+        $blockFiles = $pageIds
+            ? DB::connection('sqlsrv')->table('file_indexing_links as l')
+                ->join('file_indexings as fi', 'fi.id', '=', 'l.file_indexing_id')
+                ->whereIn('l.file_indexing_id', $pageIds)
+                ->where('fi.indexing_type', 'Block')
+                ->where('l.indexing_type', 'Block')->where('l.mfile', 1)->whereNull('l.deleted_at')
+                ->orderBy('l.id')
+                ->get(['l.file_indexing_id', 'l.file_number', 'l.file_title', 'l.plot_number', 'l.district', 'l.lga', 'l.location'])
+                ->groupBy('file_indexing_id')
+            : collect();
+
+        $data = $items->map(function ($item) use ($scanningCounts, $pageTypingCounts, $workflowScanningCounts, $workflowTypingCounts, $creators, $groupingFallbacks, $relatedFileCounts, $edmsFolderMap, $duplicateSet, $shelfLookup, $oldKangisLookup, $kangisLinks, $versionCounts, $blockFiles) {
             $scanned = (int) ($scanningCounts->get($item->id) ?? 0);
             $typed = (int) ($pageTypingCounts->get($item->id) ?? 0);
             $hasRelatedFilesFromLinks = (int) ($relatedFileCounts->get($item->id) ?? 0) > 0;
@@ -647,6 +662,28 @@ class IndexedFileTableController extends Controller
 
             // Record State Versions: which version of the file this row is (1 = never edited).
             $rowData['version'] = $versionCounts[(int) $item->id] ?? 1;
+
+            // Land Block Indexing: each file in the block, in property order. An older block entry
+            // saved the word "Other" (or nothing) as its district; it shows the district picked or
+            // typed under Other on the file itself. Location is District + LGA only - never the
+            // plot (user, 2026-11-17).
+            $rowData['block_files'] = collect($blockFiles->get((int) $item->id, []))->map(function ($l) use ($item) {
+                $district = trim((string) $l->district);
+                if ($district === '' || strcasecmp($district, 'Other') === 0) {
+                    $own = trim((string) ($item->district ?? ''));
+                    $district = strcasecmp($own, 'Other') === 0 ? '' : $own;
+                }
+                $lga = trim((string) ($l->lga ?: ($item->lga ?? '')));
+
+                return [
+                    'file_number' => $l->file_number,
+                    'holder'      => $l->file_title,
+                    'plot_number' => $l->plot_number,
+                    'district'    => $district !== '' ? $district : null,
+                    'lga'         => $lga !== '' ? $lga : null,
+                    'location'    => implode(', ', array_filter([$district, $lga], fn ($v) => $v !== '')) ?: null,
+                ];
+            })->values()->all();
 
             return $rowData;
         });

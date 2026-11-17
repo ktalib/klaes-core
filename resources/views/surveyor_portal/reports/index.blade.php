@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', "Surveyor's Report — MLPP-SG Portal")
+@section('title', "Surveyor's Report — KN-MLPP-SG Portal")
 @section('heading', "Surveyor's Report")
 
 {{-- Its own sidebar page (user, 2026-11-09). One table, three sections like Survey's: Beacon Nos, List of

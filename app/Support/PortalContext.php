@@ -14,8 +14,9 @@ class PortalContext
 {
     /** path prefix => [name, home route, sign-in route or null] */
     private const PORTALS = [
-        'mlpp-sg'             => ['MLPP-SG Portal', 'surveyor-portal.home', 'surveyor-portal.login'],
-        'kssgof'              => ['MLPP-SG Portal', 'surveyor-portal.home', 'surveyor-portal.login'],   // old address, redirects
+        'kn-mlpp-sg'          => ['KN-MLPP-SG Portal', 'surveyor-portal.home', 'surveyor-portal.login'],
+        'mlpp-sg'             => ['KN-MLPP-SG Portal', 'surveyor-portal.home', 'surveyor-portal.login'],   // old address, redirects
+        'kssgof'              => ['KN-MLPP-SG Portal', 'surveyor-portal.home', 'surveyor-portal.login'],   // old address, redirects
         'laas'                => ['LAAS Portal', 'laas.landing', 'laas.login'],
         // ALAES (the Abia copy) is left out on purpose (user, 2026-11-11: "don't mind about ALAES, just leave it").
         'online-legal-search' => ['Online Legal Search', 'ols.landing', null],

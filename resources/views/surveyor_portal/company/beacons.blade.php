@@ -1,7 +1,7 @@
 @extends('surveyor_portal.layouts.portal')
 
 @php $isUsed = $which === 'used'; @endphp
-@section('title', ($isUsed ? 'Used Beacons' : 'Issued Beacons') . ' — MLPP-SG Portal')
+@section('title', ($isUsed ? 'Used Beacons' : 'Issued Beacons') . ' — KN-MLPP-SG Portal')
 @section('heading', $isUsed ? 'Used Beacons' : 'Issued Beacons')
 
 {{-- Our Beacons (user, 2026-11-10): every beacon issued to the company, or the used ones with their coordinates. --}}

@@ -3,7 +3,7 @@
 {{-- One page per kind of login (user, 2026-11-11): /login/company and /login/surveyor. $as = company | surveyor. --}}
 @php $isCompanyLogin = ($as ?? 'surveyor') === 'company'; @endphp
 
-@section('title', ($isCompanyLogin ? 'Company sign in' : 'Surveyor sign in') . ' — MLPP-SG Portal')
+@section('title', ($isCompanyLogin ? 'Company sign in' : 'Surveyor sign in') . ' — KN-MLPP-SG Portal')
 
 @section('card')
     <span class="inline-flex items-center gap-1.5 mb-3" style="padding:3px 10px;border-radius:999px;background:#E8EDF5;color:var(--ks-blue);font-size:12px;font-weight:700;">

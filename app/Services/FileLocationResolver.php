@@ -512,6 +512,10 @@ class FileLocationResolver
         if ($indexing && $this->isKangisIndexing($indexing)) {
             return [];
         }
+        // An ST file stays in the ST Registry even when its land file is a KANGIS file.
+        if ($this->isStFileNumber($fileNumber)) {
+            return [];
+        }
 
         $key     = strtoupper(trim($fileNumber));
         $numbers = $this->kangisContainerNumbers([$fileNumber])[$key] ?? [];
@@ -539,7 +543,8 @@ class FileLocationResolver
         $add = function ($number) use (&$numbers, $self) {
             $number = trim((string) $number);
             $key    = strtoupper($number);
-            if ($number !== '' && $key !== $self && !isset($numbers[$key])) {
+            // An ST file made from this KANGIS file is not a land file kept in it (see stFilesFor).
+            if ($number !== '' && $key !== $self && !isset($numbers[$key]) && !$this->isStFileNumber($number)) {
                 $numbers[$key] = $number;
             }
         };
@@ -613,7 +618,7 @@ class FileLocationResolver
 
         $out = [];
         foreach ($map as $key => $numbers) {
-            if (!$selfKangis->has($key)) {
+            if (!$selfKangis->has($key) && !$this->isStFileNumber($key)) {
                 $out[$key] = $this->describeLinkedFiles(array_slice($numbers, 0, 5), 'KANGIS Registry');
             }
         }
@@ -753,6 +758,42 @@ class FileLocationResolver
         }
 
         return $found;
+    }
+
+    /**
+     * The ST primary file(s) made from this land file, each resolved to where it is
+     * now. Once a land file has an ST file it is kept in the ST Registry, so Quick
+     * Search sends its request there. Read from st_file_numbers (PRIMARY rows whose
+     * fileno / mls_fileno is the land number). Empty for an ST number. Read-only.
+     *
+     * @return array<int, array{file_number:string, file_title:?string, registry:?string, status:string, current_location:?string, rack_shelf:?string, is_in_transit:bool, has_tracker:bool, receiving_officer_name:?string}>
+     */
+    public function stFilesFor(string $fileNumber): array
+    {
+        $fileNumber = trim($fileNumber);
+        if ($fileNumber === '' || $this->isStFileNumber($fileNumber)) {
+            return [];
+        }
+
+        $numbers = DB::connection('sqlsrv')->table('st_file_numbers')
+            ->where('file_no_type', 'PRIMARY')
+            ->whereIn('status', ['ACTIVE', 'USED'])
+            ->where('np_fileno', 'like', 'ST-%')
+            ->where(fn ($q) => $q->where('fileno', $fileNumber)->orWhere('mls_fileno', $fileNumber))
+            ->orderBy('id')
+            ->pluck('np_fileno')
+            ->map(fn ($n) => trim((string) $n))
+            ->unique(fn ($n) => strtoupper($n))
+            ->values()
+            ->all();
+
+        return $this->describeLinkedFiles(array_slice($numbers, 0, 5), 'ST Registry');
+    }
+
+    /** ST primary or unit file number (ST-RES-2026-10, ST-RES-2026-9-004). */
+    public function isStFileNumber(string $fileNumber): bool
+    {
+        return (bool) preg_match('/^ST[-\/ ]/i', trim($fileNumber));
     }
 
     /** True when the indexing row belongs to the KANGIS registry. */
@@ -1463,6 +1504,13 @@ class FileLocationResolver
                     // mirroring the Create File Tracker lookup.
                     ->orWhereIn('temp_file_no', $variants);
             })
+            // The file's own row first: an ST row carries its land file in mls_file_no and
+            // is newer, so the land search answered with the ST record (CON-RES-1983-241 ->
+            // ST-RES-2026-6, 2026-11-17) and persist() wrote onto it.
+            ->orderByRaw(
+                'CASE WHEN file_number IN (' . implode(',', array_fill(0, count($variants), '?')) . ') THEN 0 ELSE 1 END',
+                $variants
+            )
             ->orderByDesc('id');
     }
 

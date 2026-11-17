@@ -25,6 +25,20 @@ class RequireSurveyorLoginOtp
     {
         $account = Auth::guard('surveyor')->user();
 
+        // Suspended from MLPP-SG Portal Admin (2026-11-16): a session already open ends at its next page.
+        if ($account && $account->status === \App\Models\Survey\SurveyorPortalAccount::SUSPENDED) {
+            $account = clone $account;
+            Auth::guard('surveyor')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+            $message = 'This account is not active. Please contact the Office of the Surveyor General.';
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => $message, 'redirect' => route('surveyor-portal.login')], 401);
+            }
+
+            return redirect()->route('surveyor-portal.login.as', $account->isCompany() ? 'company' : 'surveyor')->withErrors(['username' => $message]);
+        }
+
         if (!$account || $this->otp->hasPassed($request, $account) || !$this->otp->requiredFor($account)) {
             return $next($request);
         }

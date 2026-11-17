@@ -12,17 +12,19 @@ use Illuminate\Support\Facades\Route;
 /*
  | The Surveyor General's Office portal (CR 03112026 items 17-21). Surveyors, Public and Private,
  | register here and ask the SG for beacon numbers. Own guard, separate from staff logins.
- | Renamed KSSGOF -> MLPP-SG (user, 2026-11-10), so /kssgof became /mlpp-sg; links already sent
- | out under /kssgof are sent on to the same page under /mlpp-sg.
+ | Renamed KSSGOF -> MLPP-SG (user, 2026-11-10), so /kssgof became /mlpp-sg; renamed again KN-MLPP-SG
+ | (user, 2026-11-16), so the address is now /kn-mlpp-sg. Links already sent out under either old address
+ | are sent on to the same page under /kn-mlpp-sg (GET 301; a form posted from a page opened before the
+ | switch is passed on with 307 so it keeps its method and data).
  */
-Route::get('kssgof/{path?}', function (\Illuminate\Http\Request $r, ?string $path = null) {
+Route::any('{old}/{path?}', function (\Illuminate\Http\Request $r, string $old, ?string $path = null) {
     $qs = $r->getQueryString();
 
-    return redirect('/mlpp-sg' . ($path !== null && $path !== '' ? '/' . $path : '') . ($qs ? '?' . $qs : ''), 301);
-})->where('path', '.*')->name('surveyor-portal.legacy');
+    return redirect('/kn-mlpp-sg' . ($path !== null && $path !== '' ? '/' . $path : '') . ($qs ? '?' . $qs : ''), $r->isMethod('GET') || $r->isMethod('HEAD') ? 301 : 307);
+})->where(['old' => 'kssgof|mlpp-sg', 'path' => '.*'])->name('surveyor-portal.legacy');
 
-Route::prefix('mlpp-sg')->name('surveyor-portal.')->group(function () {
-    // The front page (user, 2026-11-05: "a nice landing page, and hero"); sign-in is /mlpp-sg/login.
+Route::prefix('kn-mlpp-sg')->name('surveyor-portal.')->group(function () {
+    // The front page (user, 2026-11-05: "a nice landing page, and hero"); sign-in is /kn-mlpp-sg/login.
     Route::get('/', [AuthController::class, 'landing'])->name('home');
     // Company and surveyor sign in at their own URLs (user, 2026-11-11); /login asks which first.
     Route::get('login', [AuthController::class, 'showLogin'])->name('login');
@@ -81,11 +83,14 @@ Route::prefix('mlpp-sg')->name('surveyor-portal.')->group(function () {
                 Route::get('/', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'index'])->name('index');
                 // Survey Plan Upload > Signed (user, 2026-11-12): the surveyor's signed plans.
                 Route::get('signed', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'signed'])->name('signed');
+                Route::get('digital', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'digital'])->name('digital');
                 Route::post('/', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'store'])->middleware('throttle:20,1')->name('store');
                 Route::get('{plan}/file', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'file'])->whereNumber('plan')->name('file');
                 // CR 11112026-2: beacon search, the plan page, the final copy and the stage files.
                 Route::get('beacons', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'beacons'])->middleware('throttle:120,1')->name('beacons');
                 Route::post('export-gdb', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'gdb'])->middleware('throttle:20,1')->name('gdb');
+                Route::post('gdb-catalog', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'gdbCatalog'])->middleware('throttle:20,1')->name('gdb-catalog');
+                Route::post('gdb-catalog/read', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'gdbCatalogRead'])->middleware('throttle:60,1')->name('gdb-catalog.read');
                 // Kano GIS layers for the card (parcels without file numbers / deeds details here).
                 Route::get('gis-tiles/{layer}.pmtiles', [\App\Http\Controllers\Survey\GisTilesController::class, 'show'])->where('layer', '[a-z-]+')->name('gis-tiles');
                 Route::get('{plan}', [\App\Http\Controllers\SurveyorPortal\SurveyPlanController::class, 'show'])->whereNumber('plan')->name('show');

@@ -645,8 +645,8 @@ return [
             'default_enabled' => false,
             'tokens' => ['Name', 'Ref'],
             'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'MLPPSG-REG-2026-00001'],
-            'template' => 'Dear [Name], your MLPP-SG registration [Ref] has been received. You can sign in once the Surveyor General confirms it.',
-            'fallback' => 'Dear [Name], we have your MLPP-SG registration [Ref]. We will text you when you can sign in.',
+            'template' => 'Dear [Name], your KN-MLPP-SG registration [Ref] has been received. You can sign in once the Surveyor General confirms it.',
+            'fallback' => 'Dear [Name], we have your KN-MLPP-SG registration [Ref]. We will text you when you can sign in.',
         ],
 
         SmsSetting::KEY_SURVEY_PORTAL_ACTIVE => [
@@ -659,8 +659,8 @@ return [
             'default_enabled' => false,
             'tokens' => ['Name', 'Ref'],
             'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'MLPPSG-SV-2026-0001'],
-            'template' => 'Dear [Name], your MLPP-SG account is active. Your Surveyor ID is [Ref]. You can now sign in to the portal.',
-            'fallback' => 'Dear [Name], you can now sign in to the MLPP-SG portal. Your Surveyor ID is [Ref].',
+            'template' => 'Dear [Name], your KN-MLPP-SG account is active. Your Surveyor ID is [Ref]. You can now sign in to the portal.',
+            'fallback' => 'Dear [Name], you can now sign in to the KN-MLPP-SG portal. Your Surveyor ID is [Ref].',
         ],
 
         SmsSetting::KEY_SURVEY_PORTAL_DECLINED => [
@@ -673,7 +673,7 @@ return [
             'default_enabled' => false,
             'tokens' => ['Name', 'Ref'],
             'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'MLPPSG-REG-2026-00001'],
-            'template' => 'Dear [Name], your MLPP-SG registration [Ref] was not confirmed. Please contact the Office of the Surveyor General.',
+            'template' => 'Dear [Name], your KN-MLPP-SG registration [Ref] was not confirmed. Please contact the Office of the Surveyor General.',
             'fallback' => 'Dear [Name], please contact the Office of the Surveyor General about your registration [Ref].',
         ],
 
@@ -686,8 +686,8 @@ return [
             'default_enabled' => false,
             'tokens' => ['Company', 'Prefix'],
             'sample' => ['Company' => 'Peak Profile Surveys', 'Prefix' => 'E'],
-            'template' => 'MLPP-SG: [Company] can now register surveyors. Company beacon prefix: [Prefix].',
-            'fallback' => 'MLPP-SG: [Company] is ready for surveyor registration. Prefix [Prefix].',
+            'template' => 'KN-MLPP-SG: [Company] can now register surveyors. Company beacon prefix: [Prefix].',
+            'fallback' => 'KN-MLPP-SG: [Company] is ready for surveyor registration. Prefix [Prefix].',
         ],
 
         SmsSetting::KEY_SURVEY_BEACON_REQUEST => [
@@ -714,8 +714,8 @@ return [
             'default_enabled' => false,
             'tokens' => ['Name', 'Ref'],
             'sample' => ['Name' => 'Bala Suleiman', 'Ref' => 'MLPPSG-REG-2026-00001'],
-            'template' => 'MLPP-SG: [Name] registered on the portal ([Ref]) and is waiting for your approval in KLAES.',
-            'fallback' => 'MLPP-SG: new surveyor registration [Ref] from [Name] in KLAES.',
+            'template' => 'KN-MLPP-SG: [Name] registered on the portal ([Ref]) and is waiting for your approval in KLAES.',
+            'fallback' => 'KN-MLPP-SG: new surveyor registration [Ref] from [Name] in KLAES.',
         ],
 
         SmsSetting::KEY_SURVEY_COMPANY_REGISTERED_SG => [
@@ -727,8 +727,8 @@ return [
             'default_enabled' => false,
             'tokens' => ['Company', 'Rc'],
             'sample' => ['Company' => 'Peak Profile Surveys', 'Rc' => 'RC 123456'],
-            'template' => 'MLPP-SG: [Company] ([Rc]) registered as a survey company and is waiting for your approval in KLAES.',
-            'fallback' => 'MLPP-SG: new survey company registration from [Company] ([Rc]) in KLAES.',
+            'template' => 'KN-MLPP-SG: [Company] ([Rc]) registered as a survey company and is waiting for your approval in KLAES.',
+            'fallback' => 'KN-MLPP-SG: new survey company registration from [Company] ([Rc]) in KLAES.',
         ],
 
         SmsSetting::KEY_SURVEY_BEACON_RECEIVED => [
@@ -755,8 +755,8 @@ return [
             'default_enabled' => false,
             'tokens' => ['Ref'],
             'sample' => ['Ref' => 'BRQ-2026-0001'],
-            'template' => 'Your beacons for request [Ref] are ready. Please sign in to the MLPP-SG portal to accept them.',
-            'fallback' => 'Please sign in to the MLPP-SG portal about your request [Ref].',
+            'template' => 'Your beacons for request [Ref] are ready. Please sign in to the KN-MLPP-SG portal to accept them.',
+            'fallback' => 'Please sign in to the KN-MLPP-SG portal about your request [Ref].',
         ],
 
         SmsSetting::KEY_SURVEY_BEACON_DECLINED => [
@@ -769,8 +769,8 @@ return [
             'default_enabled' => false,
             'tokens' => ['Ref'],
             'sample' => ['Ref' => 'BRQ-2026-0001'],
-            'template' => 'Your beacon request [Ref] was not issued. Please check the MLPP-SG portal for the reason.',
-            'fallback' => 'Please check the MLPP-SG portal about your request [Ref].',
+            'template' => 'Your beacon request [Ref] was not issued. Please check the KN-MLPP-SG portal for the reason.',
+            'fallback' => 'Please check the KN-MLPP-SG portal about your request [Ref].',
         ],
 
         SmsSetting::KEY_SURVEY_FARM_CAPTURED => [

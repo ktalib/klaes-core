@@ -12,20 +12,22 @@
   $isList = $unit || $listScope;
   $PageTitle = match (true) {
       $listScope === 'signing' => 'Signing and Upload (Survey Plan)',
-      $listScope === 'portal' => 'Uploaded Survey (MLPP-SG Portal)',
+      $listScope === 'portal' => 'Uploaded Survey (KN-MLPP-SG Portal)',
       (bool) $unit => 'Uploaded Survey Plan',
-      default => 'Survey Plan Upload',
+      default => 'Survey Plan Management',
   };
   $PageDescription = match (true) {
       $listScope === 'signing' => 'Final copies waiting for the SG/DSG to sign (stage 3), and the signed plans (stage 4).',
-      $listScope === 'portal' => 'Survey plans private surveyors sent from the MLPP-SG portal, at every stage.',
-      (bool) $unit => 'Survey plans sent to ' . $unit . ' for Checking & Passing, from KLAES and the MLPP-SG portal.',
-      default => 'Upload a survey plan and send it to GKN (public) or Examination/Verification (private) for checking.',
+      $listScope === 'portal' => 'Survey plans private surveyors sent from the KN-MLPP-SG portal, at every stage.',
+      (bool) $unit => 'Survey plans sent to ' . $unit . ' for Checking & Passing, from KLAES and the KN-MLPP-SG portal.',
+      default => 'Manual Upload (a scanned or hard copy plan) or Digital Plotting (the plan plotted on the map), sent to GKN (public) or Examination/Verification (private) for checking.',
   };
+  // A table each for Manual Upload and Digital Plotting (Recording 5, 2026-11-16).
+  $methodTab = fn ($m) => route($listRoute, array_merge(request()->except(['method', 'page']), ['method' => $m]));
   $stageTone = [1 => 'pending', 2 => 'rejected', 3 => 'review', 4 => 'approved'];
   $field = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;';
   $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
-  $open = ! $isList && $errors->any();
+  $open = ! $isList && $errors->any() && old('plan_method') !== Plan::METHOD_DIGITAL;
   $filtered = request()->hasAny(['q', 'type', 'source', 'unit', 'stage']);
   $typeTone = ['Final Survey Plan' => 'completed', 'Application Plan' => 'pending'];
 @endphp
@@ -39,17 +41,22 @@
     <div class="kpi-card"><div class="kpi-label">{{ $unit ? 'Received' : 'Uploaded' }}</div><div class="kpi-value">{{ number_format($stats['total']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Final Survey Plans</div><div class="kpi-value">{{ number_format($stats['final']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Application Plans</div><div class="kpi-value">{{ number_format($stats['app']) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">From the MLPP-SG Portal</div><div class="kpi-value">{{ number_format($stats['portal']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">From the KN-MLPP-SG Portal</div><div class="kpi-value">{{ number_format($stats['portal']) }}</div></div>
 </div>
 
 <div class="page-header">
     <div style="font-size:13px;color:var(--gray-500);">{{ $listScope ? $PageDescription : ($unit ? 'Sent to ' . $unit . '.' : 'Every upload, with the unit it went to.') }}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.survey-plans.export', array_filter(['scope' => $scope])), 'title' => $unit ? 'Uploaded Survey Plan - ' . $unit : 'Survey Plan Uploads', 'dateLabel' => 'Date Uploaded'])
-        {{-- A blank check: the coordinate system and the reference coordinate entered by hand (user, 2026-11-12). --}}
-        <a class="btn btn-secondary" href="{{ route('survey-module.survey-plans.check') }}"><i class="fas fa-map-location-dot"></i> Check Survey Plan</a>
+        @include('survey_module.partials._records_export', ['endpoint' => route('survey-module.survey-plans.export', array_filter(['scope' => $scope, 'method' => $method])), 'title' => $unit ? 'Uploaded Survey Plan - ' . $unit : 'Survey Plan Uploads', 'dateLabel' => 'Date Uploaded'])
+        {{-- Check Survey Plan is no longer offered here (Recording 5, 2026-11-16: "so it's not confusing"); it stays where
+             plans are checked. Two ways in: Manual Upload (this page's pop-up) and Digital Plotting (its own page). --}}
         @unless ($isList)
-            <button type="button" class="btn btn-primary" onclick="document.getElementById('spuForm').classList.add('open')"><i class="fas fa-upload"></i> Upload Survey Plan</button>
+            {{-- Each tab shows only its own button (user, 2026-11-16). --}}
+            @if ($method === Plan::METHOD_DIGITAL)
+            <a class="btn btn-primary" style="background:#0f766e;border-color:#0f766e;" href="{{ route('survey-module.survey-plans.digital') }}"><i class="fas fa-map-location-dot"></i> Digital Plotting</a>
+            @else
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('spuForm').classList.add('open')"><i class="fas fa-upload"></i> Manual Upload</button>
+            @endif
         @endunless
     </div>
 </div>
@@ -57,102 +64,13 @@
 @unless ($isList)
 {{-- The very short form (Survey Update 5h): where the plan is, who drew it, its type and the unit it goes to. --}}
 <form method="POST" id="spuForm" action="{{ route('survey-module.survey-plans.store') }}" enctype="multipart/form-data"
-      class="farmer-entry-form {{ $open ? 'open' : '' }}" data-sv-modal="Upload Survey Plan" data-sv-modal-size="xl" data-sv-modal-static>
+      class="farmer-entry-form {{ $open ? 'open' : '' }}" data-sv-modal="Manual Upload: Survey Plan" data-sv-modal-size="xl" data-sv-modal-static>
     @csrf
-    {{-- One card, no tabs (user, 2026-11-12, Survey Plan Check): 1 coordinate system, 2 reference coordinate,
-         3 map, 4 other beacons, 5 plan details, 6 export. --}}
-    @include('survey_module.survey_plans._plan_check', ['spcMode' => 'upload', 'spcSearchUrl' => route('survey-module.survey-plans.beacons')])
-    <div class="spc" style="margin:18px 0 12px;"><div class="spc-group"><span class="n">5</span><span>Plan details</span></div></div>
-    <div class="form-grid cols-3">
-        <div class="sv-group"><i class="fas fa-file-upload"></i><span>Survey Plan</span></div>
-        <div class="form-group">
-            <label>Type <span class="required">*</span></label>
-            <select name="plan_type" required>
-                <option value="">— Select —</option>
-                @foreach (Plan::TYPES as $t)<option value="{{ $t }}" @selected(old('plan_type') === $t)>{{ $t }}</option>@endforeach
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Send To <span class="required">*</span></label>
-            <select name="unit" required>
-                <option value="">— Select unit —</option>
-                @foreach (Plan::UNITS as $u => $label)<option value="{{ $u }}" @selected(old('unit') === $u)>{{ $label }}</option>@endforeach
-            </select>
-            <p class="helper-text">GKN for public plans, Examination/Verification for private.</p>
-        </div>
-        <div class="sv-group"><i class="fas fa-map-marker-alt"></i><span>Location of the Plan</span></div>
-        <div class="form-group">
-            <label>Plot No.</label>
-            <input type="text" name="plot_no" maxlength="100" value="{{ old('plot_no') }}">
-        </div>
-        <div class="form-group">
-            <label>District <span class="required">*</span></label>
-            <select name="district" id="spuDistrict" required>
-                <option value="">— Select district —</option>
-                @foreach ($districts as $d)<option value="{{ $d }}" @selected(old('district') === $d)>{{ $d }}</option>@endforeach
-                <option value="other" @selected(old('district') === 'other')>Other (specify)</option>
-            </select>
-            <input type="text" name="district_other" id="spuDistrictOther" maxlength="150" placeholder="Specify the district *" value="{{ old('district_other') }}"
-                   style="margin-top:6px;{{ old('district') === 'other' ? '' : 'display:none;' }}" @disabled(old('district') !== 'other') @required(old('district') === 'other')>
-        </div>
-        <div class="form-group">
-            <label>LGA <span class="required">*</span></label>
-            <select name="lga" required>
-                <option value="">— Select LGA —</option>
-                @foreach ($lgas as $l)<option value="{{ $l }}" @selected(old('lga') === $l)>{{ $l }}</option>@endforeach
-            </select>
-        </div>
-        {{-- Map sheet, Metric and Imperial (CR 141102026 item 3, 2026-11-15). Optional: blank when not known. --}}
-        <div class="form-group">
-            <label>Map Sheet (Metric) <button type="button" class="spc-sheet-link" data-spc-guide="sheets"><i class="fas fa-map"></i> View sheet index</button></label>
-            <select name="map_sheet_metric">
-                <option value="">— Select sheet —</option>
-                @foreach (\App\Services\Survey\MapSheets::METRIC as $c)<option value="{{ $c }}" @selected(old('map_sheet_metric') === $c)>{{ $c }}</option>@endforeach
-            </select>
-            <p class="helper-text">Kano metropolitan index grid. Leave blank if not known.</p>
-        </div>
-        <div class="form-group">
-            <label>Map Sheet (Imperial) <button type="button" class="spc-sheet-link" data-spc-guide="sheets"><i class="fas fa-map"></i> View sheet index</button></label>
-            <select name="map_sheet_imperial">
-                <option value="">— Select sheet —</option>
-                @foreach (\App\Services\Survey\MapSheets::IMPERIAL as $c => $n)<option value="{{ $c }}" @selected(old('map_sheet_imperial') === $c)>{{ $c }} · {{ $n }}</option>@endforeach
-            </select>
-            <p class="helper-text">1:50,000 topo sheet. Leave blank if not known.</p>
-        </div>
-
-        <div class="sv-group"><i class="fas fa-user-edit"></i><span>Drawn By</span></div>
-        <div class="form-group">
-            <label>Who drew the plan <span class="required">*</span></label>
-            <select name="drawn_by" id="spuDrawn" required>
-                <option value="">— Select surveyor —</option>
-                @foreach ($surveyors as $s)<option value="{{ $s->id }}" @selected(old('drawn_by') === (string) $s->id)>{{ $s->full_name }}{{ $s->rank ? ' · ' . $s->rank : '' }}</option>@endforeach
-                <option value="other" @selected(old('drawn_by') === 'other')>Other (specify)</option>
-            </select>
-            <input type="text" name="drawn_by_other" id="spuDrawnOther" maxlength="255" placeholder="Type the name *" value="{{ old('drawn_by_other') }}"
-                   style="margin-top:6px;{{ old('drawn_by') === 'other' ? '' : 'display:none;' }}" @disabled(old('drawn_by') !== 'other') @required(old('drawn_by') === 'other')>
-        </div>
-        <div class="form-group" style="grid-column:span 2;">
-            <label>Remarks</label>
-            <textarea name="remarks" rows="2" maxlength="1000">{{ old('remarks') }}</textarea>
-        </div>
-
-        {{-- The plan file comes last, after Drawn By (user, 2026-11-15). --}}
-        <div class="sv-group"><i class="fas fa-file-upload"></i><span>Plan File</span></div>
-        <div class="form-group">
-            <label>Plan File <span class="required">*</span></label>
-            <input type="file" name="plan_file" id="spuFile" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff" required>
-            <p class="helper-text">PDF, JPG, PNG or TIFF, up to 25 MB.</p>
-        </div>
-        {{-- Preview of the chosen plan, before it is saved (user, 2026-11-10). Read from the browser only. --}}
-        <div id="spuPreview" hidden style="grid-column:1 / -1;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;padding:10px 12px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
-                <span style="font-size:13px;font-weight:600;color:#374151;"><i class="fas fa-eye" style="margin-right:6px;color:#6b7280;"></i>Preview: <span id="spuPreviewName"></span></span>
-                <button type="button" id="spuPreviewClear" class="btn btn-secondary" style="padding:4px 10px;font-size:12px;"><i class="fas fa-times"></i> Remove file</button>
-            </div>
-            <div id="spuPreviewBody"></div>
-        </div>
-    </div>
-    <div style="margin-top:18px;">@include('survey_module.survey_plans._plan_check_export', ['spcExportNo' => 6, 'spcExportGate' => true])</div>
+    <input type="hidden" name="plan_method" value="manual">
+    {{-- Manual Upload (Recording 5, 2026-11-16): 1 coordinate system, 2 reference beacon, 3 plan details with the file.
+         No map, other beacons or export: those are on Digital Plotting. --}}
+    @include('survey_module.survey_plans._manual_reference', ['mrSearchUrl' => route('survey-module.survey-plans.beacons')])
+    @include('survey_module.survey_plans._plan_details_klaes', ['no' => 3, 'withFile' => true])
     <div class="form-actions">
         <div class="left"><a class="btn btn-secondary" href="{{ route('survey-module.survey-plans.index') }}"><i class="fas fa-times"></i> Close</a></div>
         <div class="right"><button class="btn btn-success" type="submit"><i class="fas fa-paper-plane"></i> Upload and Send</button></div>
@@ -160,7 +78,26 @@
 </form>
 @endunless
 
+@include('survey_module.survey_plans._application_plan_form')
+
+<style>
+    .spm-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5e7eb; margin: 4px 0 12px; flex-wrap: wrap; }
+    .spm-tabs a { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; margin-bottom: -2px; border-bottom: 2px solid transparent; font-weight: 700; font-size: 13.5px; color: #64748b; text-decoration: none; border-radius: 8px 8px 0 0; }
+    .spm-tabs a:hover { color: #1d4ed8; background: #f8fafc; }
+    .spm-tabs a.on { color: #1d4ed8; border-bottom-color: #1d4ed8; background: #eff6ff; }
+    .spm-tabs .c { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: #e2e8f0; color: #334155; }
+    .spm-tabs a.on .c { background: #1d4ed8; color: #fff; }
+</style>
+<nav class="spm-tabs" aria-label="Survey plan method">
+    @foreach (Plan::METHODS as $m => $label)
+        <a href="{{ $methodTab($m) }}" class="{{ $method === $m ? 'on' : '' }}" @if ($method === $m) aria-current="page" @endif>
+            <i class="fas {{ $m === Plan::METHOD_DIGITAL ? 'fa-map-location-dot' : 'fa-file-arrow-up' }}"></i> {{ $label }} <span class="c">{{ number_format($methodCounts[$m]) }}</span>
+        </a>
+    @endforeach
+</nav>
+
 <form method="GET" class="table-toolbar">
+    <input type="hidden" name="method" value="{{ $method }}">
     <div class="left" style="flex-wrap:wrap;">
         <input type="text" name="q" value="{{ $term }}" placeholder="Ref, plot no., district, LGA, drawn by…" style="{{ $field }}width:300px;" />
         <select name="type" style="{{ $field }}">
@@ -180,10 +117,10 @@
         <select name="source" style="{{ $field }}">
             <option value="">KLAES and portal</option>
             <option value="klaes" @selected(request('source') === 'klaes')>KLAES</option>
-            <option value="portal" @selected(request('source') === 'portal')>MLPP-SG Portal</option>
+            <option value="portal" @selected(request('source') === 'portal')>KN-MLPP-SG Portal</option>
         </select>
         <button class="btn btn-secondary" type="submit"><i class="fas fa-search"></i> Search</button>
-        @if ($filtered)<a class="btn btn-outline btn-sm" href="{{ route($listRoute) }}">Clear</a>@endif
+        @if ($filtered)<a class="btn btn-outline btn-sm" href="{{ route($listRoute, ['method' => $method]) }}">Clear</a>@endif
     </div>
 </form>
 
@@ -224,12 +161,30 @@
                                     <a href="{{ route('survey-module.survey-plans.show', $row) }}" class="{{ $svItem }}" @click="open = false">
                                         <i data-lucide="layers" class="w-4 h-4 text-gray-500"></i> Open (stages)
                                     </a>
+                                    @if ($row->isDigital())
+                                    <a href="{{ route('survey-module.survey-plans.check-plan', $row) }}" class="{{ $svItem }}" @click="open = false">
+                                        <i data-lucide="map-pinned" class="w-4 h-4 text-gray-500"></i> Open on the map
+                                    </a>
+                                    @if ($row->file_path)
+                                    <a href="{{ route('survey-module.survey-plans.file', $row) }}" target="_blank" rel="noopener" class="{{ $svItem }}" @click="open = false">
+                                        <i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i> Open Plan
+                                    </a>
+                                    @endif
+                                    @else
                                     <a href="{{ route('survey-module.survey-plans.check-plan', $row) }}" class="{{ $svItem }}" @click="open = false">
                                         <i data-lucide="map-pinned" class="w-4 h-4 text-gray-500"></i> Check survey plan
                                     </a>
                                     <a href="{{ route('survey-module.survey-plans.file', $row) }}" target="_blank" rel="noopener" class="{{ $svItem }}" @click="open = false">
                                         <i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i> Open Plan
                                     </a>
+                                    @endif
+                                    @if (\App\Models\Survey\SurveyApplicationPlan::installed())
+                                    <button type="button" class="{{ $svItem }} w-full text-left" @click="open = false; spOpenApplicationPlan($el)"
+                                            data-ap-ref="{{ $row->upload_ref }}" data-ap-save="{{ route('survey-module.survey-plans.application-plan.save', $row) }}"
+                                            data-ap="{{ json_encode(\App\Models\Survey\SurveyApplicationPlan::entriesFor($row)) }}">
+                                        <i data-lucide="file-badge" class="w-4 h-4 text-gray-500"></i> Application Plan
+                                    </button>
+                                    @endif
                                 </div>
                             </div>
                         </td>
@@ -237,7 +192,7 @@
                 @empty
                     <tr><td colspan="{{ $unit ? 13 : 14 }}" style="text-align:center;padding:28px;color:var(--gray-500);">
                         <i class="fas fa-folder-open" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4;"></i>
-                        {{ $filtered ? 'No upload matches the search.' : ($unit ? 'No survey plan has been sent to ' . $unit . ' yet.' : 'No survey plans yet. Use Upload Survey Plan.') }}
+                        {{ $filtered ? 'No upload matches the search.' : ($unit ? 'No ' . strtolower(Plan::METHODS[$method]) . ' has been sent to ' . $unit . ' yet.' : 'No ' . strtolower(Plan::METHODS[$method]) . ' yet. Use ' . Plan::METHODS[$method] . '.') }}
                     </td></tr>
                 @endforelse
             </tbody>
@@ -252,34 +207,9 @@
 
 @push('scripts')
 <script>
-// The reference coordinate is required: submitting without it opens its Beacon No. list.
-(function () {
-    var form = document.getElementById('spuForm');
-    if (form) form.addEventListener('submit', function (e) {
-        var no = form.querySelector('#spc-refRows select.spc-b'), val = form.querySelector('input[name="beacons[0][beacon_no]"]');
-        if (no && val && !val.value && no.value !== '__other') {
-            e.preventDefault();
-            no.closest('.spc-bt').scrollIntoView({ block: 'center' });
-            if (window.jQuery && jQuery(no).data('select2')) jQuery(no).select2('open');
-        }
-    }, true);
-})();
 
-// "Other (specify)" reveals a required box; any other choice hides, clears and disables it.
-(function () {
-    [['spuDistrict', 'spuDistrictOther'], ['spuDrawn', 'spuDrawnOther']].forEach(function (pair) {
-        var pick = document.getElementById(pair[0]), box = document.getElementById(pair[1]);
-        if (!pick || !box) return;
-        var sync = function () {
-            var on = pick.value === 'other';
-            box.style.display = on ? '' : 'none';
-            box.disabled = !on; box.required = on;
-            if (!on) box.value = '';
-        };
-        pick.addEventListener('change', sync);
-        if (window.jQuery) window.jQuery(pick).on('change', sync);   // select2 on long lists
-    });
-})();
+
+
 
 // Preview the chosen plan before it is saved: PDF in a viewer, JPG/PNG as an image. Browsers cannot
 // draw TIFF, so a TIFF shows its name and size only. Nothing is uploaded until Upload and Send.

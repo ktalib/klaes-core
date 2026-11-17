@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.portal')
 
-@section('title', $report->report_ref . " — Surveyor's Report — MLPP-SG Portal")
+@section('title', $report->report_ref . " — Surveyor's Report — KN-MLPP-SG Portal")
 @section('heading', "Surveyor's Report " . $report->report_ref)
 
 @include('surveyor_portal.reports._assets')

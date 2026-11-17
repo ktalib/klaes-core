@@ -112,11 +112,13 @@
                 </button>
             </form>
             
-            {{-- Update EDMS --}}
-            <a href="/edms/sub/{{ $sua->id }}" class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900">
-                <i data-lucide="database" class="mr-3 h-4 w-4 text-gray-400 group-hover:text-gray-500"></i>
-               Capture Initial DMS
-            </a>
+            {{-- Open Folio replaces Capture Initial DMS (user, 2026-11-16): the SUA's own ST file opens in the VFS. --}}
+            @if(!empty($sua->fileno))
+                <a href="{{ route('vfs.open', ['file_no' => $sua->fileno]) }}" target="_blank" rel="noopener" class="group flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900">
+                    <i data-lucide="folder-tree" class="mr-3 h-4 w-4 text-gray-400 group-hover:text-gray-500"></i>
+                    Open Folio
+                </a>
+            @endif
         </div>
     </div>
 </div>

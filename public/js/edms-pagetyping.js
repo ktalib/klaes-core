@@ -2550,8 +2550,10 @@
                     name: ct.name || ct.Name || ct.title || ct.Title || 'Cover'
                 }));
 
-                // Normalize page types
-                const rawTypes = data.page_types || [];
+                // Normalize page types. The server adds its own "Other (Specify)" (id 'other');
+                // it is dropped so only the one "Others" below shows (user, 2026-11-17).
+                const isAddedOther = x => ['other', 'others'].includes(String((x && (x.id ?? x.Id)) ?? '').toLowerCase());
+                const rawTypes = (data.page_types || []).filter(pt => !isAddedOther(pt));
                 pageTypes = rawTypes.map(pt => ({
                     id: (pt.id || pt.Id).toString(),
                     code: pt.code || pt.Code || pt.PageType || 'PT',
@@ -2587,9 +2589,14 @@
                     });
                 }
 
-                // Add "Others" option to all page subtypes
+                // One "Others" per subtype list: the server's added "Other (Specify)" is dropped,
+                // and a list that already has a real "Other"/"Others" subtype gets no second one.
                 Object.keys(pageSubTypes).forEach(ptId => {
-                    pageSubTypes[ptId].push({ id: 'others', code: "OTH", name: "Others" });
+                    pageSubTypes[ptId] = pageSubTypes[ptId].filter(st => !isAddedOther(st));
+                    const hasOwnOther = pageSubTypes[ptId].some(st => /^others?$/i.test(String(st.name || '').trim()));
+                    if (!hasOwnOther) {
+                        pageSubTypes[ptId].push({ id: 'others', code: "OTH", name: "Others" });
+                    }
                 });
 
                 console.log('Loaded page typing data:', { coverTypes, pageTypes, pageSubTypes });

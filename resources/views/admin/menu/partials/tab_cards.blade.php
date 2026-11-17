@@ -38,6 +38,11 @@
   $tabCards = [
       // Lands
       'land-recommendation' => $tcRecommendation('land-recommendations.index', 'ROFO'),
+      // Survey Plan Management (Recording 5, 2026-11-16): choose Manual Upload or Digital Plotting first.
+      'survey-plan-management' => [
+          ['Manual Upload', 'file-up', route('survey-module.survey-plans.index', ['method' => 'manual']), 'blue'],
+          ['Digital Plotting', 'map-pinned', route('survey-module.survey-plans.index', ['method' => 'digital']), 'teal'],
+      ],
       'oss-recommendation' => $tcRecommendation('land-recommendations.index', 'OSS'),
       'land-rofo' => $tcRofo('land-rofos.index', []),
       // OSS has no Batches or Re-issuance on its cards (user, 2026-11-06).

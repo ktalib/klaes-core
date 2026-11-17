@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.guest')
 
-@section('title', 'Security questions — MLPP-SG Portal')
+@section('title', 'Security questions — KN-MLPP-SG Portal')
 
 {{-- The sign-in code fallback: the password has been checked, the surveyor is not signed in yet.
      See SurveyorPortal\SecurityQuestionsController::challenge / verify. --}}

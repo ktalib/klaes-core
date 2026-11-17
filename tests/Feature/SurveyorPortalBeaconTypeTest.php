@@ -56,8 +56,8 @@ class SurveyorPortalBeaconTypeTest extends TestCase
             ->assertDontSee('name="layout_type"', false)
             ->assertSee('aria-label="Portal navigation"', false)
             ->assertSee('Requested Beacons')
-            ->assertSee('MLPP-SG')
-            ->assertSee('assets/logo/mlppsg-logo.png')
+            ->assertSee('KN-MLPP-SG')
+            ->assertSee('assets/logo/knmlppsg-logo.png')
             ->assertSee('Beacon Request')
             ->assertSee('SURCON Payment Evidence')
             ->assertSee('name="payment_evidence"', false)
@@ -92,12 +92,12 @@ class SurveyorPortalBeaconTypeTest extends TestCase
     {
         $this->get(route('surveyor-portal.register'))
             ->assertOk()
-            ->assertSee('assets/logo/mlppsg-register-banner.jpg');
+            ->assertSee('assets/logo/knmlppsg-banner.jpg');
 
         $this->get(route('surveyor-portal.register', ['company' => 'yes']))
             ->assertOk()
-            ->assertSee('assets/logo/mlppsg-register-banner.jpg')
-            ->assertSee("MLPP-SG — Ministry of Land and Physical Planning – Surveyor General&#039;s Office Portal", false);
+            ->assertSee('assets/logo/knmlppsg-banner.jpg')
+            ->assertSee("KN-MLPP-SG — Ministry of Land and Physical Planning – Surveyor General&#039;s Office Portal", false);
     }
 
     public function test_beacon_form_has_searchable_district_and_lga_based_pin(): void
@@ -281,7 +281,7 @@ class SurveyorPortalBeaconTypeTest extends TestCase
         $this->app->instance(BeaconRequests::class, $service);
 
         $post = fn (array $extra) => $this->post(route('surveyor-portal.requests.store'), $extra + [
-            'request_type' => 'bulk',
+            'request_type' => 'single',
             'quantity' => 1,
             'amount_paid' => '100',
             'payment_date' => '2026-11-07',
@@ -289,6 +289,33 @@ class SurveyorPortalBeaconTypeTest extends TestCase
         ]);
 
         $post([])->assertSessionHasErrors(['job_no' => 'Choose the Job No for this survey.']);
-        $post(['job_no' => 'GKN-JOB-2026-0099'])->assertSessionHasErrors(['job_no' => 'Choose a Job No given to you.']);
+        $post(['job_no' => 'GKN-JOB-2026-0099', 'district' => 'Other', 'district_other' => 'Test District',
+            'lga' => \App\Services\Survey\CompensationListReader::LGAS[0]])
+            ->assertSessionHasErrors(['job_no' => 'Choose a Job No given to you.']);
+    }
+
+    /** User, 2026-11-17: a Bulk request has no Job No until the beacons are used; any Job No sent is dropped. */
+    public function test_a_bulk_request_needs_no_job_no(): void
+    {
+        $account = new SurveyorPortalAccount();
+        $account->forceFill(['id' => 871244, 'surveyor_type' => 'Government', 'name' => 'Test Surveyor']);
+        $this->actingAs($account, 'surveyor');
+
+        $saved = (new SurveyBeaconRequest())->forceFill(['id' => 991, 'request_no' => 'BRQ-TEST']);
+        $service = Mockery::mock(BeaconRequests::class);
+        $service->shouldReceive('jobChoices')->andReturn([]);
+        $service->shouldReceive('fromPortal')->once()
+            ->withArgs(fn ($a, array $data) => $data['request_type'] === 'bulk' && $data['job_no'] === null)
+            ->andReturn($saved);
+        $this->app->instance(BeaconRequests::class, $service);
+
+        $this->post(route('surveyor-portal.requests.store'), [
+            'request_type' => 'bulk',
+            'job_no' => 'GKN-JOB-2026-0099',
+            'quantity' => 1,
+            'amount_paid' => '100',
+            'payment_date' => '2026-11-07',
+            'payment_evidence' => UploadedFile::fake()->create('payment.pdf', 100, 'application/pdf'),
+        ])->assertSessionHasNoErrors()->assertRedirect(route('surveyor-portal.requests.show', $saved));
     }
 }

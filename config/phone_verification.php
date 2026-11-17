@@ -323,12 +323,12 @@ return [
         // Tokens {code} and {minutes}; the fallback says almost nothing for the gateway's keyword filters.
         'message' => env(
             'SURVEYOR_LOGIN_OTP_MESSAGE',
-            'MLPP-SG: {code} is your sign-in number. It is valid for {minutes} minutes. Do not share it with anyone.'
+            'KN-MLPP-SG: {code} is your sign-in number. It is valid for {minutes} minutes. Do not share it with anyone.'
         ),
 
-        'message_fallback' => env('SURVEYOR_LOGIN_OTP_MESSAGE_FALLBACK', 'MLPP-SG: {code}'),
+        'message_fallback' => env('SURVEYOR_LOGIN_OTP_MESSAGE_FALLBACK', 'KN-MLPP-SG: {code}'),
 
-        'email_subject' => env('SURVEYOR_LOGIN_OTP_EMAIL_SUBJECT', 'Your MLPP-SG Portal sign-in code'),
+        'email_subject' => env('SURVEYOR_LOGIN_OTP_EMAIL_SUBJECT', 'Your KN-MLPP-SG Portal sign-in code'),
     ],
 
     /*

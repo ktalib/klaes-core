@@ -555,6 +555,13 @@
 
               <div class="border border-gray-200 rounded-lg p-4 bg-blue-50/50 mb-4" id="smart-fileno-selector-box">
                 <label for="global-selected-fileno-select" class="block text-sm font-semibold text-blue-900 mb-2">Search via smart file number Selector</label>
+                {{-- Cadastral Registry (user, 2026-11-16): some cadastral cards were saved under the holder's name,
+                     not the file number, so the file can also be found by its name (file title). --}}
+                <div id="smart-search-by" class="hidden flex items-center gap-4 mb-2 text-xs text-blue-900">
+                  <span class="font-semibold">Search by:</span>
+                  <label class="inline-flex items-center gap-1 cursor-pointer"><input type="radio" name="smart-search-by" value="number" checked> File number</label>
+                  <label class="inline-flex items-center gap-1 cursor-pointer"><input type="radio" name="smart-search-by" value="name"> File name</label>
+                </div>
                 <select id="global-selected-fileno-select" class="input w-full text-sm bg-blue-50 border-blue-200 text-blue-900 font-mono font-bold" disabled>
                   <option value="">Select registry first...</option>
                 </select>

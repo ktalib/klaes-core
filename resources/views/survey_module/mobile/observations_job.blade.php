@@ -26,11 +26,21 @@
         .mono { font-family: ui-monospace, monospace; font-size: 13px; }
         .pending { color: #92400e; font-size: 12px; }
         .err-box { color: #b91c1c; font-size: 13.5px; margin-top: 8px; }
-        .tabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 12px; scrollbar-width: none; }
-        .tabs::-webkit-scrollbar { display: none; }
-        .tabs button { flex: 0 0 auto; border: 1px solid var(--line); background: #fff; color: var(--text); border-radius: 999px; padding: 8px 14px; font: 600 13.5px 'Outfit', sans-serif; }
-        .tabs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
-        .tabs .n { opacity: .7; font-weight: 500; margin-left: 4px; }
+        /* Phone look (user, 2026-11-15): a job header and an icon tab bar, not web pills. */
+        .fo-hero { margin: 0 -16px 0; padding: 16px 16px 18px; color: #fff; background: linear-gradient(160deg, #1e1b2e 0%, #3b1a3a 55%, #9d174d 100%); border-radius: 0 0 26px 26px; }
+        .fo-hero .kind { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: rgba(255,255,255,.14); border-radius: 999px; padding: 4px 10px; }
+        .fo-hero .where { margin-top: 10px; font-size: 15px; font-weight: 600; }
+        .fo-hero .who { font-size: 13px; opacity: .75; margin-top: 2px; }
+        .fo-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+        .fo-kpis div { background: rgba(255,255,255,.1); border-radius: 14px; padding: 9px 10px; }
+        .fo-kpis b { display: block; font-size: 19px; line-height: 1.1; } .fo-kpis span { font-size: 11.5px; opacity: .75; }
+        .tabs { position: sticky; top: calc(env(safe-area-inset-top) + 64px); z-index: 30; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; margin: 12px -16px 14px; padding: 6px 8px;
+                background: rgba(246,244,249,.96); backdrop-filter: blur(8px); border-bottom: 1px solid #ebe7f1; }
+        .tabs button { border: 0; background: transparent; border-radius: 12px; padding: 7px 2px 6px; font: 600 11.5px 'Outfit', sans-serif; color: #6b6480; display: flex; flex-direction: column; align-items: center; gap: 3px; position: relative; }
+        .tabs button i { font-size: 18px; }
+        .tabs button.on { color: var(--primary-dark); background: #fff; box-shadow: 0 2px 8px rgba(30,27,46,.08); }
+        .tabs .n { position: absolute; top: 2px; right: 10%; min-width: 17px; height: 17px; border-radius: 9px; background: var(--primary); color: #fff; font-size: 10.5px; font-weight: 700; display: grid; place-items: center; padding: 0 4px; }
+        .tabs .n:empty, .tabs .n[data-z] { display: none; }
         .pane[hidden] { display: none; }
         .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
         .kv dt { color: var(--muted); }
@@ -40,7 +50,16 @@
         .st.warn { background: #fffbeb; color: #92400e; }
         .st.bad { background: #fef2f2; color: #b91c1c; }
         .gps { font-size: 12.5px; color: var(--muted); }
+        .bn-pick { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; text-align: left; cursor: pointer; font-weight: 700; }
+        .bn-pick .ph { color: #9ca3af; font-weight: 400; }
+        .bn-list { max-height: 52dvh; overflow: auto; margin-top: 10px; }
+        .bn-opt:disabled { opacity: .5; }
+        .bn-src { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: #eef2ff; color: #3730a3; margin-left: auto; flex: none; }
+        .bn-src.extant { background: #f0fdf4; color: #166534; } .bn-src.other { background: #fdf2f8; color: #9d174d; }
     </style>
+
+    {{-- Confirmations are SweetAlert, never the browser's own pop-up (user, 2026-11-15). --}}
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body class="has-mobile-footer">
 <header class="appbar">
@@ -57,24 +76,35 @@
     @if ($errors->any())<div class="scf-note wait">{{ $errors->first() }}</div>@endif
 
     {{-- Plot No., District, LGA, Location --}}
-    <div class="card card-pad" style="margin-bottom:12px;font-size:13.5px;">
-        <strong>{{ $isPrivate ? "Surveyor's Report (Private)" : ($anchor['source'] === 'cadastral' ? 'Cadastral I to S' : 'Survey I to S') }}</strong>
-        <div style="opacity:.8;margin-top:3px;">{{ implode(' · ', array_filter([$p['plot_no'] ? 'Plot ' . $p['plot_no'] : null, $p['district'], $p['lga'], $p['location'] !== implode(', ', array_filter([$p['district'], $p['lga']])) ? $p['location'] : null])) ?: 'No location recorded' }}</div>
-        @if ($p['surveyor_name'])<div style="opacity:.8;">{{ $p['surveyor_name'] }}</div>@endif
-        @if ($anchor['locked'])<div style="margin-top:6px;" class="st warn">Closed: view only</div>@endif
+    <div class="fo-hero">
+        <span class="kind"><i class="fas fa-compass-drafting"></i>{{ $isPrivate ? "Surveyor's Report (Private)" : ($anchor['source'] === 'cadastral' ? 'Cadastral I to S' : 'Survey I to S') }}</span>
+        @if ($anchor['locked'])<span class="kind" style="background:#fbbf24;color:#451a03;margin-left:4px;">Closed: view only</span>@endif
+        <div class="where">{{ implode(' · ', array_filter([$p['plot_no'] ? 'Plot ' . $p['plot_no'] : null, $p['district'], $p['lga'], $p['location'] !== implode(', ', array_filter([$p['district'], $p['lga']])) ? $p['location'] : null])) ?: 'No location recorded' }}</div>
+        @if ($p['surveyor_name'])<div class="who"><i class="fas fa-user-gear"></i> {{ $p['surveyor_name'] }}</div>@endif
+        <div class="fo-kpis">
+            <div><b>{{ $readings->count() }}</b><span>readings</span></div>
+            <div><b>{{ $coords->count() }}</b><span>beacons listed</span></div>
+            <div><b>{{ $shape['area'] !== null ? number_format($shape['area'], 0) : '—' }}</b><span>{{ $shape['area'] !== null ? 'm² area' : 'area' }}</span></div>
+        </div>
     </div>
 
     <div class="tabs" role="tablist">
-        <button type="button" data-tab="readings">Readings<span class="n">{{ $readings->count() }}</span></button>
-        <button type="button" data-tab="coords">Coordinates<span class="n">{{ $coords->count() }}</span></button>
-        <button type="button" data-tab="beacons">Beacon Nos</button>
-        <button type="button" data-tab="compute">Computation</button>
-        <button type="button" data-tab="sketch">Sketch Plan</button>
+        <button type="button" data-tab="plot"><i class="fas fa-map-location-dot"></i>Plot</button>
+        <button type="button" data-tab="readings"><i class="fas fa-ruler-combined"></i>Readings<span class="n" @if (! $readings->count()) data-z @endif>{{ $readings->count() }}</span></button>
+        <button type="button" data-tab="coords"><i class="fas fa-location-dot"></i>Beacons<span class="n" @if (! $coords->count()) data-z @endif>{{ $coords->count() }}</span></button>
+        <button type="button" data-tab="compute"><i class="fas fa-square-check"></i>Checks</button>
+        <button type="button" data-tab="sketch"><i class="fas fa-file-pen"></i>Sketch</button>
     </div>
+
+    {{-- ================================ Plot ================================ --}}
+    <section class="pane" data-pane="plot">
+        @include('survey_module.mobile._fo_plot')
+    </section>
 
     {{-- ============================== Readings ============================== --}}
     <section class="pane" data-pane="readings">
         @unless ($anchor['locked'])
+            <details style="margin-bottom:14px;"><summary style="font-weight:600;cursor:pointer;padding:6px 0;">Add a single reading (works offline)</summary>
             <form class="card card-pad" id="readingForm" method="POST" action="{{ route('survey-module.mobile.observations.store', $anchor['key']) }}" style="margin-bottom:14px;" novalidate>
                 @csrf
                 <datalist id="stations">@foreach ($stations as $s)<option value="{{ $s }}">@endforeach</datalist>
@@ -101,6 +131,7 @@
                 <div class="err-box" id="readingErr" hidden></div>
                 <button type="submit" class="btn btn-success" id="readingSave" style="margin-top:12px;width:100%;"><i class="fas fa-plus"></i> Save reading</button>
             </form>
+            </details>
         @endunless
 
         <div class="card card-pad">
@@ -123,8 +154,13 @@
         @unless ($anchor['locked'])
             <form class="card card-pad" id="coordForm" method="POST" action="{{ route('survey-module.mobile.observations.coords.store', $anchor['key']) }}" style="margin-bottom:14px;" novalidate>
                 @csrf
-                <div class="field"><label for="bid">Beacon ID</label>
-                    <input class="input" id="bid" name="beacon_id" maxlength="50" autocapitalize="characters" required></div>
+                {{-- Beacon Number (user, 2026-11-15): a dropdown with search, and one Other (specify) for a number not listed. --}}
+                <div class="field"><label for="bnPick">Beacon Number <span style="color:var(--err)">*</span></label>
+                    <button type="button" class="input bn-pick" id="bnPick" aria-haspopup="dialog">
+                        <span id="bnPickTxt" class="ph">Choose the beacon number</span><i class="fas fa-chevron-down"></i></button>
+                    <input type="hidden" name="beacon_id" id="bid">
+                    <input class="input" id="bnOther" maxlength="50" autocapitalize="characters" placeholder="Specify the beacon number" style="margin-top:8px;text-transform:uppercase;" hidden>
+                    <div class="gps" id="bnNote" hidden></div></div>
                 <div class="grid2" style="margin-top:10px;">
                     <div class="field"><label for="nn">Northing (m)</label>
                         <input class="input" id="nn" name="northing" type="number" inputmode="decimal" step="0.001" required></div>
@@ -165,7 +201,7 @@
     </section>
 
     {{-- ============================= Beacon Nos ============================= --}}
-    <section class="pane" data-pane="beacons" hidden>
+    <section class="pane" data-pane="compute" hidden>
         <div class="card card-pad">
             <strong>Beacon Nos against the Beacon Register</strong>
             <div class="hint" style="margin-bottom:6px;">{{ $beaconSum['registered'] }} registered · {{ $beaconSum['other_surveyor'] }} issued to another surveyor · {{ $beaconSum['unregistered'] }} not in the register{{ $beaconSum['reused'] ? ' · ' . $beaconSum['reused'] . ' used on another survey' : '' }}. Refreshed when you open this page online.</div>
@@ -263,12 +299,12 @@
     // Tabs: one page (so one copy kept offline), the tab in the URL hash.
     var buttons = document.querySelectorAll('.tabs button'), panes = document.querySelectorAll('.pane');
     function open(name) {
-        if (!document.querySelector('[data-pane="' + name + '"]')) name = 'readings';
+        if (!document.querySelector('[data-pane="' + name + '"]')) name = 'plot';
         buttons.forEach(function (b) { b.classList.toggle('on', b.dataset.tab === name); b.setAttribute('aria-selected', b.dataset.tab === name); });
         panes.forEach(function (p) { p.hidden = p.dataset.pane !== name; });
     }
     buttons.forEach(function (b) { b.addEventListener('click', function () { history.replaceState(null, '', location.pathname + '#' + b.dataset.tab); open(b.dataset.tab); }); });
-    open((location.hash || '#readings').slice(1));
+    open((location.hash || '#plot').slice(1));
 
     var sketch = document.getElementById('sketchForm');
     if (sketch) sketch.addEventListener('submit', function (ev) {
@@ -331,11 +367,92 @@
             }, function () { gpsOut.textContent = 'No position: allow location for this app and try again.'; },
                { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
         });
+        // ---- Beacon Number dropdown (2026-11-15): search, then one Other (specify) at the foot ----
+        var bn = { other: false, filled: false };
+        var bnTxt = document.getElementById('bnPickTxt'), bnOther = document.getElementById('bnOther'), bnNote = document.getElementById('bnNote');
+        var onList = @json($coords->map(fn ($c) => mb_strtoupper(trim($c->beacon_id)))->values());
+        var SEARCH = @json(route('survey-module.mobile.beacon-search')), localReg = null;
+        var bnKey = function (s) { return String(s || '').trim().toUpperCase().replace(/\s+/g, ' '); };
+        function bnSet(no, other, x, y) {
+            // A new pick clears the X / Y the last pick filled in.
+            if (bn.filled) { cform.easting.value = ''; cform.northing.value = ''; bn.filled = false; }
+            bn.other = !!other;
+            cform.beacon_id.value = other ? bnKey(bnOther.value) : bnKey(no);
+            bnTxt.textContent = other ? 'Other (specify)' : (no || 'Choose the beacon number');
+            bnTxt.className = no || other ? '' : 'ph';
+            bnOther.hidden = !other; bnOther.required = !!other; if (other) setTimeout(function () { bnOther.focus(); }, 200); else bnOther.value = '';
+            bnNote.hidden = true;
+            if (!other && x && y && cform.easting.value === '' && cform.northing.value === '') {
+                cform.easting.value = Number(x).toFixed(3); cform.northing.value = Number(y).toFixed(3); bn.filled = true;
+                bnNote.hidden = false; bnNote.textContent = 'Easting / Northing filled from the Beacon Register. Check them against the plan.';
+            }
+        }
+        bnOther.addEventListener('input', function () { bnOther.value = bnOther.value.toUpperCase(); cform.beacon_id.value = bnKey(bnOther.value); });
+        function localSearch(q) {
+            var go = function () {
+                var k = bnKey(q).replace(/ /g, '');
+                return (localReg || []).filter(function (r) { return String(r[0]).toUpperCase().replace(/ /g, '').indexOf(k) === 0; }).slice(0, 30)
+                    .map(function (r) { return { beacon_no: String(r[0]), x: r[1], y: r[2], source: 'register' }; });
+            };
+            if (localReg) return Promise.resolve(go());
+            return fetch('/maps/data/beacons.json').then(function (r) { return r.json(); }).then(function (j) { localReg = j.rows; return go(); }).catch(function () { return []; });
+        }
+        function bnSheet() {
+            var bg = document.getElementById('bnBg'), sh = document.getElementById('bnSheet');
+            if (!sh) {
+                bg = document.createElement('div'); bg.id = 'bnBg'; bg.className = 'fo-sheet-bg';
+                sh = document.createElement('div'); sh.id = 'bnSheet'; sh.className = 'fo-sheet'; sh.setAttribute('role', 'dialog');
+                sh.innerHTML = '<div class="grab"></div><button type="button" class="fo-x" aria-label="Close"><i class="fas fa-xmark"></i></button>'
+                    + '<h3>Beacon Number</h3><div class="sub">Search the issued beacon numbers, the Extant Beacons list and the Beacon Register.</div>'
+                    + '<input class="fo-txt" id="bnQ" placeholder="Type to search, e.g. A0876A" autocomplete="off"><div class="bn-list" id="bnList"></div>';
+                document.body.appendChild(bg); document.body.appendChild(sh);
+                var close = function () { sh.classList.remove('open'); bg.classList.remove('open'); };
+                bg.onclick = close; sh.querySelector('.fo-x').onclick = close; sh._close = close;
+                var q = sh.querySelector('#bnQ'), list = sh.querySelector('#bnList'), seq = 0, t = null;
+                var srcLabel = { captured: 'Issued', extant: 'Extant list', register: 'Register' };
+                var render = function (rows, offline) {
+                    list.innerHTML = '';
+                    if (offline) { var n = document.createElement('div'); n.className = 'fo-note'; n.textContent = 'No signal: showing the Beacon Register kept on the phone.'; list.appendChild(n); }
+                    if (!rows.length) { var e = document.createElement('div'); e.className = 'fo-note'; e.textContent = 'No beacon number matches. Use Other (specify) below.'; list.appendChild(e); }
+                    rows.forEach(function (b) {
+                        var taken = onList.indexOf(bnKey(b.beacon_no)) !== -1;
+                        var o = document.createElement('button'); o.type = 'button'; o.className = 'fo-opt bn-opt'; o.disabled = taken;
+                        o.innerHTML = '<i class="fas fa-map-pin"></i><span><b></b><small></small></span><span class="bn-src"></span>';
+                        o.querySelector('b').textContent = b.beacon_no;
+                        o.querySelector('small').textContent = taken ? 'Already on this job\'s list' : (b.x && b.y ? 'E ' + Number(b.x).toFixed(2) + ' · N ' + Number(b.y).toFixed(2) : 'No X / Y on record');
+                        var s = o.querySelector('.bn-src'); s.textContent = srcLabel[b.source] || 'Register'; if (b.source === 'extant') s.classList.add('extant');
+                        o.onclick = function () { bnSet(b.beacon_no, false, b.x, b.y); close(); };
+                        list.appendChild(o);
+                    });
+                    var oth = document.createElement('button'); oth.type = 'button'; oth.className = 'fo-opt';
+                    oth.innerHTML = '<i class="fas fa-pen"></i><span><b>Other (specify)</b><small>A beacon number not listed: type it</small></span><span class="bn-src other">Other</span>';
+                    oth.onclick = function () { if (q.value.trim()) bnOther.value = bnKey(q.value); bnSet('', true); cform.beacon_id.value = bnKey(bnOther.value); close(); };
+                    list.appendChild(oth);
+                };
+                var run = function () {
+                    var mine = ++seq, term = q.value;
+                    var online = navigator.onLine ? fetch(SEARCH + '?q=' + encodeURIComponent(term), { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                        .then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (j) { return { rows: j.data || [], offline: false }; }) : Promise.reject(0);
+                    online.catch(function () { return localSearch(term).then(function (rows) { return { rows: rows, offline: true }; }); })
+                        .then(function (res) { if (mine === seq) render(res.rows, res.offline); });
+                };
+                q.addEventListener('input', function () { clearTimeout(t); t = setTimeout(run, 250); });
+                sh._run = run; sh._q = q;
+            }
+            sh._q.value = ''; sh._run();
+            sh.classList.add('open'); bg.classList.add('open');
+            setTimeout(function () { sh._q.focus(); }, 250);
+        }
+        document.getElementById('bnPick').addEventListener('click', bnSheet);
+
         cform.addEventListener('submit', function (ev) {
             ev.preventDefault();
             cshow('');
+            if (bn.other) cform.beacon_id.value = bnKey(bnOther.value);
             var bid = cform.beacon_id.value.trim().toUpperCase().replace(/\s+/g, ' ');
-            if (!bid || cform.northing.value === '' || cform.easting.value === '') { cshow('Give the beacon ID, northing and easting.'); return; }
+            if (bn.other && !bid) { cshow('Specify the beacon number.'); bnOther.focus(); return; }
+            if (!bid || cform.northing.value === '' || cform.easting.value === '') { cshow('Give the beacon number, northing and easting.'); return; }
+            if (onList.indexOf(bid) !== -1) { cshow('Beacon ' + bid + ' is already on this list.'); return; }
             var fields = [];
             new FormData(cform).forEach(function (v, k) { if (k !== '_token') fields.push([k, v]); });
             cbtn.disabled = true;
@@ -346,12 +463,27 @@
                 if (res.errors) { var k = Object.keys(res.errors)[0]; cshow(res.errors[k][0]); return; }
                 row(clist, 'noCoords', bid, 'N ' + Number(cform.northing.value).toFixed(3) + ' · E ' + Number(cform.easting.value).toFixed(3), res.queued);
                 ['beacon_id', 'northing', 'easting', 'elevation', 'remarks', 'gps_latitude', 'gps_longitude', 'gps_accuracy_m'].forEach(function (n) { cform[n].value = ''; });
+                onList.push(bid); bn.filled = false; bnSet('', false);
                 gpsOut.textContent = 'Recorded. Record GPS again at the next beacon.';
-                cform.beacon_id.focus();
             });
         });
     }
 })();
 </script>
+@php
+    $foCfg = [
+        'its' => $anchor['key'], 'its_no' => $p['its_number'], 'locked' => (bool) $anchor['locked'],
+        'today' => now()->toDateString(), 'csrf' => csrf_token(),
+        'saveUrl' => route('survey-module.mobile.observations.traverse.store', $anchor['key']),
+        'after' => route('survey-module.mobile.observations.show', ['its' => $anchor['key'], 'app' => \App\Support\SurveyMobileApps::current()]) . '#coords',
+        'coords' => $coords->map(fn ($c) => ['b' => $c->beacon_id, 'e' => (float) $c->easting, 'n' => (float) $c->northing])->values(),
+    ];
+@endphp
+<script type="application/json" id="foCfg">@json($foCfg)</script>
+<link rel="stylesheet" href="{{ asset('maps/vendor/maplibre-gl.css') }}">
+<script src="{{ asset('maps/vendor/maplibre-gl.js') }}"></script>
+<script src="{{ asset('maps/vendor/pmtiles.js') }}"></script>
+<script src="{{ asset('maps/vendor/proj4.js') }}"></script>
+<script src="{{ asset('js/fo-field.js') }}?v={{ filemtime(public_path('js/fo-field.js')) }}"></script>
 </body>
 </html>

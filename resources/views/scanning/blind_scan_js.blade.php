@@ -1610,7 +1610,7 @@
       }
     }
 
-    document.getElementById('srvPath').textContent = '/storage/EDMS/BLIND_SCAN' + (currentSrvPath ? '/' + currentSrvPath : '');
+    document.getElementById('srvPath').textContent = '/storage/DMS/BLIND_SCAN' + /* label only: the folder on disk is still EDMS/BLIND_SCAN */ (currentSrvPath ? '/' + currentSrvPath : '');
 
     const crumbs = data.crumbs || [];
     const crumbsEl = document.getElementById('srvCrumbs');

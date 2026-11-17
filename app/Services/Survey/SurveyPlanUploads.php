@@ -32,9 +32,14 @@ class SurveyPlanUploads
     {
     }
 
-    /** The short form's fields, validated. $staff adds the surveyor pick for "Drawn by". */
-    public function validated(Request $r, bool $staff): array
+    /**
+     * The short form's fields, validated. $staff adds the surveyor pick for "Drawn by".
+     * $method (Recording 5, 2026-11-16): a Manual Upload needs the plan file and one reference beacon; a Digital
+     * Plotting has no file, but the plotted beacons in traverse order (the first is the reference) and its lines.
+     */
+    public function validated(Request $r, bool $staff, string $method = Plan::METHOD_MANUAL): array
     {
+        $digital = $method === Plan::METHOD_DIGITAL;
         $districts = \App\Http\Controllers\Survey\LookupController::options('districts');
         $d = $r->validate([
             'unit'           => ['required', Rule::in(array_keys(Plan::UNITS))],
@@ -51,7 +56,8 @@ class SurveyPlanUploads
             'map_sheet_imperial' => ['nullable', Rule::in(array_keys(MapSheets::IMPERIAL))],
             // The system the plan's X / Y are in (Survey Plan Check, user 2026-11-12).
             'coord_system'   => ['required', Rule::in(array_keys(Plan::COORD_SYSTEMS))],
-            'plan_file'     => ['required', 'file', 'max:25600', 'mimes:' . implode(',', Plan::FILE_TYPES), function ($attr, $file, $fail) {
+            // Digital Plotting: the plan file is optional (user, 2026-11-16).
+            'plan_file'     => [$digital ? 'nullable' : 'required', 'file', 'max:25600', 'mimes:' . implode(',', Plan::FILE_TYPES), function ($attr, $file, $fail) {
                 // mimes reads the contents; a wrong name is refused too.
                 if (! in_array(strtolower($file->getClientOriginalExtension()), Plan::FILE_TYPES, true)) {
                     $fail('Upload the plan as a PDF, JPG, PNG or TIFF.');
@@ -75,7 +81,8 @@ class SurveyPlanUploads
             'map_sheet_imperial.in'   => 'Choose the Imperial map sheet from the list.',
         ]);
 
-        $beacons = $this->validatedBeacons($r);
+        $beacons = $digital ? $this->validatedPlot($r) : $this->validatedBeacons($r);
+        $plot = $digital ? $this->plotData($r, $beacons) : null;
 
         $one = fn ($v) => ($v = trim(preg_replace('/\s+/u', ' ', (string) $v))) === '' ? null : $v;
         $district = $d['district'] === self::OTHER ? $one($d['district_other'] ?? null) : $d['district'];
@@ -111,6 +118,83 @@ class SurveyPlanUploads
             'map_sheet_metric'   => $d['map_sheet_metric'] ?? null,
             'map_sheet_imperial' => $d['map_sheet_imperial'] ?? null,
             'beacons'           => $beacons,
+            'plan_method'       => $digital ? Plan::METHOD_DIGITAL : Plan::METHOD_MANUAL,
+            'plot_data'         => $plot,
+        ];
+    }
+
+    /**
+     * Digital Plotting: every plotted beacon in traverse order (X1, X2 ...), the first being the reference.
+     * At least three, each with a number (X1 ... when none was given) and X / Y. Same clean-up as the reference.
+     *
+     * @return array<int, array{beacon_no:string, coord_x:string, coord_y:string, source:string}>
+     */
+    public function validatedPlot(Request $r): array
+    {
+        $rows = [];
+        $errors = [];
+        foreach (array_values((array) $r->input('beacons', [])) as $i => $b) {
+            $no = strtoupper(trim(preg_replace('/\s+/', ' ', (string) ($b['beacon_no'] ?? ''))));
+            $x = trim(str_replace([',', ' '], '', (string) ($b['x'] ?? '')));
+            $y = trim(str_replace([',', ' '], '', (string) ($b['y'] ?? '')));
+            if ($no === '' && $x === '' && $y === '') {
+                continue;
+            }
+            [$x, $y] = SurveyCoordinates::orient($x, $y);
+            $n = count($rows) + 1;
+            if (! is_numeric($x) || ! is_numeric($y)) {
+                $errors["beacons.$i"] = "Beacon {$n}: X and Y must be numbers.";
+            }
+            $rows[] = [
+                'beacon_no' => mb_substr($no !== '' ? $no : 'X' . $n, 0, 60),
+                'coord_x'   => mb_substr($x, 0, 40),
+                'coord_y'   => mb_substr($y, 0, 40),
+                'source'    => in_array($b['source'] ?? '', ['captured', 'extant'], true) ? $b['source'] : 'typed',
+            ];
+        }
+        if (count($rows) < 3) {
+            $errors['beacons'] = 'Plot the plan first: at least three beacons, by X / Y or by bearing and distance.';
+        }
+        if (count($rows) > 500) {
+            $errors['beacons'] = 'A plan can have at most 500 beacons.';
+        }
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The plotting as it was entered, for the record and to open it again: how (X / Y or traverse), whether it closes,
+     * and each traverse line (from, to, whole-circle bearing in decimal degrees, distance in metres). Sent as JSON.
+     */
+    private function plotData(Request $r, array $beacons): array
+    {
+        $in = json_decode((string) $r->input('plot', ''), true);
+        $in = is_array($in) ? $in : [];
+        $num = fn ($v, $min, $max) => is_numeric($v) && (float) $v >= $min && (float) $v < $max ? round((float) $v, 6) : null;
+        $lines = [];
+        foreach (array_slice((array) ($in['lines'] ?? []), 0, 500) as $l) {
+            if (! is_array($l)) continue;
+            $az = $num($l['azimuth'] ?? null, 0, 360);
+            $dist = $num($l['distance'] ?? null, 0.0001, 1e6);
+            if ($az === null || $dist === null) continue;
+            $lines[] = [
+                'from' => mb_substr(strtoupper(trim((string) ($l['from'] ?? ''))), 0, 60),
+                'to' => mb_substr(strtoupper(trim((string) ($l['to'] ?? ''))), 0, 60),
+                'azimuth' => $az,
+                'distance' => round($dist, 3),
+            ];
+        }
+
+        return [
+            'mode' => ($in['mode'] ?? '') === 'brg' ? 'brg' : 'xy',
+            'closed' => (bool) ($in['closed'] ?? false),
+            'lines' => $lines,
+            'closing_error_m' => $num($in['closing_error'] ?? null, 0, 1e6),
+            'area_m2' => $num($in['area'] ?? null, 0, 1e12),
+            'beacons' => count($beacons),
         ];
     }
 
@@ -221,26 +305,29 @@ class SurveyPlanUploads
      * Save the plan and tell the unit. From the portal, $account says whose it is; saved quietly there,
      * because SurveyModel would stamp the portal account id into created_by, which holds staff ids.
      */
-    public function store(array $fields, UploadedFile $file, ?User $staff, ?SurveyorPortalAccount $account = null): Plan
+    public function store(array $fields, ?UploadedFile $file, ?User $staff, ?SurveyorPortalAccount $account = null): Plan
     {
         $stored = null;
         $beacons = $fields['beacons'] ?? [];
         unset($fields['beacons']);
         try {
             $plan = DB::connection('sqlsrv')->transaction(function () use ($fields, $beacons, $file, $staff, $account, &$stored) {
-                $ext = strtolower($file->getClientOriginalExtension() ?: ($file->extension() ?: 'pdf'));
-                $stored = Storage::disk(Plan::DISK)->putFileAs('app/survey/survey-plans/' . now()->format('Y/m'), $file, Str::uuid() . '.' . $ext);
-                if (! $stored) {
-                    throw new \RuntimeException('The plan could not be stored.');
+                // A digital plotting's file is optional (2026-11-16).
+                if ($file) {
+                    $ext = strtolower($file->getClientOriginalExtension() ?: ($file->extension() ?: 'pdf'));
+                    $stored = Storage::disk(Plan::DISK)->putFileAs('app/survey/survey-plans/' . now()->format('Y/m'), $file, Str::uuid() . '.' . $ext);
+                    if (! $stored) {
+                        throw new \RuntimeException('The plan could not be stored.');
+                    }
                 }
                 for ($try = 1; ; $try++) {
                     try {
                         $plan = new Plan($fields + [
                             'upload_ref'                 => Plan::nextRef('upload_ref', 'SPU', 4),
                             'file_path'                  => $stored,
-                            'file_name'                  => mb_substr($file->getClientOriginalName(), 0, 255),
-                            'file_mime'                  => mb_substr((string) $file->getMimeType(), 0, 120),
-                            'file_size'                  => $file->getSize(),
+                            'file_name'                  => $file ? mb_substr($file->getClientOriginalName(), 0, 255) : null,
+                            'file_mime'                  => $file ? mb_substr((string) $file->getMimeType(), 0, 120) : null,
+                            'file_size'                  => $file?->getSize(),
                             'source'                     => $account ? 'portal' : 'klaes',
                             'surveyor_portal_account_id' => $account?->id,
                             'uploaded_by_name'           => $account ? $account->name : $staff?->name,
@@ -324,7 +411,7 @@ class SurveyPlanUploads
                 $route = $plan->unit === Plan::UNIT_GKN ? 'survey-module.gkn.uploaded-plans' : 'survey-module.workflow.uploaded-plans';
                 $unitPath = parse_url(route($route), PHP_URL_PATH);
                 $allPath = parse_url(route('survey-module.survey-plans.index'), PHP_URL_PATH);
-                $who = $plan->source === 'portal' ? ($plan->uploaded_by_name . ' (MLPP-SG Portal)') : (string) $plan->uploaded_by_name;
+                $who = $plan->source === 'portal' ? ($plan->uploaded_by_name . ' (KN-MLPP-SG Portal)') : (string) $plan->uploaded_by_name;
                 $where = trim(($plan->plot_no ? 'Plot ' . $plan->plot_no . ', ' : '') . (string) $plan->location, ', ');
                 $title = "{$plan->plan_type} uploaded: {$plan->upload_ref}";
                 $body = trim("{$who} sent a {$plan->plan_type} to {$plan->unit} for checking" . ($where !== '' ? " ({$where})" : '') . '. Drawn by ' . $plan->drawn_by . '.');

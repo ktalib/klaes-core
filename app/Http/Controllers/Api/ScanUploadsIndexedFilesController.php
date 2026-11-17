@@ -31,7 +31,10 @@ class ScanUploadsIndexedFilesController extends Controller
                 ->where('file_number', '<>', '');
 
             if ($searchTerm !== '') {
-                $query->where('file_number', 'LIKE', '%' . $this->escapeLike($searchTerm) . '%');
+                // by=name (Cadastral Registry, 2026-11-16): cards saved under the holder's name are found by the
+                // file's title instead of its number.
+                $column = $request->input('by') === 'name' ? 'file_title' : 'file_number';
+                $query->where($column, 'LIKE', '%' . $this->escapeLike($searchTerm) . '%');
             }
 
             $records = $query

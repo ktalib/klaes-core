@@ -1080,8 +1080,8 @@ class PlanningRecommendationController extends Controller
             'private_layout_number' => 'required_if:purpose,Private Layout|nullable|string|max:100',
             'conformity' => 'required_if:source,Conversion Applications|nullable|boolean',
             'accessibility' => 'required_if:source,Conversion Applications|nullable|boolean',
-            'existing_road_reservation' => 'nullable|string|max:255',
-            'recommended_road_reservation' => 'nullable|string|max:255',
+            'existing_road_reservation' => 'nullable|string|max:1000',
+            'recommended_road_reservation' => 'nullable|string|max:1000',
             'observed_road_category' => 'nullable|string|max:255',
             'recommended_comment_status' => 'nullable|string|max:100',
             'how_many_meters' => 'nullable|string|max:100',
@@ -1443,7 +1443,11 @@ class PlanningRecommendationController extends Controller
             $report->updated_by = Auth::id();
         }
 
-        $report->save();
+        try {
+            $report->save();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return $this->jsiSaveFailedResponse($e, $report);
+        }
 
         if ($subApplicationId && $unitNumberForSubSync !== null) {
             $unitNumberForSub = trim((string) $unitNumberForSubSync);
@@ -1506,6 +1510,70 @@ class PlanningRecommendationController extends Controller
             'is_submitted' => (bool) $report->is_submitted,
             'created' => $report->wasRecentlyCreated,
         ]);
+    }
+
+    /**
+     * Turn a database rejection of the JSI save into a message staff can act on
+     * (instead of the bare "Server Error"), and log it with a reference code.
+     */
+    private function jsiSaveFailedResponse(\Illuminate\Database\QueryException $e, $report)
+    {
+        $reference = 'JSI-' . now()->format('YmdHis');
+        $error = $e->getMessage();
+
+        \Log::error('Joint site inspection report save rejected by the database', [
+            'reference' => $reference,
+            'file_number' => $report->file_number ?? null,
+            'application_id' => $report->application_id ?? null,
+            'sub_application_id' => $report->sub_application_id ?? null,
+            'user_id' => Auth::id(),
+            'error' => $error,
+        ]);
+
+        $labels = [
+            'existing_road_reservation' => 'Existing Reservation',
+            'recommended_road_reservation' => 'Recommended Reservation',
+            'recommended_comment_status' => 'Comment',
+            'purpose' => 'Service',
+            'prevailing_land_use' => 'Prevailing Land Use',
+            'applied_land_use' => 'Applied Land Use',
+            'compliance_status' => 'Compliance Status',
+            'observed_road_category' => 'Observed Road Category',
+            'applicant_name' => 'Applicant Name',
+            'location' => 'Location',
+            'lkn_number' => 'LKN Number',
+            'file_number' => 'File Number',
+        ];
+
+        if (preg_match("/would be truncated in table '[^']*', column '([^']+)'/i", $error, $m)) {
+            $column = $m[1];
+            $label = $labels[$column] ?? ucwords(str_replace('_', ' ', $column));
+            $max = null;
+            try {
+                $max = DB::connection('sqlsrv')->table('INFORMATION_SCHEMA.COLUMNS')
+                    ->where('TABLE_NAME', $report->getTable())
+                    ->where('COLUMN_NAME', $column)
+                    ->value('CHARACTER_MAXIMUM_LENGTH');
+            } catch (\Throwable $ignored) {
+            }
+            $limit = $max ? " (the most it can hold is {$max} characters)" : '';
+            $message = "The report was not saved: the value in \"{$label}\" is too long{$limit}. "
+                . "Shorten it and press Save again. If the long value was picked from a list, send this message to ICT. Ref: {$reference}";
+        } elseif (stripos($error, 'Conversion failed') !== false || stripos($error, 'out-of-range') !== false) {
+            $message = "The report was not saved: one of the dates or numbers on the form is not in a valid format. "
+                . "Check the dates and measurements, then press Save again. Ref: {$reference}";
+        } elseif (stripos($error, 'deadlock') !== false || stripos($error, 'timeout') !== false || stripos($error, 'Lock request') !== false) {
+            $message = "The report was not saved because the database was busy. Wait a moment and press Save again. Ref: {$reference}";
+        } else {
+            $message = "The report was not saved because the database rejected it. Nothing you entered was stored. "
+                . "Send a screenshot of this message to ICT. Ref: {$reference}";
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+            'reference' => $reference,
+        ], 500);
     }
 
     /**

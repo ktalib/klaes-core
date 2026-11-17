@@ -267,6 +267,9 @@
                                         <option value="">Select Registry</option>
                                         @if(isset($physicalRegistries))
                                             @foreach($physicalRegistries as $pHregistry)
+                                                {{-- DCIV files are indexed in the DCIV module, not here (user, 2026-11-16);
+                                                     a record already saved with it keeps it. --}}
+                                                @continue(stripos((string) $pHregistry->name, 'DCIV') !== false && !(isset($record) && $record->physical_registry == $pHregistry->name))
                                                 <option value="{{ $pHregistry->name }}" {{ (isset($record) && $record->physical_registry == $pHregistry->name) ? 'selected' : '' }}>
                                                     {{ $pHregistry->name }}
                                                 </option>

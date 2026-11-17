@@ -97,6 +97,12 @@ class FilearchiveController extends Controller
                 'icon' => 'layers',
                 'text_muted' => 'text-emerald-100',
             ],
+            'st' => [
+                'title' => 'ST',
+                'bg' => 'bg-gradient-to-r from-teal-600 via-teal-500 to-teal-700',
+                'icon' => 'building',
+                'text_muted' => 'text-teal-100',
+            ],
             'survey' => [
                 'title' => 'SURVEY',
                 'bg' => 'bg-gradient-to-r from-pink-600 via-pink-500 to-pink-700',
@@ -201,18 +207,13 @@ class FilearchiveController extends Controller
             ->orderBy('updated_at', 'desc');
 
         if (!$isStorageDemoMode) {
-            // Default behavior: only files where ALL scans are typed
-            $completedFiles->whereHas('pagetypings')
-                ->whereHas('scannings')
-                ->whereRaw(
-                    '(SELECT COUNT(*) FROM pagetypings WHERE pagetypings.file_indexing_id = file_indexings.id) >= '
-                    . '(SELECT COUNT(*) FROM scannings WHERE scannings.file_indexing_id = file_indexings.id)'
-                );
+            // Default behavior: only files where ALL scans are typed (ST: every scanned file)
+            $this->applyArchiveScope($completedFiles, $module);
         }
 
         // Apply registry/module filter (e.g. ?url=kangis => only KANGIS Registry files)
         if ($module !== '') {
-            $completedFiles->where('registry', 'like', '%' . $module . '%');
+            $this->whereModuleRegistry($completedFiles, $module);
         }
 
         // Apply search filters if provided
@@ -490,23 +491,20 @@ class FilearchiveController extends Controller
         $stats = Cache::remember($statsCacheKey, 300, function () use ($module, $isStorageDemoMode) {
             $statsBase = FileIndexing::query();
             if (!$isStorageDemoMode) {
-                $statsBase->whereHas('pagetypings')
-                    ->whereHas('scannings')
-                    ->whereRaw(
-                        '(SELECT COUNT(*) FROM pagetypings WHERE pagetypings.file_indexing_id = file_indexings.id) >= '
-                        . '(SELECT COUNT(*) FROM scannings WHERE scannings.file_indexing_id = file_indexings.id)'
-                    );
+                $this->applyArchiveScope($statsBase, $module);
             }
             if ($module !== '') {
-                $statsBase = $statsBase->where('registry', 'like', '%' . $module . '%');
+                $statsBase = $this->whereModuleRegistry($statsBase, $module);
             }
             return [
                 'total_archived' => (clone $statsBase)->count(),
                 'recently_added' => (clone $statsBase)
                     ->where('updated_at', '>=', now()->subDays(30))->count(),
-                'total_pages' => $module !== ''
-                    ? PageTyping::whereHas('fileIndexing', fn($q) => $q->where('registry', 'like', '%' . $module . '%'))->count()
-                    : PageTyping::count(),
+                'total_pages' => $this->isStModule($module)
+                    ? Scanning::whereHas('fileIndexing', fn($q) => $this->whereModuleRegistry($q, $module))->count()
+                    : ($module !== ''
+                    ? PageTyping::whereHas('fileIndexing', fn($q) => $this->whereModuleRegistry($q, $module))->count()
+                    : PageTyping::count()),
                 'storage_used' => $this->calculateStorageUsed($module),
             ];
         });
@@ -881,16 +879,214 @@ class FilearchiveController extends Controller
             ];
         });
 
+        // ST lists scanned files before they are typed (user, 2026-11-16), so its viewer also shows the
+        // scans no page points at yet, after the typed pages, and opens with the file's Commissioning
+        // Sheet and LGA Confirmation Sheet, drawn read-only as the VFS Commissioning folder draws them.
+        if ($this->isStModule($module) && ($pageTypeFilter === null || $pageTypeFilter === '')) {
+            $pages = collect($this->stSystemPages($file))
+                ->concat($pages)
+                ->concat($this->untypedScanPages($file, $resolveMedia, count($pages)))
+                ->map(fn (array $page) => $this->stPreviewable($page, $file))
+                // A page whose scan is truly gone is left out for now (user, 2026-11-16).
+                ->filter()
+                ->values();
+        }
+
         return response()->json([
             'success' => true,
             'file' => [
                 'id' => $file->id,
                 'file_number' => $file->file_number,
                 'file_title' => $file->file_title,
-                'total_pages' => $file->pagetypings->count()
+                'total_pages' => count($pages)
             ],
             'pages' => $pages
         ]);
+    }
+
+    /**
+     * ST viewer pages must preview in any browser (user, 2026-11-16, ST presentation). Scan links
+     * were absolute http:// URLs from APP_URL, which an https page blocks in the PDF frame (images
+     * are upgraded, so only the PDFs failed). Every scan page now goes through the same-site
+     * scan-preview route: a single-picture PDF shows as its JPEG, anything else streams inline.
+     * Null when the scan is nowhere on disk, so the page is left out.
+     */
+    private function stPreviewable(array $page, FileIndexing $file): ?array
+    {
+        if (!empty($page['is_system'])) {
+            return $page;
+        }
+        $scan = !empty($page['scanning_id']) ? Scanning::find($page['scanning_id']) : null;
+        $source = $scan ? $this->stScanSource($scan, $file) : null;
+        if ($source === null) {
+            return null;
+        }
+
+        $url = route('filearchive.scan-preview', ['scanning' => $scan->id], false);
+        $extension = strtolower(pathinfo($source, PATHINFO_EXTENSION));
+        $asImage = $extension !== 'pdf' || $this->singleJpegInPdf($this->paths->absolute($source)) !== null;
+
+        return array_merge($page, [
+            'viewer_url' => $url,
+            'thumbnail_url' => $asImage ? $url : null,
+            'media_type' => $asImage ? 'image' : 'pdf',
+            'pdf_page_number' => $asImage ? null : 1,
+            'is_broken' => false,
+            // Edits write to the typed page's own file, which the preview may not be.
+            'is_editable' => false,
+        ]);
+    }
+
+    /**
+     * Where an ST scan is on disk (public-disk relative), or null. A typed page whose PAGETYPING
+     * copy is gone falls back to the original Scan Upload file it was typed from:
+     * SCAN_UPLOAD/{file}/{file}_{display_order + 1}, e.g. ST-MIXED-2026-2's front cover.
+     */
+    private function stScanSource(Scanning $scan, FileIndexing $file): ?string
+    {
+        $found = $this->paths->resolveRelative($scan->document_path, $this->paths->contextFromScanning($scan, $file));
+        if ($found) {
+            return $found;
+        }
+
+        $number = trim((string) $file->file_number);
+        if ($number === '') {
+            return null;
+        }
+        $stem = 'EDMS/SCAN_UPLOAD/' . $number . '/' . $number . '_' . str_pad((string) (((int) $scan->display_order) + 1), 4, '0', STR_PAD_LEFT);
+        foreach (['pdf', 'jpg', 'jpeg', 'png'] as $extension) {
+            if (Storage::disk('public')->exists($stem . '.' . $extension)) {
+                return $stem . '.' . $extension;
+            }
+        }
+
+        return null;
+    }
+
+    /** The JPEG bytes when a PDF is one embedded JPEG picture (a scanner's PDF), else null. */
+    private function singleJpegInPdf(string $absolutePath): ?string
+    {
+        $data = @file_get_contents($absolutePath);
+        if ($data === false || preg_match_all('#/Subtype\s*/Image#', $data) !== 1 || strpos($data, '/DCTDecode') === false) {
+            return null;
+        }
+        $start = strpos($data, "\xFF\xD8\xFF");
+        $end = strrpos($data, "\xFF\xD9");
+        if ($start === false || $end === false || $end <= $start) {
+            return null;
+        }
+
+        return substr($data, $start, $end - $start + 2);
+    }
+
+    /** Same-site preview of an ST scan: see stPreviewable(). */
+    public function scanPreview(Scanning $scanning)
+    {
+        $file = FileIndexing::find($scanning->file_indexing_id);
+        abort_unless($file, 404);
+        $source = $this->stScanSource($scanning, $file);
+        abort_unless($source, 404);
+
+        $absolute = $this->paths->absolute($source);
+        $headers = ['Cache-Control' => 'private, max-age=3600', 'X-Frame-Options' => 'SAMEORIGIN'];
+        if (strtolower(pathinfo($source, PATHINFO_EXTENSION)) === 'pdf') {
+            $jpeg = $this->singleJpegInPdf($absolute);
+            if ($jpeg !== null) {
+                return response($jpeg, 200, $headers + ['Content-Type' => 'image/jpeg']);
+            }
+
+            return response()->file($absolute, $headers + [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . basename($absolute) . '"',
+            ]);
+        }
+
+        return response()->file($absolute, $headers);
+    }
+
+    /** The Commissioning Sheet / LGA Confirmation Sheet the file has been issued, as viewer pages. */
+    private function stSystemPages(FileIndexing $file): array
+    {
+        $docs = app(\App\Services\Vfs\VfsFolioPresenter::class)->systemDocuments($file);
+
+        return collect($docs)->filter(fn (array $doc) => $doc['available'])->values()
+            ->map(fn (array $doc) => $this->viewerOnlyPage([
+                'page_code' => $doc['title'],
+                'page_type' => ['id' => null, 'name' => 'Commissioning', 'code' => 'SYS'],
+                'viewer_url' => route('vfs.system-document', ['fileIndexing' => $file->id, 'key' => $doc['key']], false),
+                'media_type' => 'document',
+                'created_at' => $doc['date'] ? Carbon::parse($doc['date'])->format('Y-m-d H:i:s') : null,
+                'is_system' => true,
+            ]))->all();
+    }
+
+    /** Scans of the file that no typed page points at yet, as viewer pages. */
+    private function untypedScanPages(FileIndexing $file, \Closure $resolveMedia, int $typedCount): array
+    {
+        $typedScanIds = PageTyping::where('file_indexing_id', $file->id)->whereNotNull('scanning_id')
+            ->pluck('scanning_id')->map(fn ($id) => (int) $id)->all();
+
+        return Scanning::where('file_indexing_id', $file->id)
+            ->whereNotIn('id', $typedScanIds ?: [0])
+            ->orderBy('display_order')->orderBy('id')
+            ->get(['id', 'file_indexing_id', 'document_path', 'display_order', 'original_filename', 'document_type', 'created_at'])
+            ->values()
+            ->map(function (Scanning $scan, int $i) use ($file, $resolveMedia, $typedCount) {
+                $media = $resolveMedia($scan->document_path, $this->paths->contextFromScanning($scan, $file));
+
+                return $this->viewerOnlyPage([
+                    'page_number' => $typedCount + $i + 1,
+                    'page_code' => 'Scan ' . ($i + 1),
+                    'viewer_url' => $media['viewer_url'] ?? null,
+                    'thumbnail_url' => $media['thumbnail_url'] ?? null,
+                    'media_type' => $media['media_type'] ?? 'document',
+                    // A PDF scan opens at its first page; it is not one page of a typed PDF.
+                    'pdf_page_number' => 1,
+                    'scanning_id' => $scan->id,
+                    'scanning_display_order' => $scan->display_order,
+                    'scanning_original_filename' => $scan->original_filename,
+                    'scanning_document_type' => $scan->document_type,
+                    'scanning_document_path' => $scan->document_path,
+                    'is_broken' => empty($media['viewer_url']),
+                    'created_at' => optional($scan->created_at)->format('Y-m-d H:i:s'),
+                ]);
+            })->all();
+    }
+
+    /** A viewer page with no typed page behind it: shown, never QC'd or edited. */
+    private function viewerOnlyPage(array $page): array
+    {
+        return array_merge([
+            'pagetyping_id' => null,
+            'page_number' => null,
+            'page_type' => null,
+            'page_subtype' => null,
+            'page_code' => null,
+            'definition' => null,
+            'definition_code' => null,
+            'serial_number' => null,
+            'cover_type' => null,
+            'typed_by' => null,
+            'viewer_url' => null,
+            'thumbnail_url' => null,
+            'media_type' => 'document',
+            'media_source' => null,
+            'pdf_page_number' => null,
+            'scanning_id' => null,
+            'scanning_display_order' => null,
+            'scanning_original_filename' => null,
+            'scanning_document_type' => null,
+            'scanning_document_path' => null,
+            'is_editable' => false,
+            'is_broken' => false,
+            'is_untyped' => true,
+            'qc_status' => null,
+            'qc_reviewed_by' => null,
+            'qc_reviewed_at' => null,
+            'qc_override_note' => null,
+            'has_qc_issues' => false,
+            'created_at' => null,
+        ], $page);
     }
 
     /**
@@ -1739,12 +1935,7 @@ class FilearchiveController extends Controller
      */
     public function search(Request $request)
     {
-        $query = FileIndexing::whereHas('pagetypings')
-            ->whereHas('scannings')
-            ->whereRaw(
-                '(SELECT COUNT(*) FROM pagetypings WHERE pagetypings.file_indexing_id = file_indexings.id) >= '
-                . '(SELECT COUNT(*) FROM scannings WHERE scannings.file_indexing_id = file_indexings.id)'
-            )
+        $query = $this->applyArchiveScope(FileIndexing::query(), (string) $request->get('url', ''))
             ->with([
                 'pagetypings.typedBy',
                 'scannings',
@@ -1769,7 +1960,7 @@ class FilearchiveController extends Controller
         }
 
         if ($module !== '') {
-            $query->where('registry', 'like', '%' . $module . '%');
+            $this->whereModuleRegistry($query, $module);
         }
 
         // Apply filters
@@ -1828,7 +2019,7 @@ class FilearchiveController extends Controller
 
         if ($module !== '') {
             $query->whereHas('fileIndexing', function ($q) use ($module) {
-                $q->where('registry', 'like', '%' . $module . '%');
+                $this->whereModuleRegistry($q, $module);
             });
         }
 
@@ -1852,6 +2043,43 @@ class FilearchiveController extends Controller
         $value = $bytes / (1024 ** $power);
 
         return number_format($value, $power === 0 ? 0 : 1) . ' ' . $units[$power];
+    }
+
+    /**
+     * Narrows to the registry the ?url= module stands for. ST matches its registry exactly:
+     * "st" as a substring is in every "... Registry" value, so ?url=st listed the Lands
+     * Registry files instead of the ST ones (2026-11-16). Other modules keep the substring match.
+     */
+    private function isStModule(string $module): bool
+    {
+        return strtolower(trim($module)) === 'st';
+    }
+
+    /**
+     * Which files the archive lists: those whose every scan is page-typed. ST lists every scanned
+     * file, typed or not (user, 2026-11-16: "Scanned, but no page typed, let them display").
+     */
+    private function applyArchiveScope($query, string $module)
+    {
+        if ($this->isStModule($module)) {
+            return $query->whereHas('scannings');
+        }
+
+        return $query->whereHas('pagetypings')
+            ->whereHas('scannings')
+            ->whereRaw(
+                '(SELECT COUNT(*) FROM pagetypings WHERE pagetypings.file_indexing_id = file_indexings.id) >= '
+                . '(SELECT COUNT(*) FROM scannings WHERE scannings.file_indexing_id = file_indexings.id)'
+            );
+    }
+
+    private function whereModuleRegistry($query, string $module)
+    {
+        if ($this->isStModule($module)) {
+            return $query->where('registry', 'ST Registry');
+        }
+
+        return $query->where('registry', 'like', '%' . $module . '%');
     }
 
     private function isStorageDemoMode(string $module): bool

@@ -1,9 +1,16 @@
-{{-- Application Plan: the Ministry's A4 template (user, 2026-11-15). Template only: not linked to any page yet.
+{{-- Application Plan: the Ministry's A4 template (user, 2026-11-15). Opened from the Survey Plan list's row menu
+     (SurveyPlanUploadController::applicationPlan, user 2026-11-17).
      $ap: the Data Sheet entries (all optional; a blank prints as a line to fill by hand).
-     $beacons: [['no' => 'SC/KN 1234', 'e' => 441344.78, 'n' => 1338968.26], ...] in order round the parcel,
-     Minna / UTM Zone 32N metres. Plotted in the frame to scale; the frame's centre ticks carry the coordinates. --}}
+     $beacons: [['no' => 'SC/KN 1234', 'e' => 441344.78, 'n' => 1338968.26], ...] in order round the parcel, metres in
+     $coordSystem (EPSG code; Minna / UTM Zone 32N when not given). Plotted in the frame to scale; the frame's centre
+     ticks carry the coordinates. Behind the drawing the frame shows the map (satellite, our Kano imagery where we have
+     it) at the same scale, centred on the parcel (user, 2026-11-17: "that big box ... will be the map").
+     Header: the two Ministry logos; foot: the KLAES logo (user, 2026-11-17). --}}
 @php
   $ap = $ap ?? [];
+  // Saved entries print in the form's style: the date as 17 November 2026, the amount in naira.
+  if (! empty($ap['date'])) { try { $ap['date'] = \Illuminate\Support\Carbon::parse($ap['date'])->format('j F Y'); } catch (\Throwable $e) {} }
+  if (isset($ap['amount_paid']) && is_numeric($ap['amount_paid'])) $ap['amount_paid'] = '₦' . number_format((float) $ap['amount_paid'], 2);
   $beacons = array_values(array_filter($beacons ?? [], fn ($b) => is_numeric($b['e'] ?? null) && is_numeric($b['n'] ?? null)));
   $v = fn ($k) => trim((string) ($ap[$k] ?? ''));
 
@@ -11,10 +18,11 @@
   $fw = 160; $fh = 120; $pad = 14;
   $scale = (int) ($ap['scale'] ?? 0);
   $plot = null;
-  if (count($beacons) >= 2) {
+  if (count($beacons) >= 1) {
     $es = array_column($beacons, 'e'); $ns = array_column($beacons, 'n');
     $ce = (min($es) + max($es)) / 2; $cn = (min($ns) + max($ns)) / 2;
     $spanE = max($es) - min($es); $spanN = max($ns) - min($ns);
+    if ($scale <= 0 && count($beacons) === 1) $scale = 1000;
     if ($scale <= 0) {
       // The largest usual survey scale at which the parcel fits the frame.
       $scale = 100000;
@@ -30,7 +38,7 @@
     for ($i = 0; $i < $nb; $i++) {
       $a = $beacons[$i]; $b = $beacons[($i + 1) % $nb];
       $area += $a['e'] * $b['n'] - $b['e'] * $a['n'];
-      if ($nb > 2 || $i === 0) {
+      if ($nb > 2 || ($nb === 2 && $i === 0)) {
         $sides[] = ['d' => hypot($b['e'] - $a['e'], $b['n'] - $a['n']), 'p' => [($pts[$i][0] + $pts[($i + 1) % $nb][0]) / 2, ($pts[$i][1] + $pts[($i + 1) % $nb][1]) / 2]];
       }
     }
@@ -49,6 +57,7 @@
   $fmt = fn ($x) => number_format($x, 2, '.', ',');
   $line = fn ($k, $min = 0) => $v($k) !== '' ? '<span class="fill">' . e($v($k)) . '</span>' : '<span class="blank" style="min-width:' . $min . 'mm"></span>';
   $open = strtolower($v('ground_open'));
+  $coordSystem = (string) ($coordSystem ?? '26332');
 @endphp
 <!doctype html>
 <html lang="en">
@@ -61,35 +70,57 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: #e5e7eb; }
   body { font-family: "Times New Roman", Times, serif; color: #000; }
-  .sheet { width: 210mm; height: 297mm; overflow: hidden; margin: 10mm auto; padding: 9mm 12mm 8mm; background: #fff; box-shadow: 0 2px 14px rgba(0,0,0,.18); }
+  .sheet { width: 210mm; height: 297mm; overflow: hidden; margin: 10mm auto; padding: 7mm 12mm 5mm; background: #fff; box-shadow: 0 2px 14px rgba(0,0,0,.18); }
   @media print { html, body { background: #fff; } .sheet { margin: 0; box-shadow: none; } .noprint { display: none !important; } }
+  .head { display: grid; grid-template-columns: 17mm 1fr 17mm; align-items: center; gap: 3mm; }
+  .head img { width: 17mm; height: 17mm; object-fit: contain; }
   h1 { margin: 0; text-align: center; font-size: 17pt; line-height: 1.2; font-weight: 700; }
-  .top { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8mm; align-items: center; margin-top: 4mm; }
+  .top { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8mm; align-items: center; margin-top: 3mm; }
   .row .fill[title] { cursor: help; }
   .box { border: 1px solid #000; padding: 1.5mm 2mm; font-size: 10.5pt; line-height: 1.45; }
   .title { font-size: 15pt; font-weight: 700; text-align: center; }
-  .rows { margin-top: 5mm; font-size: 11.5pt; line-height: 1.75; }
+  .rows { margin-top: 3mm; font-size: 11.5pt; line-height: 1.6; }
   .row { display: flex; align-items: baseline; gap: 1mm; width: 145mm; }
   .row > span:not(.fill):not(.blank) { white-space: nowrap; }
   .blank { flex: 1; border-bottom: 1px solid #000; height: 1em; display: inline-block; }
   .fill { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid #000; padding: 0 1mm; font-family: Arial, sans-serif; font-size: 10.5pt; }
   .for { padding-left: 15mm; }
+  .grow2 { flex: 2.4; display: flex; min-width: 0; }
   .for .blank, .for .fill { border-bottom-style: dotted; text-align: center; }
-  .frame-wrap { position: relative; margin: 4mm auto 0; width: 186mm; }
-  .frame-wrap svg { display: block; width: 186mm; height: 140mm; overflow: visible; }
-  .scale { text-align: center; font-family: Arial, sans-serif; font-size: 9.5pt; margin-top: 2mm; }
+  .frame-wrap { position: relative; margin: 1mm auto 0; width: 186mm; }
+  .frame-wrap svg { position: relative; display: block; width: 186mm; height: 140mm; overflow: visible; pointer-events: none; }
+  /* The map sits exactly under the frame (viewBox origin -13 -12, 1 unit = 1 mm). */
+  .ap-map { position: absolute; left: 13mm; top: 12mm; width: 160mm; height: 120mm; overflow: hidden; background: #fff; }
+  #apMap { position: absolute !important; inset: 0; width: 100%; height: 100%; }
+  .ap-map .maplibregl-ctrl-attrib { display: none; }
+  .halo { paint-order: stroke; stroke: #fff; stroke-width: .7; stroke-linejoin: round; }
+  .map-credit { position: absolute; right: 14mm; top: 132.6mm; font: 6pt Arial, sans-serif; color: #555; }
+  .scale { text-align: center; font-family: Arial, sans-serif; font-size: 9.5pt; margin-top: 0; }
   .scale .u { display: inline-block; min-width: 12mm; border-bottom: 1px solid #000; }
-  .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; margin-top: 6mm; font-size: 11.5pt; line-height: 1.55; }
+  .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; margin-top: 3mm; font-size: 11.5pt; line-height: 1.45; }
   .bottom .row { width: auto; }
   .yn b { text-decoration: underline; }
   .bar { display: flex; justify-content: center; gap: 8px; padding: 8px; background: #0f172a; }
   .bar button { font: 600 13px system-ui, sans-serif; padding: 7px 14px; border-radius: 8px; border: 0; cursor: pointer; background: #2563eb; color: #fff; }
+  .bar button.off { background: #334155; }
+  .bar span { color: #cbd5e1; font: 13px system-ui, sans-serif; align-self: center; }
 </style>
 </head>
 <body>
-<div class="bar noprint"><button type="button" onclick="window.print()">Print</button></div>
+<div class="bar noprint">
+  @if ($plot)
+    <span>Frame:</span>
+    <button type="button" data-ap-bg="map">Map</button>
+    <button type="button" data-ap-bg="plain" class="off">Plain</button>
+  @endif
+  <button type="button" id="apPrint" onclick="window.apPrint ? window.apPrint() : window.print()">Print</button>
+</div>
 <div class="sheet">
-  <h1>MINISTRY OF LAND AND PHYSICAL PLANNING<br>KANO STATE</h1>
+  <div class="head">
+    <img src="{{ asset('assets/logo/ministry1.jpg') }}" alt="Kano State coat of arms">
+    <h1>MINISTRY OF LAND AND PHYSICAL PLANNING<br>KANO STATE</h1>
+    <img src="{{ asset('assets/logo/ministry2.png') }}" alt="Kano State Ministry of Land and Physical Planning seal">
+  </div>
   <div class="top">
     <div class="box">Code sur C of B<br>Serial No: {!! $v('serial_no') !== '' ? '<b>' . e($v('serial_no')) . '</b>' : '..........' !!}</div>
     <div class="title">Application Plan</div>
@@ -100,12 +131,15 @@
     <div class="row for"><span>For</span>{!! $line('purpose') !!}<span>(PURPOSE)</span></div>
     <div class="row"><span>Name of Applicant:</span>{!! $line('applicant') !!}</div>
     <div class="row"><span>Address:</span>{!! $line('address') !!}</div>
-    <div class="row"><span>Location:</span>{!! $line('location', 30) !!}<span>Map Sheet:</span>{!! $line('map_sheet', 25) !!}<span>Scale:</span>{!! $scaleText !== '' ? '<span class="fill">1:' . $scaleText . '</span>' : '<span class="blank"></span>' !!}</div>
+    <div class="row"><span>Location:</span><span class="grow2">{!! $line('location', 30) !!}</span><span>Map Sheet:</span>{!! $line('map_sheet', 25) !!}<span>Scale:</span>{!! $scaleText !== '' ? '<span class="fill">1:' . $scaleText . '</span>' : '<span class="blank"></span>' !!}</div>
     <div class="row"><span>Plan No:</span>{!! $line('plan_no', 22) !!}<span>MS NO.</span>{!! $line('ms_no', 22) !!}<span>Reference</span>{!! $line('reference', 30) !!}</div>
   </div>
 
   {{-- The frame: 160 x 120 mm, centre ticks on each side, north arrow to the right. --}}
   <div class="frame-wrap">
+    @if ($plot)
+      <div class="ap-map" aria-hidden="true"><div id="apMap"></div></div>
+    @endif
     <svg viewBox="-13 -12 186 140" xmlns="http://www.w3.org/2000/svg" font-family="Arial, sans-serif">
       <rect x="0" y="0" width="{{ $fw }}" height="{{ $fh }}" fill="none" stroke="#000" stroke-width=".45"/>
       <line x1="{{ $fw / 2 }}" y1="-1.5" x2="{{ $fw / 2 }}" y2="1.5" stroke="#000" stroke-width=".3"/>
@@ -119,17 +153,25 @@
         <text x="-3" y="{{ $fh / 2 + 2.5 }}" font-size="3" text-anchor="end">mN</text>
         <text x="{{ $fw + 3 }}" y="{{ $fh / 2 - 1.5 }}" font-size="3">{{ $fmt($plot['cn']) }}</text>
         <text x="{{ $fw + 3 }}" y="{{ $fh / 2 + 2.5 }}" font-size="3">mN</text>
-        <polygon points="{{ collect($plot['pts'])->map(fn ($p) => $p[0] . ',' . $p[1])->implode(' ') }}" fill="#dbeafe" fill-opacity=".55" stroke="#c00" stroke-width=".5"/>
+        @if (count($plot['pts']) >= 3)
+          <polygon points="{{ collect($plot['pts'])->map(fn ($p) => $p[0] . ',' . $p[1])->implode(' ') }}" fill="#fff" fill-opacity=".18" stroke="#fff" stroke-width="1.1" stroke-linejoin="round"/>
+          <polygon points="{{ collect($plot['pts'])->map(fn ($p) => $p[0] . ',' . $p[1])->implode(' ') }}" fill="none" stroke="#d00" stroke-width=".55" stroke-linejoin="round"/>
+        @elseif (count($plot['pts']) === 2)
+          <polyline points="{{ collect($plot['pts'])->map(fn ($p) => $p[0] . ',' . $p[1])->implode(' ') }}" fill="none" stroke="#d00" stroke-width=".55"/>
+        @endif
         @foreach ($plot['sides'] as $s)
-          <text x="{{ $s['p'][0] }}" y="{{ $s['p'][1] }}" font-size="2.4" text-anchor="{{ $s['a'] ?? 'middle' }}" fill="#333">{{ number_format($s['d'], 2) }} m</text>
+          <text class="halo" x="{{ $s['p'][0] }}" y="{{ $s['p'][1] }}" font-size="2.4" text-anchor="{{ $s['a'] ?? 'middle' }}" fill="#111">{{ number_format($s['d'], 2) }} m</text>
         @endforeach
+        @if ($v('plot_no') !== '' && count($plot['pts']) >= 3)
+          <text class="halo" x="{{ $gx }}" y="{{ $gy + 1.2 }}" font-size="3.4" font-weight="700" text-anchor="middle" fill="#111">Plot {{ $v('plot_no') }}</text>
+        @endif
         @foreach ($plot['pts'] as $i => $p)
           <circle cx="{{ $p[0] }}" cy="{{ $p[1] }}" r=".9" fill="#fff" stroke="#000" stroke-width=".35"/>
           @php $dx = $p[0] - $gx; $dy = $p[1] - $gy; @endphp
-          <text x="{{ $p[0] + ($dx >= 0 ? 1.6 : -1.6) }}" y="{{ $p[1] + ($dy >= 0 ? 3.6 : -1.6) }}" text-anchor="{{ $dx >= 0 ? 'start' : 'end' }}" font-size="2.6" font-weight="700">{{ $beacons[$i]['no'] ?? ($i + 1) }}</text>
+          <text class="halo" x="{{ $p[0] + ($dx >= 0 ? 1.6 : -1.6) }}" y="{{ $p[1] + ($dy >= 0 ? 3.6 : -1.6) }}" text-anchor="{{ $dx >= 0 ? 'start' : 'end' }}" font-size="2.6" font-weight="700">{{ $beacons[$i]['no'] ?? ($i + 1) }}</text>
         @endforeach
         @if (count($beacons) >= 3)
-          <text x="{{ $fw / 2 }}" y="{{ $fh - 4 }}" font-size="2.8" text-anchor="middle">Area: {{ number_format($plot['area'], 2) }} m² ({{ number_format($plot['area'] / 10000, 4) }} ha)</text>
+          <text class="halo" x="{{ $fw / 2 }}" y="{{ $fh - 4 }}" font-size="2.8" text-anchor="middle">Area: {{ number_format($plot['area'], 2) }} m² ({{ number_format($plot['area'] / 10000, 4) }} ha)</text>
         @endif
       @else
         <line x1="{{ $fw / 2 - 8 }}" y1="-3" x2="{{ $fw / 2 + 8 }}" y2="-3" stroke="#000" stroke-width=".3"/>
@@ -144,7 +186,10 @@
         <line x1="0" y1="5" x2="0" y2="14" stroke="#000" stroke-width=".9"/>
       </g>
     </svg>
-    <div class="scale">Scale 1:<span class="u">{{ $scaleText }}</span></div>
+    @if ($plot)
+      <div class="map-credit" id="apCredit"></div>
+    @endif
+    <div class="scale">Scale 1:<span class="u">{{ $scaleText }}</span>@if ($plot && isset($coordSystemLabel)) &nbsp;·&nbsp; Coordinates: {{ $coordSystemLabel }}@endif</div>
   </div>
 
   <div class="bottom">
@@ -167,6 +212,69 @@
       <div class="row"><span>Date:</span>{!! $line('date') !!}</div>
     </div>
   </div>
+  @include('partials._klaes_print_logo', ['klaesLogoStyle' => 'padding-top:2mm;', 'klaesLogoHeight' => '10mm'])
 </div>
+@if ($plot)
+<link rel="stylesheet" href="{{ asset('maps/vendor/maplibre-gl.css') }}">
+<script src="{{ asset('maps/vendor/maplibre-gl.js') }}"></script>
+<script src="{{ asset('maps/vendor/proj4.js') }}"></script>
+<script>
+(function () {
+  // The map under the frame: centred on the parcel, at the plan's scale (1 mm on paper = scale / 1000 m).
+  var sys = 'EPSG:' + @json($coordSystem), scale = {{ (int) $scale }}, ce = {{ $plot['ce'] }}, cn = {{ $plot['cn'] }};
+  var MINNA = '+a=6378249.145 +rf=293.465 +towgs84=-92,-93,122,0,0,0,0 +units=m +no_defs';
+  proj4.defs('EPSG:26391', '+proj=tmerc +lat_0=4 +lon_0=4.5 +k=0.99975 +x_0=230738.26 +y_0=0 ' + MINNA);
+  proj4.defs('EPSG:26392', '+proj=tmerc +lat_0=4 +lon_0=8.5 +k=0.99975 +x_0=670553.98 +y_0=0 ' + MINNA);
+  proj4.defs('EPSG:26393', '+proj=tmerc +lat_0=4 +lon_0=12.5 +k=0.99975 +x_0=1110369.7 +y_0=0 ' + MINNA);
+  proj4.defs('EPSG:26332', '+proj=utm +zone=32 ' + MINNA);
+  proj4.defs('EPSG:32632', '+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
+  var box = document.getElementById('apMap'), credit = document.getElementById('apCredit');
+  // Print waits until the map is drawn (tiles still loading would print half a map).
+  var ready = false, wantPrint = false, printBtn = document.getElementById('apPrint');
+  var done = function () { ready = true; if (printBtn) printBtn.textContent = 'Print'; if (wantPrint) { wantPrint = false; window.print(); } };
+  window.apPrint = function () { if (ready) return window.print(); wantPrint = true; if (printBtn) printBtn.textContent = 'Preparing map…'; };
+  setTimeout(done, 20000);
+  if (!box || !window.maplibregl || !window.proj4 || !proj4.defs(sys)) { if (box) box.remove(); done(); return; }
+  var ll = proj4(sys, 'EPSG:4326', [ce, cn]);
+  // Metres per CSS pixel on paper (96 px = 25.4 mm), then the web-mercator zoom that gives it at this latitude.
+  var mpp = scale / 1000 * 25.4 / 96;
+  var zoom = Math.log2(2 * Math.PI * 6378137 * Math.cos(ll[1] * Math.PI / 180) / (512 * mpp));
+  var inside = function (b) { return b && ll[0] >= b[0] && ll[0] <= b[2] && ll[1] >= b[1] && ll[1] <= b[3]; };
+  // Our own Kano imagery where it covers the parcel, over the online satellite basemap.
+  var base = @json(url('/'));
+  var sets = [{ dir: '/tiles/kano-imagery', name: 'Kano imagery 0.5 m' }, { dir: '/tiles/kano-metro-ortho', name: 'Kano Metro orthophoto 7 cm' }];
+  Promise.all(sets.map(function (s) {
+    return fetch(base + s.dir + '/tiles.json').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+      .then(function (j) { s.info = j; return s; });
+  })).then(function () {
+    var style = { version: 8, sources: {
+      esri: { type: 'raster', tileSize: 256, maxzoom: 19, tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'] } },
+      layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#fff' } }, { id: 'esri', type: 'raster', source: 'esri' }] };
+    var used = ['Esri World Imagery'];
+    sets.forEach(function (s, i) {
+      if (!s.info || !inside(s.info.bounds)) return;
+      style.sources['k' + i] = { type: 'raster', tileSize: 256, bounds: s.info.bounds, minzoom: s.info.minzoom, maxzoom: s.info.maxzoom,
+        tiles: [base + s.dir + '/{z}/{x}/{y}.' + (s.info.format || 'webp')] };
+      style.layers.push({ id: 'k' + i, type: 'raster', source: 'k' + i });
+      used.unshift(s.name);
+    });
+    var map = new maplibregl.Map({ container: box, style: style, center: ll, zoom: zoom, interactive: false, attributionControl: false,
+      pixelRatio: Math.max(3, window.devicePixelRatio || 1), canvasContextAttributes: { preserveDrawingBuffer: true }, fadeDuration: 0 });
+    if (credit) credit.textContent = 'Map: ' + used.join(' / ');
+    // Print once every tile is drawn (the canvas keeps its picture for printing: preserveDrawingBuffer).
+    map.once('idle', done);
+    map.on('error', function () { /* a missing tile leaves that square white; the drawing still prints */ });
+  });
+  document.querySelectorAll('[data-ap-bg]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var on = b.dataset.apBg === 'map';
+      box.style.visibility = on ? '' : 'hidden'; if (credit) credit.style.visibility = on ? '' : 'hidden';
+      document.querySelectorAll('[data-ap-bg]').forEach(function (x) { x.classList.toggle('off', x !== b); });
+    });
+  });
+})();
+</script>
+@endif
+
 </body>
 </html>

@@ -1660,8 +1660,14 @@ class PageTypingController extends Controller
                 ];
             }
 
-            // Add "Other" option to each subtype group
+            // Add "Other" option to each subtype group - one only: a group that already has a
+            // real "Other"/"Others" subtype (PageSubType #42) gets no second one (user, 2026-11-17).
             foreach (array_keys($pageSubTypes) as $pageTypeId) {
+                $hasOwnOther = collect($pageSubTypes[$pageTypeId])
+                    ->contains(fn ($st) => preg_match('/^others?$/i', trim((string) $st['name'])));
+                if ($hasOwnOther) {
+                    continue;
+                }
                 $pageSubTypes[$pageTypeId][] = [
                     'id' => 'other',
                     'name' => 'Other (Specify)',

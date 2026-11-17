@@ -3051,6 +3051,11 @@ HTML;
             'land_files' => $withCandidates
                 ? app(FileLocationResolver::class)->landFilesFor($result['file_number'], $indexing)
                 : [],
+            // ST file(s) made from this land file: the land file is then kept in the ST
+            // Registry, so the request goes there (ST wins over a KANGIS link).
+            'st_files' => $withCandidates
+                ? app(FileLocationResolver::class)->stFilesFor($result['file_number'])
+                : [],
             'status'           => $result['status'],
             // In-Transit / Requested / DIIT for the open movement cycle (null when none).
             'request_type'     => app(FileLocationResolver::class)->requestTypeFor($tracker),

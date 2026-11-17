@@ -325,11 +325,10 @@ function dcivGenerator(config) {
         landUses: config.landUses,
         purposes: config.purposes,
         loadingTrackingId: false,
-        // 'manual' (default) lets the operator type the serial - and pick the year
-        // it belongs to; 'auto' takes whatever dciv_serial_control says is next in
-        // the current year. Manual still opens pre-filled with that same next
-        // serial, so doing nothing is safe.
-        serialMode: 'manual',
+        // 'auto' (default) takes whatever dciv_serial_control says is next in the
+        // current year - the current year is Auto only (user, 2026-11-16). 'manual'
+        // lets the operator type a serial in an EARLIER year, from dciv_grouping.
+        serialMode: 'auto',
      
         init() {
             this.$watch('batchMode', (val) => {
@@ -376,8 +375,9 @@ function dcivGenerator(config) {
                 // Each prefix has its own initialized years. If the one on screen is not
                 // among the new prefix's, drop back to the current year rather than
                 // leaving the select showing a year it does not offer.
-                if (!this.availableYears.some(y => Number(y.year) === Number(this.formData.year))) {
-                    this.formData.year = config.currentYear;
+                if (this.serialMode === 'manual'
+                    && !this.availableYears.some(y => Number(y.year) === Number(this.formData.year))) {
+                    this.formData.year = this.defaultYear();
                 }
                 this.fetchNextDciv();
             });
@@ -397,16 +397,18 @@ function dcivGenerator(config) {
          * so plainly rather than the year simply not being there.
          */
         get availableYears() {
+            // The current year is Auto only (user, 2026-11-16), so Manual lists earlier years alone.
             const byPrefix = (config.serialYears || {})[this.formData.prefix] || [];
-            const years = byPrefix.length
-                ? byPrefix.slice()
-                : [{ year: Number(config.currentYear), initialized: false }];
+            return byPrefix
+                .filter(y => Number(y.year) < Number(config.currentYear))
+                .sort((a, b) => Number(b.year) - Number(a.year));
+        },
 
-            if (!years.some(y => Number(y.year) === Number(config.currentYear))) {
-                years.push({ year: Number(config.currentYear), initialized: false });
-            }
-
-            return years.sort((a, b) => Number(b.year) - Number(a.year));
+        // Manual starts on the latest earlier year; Auto is always the current year.
+        defaultYear() {
+            return this.serialMode === 'manual' && this.availableYears.length
+                ? String(this.availableYears[0].year)
+                : config.currentYear;
         },
 
         get current() {
@@ -770,10 +772,8 @@ function dcivGenerator(config) {
         setSerialMode(mode) {
             if (this.serialMode === mode) return;
             this.serialMode = mode;
-            if (mode === 'auto') {
-                this.formData.serial_number = '';
-                this.formData.year = config.currentYear;
-            }
+            this.formData.serial_number = '';
+            this.formData.year = this.defaultYear();
             this.fetchNextDciv();
         },
 
@@ -783,6 +783,17 @@ function dcivGenerator(config) {
             // the new one rather than carried across into a different series.
             this.formData.serial_number = '';
             this.fetchNextDciv();
+        },
+
+        // A serial is digits only and never starts with 0 (user, 2026-11-16): leading
+        // zeros are dropped as they are typed, so "0" alone leaves the field empty.
+        cleanSerial(event) {
+            const raw = String(event.target.value ?? '');
+            const clean = raw.replace(/\D/g, '').replace(/^0+/, '');
+            if (clean !== raw) {
+                event.target.value = clean;
+                this.formData.serial_number = clean;
+            }
         },
 
         onSerialTyped() {
@@ -1006,7 +1017,7 @@ function dcivGenerator(config) {
                 dciv_serial_no: '',
                 relatedFiles: [{ file_number: '', secondary_title: '', is_found: false }]
             };
-            this.serialMode = 'manual';
+            this.serialMode = 'auto';
             this.locationEntries = [];
             this.currentEntryIndex = 0;
             this.applyLocationToAll = false;

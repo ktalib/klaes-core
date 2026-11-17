@@ -1,0 +1,83 @@
+<?php
+
+namespace App\Models\Survey;
+
+/**
+ * The entries of an upload's Application Plan (user, 2026-11-17), saved from the pop-up before printing.
+ * One row per survey plan upload; `fields` holds the form's entries by the keys of FIELDS.
+ */
+class SurveyApplicationPlan extends SurveyModel
+{
+    protected $table = 'survey_application_plans';
+
+    protected $casts = ['fields' => 'array'];
+
+    /** Form entry => label, in the order they appear on the printed form. */
+    public const FIELDS = [
+        'serial_no'           => 'Serial No.',
+        'purpose'             => 'Purpose (For ...)',
+        'applicant'           => 'Name of Applicant',
+        'address'             => 'Address',
+        'plot_no'             => 'Plot No.',
+        'location'            => 'Location',
+        'map_sheet'           => 'Map Sheet',
+        'scale'               => 'Scale',
+        'plan_no'             => 'Plan No.',
+        'ms_no'               => 'MS No.',
+        'reference'           => 'Reference',
+        'ground_open'         => 'The ground is open',
+        'layout_plan_no'      => 'Layout Plan No.',
+        'government_item_no'  => 'Government Item No.',
+        'cofo_no'             => 'Certificate of Occupancy No.',
+        'application_plan_no' => 'Application Plan No.',
+        'surveyed_by'         => 'Surveyed by',
+        'drawn_by'            => 'Drawn by',
+        'checked_by'          => 'Checked by',
+        'amount_paid'         => 'Amount Paid',
+        'receipt_no'          => 'Receipt No.',
+        'passed_by'           => 'Passed by',
+        'rank'                => 'Rank',
+        'date'                => 'Date',
+    ];
+
+    /** The scales a plan can be drawn at; blank = the largest at which the parcel fits the frame. */
+    public const SCALES = [250, 500, 1000, 1250, 2000, 2500, 5000, 10000];
+
+    /** Asked only when the ground is not open. */
+    public const LIES_ON = ['layout_plan_no', 'government_item_no', 'cofo_no', 'application_plan_no'];
+
+    public static function installed(): bool
+    {
+        static $has;
+
+        return $has ??= \Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasTable('survey_application_plans');
+    }
+
+    /** What KLAES already holds for the form, from the upload (development standard 5). */
+    public static function fromUpload(SurveyPlanUpload $plan): array
+    {
+        return [
+            'plot_no'   => (string) $plan->plot_no,
+            'location'  => (string) ($plan->location ?: collect([$plan->district, $plan->lga])->filter()->implode(', ')),
+            'map_sheet' => collect([$plan->map_sheet_metric, $plan->map_sheet_imperial])->filter()->implode(' / '),
+            'plan_no'   => (string) $plan->upload_ref,
+            'drawn_by'  => (string) $plan->drawn_by,
+        ];
+    }
+
+    /**
+     * The form's entries for an upload: what was saved, with the upload's own details filling anything not yet saved.
+     * A saved entry wins, even when the user cleared it on purpose.
+     */
+    public static function entriesFor(SurveyPlanUpload $plan): array
+    {
+        $saved = (array) ($plan->relationLoaded('applicationPlan') ? $plan->applicationPlan?->fields : (self::installed() ? $plan->applicationPlan()->first()?->fields : null));
+        $own = self::fromUpload($plan);
+        $out = [];
+        foreach (array_keys(self::FIELDS) as $k) {
+            $out[$k] = array_key_exists($k, $saved) ? (string) $saved[$k] : (string) ($own[$k] ?? '');
+        }
+
+        return $out;
+    }
+}

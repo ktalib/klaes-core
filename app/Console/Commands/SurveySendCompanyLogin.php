@@ -24,7 +24,7 @@ class SurveySendCompanyLogin extends Command
         {--also-phone=* : With --reissue, also text the new details to this phone}
         {--also-email=* : With --reissue, also email the new details here}';
 
-    protected $description = 'Make an approved company\'s MLPP-SG portal login and send it once by SMS and email';
+    protected $description = 'Make an approved company\'s KN-MLPP-SG portal login and send it once by SMS and email';
 
     public function handle(SurveyCompanyLogins $logins): int
     {

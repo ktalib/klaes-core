@@ -297,7 +297,7 @@
     });
   }
 
-  // ââ Dropdown-based Additional Filters âââââââââââââââââââââââââ
+  // ── Dropdown-based Additional Filters ─────────────────────────
   const activeFilters = new Set();
 
   const updateFilterCount = () => {
@@ -402,7 +402,7 @@
     });
   }
 
-  // ââ Global File Number Selector integration ââââââââââââââââââââââ
+  // ── Global File Number Selector integration ──────────────────────
   if (openFilenoSelectorBtn) {
     openFilenoSelectorBtn.addEventListener('click', () => {
       if (typeof window.GlobalFileNoModal === 'undefined' || typeof window.GlobalFileNoModal.open !== 'function') {
@@ -442,7 +442,7 @@
               }
               if (filenoOwnerLabel && fileData.record) {
                 const ownerName = fileData.record.file_name || fileData.record.FileName || fileData.record.applicant_name || fileData.record.owner_name || '';
-                filenoOwnerLabel.textContent = ownerName ? 'â ' + ownerName : '';
+                filenoOwnerLabel.textContent = ownerName ? '— ' + ownerName : '';
               }
             }
 
@@ -715,8 +715,8 @@
 };
 
 // Prefill the Client Details fields (Name / Address) from the file's most recent
-// legal_search_token. Runs on every flow â including Super Admin bypass and
-// already-used tokens â so it does not depend on the token-verify popup.
+// legal_search_token. Runs on every flow — including Super Admin bypass and
+// already-used tokens — so it does not depend on the token-verify popup.
 // Only fills empty fields so it never clobbers operator edits or popup prefill.
 function prefillClientDetails(fileNumber) {
   fileNumber = (fileNumber || '').trim();
@@ -737,7 +737,7 @@ function prefillClientDetails(fileNumber) {
     .then(r => r.json())
     .then(d => {
       if (!d || !d.success) return;
-      // A token exists for this file â reveal the Client Details editor.
+      // A token exists for this file — reveal the Client Details editor.
       showSection(true);
       window.__lsTokenClient = { name: d.client_name || '', address: d.client_address || '' };
       if (nameField && !nameField.value.trim() && d.client_name) nameField.value = d.client_name;
@@ -785,7 +785,7 @@ const renderFileInfoFallback = (data) => {
   const fileNumber = (window.__lsLastSearchedFileNumber || userSelectedFileNumber
     || (document.getElementById('fileNumber')?.value || '')).trim();
   const typeLabel = (filenoTypeLabel?.textContent || '').trim();
-  const ownerLabel = (filenoOwnerLabel?.textContent || '').replace(/^[â-]\s*/, '').trim();
+  const ownerLabel = (filenoOwnerLabel?.textContent || '').replace(/^[—-]\s*/, '').trim();
 
   // Land use: prefer the indexed value, else derive it from the file-number prefix.
   const indexedLandUse = (data.file_land_use !== null && data.file_land_use !== undefined && String(data.file_land_use).trim() !== '' && String(data.file_land_use).trim() !== '-')
@@ -817,9 +817,9 @@ const renderFileInfoFallback = (data) => {
   const previousFiles = Array.isArray(lineage.previous_file_nos) ? lineage.previous_file_nos.join(', ') : '';
   let supersededBy = pick(lineage.successor_file_no);
   // Fallback for legacy rows: the successor is often embedded at the end of the reason text
-  // (e.g. "Plot Merger to CON-COM-2023-197" or "... â CON-COM-2023-197").
+  // (e.g. "Plot Merger to CON-COM-2023-197" or "... → CON-COM-2023-197").
   if (!supersededBy && lineage.is_superseded && lineage.decommission_reason) {
-    const m = String(lineage.decommission_reason).match(/(?:to|â|->)\s*([A-Z0-9\/\-]+)\s*$/i);
+    const m = String(lineage.decommission_reason).match(/(?:to|→|->)\s*([A-Z0-9\/\-]+)\s*$/i);
     if (m) supersededBy = m[1];
   }
 
@@ -908,7 +908,7 @@ const executeSearchAjax = (filters, searchData) => {
         // row's Comments cell server-side; this flag is kept for any consumers.
         window._underInvestigation = !!data.under_investigation;
 
-        // W/R/C flag â file tagged [WRC] in duplicate_fileno. Drives whether the
+        // W/R/C flag — file tagged [WRC] in duplicate_fileno. Drives whether the
         // W/R/C remark editor is revealed in the comments panel.
         window._isWrcFile = !!data.is_wrc;
 
@@ -933,19 +933,19 @@ const executeSearchAjax = (filters, searchData) => {
         const _apiCommissioningDate = data.file_commissioning_date || null;
         const _apiCommissionedNumber = data.file_commissioned_number || null;
         const _apiCommissioningHolder = data.file_commissioning_holder || null;
-        // mls_file_no.source â how the file was commissioned ('Direct Allocation',
-        // 'OP Direct Allocation', â¦). Feeds the Root of Title annotation.
+        // mls_file_no.source — how the file was commissioned ('Direct Allocation',
+        // 'OP Direct Allocation', …). Feeds the Root of Title annotation.
         const _apiCommissioningSource = data.file_commissioning_source || null;
         const _apiCommissioningSourceLabel = data.file_commissioning_source_label || null;
         const _apiTempFileNumber = data.file_temp_number || null;
-        // "SEARCHED (LINKED)" combined file number â e.g. "CON-AG-2014-35 (MLKN 2455)" â
+        // "SEARCHED (LINKED)" combined file number — e.g. "CON-AG-2014-35 (MLKN 2455)" —
         // resolved server-side so it matches the printable report / Pay-Per-Search template.
         const _apiFileNumberDisplay = data.file_number_display || null;
         // Stash so the File Information card can show it even when the selected
         // record is a prop_id-expanded row from a different file number.
         window._lsFileTempNumber = _apiTempFileNumber;
-        // Lineage (previous/successor files + their commissioning info) â used by the
-        // timeline to render the full commissioning chain (mother â split/CoP â child).
+        // Lineage (previous/successor files + their commissioning info) — used by the
+        // timeline to render the full commissioning chain (mother → split/CoP → child).
         window._lsLineage = data.lineage || null;
         // Per-file lifecycle metadata (commissioning/decommissioning/temp flags) for
         // every lifecycle owner surfaced in the result set.
@@ -1004,13 +1004,13 @@ const executeSearchAjax = (filters, searchData) => {
         if (searchResults.length === 0) {
           // If the file itself is indexed (even with no transactions), open its full
           // File Details view so the synthetic "File Commissioning" (and, for a "(T)"
-          // number, "Temporary File") rows still display in the timeline â a commissioned
+          // number, "Temporary File") rows still display in the timeline — a commissioned
           // file always has at least its commissioning event. Otherwise fall back to the
           // File Information card / "No results found" message.
           const hasFileInfo = renderFileInfoFallback(data);
           const searchedNo = String(window.__lsLastSearchedFileNumber || (filters.fileNumber || '')).trim();
           if (hasFileInfo && searchedNo) {
-            // No real transactions â reset the buffers so renderTimeline() shows only the
+            // No real transactions — reset the buffers so renderTimeline() shows only the
             // synthetic commissioning rows, then build a file-info-only selected record.
             window._preferredRelatedTransactions = [];
             window._allRelatedTransactions = [];
@@ -1037,7 +1037,7 @@ const executeSearchAjax = (filters, searchData) => {
               _file_is_indexed: (data.is_indexed === true),
               prop_id: '',
             };
-            // Set only the selected file â leave searchResults empty so getRelatedTransactions()
+            // Set only the selected file — leave searchResults empty so getRelatedTransactions()
             // returns [] (no real transactions). Adding the synthetic record to searchResults would
             // make it render as a bogus "undefined" timeline row.
             selectedFile = syntheticSelected;
@@ -1118,7 +1118,7 @@ const executeSearchAjax = (filters, searchData) => {
     return stringValue;
   };
 
-  // âââ Debug mode toggle ââââââ
+  // ─── Debug mode toggle ──────
   if (toggleDebugBtn) {
     toggleDebugBtn.addEventListener('click', () => {
       if (!lastApiResponse || !lastApiResponse.transactions || lastApiResponse.transactions.length === 0) {
@@ -1129,7 +1129,7 @@ const executeSearchAjax = (filters, searchData) => {
     });
   }
 
-  // âââ Source badges updater ââââââââââââââââââââââââââââââââââââââ
+  // ─── Source badges updater ──────────────────────────────────────
   const updateSourceBadges = (data) => {
     if (!sourceBadges) return;
     sourceBadges.classList.remove('hidden');
@@ -1150,7 +1150,7 @@ const executeSearchAjax = (filters, searchData) => {
     });
   };
 
-  // âââ Open debug results in a new tab ââââââââââââââââââââââââââââ
+  // ─── Open debug results in a new tab ────────────────────────────
   const openDebugTab = (data) => {
     const rows = data.transactions || [];
     const sourceColors = {
@@ -1195,7 +1195,7 @@ const executeSearchAjax = (filters, searchData) => {
 
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
-<title>DEV MODE â Raw API Response</title>
+<title>DEV MODE — Raw API Response</title>
 <style>
   body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 20px; background: #f9fafb; color: #111; }
   .header { background: #1f2937; color: #fff; padding: 16px 24px; border-radius: 8px; margin-bottom: 16px; }
@@ -1217,7 +1217,7 @@ const executeSearchAjax = (filters, searchData) => {
 </style>
 </head><body>
 <div class="header">
-  <h1>DEV MODE â Legal Search Raw API Response (Chronological)</h1>
+  <h1>DEV MODE — Legal Search Raw API Response (Chronological)</h1>
   <div class="stats">
     <span class="stat stat-total">Total: ${rows.length}</span>
     <span class="stat stat-fh">File History: ${data.file_history_count || 0}</span>
@@ -1393,7 +1393,7 @@ const executeSearchAjax = (filters, searchData) => {
 
   // Render search results based on current view
   const renderSearchResults = () => {
-    // Nothing to render when there are no results â the File Information fallback
+    // Nothing to render when there are no results — the File Information fallback
     // or the no-results message already covers the empty state.
     if (!searchResults.length) return;
     if (currentView === 'table') {
@@ -1407,7 +1407,7 @@ const executeSearchAjax = (filters, searchData) => {
     }
   };
 
-  // ââ Shared result formatting ââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Shared result formatting ────────────────────────────────────────────
   // The table row and the card show the same facts, so they read them the same way.
 
   const SOURCE_STYLES = {
@@ -1526,7 +1526,7 @@ const executeSearchAjax = (filters, searchData) => {
           renderFileHistory();
         };
 
-        // Payment gate: online portal requires â¦1,000 before viewing
+        // Payment gate: online portal requires ₦1,000 before viewing
         if (window.LEGAL_SEARCH_CONTEXT?.requiresPayment && !window._lsOnlinePaid) {
           if (typeof window.lsOnlineRequestPayment === 'function') {
             window.lsOnlineRequestPayment(openRecords);
@@ -1661,7 +1661,7 @@ const executeSearchAjax = (filters, searchData) => {
   const renderFileNumberSpan = (item, fieldType = 'fileNumber') => {
     const rawVal = getMappedValue(item, fieldType);
     const itemFileNo = String(rawVal || '').trim();
-    // A SYSTEM temporary number ("TEMP-91950") is an internal placeholder â never shown in the
+    // A SYSTEM temporary number ("TEMP-91950") is an internal placeholder — never shown in the
     // File No field (mirrors PHP: the file_no is blanked server-side for the print report).
     if (isSystemTempFileNo(itemFileNo)) return '-';
     const searchedFileNo = (window.__lsLastSearchedFileNumber || '').trim();
@@ -1727,7 +1727,7 @@ const executeSearchAjax = (filters, searchData) => {
     if (value === null || value === undefined) return '';
     const text = String(value).trim();
     if (text === '-') return text;
-    return text.replace(/^["'ââââÂ«Â»]+|["'ââââÂ«Â»]+$/g, '').trim();
+    return text.replace(/^["'“”‘’«»]+|["'“”‘’«»]+$/g, '').trim();
   };
 
   // Helper function to convert text to proper case
@@ -1744,13 +1744,13 @@ const executeSearchAjax = (filters, searchData) => {
   const TIMELINE_WEIGHTS = @json(\App\Support\LegalSearchTimelineWeights::MAP);
   const PARCEL_UPDATE_PATTERN = /subdivision|merger|change of purpose|plot extension|separation|parcel update/;
 
-  // An OLD Ministry KN number carries a SEPARATOR â "KN 3686", "KN-3686". A new-KANGIS number
+  // An OLD Ministry KN number carries a SEPARATOR — "KN 3686", "KN-3686". A new-KANGIS number
   // is written solid, "KN3686", and is a different registry entirely.
   // Mirrors LegalSearchTimelineWeights::isOldKnFileNo().
   const isOldKnFileNo = (v) => /^KN[\s\-]\d+/i.test(String(v || '').trim());
 
   // The old Ministry file's OPENING line (its commissioning or recertification row), not an
-  // ordinary dealing that merely sits on that file â a mortgage registered against "KN 3686"
+  // ordinary dealing that merely sits on that file — a mortgage registered against "KN 3686"
   // keeps its normal rank. Mirrors LegalSearchTimelineWeights::isOldKnCommissioningRow().
   const isOldKnCommissioningRow = (item, txType) => {
     if (!txType.includes('recertification') && !txType.includes('file commissioning')) return false;
@@ -1772,7 +1772,7 @@ const executeSearchAjax = (filters, searchData) => {
 
     const source = String(item?.source_table || '').trim();
     if (source === 'DCIV File Commissioning') return 'DCIV_COMMISSIONING';
-    // ST commissioning rows (primary + "â Fragmentation" units) rank at the
+    // ST commissioning rows (primary + "– Fragmentation" units) rank at the
     // File Commissioning tier so they open their lifecycle block.
     if (source === 'ST File Commissioning'
         || String(getMappedValue(item, 'transactionType') || '').startsWith('ST File Commissioning')) {
@@ -1790,7 +1790,7 @@ const executeSearchAjax = (filters, searchData) => {
     if (txType.includes('certificate of occupanc')) return 'CERTIFICATE_OF_OCCUPANCY';
     if (PARCEL_UPDATE_PATTERN.test(txType)) return 'PARCEL_UPDATE';
 
-    // Lineage rows â a parent/child file's own commissioning or decommissioning, which reach
+    // Lineage rows — a parent/child file's own commissioning or decommissioning, which reach
     // the timeline through the 'Related Fileno' source rather than their own source_table.
     // Classified on TYPE so they land in the commissioning tier and the floating band; without
     // this they fell through to the untyped fallback below and were ranked as recerts (8).
@@ -1821,7 +1821,7 @@ const executeSearchAjax = (filters, searchData) => {
   };
 
   // Lineage rows (a child file's commissioning/decommissioning) are positioned by splice
-  // against the parcel-update that created them â see renderTimeline. They must never be
+  // against the parcel-update that created them — see renderTimeline. They must never be
   // weight-sorted, so they float: a later re-sort (e.g. the arrange feature) can no longer
   // hoist them to the top of the table alongside the searched file's own commissioning.
   const recordPriorityWeight = (item) => {
@@ -1830,7 +1830,7 @@ const executeSearchAjax = (filters, searchData) => {
 
     // Current-year exception (mirrors LegalSearchTimelineWeights::isCurrentYearInstrument):
     // a dealing dated in the year we are in now closes the timeline, below the C of O.
-    // Scoped to OTHER_INSTRUMENTS â grants and commissioning rows keep their rank.
+    // Scoped to OTHER_INSTRUMENTS — grants and commissioning rows keep their rank.
     if (eventKey === 'OTHER_INSTRUMENTS' && timelineEventYear(item) === new Date().getFullYear()) {
       return TIMELINE_WEIGHTS.CURRENT_YEAR_INSTRUMENT;
     }
@@ -1913,18 +1913,18 @@ const executeSearchAjax = (filters, searchData) => {
       if (raw.includes('occupancy permit')) return 'occupancy permit';
       if (/^o\s*p$/.test(raw) || compact === 'op') return 'occupancy permit';
 
-      // Transfer of Title variants (incl. "TRANSFER OF TITLE (OP)") â transfer of title
+      // Transfer of Title variants (incl. "TRANSFER OF TITLE (OP)") → transfer of title
       if (raw.includes('transfer of title')) return 'transfer of title';
 
-      // Mortgage variants â mortgage (canonical bare form)
+      // Mortgage variants → mortgage (canonical bare form)
       if (raw === 'tripartite mortgage' || raw === 'legal mortgage' || raw === 'equitable mortgage') return 'mortgage';
 
-      // Surrender/release variants â surrender and release
+      // Surrender/release variants → surrender and release
       if (raw === 'deed of surrender' || raw === 'deed of release' ||
           raw === 'deed of surrender & release' || raw === 'deed of surrender and release' ||
           raw === 'surrender and release' || raw === 'surrender & release') return 'surrender and release';
 
-      // Power of Attorney variants â power of attorney
+      // Power of Attorney variants → power of attorney
       // Collapses "Power Of Attorney", "Irrevocable Power Of Attorney",
       // "Deed Of Power Of Attorney", "POA", etc. to one canonical key so
       // copies of the same instrument across PRA/FH dedupe correctly.
@@ -1961,7 +1961,7 @@ const executeSearchAjax = (filters, searchData) => {
 
     // Fingerprint: use reg particulars as primary dedup key when available.
     // PRA stores deed execution date while File History stores registration date
-    // for the same instrument â using date caused PRA and FH copies to never
+    // for the same instrument — using date caused PRA and FH copies to never
     // match. Reg particulars (serial/page/volume) are source-neutral and
     // authoritative: same instrument = same numbers in both tables.
     // CofO and Deed Registration sources also participate so their internal
@@ -2081,7 +2081,7 @@ const executeSearchAjax = (filters, searchData) => {
     return { preferred, excluded };
   };
 
-  // Render card results. Each card carries what a table row carries â the old one
+  // Render card results. Each card carries what a table row carries — the old one
   // showed a file number over a line of dashes, which told a searcher nothing and
   // made Card View the view nobody used.
   const renderCardResults = () => {
@@ -2175,7 +2175,7 @@ const executeSearchAjax = (filters, searchData) => {
   };
 
   // Term saved on the searched file's indexing record (file_indexings.term, set
-  // via the Edit File Information modal), as a year count â e.g. "99 Years" â 99.
+  // via the Edit File Information modal), as a year count — e.g. "99 Years" → 99.
   // Overrides the land-use derived term wherever it is available.
   const lsSavedTermYears = () => {
     const m = String(window.__lsSavedTerm || '').match(/\d+/);
@@ -2184,10 +2184,10 @@ const executeSearchAjax = (filters, searchData) => {
 
   // Commencement date of the R of O term. Two possible sources, checked in
   // priority order:
-  //   1. Certificate of Occupancy â earliest dated row's transaction_date,
+  //   1. Certificate of Occupancy — earliest dated row's transaction_date,
   //      from CofO_staging.
-  //   2. Right of Occupancy â earliest dated row's Transaction Date (falling
-  //      back to Reg Date), from the pra table â used only when no dated
+  //   2. Right of Occupancy — earliest dated row's Transaction Date (falling
+  //      back to Reg Date), from the pra table — used only when no dated
   //      CofO exists.
   // Returns { date: "YYYY-MM-DD", source: 'RofO'|'CofO' }, or null when
   // neither source has a usable date.
@@ -2225,7 +2225,7 @@ const executeSearchAjax = (filters, searchData) => {
   // grants (COM-2026-103 re-grants COM-1985-118, whose 1985 CofO sits on the same
   // timeline and made the residual term negative). For a Re-grant file only its OWN
   // CofO / RofO count; with none, the term commences on the re-grant (commissioning)
-  // date. Every other file keeps the CofO â RofO rule above.
+  // date. Every other file keeps the CofO → RofO rule above.
   const lsCommencementSourceFor = (file, transactions) => {
     const label = String((file && (file._file_commissioning_source_label || file._file_commissioning_source)) || '').trim().toLowerCase();
     if (label !== 're-grant') return lsFindCommencementSource(transactions);
@@ -2250,7 +2250,7 @@ const executeSearchAjax = (filters, searchData) => {
     };
   };
 
-  // "YYYY-MM-DD" â "2nd January, 2002" (matches the printed report).
+  // "YYYY-MM-DD" → "2nd January, 2002" (matches the printed report).
   const lsFormatCommencementDate = (iso) => {
     if (!iso) return '';
     const d = new Date(iso + 'T00:00:00');
@@ -2265,8 +2265,8 @@ const executeSearchAjax = (filters, searchData) => {
 
   // Residual Term = term minus years elapsed since the commencement year.
   // Returns e.g. "28 Years", or '' when either part is unknown. When the term
-  // has fully elapsed the result is negative (e.g. "-3 Years") â no longer
-  // floored at 0 â so an expired title reads as such on screen and on the report.
+  // has fully elapsed the result is negative (e.g. "-3 Years") — no longer
+  // floored at 0 — so an expired title reads as such on screen and on the report.
   const lsComputeResidualTerm = (termYears, commencementYear) => {
     const nowYear = new Date().getFullYear();
     if (!termYears || !commencementYear || commencementYear > nowYear) return '';
@@ -2301,7 +2301,7 @@ const executeSearchAjax = (filters, searchData) => {
   // while it differs from the last auto value.
   //
   // A Term saved on the file indexing record (Edit File Information,
-  // window.__lsSavedTerm â set per file in displayFileDetails) takes precedence
+  // window.__lsSavedTerm — set per file in displayFileDetails) takes precedence
   // over the term derived from land use, so an operator-corrected term drives
   // the Residual Term on screen and on the report.
   //
@@ -2347,7 +2347,7 @@ const executeSearchAjax = (filters, searchData) => {
       generalInput.dataset.autoValue = autoRemark;
     }
 
-    // Source badge: shows which record supplied the Commencement Date â RofO
+    // Source badge: shows which record supplied the Commencement Date — RofO
     // (pra) or CofO (CofO_staging) when it's the untouched auto value, or
     // nothing once the operator has overridden it with their own date.
     const sourceBadge = document.getElementById('commencement-date-source-badge');
@@ -2373,7 +2373,7 @@ const executeSearchAjax = (filters, searchData) => {
     }
 
     // The editable Residual Term card is only needed when the term is unknown
-    // (no auto-computed value) so the operator can fill it in manually â once
+    // (no auto-computed value) so the operator can fill it in manually — once
     // a value exists (auto or saved), the card is no longer actionable.
     if (autoHide) {
       const section = document.getElementById('residual-term-section');
@@ -2381,13 +2381,13 @@ const executeSearchAjax = (filters, searchData) => {
     }
   };
 
-  // Ground Rent Including Land Use Charge â helpers for the single card that
+  // Ground Rent Including Land Use Charge — helpers for the single card that
   // toggles between the receipted "Last Paid" record and the manual
   // "Not Paid" entry (see #ground-rent-section in file-history.blade.php).
   // The Amount/Date fields are real <input> elements toggled via the
   // `readonly` attribute (not swapped with separate display spans/inputs) so
   // Edit can never leave one field out of sync with the other.
-  // Plain text, not a native <input type="date"> â that control silently
+  // Plain text, not a native <input type="date"> — that control silently
   // discards any value it doesn't consider strict "YYYY-MM-DD" and just
   // renders blank, which is exactly what was happening here. Text always
   // shows something: a nicely formatted date when the raw value parses, the
@@ -2424,7 +2424,7 @@ const executeSearchAjax = (filters, searchData) => {
     section.classList.remove('bg-teal-50', 'border-teal-200', 'bg-amber-50', 'border-amber-200');
     if (hasLastPaid) {
       section.classList.add('bg-teal-50', 'border-teal-200');
-      if (title) { title.textContent = 'Ground Rent Including Land Use Charge â Last Paid'; title.className = 'text-sm font-semibold text-teal-800'; }
+      if (title) { title.textContent = 'Ground Rent Including Land Use Charge — Last Paid'; title.className = 'text-sm font-semibold text-teal-800'; }
       paidFields?.classList.remove('hidden');
       paidFields?.classList.add('flex');
       notPaidFields?.classList.add('hidden');
@@ -2478,8 +2478,8 @@ const executeSearchAjax = (filters, searchData) => {
     
     // Update file information fields (with .0 fix and better field mapping).
     // Prefer the server-resolved "SEARCHED (LINKED)" combined display (e.g.
-    // "CON-AG-2014-35 (MLKN 2455)") â same format used by the printable report and
-    // Pay-Per-Search template â falling back to the plain number when none was resolved.
+    // "CON-AG-2014-35 (MLKN 2455)") — same format used by the printable report and
+    // Pay-Per-Search template — falling back to the plain number when none was resolved.
     const displayedValue = selectedFile._file_number_display || mlsDisplay;
     document.getElementById('file-number-value').textContent = displayedValue;
 
@@ -2505,7 +2505,7 @@ const executeSearchAjax = (filters, searchData) => {
         : 'File Number:';
     }
 
-    // Temporary "(T)" file number â shown as a second line when the searched
+    // Temporary "(T)" file number — shown as a second line when the searched
     // file has a temporary sibling registered against it.
     const tempFileNumber = String(selectedFile._file_temp_number || selectedFile.temp_file_no || window._lsFileTempNumber || '').trim();
     const tempRow = document.getElementById('temp-file-number-row');
@@ -2557,11 +2557,11 @@ const executeSearchAjax = (filters, searchData) => {
                              deriveLandUseFromFileNumber(selectedFile.mlsFNo || selectedFile.file_number || selectedFile.fileno || window.__lsLastSearchedFileNumber || '') || '-';
     document.getElementById('property-type-value').textContent = landUseValue;
 
-    // Lon/Lat â from the file indexing record (matches the printed report).
+    // Lon/Lat — from the file indexing record (matches the printed report).
     const lonLatEl = document.getElementById('lon-lat-value');
     if (lonLatEl) lonLatEl.textContent = selectedFile._file_lon_lat || '-';
 
-    // Ground Rent Including Land Use Charge â single card, toggled between
+    // Ground Rent Including Land Use Charge — single card, toggled between
     // "Last Paid" (from file_indexings.ground_rent_amount /
     // ground_rent_receipt_date, editable in place) and the manual "Not Paid"
     // entry, based on whether a receipted payment is on file. A saved edit
@@ -2585,7 +2585,7 @@ const executeSearchAjax = (filters, searchData) => {
       }
     }
 
-    // Term of the R of O â the value saved on the indexing record (Edit File
+    // Term of the R of O — the value saved on the indexing record (Edit File
     // Information) when there is one, otherwise derived from land use (99
     // res/agric, 40 comm/ind). Set before lsRecomputeResidualTerm below, which
     // reads it back through lsSavedTermYears() for the Residual Term.
@@ -2595,7 +2595,7 @@ const executeSearchAjax = (filters, searchData) => {
     const termEl = document.getElementById('term-value');
     if (termEl) termEl.textContent = window.__lsSavedTerm || (termYears ? termYears + ' Years' : '-');
 
-    // Commencement Date â auto-filled from the R of O grant's Transaction Date,
+    // Commencement Date — auto-filled from the R of O grant's Transaction Date,
     // falling back to the CofO's transaction_date when no dated R of O exists
     // (see lsFindCommencementSource). A user-picked or saved date is kept
     // while it differs from the last auto value. The Residual Term (editable
@@ -2614,10 +2614,10 @@ const executeSearchAjax = (filters, searchData) => {
     }
     lsRecomputeResidualTerm();
 
-    // Last transaction â the most recent real transaction on the MAIN (searched)
+    // Last transaction — the most recent real transaction on the MAIN (searched)
     // file itself. It must NOT reflect events that belong to parcel-update-derived
     // files (subdivision/merger children), nor the parcel-update events themselves
-    // (Subdivision, Merger, Change of Purposeâ¦), nor the synthetic lifecycle rows
+    // (Subdivision, Merger, Change of Purpose…), nor the synthetic lifecycle rows
     // (File Commissioning/Decommissioning, Temporary File).
     let lastTransactionValue = '-';
     try {
@@ -2636,7 +2636,7 @@ const executeSearchAjax = (filters, searchData) => {
       const isParcelUpdateType = (t) => /subdivision|merger|consolidat|change of purpose|reconstitut|resettlement|extension|regrant/i.test(String(t || ''));
       // Certificate / administrative events are not "dealings": a Certificate of
       // Occupancy is the title document and a KANGIS Recertification is an
-      // administrative re-issuance â neither is the file's last transaction.
+      // administrative re-issuance — neither is the file's last transaction.
       const isCertOrAdminType = (t) => /certificate of occupanc|recertification/i.test(String(t || ''));
       const isLifecycleSyntheticType = (t) => {
         const s = String(t || '').toLowerCase();
@@ -2662,7 +2662,7 @@ const executeSearchAjax = (filters, searchData) => {
       });
 
       // Order the eligible dealings with the SAME chronological sort the timeline table
-      // uses, then take the LAST one â so the status matches what the user sees. A plain
+      // uses, then take the LAST one — so the status matches what the user sees. A plain
       // date-max fails here: an instrument with no transaction date (e.g. a Deed of
       // Mortgage recorded only by registration particulars) would be skipped, yet the
       // timeline parks such undated rows at the very end as floaters, making them the
@@ -2725,9 +2725,9 @@ const executeSearchAjax = (filters, searchData) => {
   // Recompute the Residual Term whenever the user picks a different
   // Commencement Date.
   document.getElementById('comment-commencement_date-text')?.addEventListener('change', () => {
-    // The date changed, so the previous auto residual is stale â recompute
+    // The date changed, so the previous auto residual is stale — recompute
     // from scratch unless the user typed a custom residual. Keep the card
-    // open (autoHide=false) so the operator can still see and click Save â
+    // open (autoHide=false) so the operator can still see and click Save —
     // otherwise the card disappears the instant a residual auto-computes.
     const input = document.getElementById('residual-term-input');
     if (input && input.value === input.dataset.autoValue) input.value = '';
@@ -2747,7 +2747,7 @@ const executeSearchAjax = (filters, searchData) => {
     if (dateInput) setTimeout(() => dateInput.focus(), 300);
   });
 
-  // ââ Silent Refresh ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Silent Refresh ──────────────────────────────────────────────────────────
   // Re-fetches server data using the last search payload without hiding the
   // current file detail view. Only the button shows a loading state.
   const _silentRefreshUrl = '{{ route($moduleConfig["searchRouteName"] ?? "legalsearch.search") }}';
@@ -2830,7 +2830,7 @@ const executeSearchAjax = (filters, searchData) => {
         resultsCount.textContent = searchResults.length;
         updateSourceBadges(data);
 
-        // If a file is open, keep it open â just re-render the tables
+        // If a file is open, keep it open — just re-render the tables
         if (selectedFile && fileHistoryView && !fileHistoryView.classList.contains('hidden')) {
           // Try to keep the same record selected by prop_id or first result
           const propId = selectedFile.prop_id;
@@ -2858,7 +2858,7 @@ const executeSearchAjax = (filters, searchData) => {
       }
     });
   });
-  // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ────────────────────────────────────────────────────────────────────────────
 
   // Get related transactions for a selected file - UPDATED FOR HIERARCHICAL SEARCH
   const getRelatedTransactions = (file) => {
@@ -2891,13 +2891,13 @@ const executeSearchAjax = (filters, searchData) => {
   const dedupDot = (item) => {
     const status = item._dedup_status || '';
     if (status === 'preferred') {
-      return '<span title="Preferred â this record is used in Timeline/Report/Print" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b;margin-right:4px;vertical-align:middle;"></span>';
+      return '<span title="Preferred — this record is used in Timeline/Report/Print" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b;margin-right:4px;vertical-align:middle;"></span>';
     }
     if (status === 'duplicate') {
-      return '<span title="Duplicate â a better version exists from another source" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-right:4px;vertical-align:middle;"></span>';
+      return '<span title="Duplicate — a better version exists from another source" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-right:4px;vertical-align:middle;"></span>';
     }
-    // Unique â no duplicate group at all
-    return '<span title="Unique â no duplicate detected across sources" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-right:4px;vertical-align:middle;"></span>';
+    // Unique — no duplicate group at all
+    return '<span title="Unique — no duplicate detected across sources" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-right:4px;vertical-align:middle;"></span>';
   };
 
   // Render weighting transparency table
@@ -2971,7 +2971,7 @@ const executeSearchAjax = (filters, searchData) => {
     
     // Separate records by their source_table label (set by normalizeRow in backend).
     // Each per-source tab should collapse identical rows *within its own source*
-    // so 4 identical File History "Deed Of Assignment" rows show as 1 â even
+    // so 4 identical File History "Deed Of Assignment" rows show as 1 — even
     // though the cross-source winner (e.g. a PRA copy) lives on a different tab.
     const dedupeWithinSource = (items) => {
       const seen = new Set();
@@ -3046,7 +3046,7 @@ const executeSearchAjax = (filters, searchData) => {
         const regTime = formatRegTime(item);
         const size = getMappedValue(item, 'size');
         const comments = toProperCase((item.is_caveated == 1 && item.caveated_comment) ? item.caveated_comment : getMappedValue(item, 'comments'));
-        const commentsShort = comments && comments.length > 50 ? comments.slice(0, 50) + 'â¦' : (comments || '');
+        const commentsShort = comments && comments.length > 50 ? comments.slice(0, 50) + '…' : (comments || '');
         const _wd_pr = recordRichnessScore(item);
 
         const row = document.createElement('tr');
@@ -3101,7 +3101,7 @@ const executeSearchAjax = (filters, searchData) => {
         const regTime = formatRegTime(item);
         const size = getMappedValue(item, 'size');
         const comments = toProperCase((item.is_caveated == 1 && item.caveated_comment) ? item.caveated_comment : getMappedValue(item, 'comments'));
-        const commentsShort = comments && comments.length > 50 ? comments.slice(0, 50) + 'â¦' : (comments || '');
+        const commentsShort = comments && comments.length > 50 ? comments.slice(0, 50) + '…' : (comments || '');
         const _wd_fh = recordRichnessScore(item);
 
         const row = document.createElement('tr');
@@ -3273,8 +3273,8 @@ const executeSearchAjax = (filters, searchData) => {
     renderExcludedRows();
 
     // Load editable comments and show/hide sections based on data.
-    // Use the deduped/preferred set (not _allâ¦) so the encumbrance/mortgage
-    // remark ignores Excluded / Duplicate records â matching what the timeline
+    // Use the deduped/preferred set (not _all…) so the encumbrance/mortgage
+    // remark ignores Excluded / Duplicate records — matching what the timeline
     // and printed report already operate on.
     loadComments(window._currentFileNumber);
     showCommentSections(window._preferredRelatedTransactions || window._allRelatedTransactions || []);
@@ -3494,15 +3494,15 @@ const executeSearchAjax = (filters, searchData) => {
 
   // Compact encoder for the `timeline_order` / `excluded_keys` print params.
   //
-  // Written out plainly ("file_history_staging:123,pra:456,â¦") a subdivision mother with
+  // Written out plainly ("file_history_staging:123,pra:456,…") a subdivision mother with
   // 100+ children produced a few hundred keys and pushed the print URL past Apache's
-  // LimitRequestLine (8190 bytes) â the browser answered "Request-URI Too Long" and the
+  // LimitRequestLine (8190 bytes) — the browser answered "Request-URI Too Long" and the
   // report never opened. This names each table once and refers to it by index:
   //
-  //     v2:<table>~<table>|<tableIdx>-<id>,<tableIdx>-<id>,â¦
+  //     v2:<table>~<table>|<tableIdx>-<id>,<tableIdx>-<id>,…
   //
   // Rows with no database id keep an empty id ("0-"), so the server decodes exactly the
-  // same "<table>:<id>" keys as before â only the wire format is shorter.
+  // same "<table>:<id>" keys as before — only the wire format is shorter.
   // Decoder: LegalSearchService::decodeRowKeySpec().
   const encodeRowKeySpec = (list, { requireId = false } = {}) => {
     const tables = [];
@@ -3578,8 +3578,8 @@ const executeSearchAjax = (filters, searchData) => {
     return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
   };
 
-  // OP / TOT / RofO carry their operative date in transaction_date; every other event â
-  // C of O, recertifications, other instruments â is keyed off its registration date.
+  // OP / TOT / RofO carry their operative date in transaction_date; every other event —
+  // C of O, recertifications, other instruments — is keyed off its registration date.
   // Keyed off the event class rather than the weight: the weight scale has no stable
   // "default" number to test against, and a null (floating) weight is not comparable.
   const getTransactionTimestamp = (item) => {
@@ -3592,7 +3592,7 @@ const executeSearchAjax = (filters, searchData) => {
     // so one rule now covers them all.
     //
     // deeds_date sits second because pra and CofO_staging have no literal reg_date column
-    // and carry their registration date there â without it those two sources would fall
+    // and carry their registration date there — without it those two sources would fall
     // straight through to transaction_date and never sort on a registration date at all.
     const candidates = [
       item.reg_date,
@@ -3646,7 +3646,7 @@ const executeSearchAjax = (filters, searchData) => {
   // events are ranked on different keys and must not be compared to each other:
   //
   //   1. Weighted events (weight !== null) sort by weight DESC, then timestamp ASC, then id.
-  //   2. Floating events (weight === null â the C of O, parcel updates, decommissionings, DCIV rows)
+  //   2. Floating events (weight === null — the C of O, parcel updates, decommissionings, DCIV rows)
   //      have no rank of their own. Each is injected after the last weighted event that is
   //      no later than it, so it lands chronologically without disturbing the hierarchy.
   //
@@ -3714,7 +3714,7 @@ const executeSearchAjax = (filters, searchData) => {
       }
       // Advance to just before the next dated weighted event. This steps over two things:
       // floaters already parked on this anchor (`floating` is sorted ascending, so this one
-      // belongs after them â otherwise a Decommissioning would precede the Subdivision that
+      // belongs after them — otherwise a Decommissioning would precede the Subdivision that
       // caused it), and UNDATED weighted rows, which have no position in time and must stay
       // attached to their weight group rather than be split off by a dated floater.
       while (insertAt < result.length && !isDatedWeighted(result[insertAt])) {
@@ -3788,7 +3788,7 @@ const executeSearchAjax = (filters, searchData) => {
   // A KANGIS Recertification with no KANGIS C of O to sit above belongs BELOW the file's
   // ordinary C of O, not above it.
   //
-  // placeKangisRecertBeforeCofo() pulls a recert above the C of O it recertifies â right
+  // placeKangisRecertBeforeCofo() pulls a recert above the C of O it recertifies — right
   // when that C of O is itself a KANGIS one, because the pair is one KANGIS exercise. When
   // the file's C of O is an ordinary Ministry C of O the recert did NOT produce it: the
   // recertification came afterwards, against a title that already existed, so printing it
@@ -3836,13 +3836,13 @@ const executeSearchAjax = (filters, searchData) => {
   };
 
   // Lifecycle-transaction rule mirrored from LegalSearchService::orderRecertGenerations().
-  // Recertification exercises print in generation order â First KANGIS Recertification (old
-  // KNML/MLKN/KNGP, 2014â2024) before Second KANGIS Recertification (new KN, 2025âpresent) â
+  // Recertification exercises print in generation order — First KANGIS Recertification (old
+  // KNML/MLKN/KNGP, 2014–2024) before Second KANGIS Recertification (new KN, 2025–present) —
   // and each generation's C of O stays with its own recertification.
   //
   // The weight/date sort alone gets this wrong: both recerts share the same weight, and a Second
   // Recertification usually has no C of O of its own, so placeKangisRecertBeforeCofo() leaves
-  // it wherever it landed â which can be ABOVE the First Recertification / C of O pair.
+  // it wherever it landed — which can be ABOVE the First Recertification / C of O pair.
   const orderRecertGenerations = (rows) => {
     const typeOf = (r) => String(r?.transaction_type || r?.instrument_type || '').toLowerCase();
     const isCofo = (r) => typeOf(r).includes('certificate of occupanc');
@@ -3912,7 +3912,7 @@ const executeSearchAjax = (filters, searchData) => {
 
   // Business rule: a Mortgage (Deed of Mortgage / Tripartite Mortgage) is later discharged by a
   // Surrender & Release involving the SAME lender bank. The mortgage must render directly ABOVE
-  // its matching Surrender & Release row regardless of transaction date â the discharge often
+  // its matching Surrender & Release row regardless of transaction date — the discharge often
   // carries a later or missing date that would otherwise strand the mortgage at the end of the
   // chronologically-sorted list (e.g. mortgage below its own surrender).
   const placeMortgageAboveSurrender = (rows) => {
@@ -3923,7 +3923,7 @@ const executeSearchAjax = (filters, searchData) => {
     if (!rows.some(isMortgage) || !rows.some(isSurrender)) return rows;
 
     // Normalize a party name for loose bank matching: lowercase, strip punctuation and common
-    // company suffixes so "Bank Of The North Ltd" â "Bank Of The North" and "Ja'Iz Bank Plc" â
+    // company suffixes so "Bank Of The North Ltd" ≈ "Bank Of The North" and "Ja'Iz Bank Plc" ≈
     // "Jaiz Bank Plc".
     const normParty = (v) => String(v || '')
       .toLowerCase()
@@ -3933,7 +3933,7 @@ const executeSearchAjax = (filters, searchData) => {
       .trim();
     const partiesOf = (r) => [r?.party_1, r?.party_2, r?.party_3, r?.party_4]
       .map(normParty).filter(p => p.length > 3);
-    // The discharging lender is a bank-like party â used to pair a mortgage with its surrender.
+    // The discharging lender is a bank-like party — used to pair a mortgage with its surrender.
     const isBankLike = (p) => /bank|mortgage|micro ?finance|building society/.test(p);
     const sharesLender = (a, b) => {
       const pa = partiesOf(a), pb = partiesOf(b);
@@ -3971,7 +3971,7 @@ const executeSearchAjax = (filters, searchData) => {
 
   // Legacy files digitized into KLAES (no genuine commissioning date on record)
   // still encode the year they were originally commissioned in the file number
-  // itself, e.g. "RES-2001-3874" â "2001", "CON-RES-1993-387" â "1993". Matches a
+  // itself, e.g. "RES-2001-3874" → "2001", "CON-RES-1993-387" → "1993". Matches a
   // dash-delimited 4-digit segment starting with 19 or 20 so serial numbers of the
   // same length (e.g. "3874") aren't mistaken for a year.
   const extractYearFromFileNumber = (fileNo) => {
@@ -3984,18 +3984,18 @@ const executeSearchAjax = (filters, searchData) => {
   };
 
   // Party 2 of a commissioning row is the allottee the file was opened for, read off the
-  // instrument that opened it. WHICH party carries that name differs per instrument â the
+  // instrument that opened it. WHICH party carries that name differs per instrument — the
   // State grants TO the allottee (Party 2), but the allottee assigns the land AWAY (Party 1)
-  // â so the list pairs each type with its party number. The file title names the CURRENT
+  // — so the list pairs each type with its party number. The file title names the CURRENT
   // owner, the wrong name on a commissioning row once the land has changed hands, so it
   // stays only as the last resort. Returns null when the file has none of these instruments
-  // â the caller then keeps the name it already had.
+  // — the caller then keeps the name it already had.
   // Read straight from LegalSearchService::COMMISSIONING_HOLDER_SOURCES so the two cannot drift.
   const COMMISSIONING_HOLDER_SOURCES = @json(\App\Services\LegalSearchService::COMMISSIONING_HOLDER_SOURCES);
 
   // File numbers from this year on are exempt: the rule repairs LEGACY files whose title
   // drifted to a later owner over decades. A KLAES-era file already carries the right holder,
-  // and there the rule misfires â a file created by a Transfer of Title would take Party 2
+  // and there the rule misfires — a file created by a Transfer of Title would take Party 2
   // from the OP that preceded it, i.e. the PREVIOUS owner. Files with no year in their number
   // are legacy by definition, so the rule applies to them.
   // Mirrors LegalSearchService::GRANT_HOLDER_EXEMPT_FROM_YEAR.
@@ -4046,15 +4046,15 @@ const executeSearchAjax = (filters, searchData) => {
   // and its Reg Particulars are 0/0/0.
   const buildCommissioningTimelineRow = () => {
     // A file that has not yet been indexed (no file_indexings row) gets no synthetic
-    // "File Commissioning" row â the commissioning event is only surfaced once the
+    // "File Commissioning" row — the commissioning event is only surfaced once the
     // file has actually been indexed into KLAES.
     if (selectedFile && selectedFile._file_is_indexed === false) return null;
     const commDate = (selectedFile && selectedFile._file_commissioning_date)
       ? selectedFile._file_commissioning_date : '-';
     // The File Commissioning row represents the permanent/main LAND file, so it must
-    // carry the land/MLS file number â never the KANGIS alias (e.g. "MLKN 3725") the
+    // carry the land/MLS file number — never the KANGIS alias (e.g. "MLKN 3725") the
     // user may have searched by. Prefer the land number that leads the "SEARCHED
-    // (LINKED)" display (e.g. "CON-IND-2021-18 (MLKN 3725)" â "CON-IND-2021-18"), then
+    // (LINKED)" display (e.g. "CON-IND-2021-18 (MLKN 3725)" → "CON-IND-2021-18"), then
     // the indexed land number, then whatever was searched.
     const _notKangisNo = (v) => {
       const t = identifyFileNumberType(v);
@@ -4070,18 +4070,18 @@ const executeSearchAjax = (filters, searchData) => {
       : (_notKangisNo(_indexedNo) ? _indexedNo : _searchedNo);
     // The File Commissioning row represents the permanent/main file, so it always
     // carries the main file number. When the searched file is itself a temporary
-    // "(T)" number, strip the "(T)" here â the temporary number is shown on its own
+    // "(T)" number, strip the "(T)" here — the temporary number is shown on its own
     // "Temporary File" row directly below.
     const fileNo = String(rawFileNo).replace(/\s*\(\s*T\s*\)\s*$/i, '').trim() || rawFileNo;
     // The File Commissioning row represents the permanent/main LAND file. When no
     // land/MLS number could be resolved and the row would fall back to a KANGIS alias
-    // (e.g. "MLKN 1934"), suppress the row entirely â a KANGIS file is never shown as
+    // (e.g. "MLKN 1934"), suppress the row entirely — a KANGIS file is never shown as
     // a File Commissioning event.
     if (!_notKangisNo(fileNo)) return null;
     // A SYSTEM temporary number ("TEMP-xxx") is an internal placeholder, never a commissioning event.
     if (isSystemTempFileNo(fileNo)) return null;
     // Sectional Titling: a mother ST file has TWO commissioning events that must BOTH
-    // show â the Land File Commissioning (this generic row, on the mls_fileno/land
+    // show — the Land File Commissioning (this generic row, on the mls_fileno/land
     // number) and the ST File Commissioning (a backend "ST File Commissioning" row on
     // the np_fileno, tagged into this same land group). When the backend emitted an ST
     // primary commissioning row for this land file, relabel this generic row to
@@ -4098,19 +4098,19 @@ const executeSearchAjax = (filters, searchData) => {
     // commissioned (fileNumber.mlsfNo, resolved server-side). It carries a "(T)"
     // suffix when the temporary file was the commissioned one. Show the date on
     // this permanent row ONLY when the commissioned number is NOT a "(T)" number
-    // (or when the server reported no commissioned number â legacy responses).
+    // (or when the server reported no commissioned number — legacy responses).
     const commissionedNo = String((selectedFile && selectedFile._file_commissioned_number) || '').trim();
     const commissionedIsTemp = /\(\s*T\s*\)\s*$/i.test(commissionedNo);
     let mainRowDate = (commDate && commDate !== '-' && !commissionedIsTemp)
       ? commDate : '-';
-    // Legacy file with no genuine KLAES commissioning date â fall back to the
+    // Legacy file with no genuine KLAES commissioning date — fall back to the
     // year embedded in the file number itself rather than leaving it blank.
     if (mainRowDate === '-') {
       const yearFromFileNo = extractYearFromFileNumber(fileNo);
       if (yearFromFileNo) mainRowDate = yearFromFileNo;
     }
     // Party 1 is the commissioning authority; Party 2 is the FILE TITLE, and nothing
-    // else â see the same decision in LegalSearchService::buildPrintReport(). It was
+    // else — see the same decision in LegalSearchService::buildPrintReport(). It was
     // read off the grant that opened the file (RofO/OP grantee, ToT/Deed assignor),
     // which showed LAMASH on RES-2024-2184 while the file is titled SAYYIDI UBA WARU.
     const ownerName = (selectedFile && (selectedFile._file_title || selectedFile.file_title)) || '-';
@@ -4159,8 +4159,8 @@ const executeSearchAjax = (filters, searchData) => {
   const buildLineageCommissioningRow = (fileNo, commissioningDate, fileTitle, idSuffix) => {
     const no = String(fileNo || '').replace(/\s*\(\s*T\s*\)\s*$/i, '').trim();
     if (!no) return null;
-    // A KANGIS-format file (KNML/MLKN/KNGP/KNâ¦) is an alias of a land file, never its own
-    // lifecycle â it shows no File Commissioning row (only its Recertification appears).
+    // A KANGIS-format file (KNML/MLKN/KNGP/KN…) is an alias of a land file, never its own
+    // lifecycle — it shows no File Commissioning row (only its Recertification appears).
     const _kt = identifyFileNumberType(no);
     if (_kt === 'kangis' || _kt === 'new_kangis') return null;
     if (isSystemTempFileNo(no)) return null;
@@ -4201,14 +4201,14 @@ const executeSearchAjax = (filters, searchData) => {
   };
 
   // Build a "File Decommissioning" row for a successor lineage file that was ITSELF
-  // later retired â e.g. the Subdivision child CON-AG-2026-108 retired by a Change of
+  // later retired — e.g. the Subdivision child CON-AG-2026-108 retired by a Change of
   // Purpose into CON-COM-2026-430. Mirrors buildDecommissioningTimelineRow but for a
   // file other than the searched one.
   const buildLineageDecommissioningRow = (succ) => {
     const no = String(succ?.decommission_file_no || succ?.file_no || '')
       .replace(/\s*\(\s*T\s*\)\s*$/i, '').trim();
     if (!no) return null;
-    // A KANGIS-format file is an alias of a land file â it shows no File Decommissioning row.
+    // A KANGIS-format file is an alias of a land file — it shows no File Decommissioning row.
     const _kt = identifyFileNumberType(no);
     if (_kt === 'kangis' || _kt === 'new_kangis') return null;
     if (isSystemTempFileNo(no)) return null;
@@ -4253,10 +4253,20 @@ const executeSearchAjax = (filters, searchData) => {
           .map(s => ({ file_no: s.trim(), commissioning_date: '-', file_title: '' }))
           .filter(s => s.file_no);
     // Each successor contributes its commissioning row and, when it was itself later
-    // retired, its own decommissioning row directly below â so a Change-of-Purpose child
-    // reads: commissioned â decommissioned, with the grandchild's commissioning next.
+    // retired, its own decommissioning row directly below — so a Change-of-Purpose child
+    // reads: commissioned → decommissioned, with the grandchild's commissioning next.
+    // A successor ST file already has its own "ST File Commissioning" row from the server;
+    // a second, generic "File Commissioning" for it repeated the event (RES-RC-1982-47 ->
+    // ST-RES-2026-18, user 2026-11-17), so only its decommissioning (if any) is added.
+    const _normSucc = (v) => String(v || '').toUpperCase().replace(/[\s\-_=\/]+/g, '');
+    const _serverRows = [...(window._allRelatedTransactions || []), ...(window._preferredRelatedTransactions || [])];
+    const _stCommissioned = new Set(_serverRows
+      .filter(r => String((r && r.source_table) || '') === 'ST File Commissioning'
+        && String((r && r.transaction_type) || '').indexOf('Fragmentation') === -1)
+      .map(r => _normSucc(r.file_number || r.fileno || r.mlsFNo)));
     return succFiles.flatMap(s => [
-      buildLineageCommissioningRow(s.file_no, s.commissioning_date, s.file_title, 'next'),
+      _stCommissioned.has(_normSucc(s.file_no)) ? null
+        : buildLineageCommissioningRow(s.file_no, s.commissioning_date, s.file_title, 'next'),
       s.is_superseded ? buildLineageDecommissioningRow(s) : null,
     ]).filter(Boolean);
   };
@@ -4276,7 +4286,7 @@ const executeSearchAjax = (filters, searchData) => {
       || (selectedFile && (selectedFile.mlsFNo || selectedFile.fileno || selectedFile.fileNo))
       || '-';
     const fileNo = String(rawFileNo).replace(/\s*\(\s*T\s*\)\s*$/i, '').trim() || rawFileNo;
-    // A KANGIS-format file is an alias of a land file â it shows no File Decommissioning row.
+    // A KANGIS-format file is an alias of a land file — it shows no File Decommissioning row.
     const _kt = identifyFileNumberType(fileNo);
     if (_kt === 'kangis' || _kt === 'new_kangis') return null;
     if (isSystemTempFileNo(fileNo)) return null;
@@ -4368,8 +4378,8 @@ const executeSearchAjax = (filters, searchData) => {
   };
 
   // ---------------------------------------------------------------------------
-  // Lifecycle-file grouping: each file's complete lifecycle (commissioning â
-  // transactions â decommissioning) is rendered as a block, then the next file.
+  // Lifecycle-file grouping: each file's complete lifecycle (commissioning →
+  // transactions → decommissioning) is rendered as a block, then the next file.
   // ---------------------------------------------------------------------------
 
   const normalizeLifecycleFileNo = (v) => {
@@ -4379,13 +4389,13 @@ const executeSearchAjax = (filters, searchData) => {
     return s;
   };
 
-  // The file the user actually searched, normalized â or '' when nothing is selected.
+  // The file the user actually searched, normalized — or '' when nothing is selected.
   const searchedLifecycleKey = () => {
     try {
       const raw = userSelectedFileNumber || window._currentFileNumber || '';
       return raw ? normalizeLifecycleFileNo(baseFileNo(raw)) : '';
     } catch (_) {
-      // Called before the module's own state is initialised â no searched file yet,
+      // Called before the module's own state is initialised — no searched file yet,
       // so grouping falls through to the ordinary candidate order.
       return '';
     }
@@ -4405,7 +4415,7 @@ const executeSearchAjax = (filters, searchData) => {
     // column comes first in the list below. pra #126911 carries mlsFNo COM-2016-219
     // and fileno COM-2026-219; taking `fileno` filed that file's own Occupancy Permit
     // into a SECOND lifecycle group, where weight 14 could not lift it above the
-    // searched file's rows â so the OP read third, under a File Commissioning row of
+    // searched file's rows — so the OP read third, under a File Commissioning row of
     // 12, and a second commissioning row appeared. Mirrors the same guard in
     // LegalSearchService::buildPrintReport().
     const searched = searchedLifecycleKey();
@@ -4455,7 +4465,7 @@ const executeSearchAjax = (filters, searchData) => {
 
   // A KANGIS number (e.g. "KNML 6992") is only an alias of a permanent land file;
   // it has no lifecycle of its own. Build a KANGIS -> main-land map so KANGIS rows
-  // (Recertification, KANGIS C of O, â¦) roll into their owning file's lifecycle
+  // (Recertification, KANGIS C of O, …) roll into their owning file's lifecycle
   // group instead of forming a phantom group of their own.
   const buildKangisAliasMap = (rows) => {
     const map = {};
@@ -4466,7 +4476,7 @@ const executeSearchAjax = (filters, searchData) => {
       if (k && m && k !== m && isKangisFileNo(k) && !isKangisFileNo(m)) map[k] = m;
     };
     // Pair the two numbers inside a "MAIN (ALIAS)" display string, e.g.
-    // "CON-COM-2023-197 (KNML 6992)" â order-independent: the KANGIS side becomes
+    // "CON-COM-2023-197 (KNML 6992)" — order-independent: the KANGIS side becomes
     // the alias, the land side its owning lifecycle file.
     const addFromDisplay = (display) => {
       const s = String(display || '').trim();
@@ -4478,7 +4488,7 @@ const executeSearchAjax = (filters, searchData) => {
       if (kangisSide && mainSide) addPair(kangisSide, mainSide);
     };
 
-    // Seed from the searched/selected file â the authoritative main <-> KANGIS pairing.
+    // Seed from the searched/selected file — the authoritative main <-> KANGIS pairing.
     try {
       if (selectedFile) {
         addFromDisplay(selectedFile._file_number_display);
@@ -4538,8 +4548,8 @@ const executeSearchAjax = (filters, searchData) => {
   const buildLifecycleCommissioningRow = (fileNo, rowsForFile) => {
     const no = baseFileNo(fileNo);
     if (!no || no === '-') return null;
-    // A KANGIS-format file (KNML/MLKN/KNGP/KNâ¦) is an alias of a land file, never its own
-    // lifecycle â it shows no File Commissioning row (only its Recertification appears).
+    // A KANGIS-format file (KNML/MLKN/KNGP/KN…) is an alias of a land file, never its own
+    // lifecycle — it shows no File Commissioning row (only its Recertification appears).
     const _kt = identifyFileNumberType(no);
     if (_kt === 'kangis' || _kt === 'new_kangis') return null;
     if (isSystemTempFileNo(no)) return null;
@@ -4548,7 +4558,7 @@ const executeSearchAjax = (filters, searchData) => {
     // A genuine KLAES commissioning date (resolved server-side from mls_file_no) is
     // the only real date shown here. A file NOT commissioned through KLAES (absent
     // from mls_file_no, so meta.commissioning_date is '-') must show only the bare
-    // year embedded in its file number â never the date of its earliest transaction.
+    // year embedded in its file number — never the date of its earliest transaction.
     let date = '-';
     if (meta?.commissioning_date && String(meta.commissioning_date).trim() !== '' && String(meta.commissioning_date).trim() !== '-') {
       date = String(meta.commissioning_date).trim();
@@ -4585,7 +4595,7 @@ const executeSearchAjax = (filters, searchData) => {
   const buildLifecycleDecommissioningRow = (fileNo, rowsForFile) => {
     const no = baseFileNo(fileNo);
     if (!no || no === '-') return null;
-    // A KANGIS-format file is an alias of a land file â it shows no File Decommissioning row.
+    // A KANGIS-format file is an alias of a land file — it shows no File Decommissioning row.
     const _kt = identifyFileNumberType(no);
     if (_kt === 'kangis' || _kt === 'new_kangis') return null;
     if (isSystemTempFileNo(no)) return null;
@@ -4667,7 +4677,7 @@ const executeSearchAjax = (filters, searchData) => {
       const eventType = classifyLifecycleEventType(r);
       if (!eventType) return null;
       // The mother ST "ST File Commissioning" event is DISTINCT from the mother's
-      // "Land File Commissioning" â both classify as 'File Commissioning' but must
+      // "Land File Commissioning" — both classify as 'File Commissioning' but must
       // coexist in the same land block, so give the ST primary its own dedupe key.
       if (r && r._st_primary_commissioning) return 'ST File Commissioning';
       // Likewise the old Ministry "KN 6071" file's commissioning: a DIFFERENT file's event from
@@ -4738,7 +4748,7 @@ const executeSearchAjax = (filters, searchData) => {
     isRecertLandFileNo(fileNo) ? 'File Commissioning & Recertification' : 'File Commissioning';
 
   // Drop the recert rows that commissioningLabelFor() has folded into an RC file's own
-  // commissioning line. Scoped to rows sitting on the RC file ITSELF â the identically-typed
+  // commissioning line. Scoped to rows sitting on the RC file ITSELF — the identically-typed
   // row belonging to its old Ministry "KN 3686" number is a different file's line and
   // survives, ranking above the commissioning row (OLD_KN_COMMISSIONING).
   // Mirrors LegalSearchService::dropMergedRecertRows().
@@ -4754,7 +4764,7 @@ const executeSearchAjax = (filters, searchData) => {
   const ensureLifecycleSyntheticRows = (groupedRows) => {
     const result = {};
     // The searched file's own lineage flag (window._lsLineage) describes ONLY that
-    // file â it must never decommission related/child files, whose decommission
+    // file — it must never decommission related/child files, whose decommission
     // state comes from their own per-file metadata.
     const searchedNo = normalizeLifecycleFileNo(userSelectedFileNumber || window._currentFileNumber || '');
     const primaryMainNo = normalizeLifecycleFileNo(baseFileNo(searchedNo));
@@ -4762,7 +4772,7 @@ const executeSearchAjax = (filters, searchData) => {
       const rows = groupedRows[fno];
       const meta = lifecycleMetaFor(fno);
       // The old Ministry "KN 6071" row is typed "File Commissioning" but belongs to the KN
-      // file, not to the group it is folded into â it must not satisfy this group's own
+      // file, not to the group it is folded into — it must not satisfy this group's own
       // commissioning row, which would then never be synthesized.
       const isForeignOldKnRow = (r) => isOldKnFileNo(
         ['file_no', 'fileno', 'file_number', 'mlsFNo']
@@ -4772,8 +4782,8 @@ const executeSearchAjax = (filters, searchData) => {
       const hasCommissioning = rows.some(r => !isForeignOldKnRow(r) && (
         String(r?.source_table || '') === 'File Commissioning'
         || String(r?.source_table || '') === 'DCIV File Commissioning'
-        // A unit ST "ST File Commissioning â Fragmentation" row IS that unit's own
-        // commissioning event â don't synthesize a generic "File Commissioning" that
+        // A unit ST "ST File Commissioning – Fragmentation" row IS that unit's own
+        // commissioning event — don't synthesize a generic "File Commissioning" that
         // would replace its ST label + real date. The mother's ST primary row is tagged
         // to the LAND group but is not the land file's own commissioning, so it doesn't count.
         || (String(r?.source_table || '') === 'ST File Commissioning' && !r?._st_primary_commissioning)
@@ -4799,10 +4809,10 @@ const executeSearchAjax = (filters, searchData) => {
       }
       // Rule 4 (superseded): an "-RC-" land file used to get its own Ministry of Land and
       // Physical Planning Recertification line here. That event now reads off the file's
-      // commissioning row instead â see commissioningLabelFor() â so nothing is synthesized,
+      // commissioning row instead — see commissioningLabelFor() — so nothing is synthesized,
       // and any real row of that type on the file itself is folded away by
       // dropMergedRecertRows().
-      // Rules 6/7: a land file that carries a KANGIS number WAS recertified â the KANGIS
+      // Rules 6/7: a land file that carries a KANGIS number WAS recertified — the KANGIS
       // number is the product of the exercise. The line must show even when no
       // related_file_number link records it: the alias is frequently known only from the
       // KANGIS file_indexings row's related_fileno back-link, which yields KANGIS
@@ -4827,7 +4837,7 @@ const executeSearchAjax = (filters, searchData) => {
         for (const r of rows) {
           const k = extractKangisLifecycleKey(r);
           // A SPACED "KN 6071" is the old Ministry file number, not evidence of a KANGIS
-          // recertification â identifyFileNumberType() reads it as new-KANGIS only because its
+          // recertification — identifyFileNumberType() reads it as new-KANGIS only because its
           // regex tolerates a separator. Synthesizing a "Second KANGIS Recertification" for it
           // would invent a second line for the file whose commissioning row is already here.
           if (k && !recertedKangis.has(k) && !isOldKnFileNo(k)) aliases.add(k);
@@ -4849,7 +4859,7 @@ const executeSearchAjax = (filters, searchData) => {
             party_1: 'Kano Geographic Information Service',
             party_2: getHolderForFile(fno, rows), party_3: '-', party_4: '-',
             serial_no: '', page_no: '', volume_no: '',
-            // A KANGIS recertification's true date is recorded nowhere â print a dash
+            // A KANGIS recertification's true date is recorded nowhere — print a dash
             // rather than borrow the KANGIS C of O's date.
             transaction_date: '-', reg_date: '',
             caveat: 'No', is_caveated: 0, prop_id: '',
@@ -4915,7 +4925,7 @@ const executeSearchAjax = (filters, searchData) => {
     }
 
     // Two phases, matching arrangeLifecycleFileRows() in LegalSearchService. This sorter used
-    // to read a null weight as 0 and rank floating events in one pass with the weighted ones â
+    // to read a null weight as 0 and rank floating events in one pass with the weighted ones —
     // which pinned every floater to the C of O's old rank and sank it beneath the file's
     // dealings, silently undoing the chronological placement sortTimelineChronologically()
     // had already agreed on.
@@ -4935,7 +4945,7 @@ const executeSearchAjax = (filters, searchData) => {
       (recordPriorityWeight(t) === null ? floatingRows : weightedRows).push(t);
     }
 
-    // Phase 1 â weight DESC, then date ASC, then id ASC.
+    // Phase 1 — weight DESC, then date ASC, then id ASC.
     weightedRows.sort((a, b) => {
       const wa = recordPriorityWeight(a);
       const wb = recordPriorityWeight(b);
@@ -4943,7 +4953,7 @@ const executeSearchAjax = (filters, searchData) => {
       return compareByDateThenId(a, b);
     });
 
-    // Phase 2 â inject each floater after the last DATED weighted event on or before it.
+    // Phase 2 — inject each floater after the last DATED weighted event on or before it.
     floatingRows.sort(compareByDateThenId);
 
     const isDatedWeighted = (item) =>
@@ -4969,7 +4979,7 @@ const executeSearchAjax = (filters, searchData) => {
 
     let arrangedTransactions = placeKangisRecertBeforeCofo(ordered);
 
-    // A File Commissioning row is NO LONGER hoisted to the head of its block â it takes the
+    // A File Commissioning row is NO LONGER hoisted to the head of its block — it takes the
     // position its weight earns, so an Occupancy Permit (14) and its Transfer of Title (13)
     // read ABOVE the commissioning line (12). One exception survives:
     //
@@ -4980,7 +4990,7 @@ const executeSearchAjax = (filters, searchData) => {
     // commissioning line is GONE: an RC file's recertification is now named by the
     // commissioning row itself, and the only rows still carrying that label belong to the
     // file's old Ministry "KN 3686" number, which must rank ABOVE the commissioning row
-    // (OLD_KN_COMMISSIONING = 15) â the splice was dragging them back underneath it.
+    // (OLD_KN_COMMISSIONING = 15) — the splice was dragging them back underneath it.
     //
     // Mirrors LegalSearchService::arrangeLifecycleFileRows().
     const isCommissioningEvent = (r) => {
@@ -5050,7 +5060,7 @@ const executeSearchAjax = (filters, searchData) => {
     }
 
     // A KANGIS Recertification (First or Second) closes the file's KANGIS chapter, so it reads
-    // LAST in the transaction band â directly above the File Decommissioning that retires the
+    // LAST in the transaction band — directly above the File Decommissioning that retires the
     // file, since decommissioning rows are appended after this. Its weight (8) would otherwise
     // rank it above the file's own dealings.
     //
@@ -5077,7 +5087,7 @@ const executeSearchAjax = (filters, searchData) => {
     // chapter from its predecessor: parking the pair at the foot of the band prints 2021 events
     // under a 2026 commissioning line. When every dated row of the recert block predates the
     // file's own commissioning row, the block is spliced in directly ABOVE that commissioning
-    // row instead (rows outranking commissioning â an OP, a Transfer of Title, the old KN line â
+    // row instead (rows outranking commissioning — an OP, a Transfer of Title, the old KN line —
     // keep their place above it). Mirrors LegalSearchService::arrangeLifecycleFileRows().
     let recertTs = null;
     for (const r of recertBlock) {
@@ -5150,7 +5160,7 @@ const executeSearchAjax = (filters, searchData) => {
       let fno = extractLifecycleFileNo(r);
       if (fno && kangisToMain[fno]) fno = kangisToMain[fno];
 
-      // A system temporary file ("TEMP-91950") has no lifecycle of its own â it is the
+      // A system temporary file ("TEMP-91950") has no lifecycle of its own — it is the
       // placeholder an Occupancy Permit / deed registration is captured under, and its
       // number is hidden in the UI. Left as its own group it became a separate block
       // ranked after the searched file, so an OP (weight 14) rendered BELOW the searched
@@ -5160,7 +5170,7 @@ const executeSearchAjax = (filters, searchData) => {
         return primaryFileNo;
       }
 
-      // A "(T)" number is not its own lifecycle either â it is the SAME physical file as
+      // A "(T)" number is not its own lifecycle either — it is the SAME physical file as
       // its base number, so its rows join the base file's group (they keep displaying
       // their own "(T)" number; only the grouping key collapses). Same rule as PHP.
       if (fno && isTempFileNo(fno)) {
@@ -5179,7 +5189,7 @@ const executeSearchAjax = (filters, searchData) => {
 
     // Group rows by lifecycle owner. For temp-file searches, merge the temp file's
     // rows into the main file's group so the lifecycle reads:
-    //   main commissioning â temp commissioning â temp transactions â ...
+    //   main commissioning → temp commissioning → temp transactions → ...
     const grouped = {};
     for (const r of tagged) {
       let fno = r.lifecycle_file_no;
@@ -5225,7 +5235,7 @@ const executeSearchAjax = (filters, searchData) => {
     // Rule 11 (mirror of PHP orderLifecycleFiles): when a CHILD is searched, its PARENT (a
     // predecessor, from window._lsLineage) block renders FIRST, then the searched child, then
     // siblings/successors. Rank: predecessor = 0, searched = 1, other = 2. A parent/mother search
-    // has no predecessors, so the searched file stays first. Block order only â the "Last
+    // has no predecessors, so the searched file stays first. Block order only — the "Last
     // Transaction" field stays scoped to the searched file's own group.
     const predecessorSet = new Set(
       [].concat(window._lsLineage?.previous_file_nos || [],
@@ -5281,13 +5291,13 @@ const executeSearchAjax = (filters, searchData) => {
   // ---------------------------------------------------------------------------
   // The foundational grant the applicant's title traces back to. Two roots are
   // recognised:
-  //   â¢ an Occupancy Permit (OP) on the file          â "Occupancy Permit (OP)"
-  //   â¢ File Commissioning by Direct Allocation       â "Allocation List"
+  //   • an Occupancy Permit (OP) on the file          → "Occupancy Permit (OP)"
+  //   • File Commissioning by Direct Allocation       → "Allocation List"
   // mls_file_no.source (surfaced as _file_commissioning_source) is the authority
   // for the commissioning route: a bare "Direct Allocation" means the file came
   // off an Allocation List, while "OP Direct Allocation" / "OP Resettlement" mean
   // the file was opened on an Occupancy Permit. mls_file_no only covers files
-  // commissioned through KLAES, so a legacy file has no route on record at all â
+  // commissioned through KLAES, so a legacy file has no route on record at all —
   // there the root is inferred from the earliest State grant instead.
   const ROOT_OF_TITLE_OP = 'Occupancy Permit (OP)';
   const ROOT_OF_TITLE_ALLOCATION = 'Allocation List';
@@ -5300,12 +5310,12 @@ const executeSearchAjax = (filters, searchData) => {
     return null;
   };
 
-  // Rule 3 â "Other File Commissioning": the earliest real instrument executed before
+  // Rule 3 — "Other File Commissioning": the earliest real instrument executed before
   // the file's final commissioning, as { index, label }, or null when it carries none.
   //
-  // "Real" excludes the synthetic rows the timeline builds for itself â commissioning,
-  // decommissioning, temporary-file and recertification markers â and the parcel-update
-  // rows (subdivision, merger, change of purposeâ¦), which record an administrative
+  // "Real" excludes the synthetic rows the timeline builds for itself — commissioning,
+  // decommissioning, temporary-file and recertification markers — and the parcel-update
+  // rows (subdivision, merger, change of purpose…), which record an administrative
   // reshaping of the parcel rather than a dealing in the title.
   //
   // Timeline order is weight-based, not purely chronological, so "earliest" is decided on
@@ -5358,7 +5368,7 @@ const executeSearchAjax = (filters, searchData) => {
   //
   // Read from the number rather than mls_file_no.source, which answers for only a
   // fraction of them (3,127 rows carry source='Conversion' against 44,510 CON- and
-  // 6,107 SLTR- files) â the rest reach the legacy branch below.
+  // 6,107 SLTR- files) — the rest reach the legacy branch below.
   //
   // Mirrors LegalSearchService::isConversionOrSltrFileNo(). Keep the two in step.
   const isConversionOrSltrFileNo = (fileNo) => /^(CON|SLTR)[-_/ ]/i.test(String(fileNo || '').trim());
@@ -5386,7 +5396,7 @@ const executeSearchAjax = (filters, searchData) => {
   // relaxed into a commissioning default:
   //   1. the earliest real instrument executed BEFORE File Commissioning
   //   2. failing that, the first valid title document (RofO, else CofO)
-  //   3. failing both, NO root â better silent than claiming an allocation that never was
+  //   3. failing both, NO root — better silent than claiming an allocation that never was
   //
   // Candidates are not restricted to this file's own lifecycle: a conversion's earlier
   // dealings sit on the file being converted, which is the whole point of a conversion.
@@ -5400,15 +5410,15 @@ const executeSearchAjax = (filters, searchData) => {
     if (!Array.isArray(rows) || !rows.length) return null;
 
     // The comment describes the APPLICANT's title, so it is anchored to the searched
-    // file's own lifecycle block â an OP sitting on a linked/successor file is that
+    // file's own lifecycle block — an OP sitting on a linked/successor file is that
     // file's root, not this one's.
     // Rows reach here through groupAndSortTimeline(), which has already folded every
-    // alias into its owning file's lifecycle â a KANGIS number onto its land file, a
+    // alias into its owning file's lifecycle — a KANGIS number onto its land file, a
     // "(T)" or SYSTEM temp number onto its base. Read that resolved owner rather than
     // re-deriving one from the row's own columns: extractLifecycleFileNo() answers with
-    // the SEARCHED number whenever a row names it, so on a KANGIS search (KN81 â
+    // the SEARCHED number whenever a row names it, so on a KANGIS search (KN81 →
     // RES-2016-2818) the file's own OP came back as "KN81" while the File Commissioning
-    // row came back as "RES-2016-2818", and the OP was judged to be another file's â
+    // row came back as "RES-2016-2818", and the OP was judged to be another file's —
     // dropping the Root of Title onto commissioning, where the printed report (which
     // groups first, in LegalSearchService) put it on the OP.
     const lifecycleOf = (r) => normalizeLifecycleFileNo(r?.lifecycle_file_no || '') || extractLifecycleFileNo(r);
@@ -5422,7 +5432,7 @@ const executeSearchAjax = (filters, searchData) => {
           || window.__lsLastSearchedFileNumber
           || ''
         );
-    // A KANGIS alias (e.g. "MLKN 337") is not a lifecycle of its own â the whole timeline
+    // A KANGIS alias (e.g. "MLKN 337") is not a lifecycle of its own — the whole timeline
     // renders under the land file it resolves to, so no row carries the searched number
     // and every row would be judged "not this file". Adopt the first row's lifecycle then.
     if (ownFileNo && !rows.some((r) => lifecycleOf(r) === ownFileNo)) {
@@ -5433,7 +5443,7 @@ const executeSearchAjax = (filters, searchData) => {
       const fn = lifecycleOf(r);
       if (!fn) return false;
       // A SYSTEM temp number ("TEMP-91442") is the placeholder an unlinked OP capture
-      // sits on, not a file of its own â such a row only reaches this timeline because
+      // sits on, not a file of its own — such a row only reaches this timeline because
       // it belongs to the searched file's parcel, so it counts as this file's.
       if (isSystemTempFileNo(fn)) return true;
       // A "(T)" temporary number is the same physical file as its permanent twin.
@@ -5442,8 +5452,8 @@ const executeSearchAjax = (filters, searchData) => {
     };
 
     // 1. An Occupancy Permit captured on the file roots the title in that OP.
-    //    A file can carry more than one OP â a merger registers a permit per source
-    //    parcel â and they are jointly the root, so EVERY OP on the file is tagged
+    //    A file can carry more than one OP — a merger registers a permit per source
+    //    parcel — and they are jointly the root, so EVERY OP on the file is tagged
     //    rather than only the earliest. With a single OP this is the old behaviour.
     const opIndices = [];
     for (let i = 0; i < rows.length; i++) {
@@ -5457,12 +5467,12 @@ const executeSearchAjax = (filters, searchData) => {
       return { index: opIndices[0], indices: opIndices, label: ROOT_OF_TITLE_OP };
     }
 
-    // With no OP on the file the root is not an instrument at all â it is how the FILE
+    // With no OP on the file the root is not an instrument at all — it is how the FILE
     // itself was opened, so the remark belongs on the File Commissioning row. Only the
     // LABEL is derived below; the anchor is the commissioning row either way.
     let label = null;
     // Where to put the remark if this file has no File Commissioning row of its own
-    // (a KANGIS alias, or a file suppressed from commissioning) â better on the grant
+    // (a KANGIS alias, or a file suppressed from commissioning) — better on the grant
     // that established the root than nowhere.
     let fallbackIndex = -1;
 
@@ -5477,19 +5487,19 @@ const executeSearchAjax = (filters, searchData) => {
         return { index: commIndex, label: 'Re-grant' };
       }
       if (!label) {
-        // Rule 3 â "Other File Commissioning". The route is neither allocation nor OP
-        // (a Conversion, Re-grant, Subdivisionâ¦), so the title did not start at
+        // Rule 3 — "Other File Commissioning". The route is neither allocation nor OP
+        // (a Conversion, Re-grant, Subdivision…), so the title did not start at
         // commissioning: the root is the earliest real instrument executed BEFORE the
         // final commissioning, marked on that entry itself.
         return conversionRootOfTitle(rows, belongsToOwnFile);
       }
     } else if (isConversionOrSltrFileNo(ownFileNo)) {
       // A Conversion / SLTR file with no recorded route. The legacy default below would
-      // label its File Commissioning "Allocation List" â a root it does not have â so it
+      // label its File Commissioning "Allocation List" — a root it does not have — so it
       // takes the conversion rule instead, and shows nothing when that finds nothing.
       return conversionRootOfTitle(rows, belongsToOwnFile);
     } else {
-      // 3. Nothing recorded at all â the file predates mls_file_no, which holds only files
+      // 3. Nothing recorded at all — the file predates mls_file_no, which holds only files
       // commissioned through KLAES (~4.5% of file_indexings). For those legacy files the
       // root is read off the earliest State grant on the file: a Right of Occupancy (or,
       // failing that, the Certificate of Occupancy) means the land came off an allocation
@@ -5505,7 +5515,7 @@ const executeSearchAjax = (filters, searchData) => {
       }
       fallbackIndex = rofoIndex !== -1 ? rofoIndex : cofoIndex;
       // A file whose timeline holds nothing but its own File Commissioning row still has
-      // a root â the commissioning IS the root. Only give up when there is no grant AND
+      // a root — the commissioning IS the root. Only give up when there is no grant AND
       // no commissioning row to anchor on, otherwise the remark silently disappears for
       // every legacy file with no dealings captured yet.
       if (fallbackIndex === -1 && commIndex === -1) return null;
@@ -5553,7 +5563,7 @@ const executeSearchAjax = (filters, searchData) => {
     timelineTable.innerHTML = '';
 
     // First sort chronologically by weight/date across the whole result set, then
-    // group by lifecycle owner so each file's commissioning â transactions â
+    // group by lifecycle owner so each file's commissioning → transactions →
     // decommissioning is displayed as a continuous block.
     transactions = sortTimelineChronologically(transactions);
     // KANGIS Recertification/CoFO pairing is applied per lifecycle transaction
@@ -5578,7 +5588,7 @@ const executeSearchAjax = (filters, searchData) => {
 
     transactions = groupAndSortTimeline(transactions);
 
-    // Root of Title annotation â resolved once against the final, ordered row set so
+    // Root of Title annotation — resolved once against the final, ordered row set so
     // the comment lands under the row the reader actually sees.
     const rootOfTitle = resolveRootOfTitle(transactions);
     // The annotation can sit on several rows (a file with more than one OP); every other
@@ -5593,8 +5603,8 @@ const executeSearchAjax = (filters, searchData) => {
       timelineTotalCount.textContent = transactions.length;
     }
 
-    // When every timeline row belongs to the searched file itself â i.e. there are
-    // no related/associated file numbers â repeating the same File No on each row is
+    // When every timeline row belongs to the searched file itself — i.e. there are
+    // no related/associated file numbers — repeating the same File No on each row is
     // noise, so the whole File No column is hidden (header + cells). The moment any
     // row carries a different file number (merger/subdivision/alias/recert), the
     // column returns so the associations stay visible.
@@ -5626,7 +5636,7 @@ const executeSearchAjax = (filters, searchData) => {
 
     const timelineHasAnyCaveat = transactions.some(hasCaveatOnRow);
 
-    // Surrender / Release instruments end the encumbrance â placing a new
+    // Surrender / Release instruments end the encumbrance — placing a new
     // caveat on them makes no legal sense, so hide the "Add Caveat" action.
     // Tolerant to common misspellings (e.g. "Surender" with single 'r').
     const isSurrenderOrRelease = (item) => {
@@ -5669,19 +5679,19 @@ const executeSearchAjax = (filters, searchData) => {
       const regTime = formatRegTime(item);
       const size = getMappedValue(item, 'size');
       const comments = toProperCase((item.is_caveated == 1 && item.caveated_comment) ? item.caveated_comment : getMappedValue(item, 'comments'));
-      const commentsShort = comments && comments.length > 50 ? comments.slice(0, 50) + 'â¦' : (comments || '');
-      // Root of Title rides in this row's Comments cell â it IS a comment on the record,
-      // not a record of its own â sitting under any existing comment on the same row.
+      const commentsShort = comments && comments.length > 50 ? comments.slice(0, 50) + '…' : (comments || '');
+      // Root of Title rides in this row's Comments cell — it IS a comment on the record,
+      // not a record of its own — sitting under any existing comment on the same row.
       const isRootOfTitleRow = !!(rootOfTitle && rootOfTitleIndices.has(idx));
       const rootOfTitleHtml = isRootOfTitleRow
         ? `<div class="ls-root-of-title">${rootOfTitleText(rootOfTitle.label)}</div>` : '';
       // The Instrument/Transaction Type cell already names the record, so the marker
-      // there rides inline after the instrument name â "File Commissioning -RoT" â
+      // there rides inline after the instrument name — "File Commissioning -RoT" —
       // with the full remark as its tooltip.
       const rootOfTitleShortHtml = isRootOfTitleRow
         ? ` <span class="ls-root-of-title ls-root-of-title-inline" title="${rootOfTitleText(rootOfTitle.label)}">-RoT</span>` : '';
       const commentsTitle = isRootOfTitleRow
-        ? [comments, rootOfTitleText(rootOfTitle.label)].filter(Boolean).join(' â ') : comments;
+        ? [comments, rootOfTitleText(rootOfTitle.label)].filter(Boolean).join(' — ') : comments;
       // KLAES-commissioned files: the commissioning route (Re-grant, Direct Allocation, ...)
       // sits under "File Commissioning", as the MLS list's Source column shows it.
       const commissioningSourceHtml = (item._is_commissioning && item._commissioning_source_label)
@@ -5699,13 +5709,13 @@ const executeSearchAjax = (filters, searchData) => {
       }
       // Rule B: the Weight column reports the key this row was actually sorted on.
       // Floating events (parcel updates, decommissionings) and lineage rows placed by
-      // splice have no weight, and must not claim one â a number here next to a row that
+      // splice have no weight, and must not claim one — a number here next to a row that
       // was never weight-sorted is what made the timeline look mis-sorted.
       const timelineWeight = recordPriorityWeight(item);
       const isFloating = timelineWeight === null;
-      const weightDisplay = isFloating ? 'â' : timelineWeight;
+      const weightDisplay = isFloating ? '—' : timelineWeight;
       const weightTitle = isFloating
-        ? (item._pinned ? 'Positioned by file lineage' : 'Floating event â placed chronologically')
+        ? (item._pinned ? 'Positioned by file lineage' : 'Floating event — placed chronologically')
         : '';
       const weightColorClass = isFloating ? 'text-gray-400' : 'text-gray-500';
 
@@ -5779,7 +5789,7 @@ const executeSearchAjax = (filters, searchData) => {
     // Bind the click handlers ONLY ONCE per timelineTable element.
     // Previously these were added on every renderTransactionTables() call, so
     // after re-renders (e.g. reopening the caveat modal) stacked listeners
-    // toggled the menu openâcloseâopenâclose on a single click, making the
+    // toggled the menu open→close→open→close on a single click, making the
     // action menu appear unclickable.
     if (!timelineTable.dataset.timelineHandlersBound) {
       timelineTable.dataset.timelineHandlersBound = '1';
@@ -5843,7 +5853,7 @@ const executeSearchAjax = (filters, searchData) => {
         }
       });
 
-      // "Add Comment" button â opens the Record Comment modal for the clicked row.
+      // "Add Comment" button — opens the Record Comment modal for the clicked row.
       timelineTable.addEventListener('click', (e) => {
         const btn = e.target.closest('.add-comment-btn');
         if (!btn) return;
@@ -5866,7 +5876,7 @@ const executeSearchAjax = (filters, searchData) => {
         if (rowLabel) {
           const transType = toProperCase(getMappedValue(rowData, 'transactionType') || '');
           const party1 = toProperCase(rowData.party_1 || rowData.grantor || '');
-          rowLabel.textContent = [transType, party1].filter(Boolean).join(' â ') || 'Selected record';
+          rowLabel.textContent = [transType, party1].filter(Boolean).join(' — ') || 'Selected record';
         }
 
         // Pre-fill with existing comment if any
@@ -5883,7 +5893,7 @@ const executeSearchAjax = (filters, searchData) => {
         setTimeout(() => commentText?.focus(), 50);
       });
 
-      // Add Comment modal â close / save (bound once globally, not per render)
+      // Add Comment modal — close / save (bound once globally, not per render)
       if (!window.__addCommentModalBound) {
         window.__addCommentModalBound = true;
 
@@ -5973,7 +5983,7 @@ const executeSearchAjax = (filters, searchData) => {
         }
       });
 
-      // "Remove Caveat" button â lifts the active caveat for the current file.
+      // "Remove Caveat" button — lifts the active caveat for the current file.
       timelineTable.addEventListener('click', async (e) => {
         const btn = e.target.closest('.remove-caveat-btn');
         if (!btn) return;
@@ -6001,7 +6011,7 @@ const executeSearchAjax = (filters, searchData) => {
           icon: 'warning',
           input: 'textarea',
           inputLabel: 'Remarks (optional)',
-          inputPlaceholder: 'Reason for removing the caveatâ¦',
+          inputPlaceholder: 'Reason for removing the caveat…',
           showCancelButton: true,
           confirmButtonColor: '#16a34a',
           confirmButtonText: 'Yes, remove',
@@ -6110,7 +6120,7 @@ const executeSearchAjax = (filters, searchData) => {
       const size = getMappedValue(item, 'size');
       const uid = getRecordUid(item);
       const comments = toProperCase((item.is_caveated == 1 && item.caveated_comment) ? item.caveated_comment : getMappedValue(item, 'comments'));
-      const commentsShort = comments && comments.length > 50 ? comments.slice(0, 50) + 'â¦' : (comments || '-');
+      const commentsShort = comments && comments.length > 50 ? comments.slice(0, 50) + '…' : (comments || '-');
       const _wd_ex = recordRichnessScore(item);
       
       const row = document.createElement('tr');
@@ -6213,7 +6223,7 @@ const executeSearchAjax = (filters, searchData) => {
 
     let instrumentTypesLoaded = false;
 
-    // ââ helpers ââââââââââââââââââââââââââââââââââââââââââââââ
+    // ── helpers ──────────────────────────────────────────────
     const updateRegNumber = () => {
       if (!regNumEl) return;
       const s = (serialIn?.value || '').trim();
@@ -6239,7 +6249,7 @@ const executeSearchAjax = (filters, searchData) => {
       const day = d.getDate();
       d.setMonth(d.getMonth() + 6);
       if (d.getDate() < day) d.setDate(0);
-      // Release date field is type="date" â always write YYYY-MM-DD
+      // Release date field is type="date" — always write YYYY-MM-DD
       releaseDateIn.value = d.getFullYear() + '-'
         + String(d.getMonth() + 1).padStart(2, '0') + '-'
         + String(d.getDate()).padStart(2, '0');
@@ -6268,11 +6278,11 @@ const executeSearchAjax = (filters, searchData) => {
         'By: ' + (petitioner || '-') + '<br>' +
         'Encumbrance Type: ' + (encumbrance || '-');
     };
-    // âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    // ─────────────────────────────────────────────────────────
 
     /**
      * Open the Place Caveat modal.
-     * @param {Object|null} rowData â optional timeline row data to prefill from
+     * @param {Object|null} rowData — optional timeline row data to prefill from
      */
     const openModal = (rowData) => {
       // Pre-fill file number from currently selected file
@@ -6280,7 +6290,7 @@ const executeSearchAjax = (filters, searchData) => {
         || (selectedFile && (selectedFile.mlsFNo || selectedFile.kangisFileNo || selectedFile.NewKANGISFileno || selectedFile.fileno))
         || '';
       fileNumIn.value = fileNo;
-      fileDisplay.textContent = fileNo || 'â';
+      fileDisplay.textContent = fileNo || '—';
 
       // Pre-fill title holder into grantee (party 2) from the selected file
       const fileTitle = (selectedFile && (selectedFile._file_title || selectedFile.file_title || '')) || '';
@@ -6307,16 +6317,16 @@ const executeSearchAjax = (filters, searchData) => {
 
       // Fetch the next ADD-CAV reference (also submitted as caveat_number).
       if (draftIdEl) {
-        draftIdEl.textContent = 'Loadingâ¦';
+        draftIdEl.textContent = 'Loading…';
         fetch('{{ route("caveat.api.next-draft-id") }}', { headers: { 'Accept': 'application/json' } })
           .then(r => r.json())
           .then(res => {
             const draftId = (res && res.success && res.draft_id) ? String(res.draft_id).trim() : '';
-            draftIdEl.textContent = draftId || 'â';
+            draftIdEl.textContent = draftId || '—';
             if (caveatNumberIn) caveatNumberIn.value = draftId;
           })
           .catch(() => {
-            draftIdEl.textContent = 'â';
+            draftIdEl.textContent = '—';
             if (caveatNumberIn) caveatNumberIn.value = '';
           });
       }
@@ -6327,7 +6337,7 @@ const executeSearchAjax = (filters, searchData) => {
       const locationInput = document.getElementById('ls-caveat-location');
       if (granteeInput && fileTitle) granteeInput.value = fileTitle;
 
-      // ââ Row-level prefill from timeline action menu ââ
+      // ── Row-level prefill from timeline action menu ──
       if (rowData) {
         const dbTable = timelineSourceToDbTable(rowData.source_table || '');
         if (sourceTableIn) sourceTableIn.value = dbTable || '';
@@ -6351,7 +6361,7 @@ const executeSearchAjax = (filters, searchData) => {
         const loc = (typeof getMappedValue === 'function' ? getMappedValue(rowData, 'location') : (rowData.location || ''));
         if (locationInput && loc && loc !== '-') locationInput.value = loc;
 
-        // Transaction type â encumbrance
+        // Transaction type → encumbrance
         const encEl = form.querySelector('[name="encumbrance_type"]');
         if (encEl && rowData.transaction_type && rowData.transaction_type !== '-') {
           // Try to match an option value (case-insensitive)
@@ -6360,7 +6370,7 @@ const executeSearchAjax = (filters, searchData) => {
           if (match) encEl.value = match.value;
         }
 
-        // Transaction date â start_date
+        // Transaction date → start_date
         const txDate = rowData.transaction_date || rowData.cofo_date || rowData.deeds_date || '';
         if (txDate && txDate !== '-') {
           // Normalize to YYYY-MM-DDThh:mm for datetime-local input
@@ -6426,7 +6436,7 @@ const executeSearchAjax = (filters, searchData) => {
     cancelBtn.addEventListener('click', closeModal);
     backdrop.addEventListener('click', closeModal);
 
-    // Serial â Page auto-mirror + reg number + legal comment
+    // Serial → Page auto-mirror + reg number + legal comment
     if (serialIn) {
       serialIn.addEventListener('input', () => {
         if (pageIn) pageIn.value = serialIn.value;
@@ -6437,7 +6447,7 @@ const executeSearchAjax = (filters, searchData) => {
     if (volumeIn) volumeIn.addEventListener('input', updateRegNumber);
 
     const syncExpiredSubmitState = () => {
-      // Always allow saving â expired caveats can be saved without a release date
+      // Always allow saving — expired caveats can be saved without a release date
     };
 
     if (startDateIn) {
@@ -6450,7 +6460,7 @@ const executeSearchAjax = (filters, searchData) => {
     const encumbranceEl = form?.querySelector('[name="encumbrance_type"]');
     if (encumbranceEl) encumbranceEl.addEventListener('change', updateLegalComment);
 
-    // Expired toggle â show/hide expiry date, update button label/colour
+    // Expired toggle — show/hide expiry date, update button label/colour
     isExpiredCb.addEventListener('change', () => {
       const expired = isExpiredCb.checked;
       isExpiredIn.value = expired ? '1' : '0';
@@ -6483,12 +6493,12 @@ const executeSearchAjax = (filters, searchData) => {
       }
 
       submitBtn.disabled = true;
-      submitLabel.textContent = 'Savingâ¦';
+      submitLabel.textContent = 'Saving…';
 
       // Keep caveat_number in sync with the fetched draft ref.
       if (caveatNumberIn && !caveatNumberIn.value) {
         const draftText = String(draftIdEl?.textContent || '').trim();
-        if (draftText && draftText !== 'â' && draftText !== 'Loadingâ¦') {
+        if (draftText && draftText !== '—' && draftText !== 'Loading…') {
           caveatNumberIn.value = draftText;
         }
       }
@@ -6516,7 +6526,7 @@ const executeSearchAjax = (filters, searchData) => {
           Swal.fire({
             icon: 'success',
             title: 'Caveat Recorded',
-            text: 'Caveat No: ' + (json.data?.caveat_number || 'â'),
+            text: 'Caveat No: ' + (json.data?.caveat_number || '—'),
             timer: 3000,
             showConfirmButton: false,
           });
@@ -6551,7 +6561,7 @@ const executeSearchAjax = (filters, searchData) => {
         document.getElementById('comment-ground_rent-amount').value = gr?.amount ?? '';
         document.getElementById('comment-ground_rent-text').value = gr?.comment ?? '';
 
-        // Last Paid override â a manual correction to the file_indexings
+        // Last Paid override — a manual correction to the file_indexings
         // Amount/Date shown in the "Last Paid" card. Only applied while that
         // card is actually the active mode (i.e. the file has a receipted
         // payment on record); the toggle itself always follows file_indexings.
@@ -6587,7 +6597,7 @@ const executeSearchAjax = (filters, searchData) => {
         if (generalInput) {
           generalInput.value = res.data.general?.comment ?? '';
         }
-        // W/R/C and CoFO overrides â only replace the prefilled default text
+        // W/R/C and CoFO overrides — only replace the prefilled default text
         // when this file has a saved override, otherwise keep the editable default.
         if (res.data.wrc?.comment) {
           const wrcInput = document.getElementById('comment-wrc-text');
@@ -6631,7 +6641,7 @@ const executeSearchAjax = (filters, searchData) => {
     const hasCaveat = transactions.some(t => t.is_caveated == 1);
     // Match the instrument family, not one exact label: "MORTGAGE" / "Deed of
     // Mortgage" / "Tripartite Mortgage" and "SURRENDER AND RELEASE" / "Deed of
-    // Surrender and Release" all count. Keying on a fixed "deed of â¦" prefix
+    // Surrender and Release" all count. Keying on a fixed "deed of …" prefix
     // silently missed the release rows, so a discharged mortgage still showed the
     // "Under an Active Mortgage" remark. Mirrors LegalSearchService::buildPrintReport().
     const isMortgageType = (t) => (t || '').includes('mortgage');
@@ -6641,7 +6651,7 @@ const executeSearchAjax = (filters, searchData) => {
     // discharges one mortgage, so the title stays "Under an Active Mortgage" while
     // there are more mortgages than releases on the file. The old presence-only
     // rule (hasMortgage && !hasRelease) wrongly cleared the whole file the moment a
-    // single release existed â even when a second, unrelated mortgage (e.g. from a
+    // single release existed — even when a second, unrelated mortgage (e.g. from a
     // different lender) was never surrendered. Excluded/duplicate rows are already
     // filtered out upstream. Mirrors LegalSearchService::buildPrintReport().
     // Rule (user, 2026-10-19): a Surrender & Release placed AFTER the last mortgage
@@ -6660,7 +6670,7 @@ const executeSearchAjax = (filters, searchData) => {
 
     // A record flagged via Title Status Update (title_status = 1, e.g. an
     // initiated Withdrawal/Cancellation/Revocation) means the title is NOT
-    // free from encumbrances, regardless of caveat/mortgage state â its
+    // free from encumbrances, regardless of caveat/mortgage state — its
     // title_status_remark (surfaced by the backend in normalizeRow()) takes
     // precedence over the default "free from encumbrances" wording.
     const flaggedTxn = transactions.find(t => Number(t.title_status) === 1);
@@ -6692,7 +6702,7 @@ const executeSearchAjax = (filters, searchData) => {
 
     if (window._underInvestigation) {
         const invText = 'This Property is under Investigation.';
-        // Show the dedicated investigation notice panel â keep remark fields clean.
+        // Show the dedicated investigation notice panel — keep remark fields clean.
         const noticeSection = document.getElementById('investigation-notice-section');
         const noticeText    = document.getElementById('investigation-notice-text');
         if (noticeSection) noticeSection.classList.remove('hidden');
@@ -6706,7 +6716,7 @@ const executeSearchAjax = (filters, searchData) => {
     document.getElementById('comment-no_cofo-text').value = noCofoBase;
 
     // No CoFO Remark only applies while the title is still at the Letter of
-    // Grant stage â once a Certificate of Occupancy transaction exists on the
+    // Grant stage — once a Certificate of Occupancy transaction exists on the
     // file, this card no longer applies.
     const noCofoSection = document.getElementById('no-cofo-comment-section');
     if (noCofoSection) noCofoSection.classList.toggle('hidden', hasCofo);
@@ -6717,7 +6727,7 @@ const executeSearchAjax = (filters, searchData) => {
     if (wrcSection) wrcSection.classList.toggle('hidden', !window._isWrcFile);
 
     // Encumbrance Remark section: hidden when the title is clear (no caveat,
-    // no unresolved mortgage, no flagged title status) â nothing to remark on.
+    // no unresolved mortgage, no flagged title status) — nothing to remark on.
     const hasEncumbrance = hasCaveat || mortgageCaveat || !!flaggedTxn;
     const encSection = document.getElementById('encumbrance-comment-section');
     if (encSection) encSection.classList.toggle('hidden', !hasEncumbrance);
@@ -6770,7 +6780,7 @@ const executeSearchAjax = (filters, searchData) => {
     });
   });
 
-  // Ground Rent "Last Paid" â Edit removes `readonly` from the existing
+  // Ground Rent "Last Paid" — Edit removes `readonly` from the existing
   // Amount/Date inputs in place; Save persists the correction as a
   // 'ground_rent_paid' comment override and restores read-only display.
   document.getElementById('edit-ground-rent-btn')?.addEventListener('click', () => {
@@ -7128,7 +7138,7 @@ const executeSearchAjax = (filters, searchData) => {
         await swalAlert('Select at least one record.', 'warning', 'No Selection');
         return;
       }
-      const proceed = await swalConfirm('Drop selected records from their prop_id group?\n\nEach dropped record will be detached and allocated a NEW prop_id â it will no longer share history with this file.', 'Confirm Drop', 'warning');
+      const proceed = await swalConfirm('Drop selected records from their prop_id group?\n\nEach dropped record will be detached and allocated a NEW prop_id — it will no longer share history with this file.', 'Confirm Drop', 'warning');
       if (!proceed) return;
 
       let totalAffected = 0;
@@ -7313,7 +7323,7 @@ const executeSearchAjax = (filters, searchData) => {
           : '<option value="">-- Choose a record --</option>' + candidates.map(r => {
               const t   = sourceToDbTable(r.source_table);
               const lbl = toProperCase(getMappedValue(r, 'transactionType') || r.source_table) +
-                          ' â ' + toProperCase(r.party_1 || '') + (r.party_2 ? ' / ' + toProperCase(r.party_2) : '') +
+                          ' — ' + toProperCase(r.party_1 || '') + (r.party_2 ? ' / ' + toProperCase(r.party_2) : '') +
                           ' (' + r.source_table + ')';
               return `<option value="${r.id}|${t}">${lbl}</option>`;
             }).join('');
@@ -7507,7 +7517,7 @@ const executeSearchAjax = (filters, searchData) => {
           return `
             <button type="button" class="archive-folder-card inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-white ${colorClasses} transition-colors text-left" data-folder-id="${Number(folder.id)}" data-folder-name="${folderName}" data-file-number="${fileNumber}" title="View digital archive for ${fileNumber}">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" /></svg>
-              <span class="flex-1 min-w-0 truncate">View Digital Archive â ${fileNumber}</span>
+              <span class="flex-1 min-w-0 truncate">View Digital Archive — ${fileNumber}</span>
               ${docLabel ? `<span class="flex-shrink-0 text-xs opacity-80">${docLabel}</span>` : ''}
             </button>
           `;
@@ -7871,7 +7881,7 @@ const executeSearchAjax = (filters, searchData) => {
     printReportBtn.addEventListener('click', (ev) => {
       ev.preventDefault();
 
-      // Payment gate: online portal requires â¦1,000 before printing
+      // Payment gate: online portal requires ₦1,000 before printing
       if (window.LEGAL_SEARCH_CONTEXT?.requiresPayment && !window._lsOnlinePaid) {
         if (typeof window.lsOnlineRequestPayment === 'function') {
           window.lsOnlineRequestPayment(() => printReportBtn.click());
@@ -7894,7 +7904,7 @@ const executeSearchAjax = (filters, searchData) => {
         if (propId) q.set('prop_id', propId);
         // Pass the current Timeline ordering (after Arrange / dedupe) so the
         // print template renders rows in exactly the same order shown in the
-        // Timeline table â including any user-applied re-arrangement.
+        // Timeline table — including any user-applied re-arrangement.
         try {
           const tlSrc = (Array.isArray(window._timelineTransactions) && window._timelineTransactions.length)
             ? window._timelineTransactions
@@ -7919,14 +7929,14 @@ const executeSearchAjax = (filters, searchData) => {
         else if (_ov.lga)             q.set('display_district_lga', _ov.lga);
         if (_ov.landUse)              q.set('display_land_use',      _ov.landUse);
         if (_ov.size)                 q.set('display_size',          _ov.size);
-        // Residual Term + Commencement Date â whatever is in the Residual Term
+        // Residual Term + Commencement Date — whatever is in the Residual Term
         // editor (auto-calculated or user-entered) prints on the report.
         const _rt = (document.getElementById('residual-term-input')?.value || '').trim();
         if (_rt) q.set('display_residual_term', _rt);
         const _cdInput = document.getElementById('comment-commencement_date-text');
         const _cd = (_cdInput?.value || '').trim();
         if (_cd) q.set('display_commencement_date', _cd);
-        // Only label the source when this is the untouched auto-filled value â
+        // Only label the source when this is the untouched auto-filled value —
         // once the operator overrides it manually, the source no longer applies.
         if (_cd && _cd === (_cdInput?.dataset.autoValue || '') && _cdInput?.dataset.autoSource) {
           q.set('display_commencement_source', _cdInput.dataset.autoSource);
@@ -8015,7 +8025,7 @@ const executeSearchAjax = (filters, searchData) => {
         else if (_ov2.lga)        q.set('display_district_lga', _ov2.lga);
         if (_ov2.landUse)         q.set('display_land_use',      _ov2.landUse);
         if (_ov2.size)            q.set('display_size',          _ov2.size);
-        // Residual Term + Commencement Date â mirrors the print-report handler above.
+        // Residual Term + Commencement Date — mirrors the print-report handler above.
         const _rt2 = (document.getElementById('residual-term-input')?.value || '').trim();
         if (_rt2) q.set('display_residual_term', _rt2);
         const _cdInput2 = document.getElementById('comment-commencement_date-text');
@@ -8062,10 +8072,10 @@ const executeSearchAjax = (filters, searchData) => {
     }
   });
 
-  // ââ Add Record: New / Existing âââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Add Record: New / Existing ───────────────────────────────────────────────
   // The trigger opens the chooser card. BOTH options then open the same Add
   // Property Record card via the existing [data-role="legal-search-add-record"]
-  // capture handler in file-history.blade.php â they differ only in what the
+  // capture handler in file-history.blade.php — they differ only in what the
   // operator is capturing. That card carries the "Existing Records for this File"
   // table (PRA / File History / Deeds Registration / CofO) and the duplicate flag,
   // so neither path can add a record blind to what the file already holds.

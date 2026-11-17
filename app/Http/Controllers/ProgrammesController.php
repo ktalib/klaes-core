@@ -1407,15 +1407,32 @@ class ProgrammesController extends Controller
         $PageTitle = 'eRegistry';
         $PageDescription = 'Manages the workflow and status of sectional title applications';
 
-        // Fetch Primary Applications data with eRegistry information and EDMS status
-        $primaryApplications = DB::connection('sqlsrv')->table('mother_applications')
-            ->leftJoin('eRegistry', function ($join) {
-                $join->on('mother_applications.id', '=', 'eRegistry.application_id')
-                    ->orOn('mother_applications.fileno', '=', 'eRegistry.Sectional_Title_File_No')
-                    ->orOn('mother_applications.fileno', '=', 'eRegistry.MLSFileNo');
-            })
-            ->leftJoin('file_indexings', 'mother_applications.id', '=', 'file_indexings.main_application_id')
-            ->select(
+        // One row per application, paginated (2026-11-16). The old plain joins repeated each primary
+        // application once per eRegistry row of its units and per file indexing (23 applications showed
+        // as 3,669 rows) and ran two count queries per row. Each application now takes its own latest
+        // eRegistry row, and its scans / typed pages over all its own file indexings, in one query.
+        // file_indexings has no index on main_application_id / subapplication_id, so the linked
+        // indexings are read once and grouped (edms), not looked up per application.
+        $status = "CASE WHEN edms.file_indexing_id IS NULL THEN 'Not Started'"
+            . " WHEN edms.scanning_count > 0 AND edms.page_typing_count > 0 THEN 'Completed' ELSE 'In Progress' END";
+        $edms = fn (string $key, string $where) => "LEFT JOIN (SELECT fi.{$key} AS owner_id, MIN(fi.id) AS file_indexing_id,
+                    SUM(sc.n) AS scanning_count, SUM(pt.n) AS page_typing_count
+                FROM file_indexings fi
+                OUTER APPLY (SELECT COUNT(*) AS n FROM scannings s WHERE s.file_indexing_id = fi.id) sc
+                OUTER APPLY (SELECT COUNT(*) AS n FROM pagetypings p WHERE p.file_indexing_id = fi.id) pt
+                WHERE {$where}
+                GROUP BY fi.{$key}) edms";
+
+        $primaryBase = DB::connection('sqlsrv')->query()
+            ->from(DB::raw("mother_applications
+                OUTER APPLY (SELECT TOP 1 er.Commissioning_Date, er.Decommissioning_Date, er.Expected_Return_Date, er.Current_Office
+                    FROM eRegistry er
+                    WHERE er.sub_application_id IS NULL
+                      AND (er.application_id = mother_applications.id OR er.Sectional_Title_File_No = mother_applications.fileno OR er.MLSFileNo = mother_applications.fileno)
+                    ORDER BY er.ID DESC) reg
+                " . $edms('main_application_id', 'fi.main_application_id IS NOT NULL AND fi.subapplication_id IS NULL') . "
+                    ON edms.owner_id = mother_applications.id"))
+            ->select([
                 'mother_applications.id as application_id',
                 'mother_applications.applicant_type',
                 'mother_applications.applicant_title',
@@ -1433,63 +1450,27 @@ class ProgrammesController extends Controller
                 'mother_applications.property_district',
                 'mother_applications.property_lga',
                 'mother_applications.property_state',
-                'eRegistry.Commissioning_Date',
-                'eRegistry.Decommissioning_Date',
-                'eRegistry.Expected_Return_Date',
-                'eRegistry.Current_Office',
-                'file_indexings.id as file_indexing_id'
-            )
-            ->get();
+                'reg.Commissioning_Date',
+                'reg.Decommissioning_Date',
+                'reg.Expected_Return_Date',
+                'reg.Current_Office',
+                'edms.file_indexing_id',
+                DB::raw('ISNULL(edms.scanning_count, 0) AS scanning_count'),
+                DB::raw('ISNULL(edms.page_typing_count, 0) AS page_typing_count'),
+                DB::raw('ISNULL(edms.scanning_count, 0) AS file_count'),
+                DB::raw("{$status} AS processing_status"),
+            ]);
 
-        // Determine status and file count for each primary application based on EDMS tables
-        foreach ($primaryApplications as $application) {
-            $fileCount = 0;
-            $scanningCount = 0;
-            $pageTypingCount = 0;
-
-            if ($application->file_indexing_id) {
-                // Count files in scannings table
-                $scanningCount = DB::connection('sqlsrv')->table('scannings')
-                    ->where('file_indexing_id', $application->file_indexing_id)
-                    ->count();
-
-                // Count typed pages in pagetypings table
-                $pageTypingCount = DB::connection('sqlsrv')->table('pagetypings')
-                    ->where('file_indexing_id', $application->file_indexing_id)
-                    ->count();
-
-                $fileCount = $scanningCount;
-            }
-
-            // Determine processing status based on EDMS data
-            if ($application->file_indexing_id && $scanningCount > 0 && $pageTypingCount > 0) {
-                // Has file indexing, scanned files, and typed pages = Completed
-                $application->processing_status = 'Completed';
-            } elseif ($application->file_indexing_id && $scanningCount > 0) {
-                // Has file indexing and scanned files but no typing = In Progress
-                $application->processing_status = 'In Progress';
-            } elseif ($application->file_indexing_id) {
-                // Has file indexing but no files = In Progress
-                $application->processing_status = 'In Progress';
-            } else {
-                // No file indexing = Not Started
-                $application->processing_status = 'Not Started';
-            }
-
-            $application->file_count = $fileCount;
-            $application->scanning_count = $scanningCount;
-            $application->page_typing_count = $pageTypingCount;
-        }
-
-        // Fetch Unit Applications data with eRegistry information and EDMS status
-        $unitApplications = DB::connection('sqlsrv')->table('subapplications')
-            ->leftJoin('mother_applications', 'subapplications.main_application_id', '=', 'mother_applications.id')
-            ->leftJoin('eRegistry', function ($join) {
-                $join->on('subapplications.id', '=', 'eRegistry.sub_application_id')
-                    ->orOn('subapplications.fileno', '=', 'eRegistry.Sectional_Title_File_No');
-            })
-            ->leftJoin('file_indexings', 'subapplications.id', '=', 'file_indexings.subapplication_id')
-            ->select(
+        $unitBase = DB::connection('sqlsrv')->query()
+            ->from(DB::raw("subapplications
+                LEFT JOIN mother_applications ON mother_applications.id = subapplications.main_application_id
+                OUTER APPLY (SELECT TOP 1 er.Commissioning_Date, er.Decommissioning_Date, er.Expected_Return_Date, er.Current_Office
+                    FROM eRegistry er
+                    WHERE er.sub_application_id = subapplications.id OR er.Sectional_Title_File_No = subapplications.fileno
+                    ORDER BY CASE WHEN er.sub_application_id = subapplications.id THEN 0 ELSE 1 END, er.ID DESC) reg
+                " . $edms('subapplication_id', 'fi.subapplication_id IS NOT NULL') . "
+                    ON edms.owner_id = subapplications.id"))
+            ->select([
                 'subapplications.id as sub_application_id',
                 'subapplications.fileno',
                 'subapplications.applicant_type',
@@ -1504,55 +1485,36 @@ class ProgrammesController extends Controller
                 'subapplications.block_number',
                 'subapplications.floor_number',
                 'mother_applications.fileno as parent_fileno',
-                'eRegistry.Commissioning_Date',
-                'eRegistry.Decommissioning_Date',
-                'eRegistry.Expected_Return_Date',
-                'eRegistry.Current_Office',
-                'file_indexings.id as file_indexing_id'
-            )
-            ->get();
+                'reg.Commissioning_Date',
+                'reg.Decommissioning_Date',
+                'reg.Expected_Return_Date',
+                'reg.Current_Office',
+                'edms.file_indexing_id',
+                DB::raw('ISNULL(edms.scanning_count, 0) AS scanning_count'),
+                DB::raw('ISNULL(edms.page_typing_count, 0) AS page_typing_count'),
+                DB::raw('ISNULL(edms.scanning_count, 0) AS file_count'),
+                DB::raw("{$status} AS processing_status"),
+            ]);
 
-        // Determine status and file count for each unit application based on EDMS tables
-        foreach ($unitApplications as $application) {
-            $fileCount = 0;
-            $scanningCount = 0;
-            $pageTypingCount = 0;
+        // Summary cards count every record, not just the page shown.
+        $summary = function ($base) {
+            $row = DB::connection('sqlsrv')->query()->fromSub($base, 'x')
+                ->selectRaw("COUNT(*) AS total,"
+                    . " SUM(CASE WHEN processing_status = 'Completed' THEN 1 ELSE 0 END) AS completed,"
+                    . " SUM(CASE WHEN processing_status = 'In Progress' THEN 1 ELSE 0 END) AS in_progress")
+                ->first();
 
-            if ($application->file_indexing_id) {
-                // Count files in scannings table
-                $scanningCount = DB::connection('sqlsrv')->table('scannings')
-                    ->where('file_indexing_id', $application->file_indexing_id)
-                    ->count();
+            return ['total' => (int) ($row->total ?? 0), 'completed' => (int) ($row->completed ?? 0), 'in_progress' => (int) ($row->in_progress ?? 0)];
+        };
+        $primarySummary = $summary(clone $primaryBase);
+        $unitSummary = $summary(clone $unitBase);
 
-                // Count typed pages in pagetypings table
-                $pageTypingCount = DB::connection('sqlsrv')->table('pagetypings')
-                    ->where('file_indexing_id', $application->file_indexing_id)
-                    ->count();
+        $primaryApplications = $primaryBase->orderByDesc('mother_applications.id')
+            ->paginate(15, ['*'], 'primary_page')->withQueryString();
+        $unitApplications = $unitBase->orderByDesc('subapplications.id')
+            ->paginate(15, ['*'], 'unit_page')->withQueryString();
 
-                $fileCount = $scanningCount;
-            }
-
-            // Determine processing status based on EDMS data
-            if ($application->file_indexing_id && $scanningCount > 0 && $pageTypingCount > 0) {
-                // Has file indexing, scanned files, and typed pages = Completed
-                $application->processing_status = 'Completed';
-            } elseif ($application->file_indexing_id && $scanningCount > 0) {
-                // Has file indexing and scanned files but no typing = In Progress
-                $application->processing_status = 'In Progress';
-            } elseif ($application->file_indexing_id) {
-                // Has file indexing but no files = In Progress
-                $application->processing_status = 'In Progress';
-            } else {
-                // No file indexing = Not Started
-                $application->processing_status = 'Not Started';
-            }
-
-            $application->file_count = $fileCount;
-            $application->scanning_count = $scanningCount;
-            $application->page_typing_count = $pageTypingCount;
-        }
-
-        return view('programmes.eRegistry', compact('primaryApplications', 'unitApplications', 'PageTitle', 'PageDescription'));
+        return view('programmes.eRegistry', compact('primaryApplications', 'unitApplications', 'primarySummary', 'unitSummary', 'PageTitle', 'PageDescription'));
     }
 
     // Add other methods from the original controller here as needed

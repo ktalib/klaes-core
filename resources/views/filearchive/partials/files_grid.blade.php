@@ -234,7 +234,7 @@
                                     </div>
                                     <div class="flex items-center space-x-2">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-white/20 text-white whitespace-nowrap">
-                                               {{ (int) (($file->storage_page_count ?? 0) > 0 ? $file->storage_page_count : ($file->pagetypings_count ?? 0)) }} pages
+                                               @if(($file->pagetypings_count ?? 0) < ($file->scannings_count ?? 0)){{ (int) $file->scannings_count }} scans @else{{ (int) (($file->storage_page_count ?? 0) > 0 ? $file->storage_page_count : ($file->pagetypings_count ?? 0)) }} pages @endif
                                         </span>
                                     </div>
                                     <div class="status-tooltip">
@@ -295,9 +295,12 @@
                                     }
                                 @endphp
                                 <span class="text-xs font-medium text-orange-600">{{ $fileSize }}</span>
-                                <span class="badge text-xs bg-emerald-100 text-emerald-700 font-medium">
-                                    Archived
-                                </span>
+                                {{-- ST lists scanned files before they are typed (2026-11-16). --}}
+                                @if(($file->pagetypings_count ?? 0) < ($file->scannings_count ?? 0))
+                                    <span class="badge text-xs bg-amber-100 text-amber-800 font-medium">Not typed yet</span>
+                                @else
+                                    <span class="badge text-xs bg-emerald-100 text-emerald-700 font-medium">Archived</span>
+                                @endif
                             </div>
                         </div>
                         <div class="p-2 pt-0 flex flex-wrap gap-1">

@@ -151,6 +151,8 @@ class SurveyorAccounts
         });
         Log::info('Surveyor portal account approved', ['account' => $account->id, 'surveyor_id' => $account->surveyor_id_no, 'by' => Auth::id()]);
         $this->notify->accountApproved($account);
+        // The login by email too (user, 2026-11-15): Surveyor ID, username and link; their own password stays.
+        app(SurveyCompanyLogins::class)->sendApproved($account);
 
         return $account;
     }
@@ -196,8 +198,8 @@ class SurveyorAccounts
 
         $minutes = SurveyorPortalAccount::RESET_TTL_MINUTES;
         $sent = $this->gateway->sendFirstAccepted((string) $account->phone, [
-            "Your MLPP-SG password reset code is {$code}. It expires in {$minutes} minutes.",
-            "MLPP-SG: use {$code} to reset your password. Valid for {$minutes} minutes.",
+            "Your KN-MLPP-SG password reset code is {$code}. It expires in {$minutes} minutes.",
+            "KN-MLPP-SG: use {$code} to reset your password. Valid for {$minutes} minutes.",
         ], \App\Models\SmsSetting::senderFor(\App\Models\SmsSetting::KEY_PHONE_OTP));
 
         if ($sent === null) {

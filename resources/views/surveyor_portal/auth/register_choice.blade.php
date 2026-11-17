@@ -1,6 +1,6 @@
 @extends('surveyor_portal.layouts.guest')
 
-@section('title', 'Register — MLPP-SG Portal')
+@section('title', 'Register — KN-MLPP-SG Portal')
 @section('width', '520px')
 
 @section('guest-banner')

@@ -352,19 +352,34 @@ class DeedsApplicationController extends Controller
                 ->groupBy('main_application_id')
             : collect();
 
-        return $stMemos->map(function ($memo) use ($buyersByMother, $subsByMother) {
+        // A buyer whose ST number is not linked to it takes the unit file number of the mother's
+        // sub-application for the same unit (user, 2026-11-16: unit file numbers show on the units).
+        $unitKey = fn ($unit) => ltrim(strtoupper(trim((string) $unit)), '0');
+        $subFilesByMother = [];
+        foreach (DB::connection('sqlsrv')->table('subapplications')
+            ->leftJoin('st_file_numbers', 'subapplications.id', '=', 'st_file_numbers.subapplication_id')
+            ->whereIn('subapplications.main_application_id', $motherIds)
+            ->get(['subapplications.main_application_id', 'subapplications.unit_number',
+                   'st_file_numbers.fileno as st_fileno', 'subapplications.fileno as sub_fileno']) as $sub) {
+            $fileno = $sub->st_fileno ?: $sub->sub_fileno;
+            if ($fileno && stripos($fileno, 'ST-') === 0 && $unitKey($sub->unit_number) !== '') {
+                $subFilesByMother[$sub->main_application_id][$unitKey($sub->unit_number)] = $fileno;
+            }
+        }
+
+        return $stMemos->map(function ($memo) use ($buyersByMother, $subsByMother, $subFilesByMother, $unitKey) {
             $party1 = strtoupper($memo->corporate_name ?: trim("{$memo->applicant_title} {$memo->first_name} {$memo->surname}"));
 
             $unitsData = collect($buyersByMother->get($memo->mother_id, []))->map(fn ($buyer) => [
                 'unit_number' => $buyer->unit_no,
                 'party2_name' => strtoupper(trim("{$buyer->buyer_title} {$buyer->buyer_name}")),
-                'unit_fileno' => $buyer->unit_fileno,
+                'unit_fileno' => $buyer->unit_fileno ?: ($subFilesByMother[$memo->mother_id][$unitKey($buyer->unit_no)] ?? null),
             ]);
             if ($unitsData->isEmpty()) {
                 $unitsData = collect($subsByMother->get($memo->mother_id, []))->map(fn ($sub) => [
                     'unit_number' => $sub->unit_number,
                     'party2_name' => strtoupper($sub->corporate_name ?: trim("{$sub->applicant_title} {$sub->first_name} {$sub->surname}")),
-                    'unit_fileno' => $sub->unit_fileno,
+                    'unit_fileno' => $sub->unit_fileno ?: ($subFilesByMother[$memo->mother_id][$unitKey($sub->unit_number)] ?? null),
                 ]);
             }
 

@@ -442,6 +442,8 @@
         // registry is kept on d.original_registry (Log File still opens the land
         // file's own module). Runs once per result; display only, nothing is saved.
         function applyKangisContainer(d) {
+            // The ST Registry wins over a KANGIS link (applyStRegistry runs first).
+            if (d._stApplied) return;
             const ks = Array.isArray(d.kangis_files) ? d.kangis_files : [];
             // A KANGIS file holding land files is worded the same way as a land file
             // inside a KANGIS file. Its own location and shelf stay as they are.
@@ -470,11 +472,46 @@
             }
         }
 
+        // An ST file (primary or unit) lives in the ST Registry, and so does a land file
+        // that has an ST file (d.st_files): unless the file is logged out, the request
+        // is worded as going to the ST Registry, even when a KANGIS file is linked.
+        // A land file takes its ST file's location and shelf; its own registry is kept
+        // on d.original_registry (Log File still opens the land module). Display only.
+        function applyStRegistry(d) {
+            if (d._stApplied) return;
+            const isSt = /^ST[-\/ ]/i.test(String(d.file_number || '').trim());
+            const sts = Array.isArray(d.st_files) ? d.st_files : [];
+            if (!isSt && !sts.length) return;
+            d._stApplied = true;
+            // A logged-out land file keeps its own registry and holder.
+            if (!isSt && d.status === 'IN_TRANSIT') return;
+            // Where the request is re-directed (header badge, Registry (Origin), wording).
+            d.redirect_registry = 'ST Registry';
+            if (!isSt && /kangis/i.test(d.registry || '')) {
+                // A KANGIS file that is an ST land file stays in the KANGIS Registry with its
+                // own location and shelf; only the re-direct goes to the ST Registry.
+            } else if (!isSt) {
+                const s = sts.find(x => x.is_in_transit) || sts[0];
+                d.original_registry = d.registry;
+                d.registry = 'ST Registry';
+                d.current_location = s.is_in_transit ? 'ST Registry' : (s.current_location || 'ST Registry');
+                d.rack_shelf = s.rack_shelf || null;
+            } else if (!d.registry) {
+                d.registry = 'ST Registry';
+            }
+            if (d.status !== 'IN_TRANSIT' && typeof d.next_action === 'string') {
+                d.next_action = d.next_action === 'Send File Search Request to SCB Monitor'
+                    ? 'Send Request to ST Registry'
+                    : d.next_action.replace(/Original Registry/g, 'ST Registry');
+            }
+        }
+
         // The in-transit KANGIS file a land file sits inside, when the request would
         // otherwise go to the SCB / registry. Null when the land file is itself out
         // (its own holder applies), and for the Director Land / DCIV / pick-a-record
         // routes, which keep their own handling.
         function kangisHolder(d) {
+            if (d._stApplied) return null;
             if (!d.can_send_fr || d.status === 'IN_TRANSIT') return null;
             if (directsToLand(d) || isDcivFile(d) || hasCandidates(d)) return null;
             const ks = Array.isArray(d.kangis_files) ? d.kangis_files : [];
@@ -621,7 +658,7 @@
                     // Change button to "Send Blind Request to the Original Registry" instead of
                     // routing through SCB. The backend saves the request without notifying SCB.
                     // A land file inside a KANGIS file names the KANGIS Registry instead.
-                    const regName = d._kangisApplied ? d.registry : 'the Original Registry';
+                    const regName = (d._kangisApplied || d._stApplied) ? (d.redirect_registry || d.registry) : 'the Original Registry';
                     const label = d.is_blind ? `Send Blind Request to ${regName}` : `Send File Search Request to ${regName}`;
                     const frCls = d.is_blind ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700';
                     out.push(`<button type="button" data-fr data-missing-file="1" class="inline-flex items-center gap-2 rounded-lg ${frCls} px-4 py-2 text-sm font-semibold text-white">
@@ -696,7 +733,7 @@
             if (d.file_title) params.set('file_title', d.file_title);
             // Land the user on the page that matches the file's registry (a land file
             // shown under the KANGIS Registry still logs on its own module).
-            const mod = registryToModule(d._kangisApplied ? d.original_registry : d.registry);
+            const mod = registryToModule(d.original_registry !== undefined ? d.original_registry : d.registry);
             if (mod) params.set('url', mod);
             // Backfill ALL the requester/office details captured on the file request
             // into the Create File Tracker form. The details are carried on the FOUND
@@ -1110,6 +1147,7 @@
         function render(d) {
             // Each result starts with its digital copies closed (see offerFsDigital).
             qsDigitalRequested = false;
+            applyStRegistry(d);
             applyKangisContainer(d);
             // A land file is usually kept inside its KANGIS file, so the request is
             // worded as going to the KANGIS Registry (Next Action + Send button). Same
@@ -1131,12 +1169,13 @@
             // A file linked to a KANGIS file is kept in the KANGIS Registry, not the Archive
             // (the "Registry" here is the one applyKangisContainer() set).
             const showsRegistry = (!kh && d.registry
-                && (d.status === 'REFER_TO_ORIGINAL_REGISTRY' || (d.status === 'IN_ARCHIVE' && d._kangisApplied)));
-            const metaLabel = showsRegistry ? d.registry : meta.label;
+                && (d.status === 'REFER_TO_ORIGINAL_REGISTRY' || (d.status === 'IN_ARCHIVE' && d._kangisApplied)
+                    || ((d.status === 'IN_ARCHIVE' || d.status === 'IN_POOL_OFFICE') && d._stApplied)));
+            const metaLabel = showsRegistry ? (d.redirect_registry || d.registry) : meta.label;
             const metaIcon = showsRegistry ? STATUS_META.REFER_TO_ORIGINAL_REGISTRY.icon : meta.icon;
             // When the badge shows a registry name, colour it by registry
             // (KANGIS → orange, SLTR → lime, …) instead of the neutral status grey.
-            const metaCls = showsRegistry ? registryBadgeClass(d.registry) : meta.cls;
+            const metaCls = showsRegistry ? registryBadgeClass(d.redirect_registry || d.registry) : meta.cls;
             // SCB has confirmed the file is physically present (…_FOUND, but not …NOT_FOUND).
             const isFound = /_FOUND$/.test(d.status || '') && !/NOT_FOUND/.test(d.status || '');
             // SCB has reported the file as Not Found (Missing / Pending).
@@ -1262,6 +1301,7 @@
             // who has it. It has its own panel, so it is not repeated as a related chip.
             // Works both ways: a land file shows its KANGIS file, a KANGIS file its land file.
             const linkedFiles = [
+                ...(Array.isArray(d.st_files) ? d.st_files : []).map(k => ({ ...k, _title: 'ST file', _box: 'border-indigo-200 bg-indigo-50', _head: 'text-indigo-700' })),
                 ...(Array.isArray(d.kangis_files) ? d.kangis_files : []).map(k => ({ ...k, _title: 'KANGIS file', _box: 'border-orange-200 bg-orange-50', _head: 'text-orange-700' })),
                 ...(Array.isArray(d.land_files) ? d.land_files : []).map(k => ({ ...k, _title: 'Land file', _box: 'border-blue-200 bg-blue-50', _head: 'text-blue-700' })),
             ];
@@ -1271,6 +1311,8 @@
                 // A land file listed under its KANGIS file is kept there, not in the Archive.
                 const km = (k._title === 'Land file' && k.status === 'IN_ARCHIVE')
                     ? { label: 'KANGIS Registry', cls: registryBadgeClass('KANGIS Registry'), icon: STATUS_META.REFER_TO_ORIGINAL_REGISTRY.icon }
+                    : (k._title === 'ST file' && ['REFER_TO_ORIGINAL_REGISTRY', 'IN_ARCHIVE', 'IN_POOL_OFFICE'].includes(k.status))
+                    ? { label: 'ST Registry', cls: registryBadgeClass('ST Registry'), icon: STATUS_META.REFER_TO_ORIGINAL_REGISTRY.icon }
                     : (STATUS_META[k.status] || { label: k.status, cls: 'bg-gray-100 text-gray-800 border-gray-300', icon: 'file' });
                 const where = k.is_in_transit
                     ? `Out at <strong>${esc(k.current_location || '—')}</strong>${k.receiving_officer_name ? ` — ${esc(k.receiving_officer_name)}` : ''}`
@@ -1320,7 +1362,7 @@
                         <div class="mb-3 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
                             <div class="flex items-center gap-2">
                                 <i data-lucide="info" class="h-4 w-4 text-blue-600 shrink-0"></i>
-                                <span class="text-sm font-semibold text-blue-800">This file was indexed and returned to the ${d._kangisApplied ? esc(d.registry) : 'Original Registry'} before archiving.</span>
+                                <span class="text-sm font-semibold text-blue-800">This file was indexed and returned to the ${(d._kangisApplied || d._stApplied) ? esc(d.registry) : 'Original Registry'} before archiving.</span>
                             </div>
                             ${(d.registry || d.rack_shelf) ? `
                             <div class="mt-1.5 pl-6 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-blue-700">
@@ -2015,7 +2057,7 @@
                 // prefer the registry resolved by the server (file_ranges / indexing),
                 // else detect it from the file number pattern. Stays user-changeable.
                 if (!registrySel.disabled && !registrySel.value) {
-                    const detected = findRegistryOption(registrySel, fileData.registry)
+                    const detected = findRegistryOption(registrySel, fileData.redirect_registry || fileData.registry)
                         || findRegistryOption(registrySel, detectRegistryName(fileData.file_number));
                     if (detected) {
                         registrySel.value = detected.value;
@@ -2209,7 +2251,7 @@
                         <i data-lucide="check" class="h-4 w-4"></i> Requester details updated on ${reqNo}</span>`
                         : isMissing
                         ? `<span class="inline-flex items-center gap-2 rounded-lg bg-green-100 px-4 py-2 text-sm font-semibold text-green-800">
-                        <i data-lucide="check" class="h-4 w-4"></i> Request ${reqNo} saved — file is on the Not With KLAES (NWK) list. Refer to ${d._kangisApplied ? esc(d.registry) : 'Original Registry'}.</span>`
+                        <i data-lucide="check" class="h-4 w-4"></i> Request ${reqNo} saved — file is on the Not With KLAES (NWK) list. Refer to ${(d._kangisApplied || d._stApplied) ? esc(d.redirect_registry || d.registry) : 'Original Registry'}.</span>`
                         : `<span class="inline-flex items-center gap-2 rounded-lg bg-green-100 px-4 py-2 text-sm font-semibold text-green-800">
                         <i data-lucide="check" class="h-4 w-4"></i> File Request ${reqNo} sent to SCB Monitors</span>`;
                     loadLog();
