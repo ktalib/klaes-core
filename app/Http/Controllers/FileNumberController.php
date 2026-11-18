@@ -2848,19 +2848,9 @@ class FileNumberController extends Controller
                 }
 
                 if (!empty($mlsUpdateData)) {
-                    // Matched the way the delete cascade matches: on the file number OR
-                    // the tracking id. A row reachable only by tracking_id was previously
-                    // updated by neither path.
-                    $trackingId = trim((string) ($record->tracking_id ?? ''));
-
                     DB::connection('sqlsrv')
                         ->table('mls_file_no')
-                        ->where(function ($q) use ($record, $trackingId) {
-                            $q->where('full_file_number', $record->mlsfNo);
-                            if ($trackingId !== '') {
-                                $q->orWhere('tracking_id', $trackingId);
-                            }
-                        })
+                        ->where('full_file_number', $record->mlsfNo)
                         ->update($mlsUpdateData);
                 }
 
