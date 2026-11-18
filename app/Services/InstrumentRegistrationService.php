@@ -1037,105 +1037,105 @@ class InstrumentRegistrationService
             return $result;
         }
 
-        Log::info("Propagating party_2 name update for {$fileNo}", [
+        // RECORD ONLY (user, 2026-11-17). A Deed of Assignment / Gift / Power of Attorney
+        // never renames the file: file_indexings.file_title, fileNumber.FileName,
+        // customers/entities staging and mls_file_no keep the name they have. The new
+        // holder is only written to file_indexing_history (old_name = the title on the
+        // file, new_name = the grantee). Until 2026-11-17 this method overwrote all of
+        // those columns; the history rows from before then are real renames.
+        Log::info("Recording party_2 name for {$fileNo} (file title not changed)", [
             'instrument_type' => $instrumentType,
             'new_name' => $party2Name
         ]);
 
         // An instrument may be registered against a temporary "(T)" number while the file's
         // core records are keyed to the base number (file_indexings holds the "(T)" in
-        // temp_file_no, not file_number) — or the reverse. Matching the literal number alone
-        // silently updated ZERO rows for every deed filed under a "(T)", leaving the file
-        // title showing the previous owner. Match all variants of the same physical file.
+        // temp_file_no, not file_number) — or the reverse. Match all variants of the same
+        // physical file.
         $fileNoVariants = $this->fileNumberVariants($fileNo);
 
-        // Every table the file title is mirrored to: name column, the columns that can
-        // hold the file number, and whether the table has an updated_at to stamp.
+        // Where the file's title is read from, in order: name column and the columns that
+        // can hold the file number. The first table with a row is the one recorded against.
         $targets = [
-            'file_indexings'    => ['file_title', ['file_number', 'mls_file_no', 'temp_file_no'], true],
-            'customers_staging' => ['customer_name', ['file_number'], true],
-            'entities_staging'  => ['entity_name', ['file_number'], true],
-            'fileNumber'        => ['FileName', ['mlsfNo', 'kangisFileNo', 'NewKANGISFileNo'], false],
-            'mls_file_no'       => ['file_name', ['full_file_number', 'old_fileno'], true],
+            'file_indexings' => ['file_title', ['file_number', 'mls_file_no', 'temp_file_no']],
+            'fileNumber'     => ['FileName', ['mlsfNo', 'kangisFileNo', 'NewKANGISFileNo']],
+            'mls_file_no'    => ['file_name', ['full_file_number', 'old_fileno']],
         ];
 
+        $result['title_changed'] = false;
+        $result['recorded'] = false;
+
         try {
-            return DB::transaction(function () use ($targets, $fileNoVariants, $fileNo, $instrumentType, $party2Name, $context, &$result) {
-                $conn = DB::connection('sqlsrv');
-                $logChanges = Schema::connection('sqlsrv')->hasTable('file_indexing_history');
-                $matched = 0;
-                $affected = 0;
-                $changes = [];
+            $conn = DB::connection('sqlsrv');
+            $logChanges = Schema::connection('sqlsrv')->hasTable('file_indexing_history');
+            $matched = 0;
+            $records = [];
 
-                foreach ($targets as $table => [$nameColumn, $keyColumns, $hasUpdatedAt]) {
-                    $rows = $conn->table($table)
-                        ->where(function ($q) use ($keyColumns, $fileNoVariants) {
-                            foreach ($keyColumns as $column) {
-                                $q->orWhereIn($column, $fileNoVariants);
-                            }
-                        })
-                        ->get(['id', $nameColumn]);
+            foreach ($targets as $table => [$nameColumn, $keyColumns]) {
+                $rows = $conn->table($table)
+                    ->where(function ($q) use ($keyColumns, $fileNoVariants) {
+                        foreach ($keyColumns as $column) {
+                            $q->orWhereIn($column, $fileNoVariants);
+                        }
+                    })
+                    ->orderBy('id')
+                    ->get(['id', $nameColumn]);
 
-                    $matched += $rows->count();
+                if ($rows->isEmpty()) {
+                    continue;
+                }
 
-                    // file_indexings is the primary source of the old name for feedback
-                    if ($table === 'file_indexings' && $rows->isNotEmpty()) {
-                        $result['old_name'] = $rows->first()->{$nameColumn};
-                    }
+                $matched += $rows->count();
+                $result['old_name'] = $rows->first()->{$nameColumn};
 
-                    // Only rows whose name actually differs are rewritten and logged, so
-                    // a re-registration does not bury the real previous owner in history.
-                    $changed = $rows->filter(fn ($row) => trim((string) $row->{$nameColumn}) !== $party2Name);
-                    if ($changed->isEmpty()) {
+                foreach ($rows as $row) {
+                    if (trim((string) $row->{$nameColumn}) === $party2Name) {
                         continue;
                     }
-
-                    $payload = [$nameColumn => $party2Name];
-                    if ($hasUpdatedAt) {
-                        $payload['updated_at'] = now();
-                    }
-
-                    $affected += $conn->table($table)
-                        ->whereIn('id', $changed->pluck('id')->all())
-                        ->update($payload);
-
-                    foreach ($changed as $row) {
-                        $changes[] = [
-                            'file_number' => $fileNo,
-                            'table_name' => $table,
-                            'record_id' => $row->id,
-                            'old_name' => $row->{$nameColumn},
-                            'new_name' => $party2Name,
-                            'instrument_type' => $instrumentType,
-                            'deed_registration_id' => $context['deed_registration_id'] ?? null,
-                            'instrument_capture_id' => $context['instrument_capture_id'] ?? null,
-                            'source' => $context['source'] ?? null,
-                            'changed_by' => Auth::id(),
-                            'created_at' => now(),
-                        ];
-                    }
-                }
-
-                if ($logChanges && $changes) {
-                    $conn->table('file_indexing_history')->insert($changes);
-                } elseif ($changes) {
-                    Log::warning('file_indexing_history table missing; title history not recorded', [
-                        'changes' => $changes,
-                    ]);
-                }
-
-                // Report the truth: matching nothing is a silent failure, not a sync.
-                $result['rows_matched'] = $matched;
-                $result['rows_updated'] = $affected;
-                $result['synced'] = $matched > 0;
-                if ($matched === 0) {
-                    Log::warning('syncPartyNames matched no core records', [
-                        'file_no_variants' => $fileNoVariants,
+                    $records[] = [
+                        'file_number' => $fileNo,
+                        'table_name' => $table,
+                        'record_id' => $row->id,
+                        'old_name' => $row->{$nameColumn},
                         'new_name' => $party2Name,
-                    ]);
+                        'instrument_type' => $instrumentType,
+                        'deed_registration_id' => $context['deed_registration_id'] ?? null,
+                        'instrument_capture_id' => $context['instrument_capture_id'] ?? null,
+                        'source' => substr(($context['source'] ?? 'registration') . ':recorded', 0, 30),
+                        'changed_by' => Auth::id(),
+                        'created_at' => now(),
+                    ];
                 }
-                return $result;
-            });
+                break;
+            }
+
+            if ($records && $logChanges) {
+                // A re-save of the same deed must not add the same name again.
+                $records = array_values(array_filter($records, fn ($r) => !$conn->table('file_indexing_history')
+                    ->where('table_name', $r['table_name'])
+                    ->where('record_id', $r['record_id'])
+                    ->where('new_name', $r['new_name'])
+                    ->where('source', 'like', '%:recorded')
+                    ->exists()));
+                if ($records) {
+                    $conn->table('file_indexing_history')->insert($records);
+                }
+                $result['recorded'] = true;
+            } elseif ($records) {
+                Log::warning('file_indexing_history table missing; new holder not recorded', [
+                    'records' => $records,
+                ]);
+            }
+
+            $result['rows_matched'] = $matched;
+            $result['rows_updated'] = 0;
+            if ($matched === 0) {
+                Log::warning('syncPartyNames matched no core records', [
+                    'file_no_variants' => $fileNoVariants,
+                    'new_name' => $party2Name,
+                ]);
+            }
+            return $result;
         } catch (\Exception $e) {
             Log::error("Failed to sync party names for {$fileNo}: " . $e->getMessage());
             // We return the result as is if it fails (or rethrow if critical)

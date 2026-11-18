@@ -1012,7 +1012,7 @@ class UserController extends Controller
                 $user->save();
                 $this->notifyAccountUpdate($user);
 
-                return redirect()->route('users.index')->with('success', 'User successfully updated.');
+                return redirect()->to($this->usersListReturnUrl($request))->with('success', 'User successfully updated.');
             } else {
                 $shiftOptions = array_keys(config('attendance.shifts', []));
                 $shiftRule = ['nullable', 'string'];
@@ -1163,8 +1163,39 @@ class UserController extends Controller
 
                 $this->notifyAccountUpdate($user);
 
-                return redirect()->route('users.index')->with('success', 'User successfully updated.');
+                return redirect()->to($this->usersListReturnUrl($request))->with('success', 'User successfully updated.');
             }
+    }
+
+    /**
+     * Where Save on the Edit User card lands: the users list exactly as it was when the card
+     * opened (search, tab, department, sort, page), so the officer does not search for the
+     * same user again (user, 2026-11-17). Only a users-list URL on this site is accepted;
+     * anything else falls back to the plain list.
+     */
+    private function usersListReturnUrl(Request $request): string
+    {
+        $fallback = route('users.index');
+
+        foreach ([(string) $request->input('return_to', ''), (string) $request->headers->get('referer', '')] as $candidate) {
+            if ($candidate === '') {
+                continue;
+            }
+
+            $parts = parse_url($candidate);
+            if ($parts === false) {
+                continue;
+            }
+
+            $sameHost = !isset($parts['host']) || strcasecmp($parts['host'], $request->getHost()) === 0;
+            $path = rtrim($parts['path'] ?? '', '/');
+
+            if ($sameHost && $path === rtrim(parse_url($fallback, PHP_URL_PATH) ?: '/users', '/')) {
+                return $fallback . (isset($parts['query']) && $parts['query'] !== '' ? '?' . $parts['query'] : '');
+            }
+        }
+
+        return $fallback;
     }
 
 

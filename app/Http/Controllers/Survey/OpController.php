@@ -108,6 +108,24 @@ class OpController extends Controller
         ]);
     }
 
+    /** By TP No. cascade (user, 2026-11-18): one layout's OPs, opened in place under its row, 50 at a time. */
+    public function tpOps(Request $r)
+    {
+        $page = $this->filteredExisting($r)->paginate(50);
+
+        return response()->json([
+            'rows'  => collect($page->items())->map(fn ($op) => [
+                'file_no' => $op->file_no, 'serial' => $op->serial, 'kind' => $op->op_kind, 'allottee' => $op->allottee,
+                'plot_no' => $op->plot_no, 'district' => $op->district, 'lga' => $op->lga, 'location' => $op->location,
+                'issued'  => $op->issued ? Carbon::parse($op->issued)->format('d M Y') : null,
+                'source'  => $op->src === 'klaes' ? 'Captured here' : 'Deeds',
+            ])->values(),
+            'from'  => $page->firstItem(),
+            'total' => $page->total(),
+            'more'  => $page->hasMorePages(),
+        ]);
+    }
+
     /** OP types as the Existing tab groups them; Deeds writes them as "OP Resettlement" / "Resettlement" etc. */
     private const OP_KINDS = ['Resettlement', 'Direct Allocation'];
 

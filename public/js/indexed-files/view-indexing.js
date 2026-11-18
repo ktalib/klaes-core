@@ -306,7 +306,7 @@ function openRelatedFilesModal(id) {
                     ${escapeHtml(file.file_number)}
                 </span>
             </td>
-            <td class="px-4 py-3 text-sm text-gray-700 font-semibold">${escapeHtml(file.file_title)}</td>
+            <td class="px-4 py-3 text-sm text-gray-700 font-semibold">${escapeHtml(file.file_title)}${file.link_file_title ? `<div class="text-[10px] font-normal text-gray-400 mt-0.5">Typed on link: ${escapeHtml(file.link_file_title)}</div>` : ''}</td>
             <td class="px-4 py-3 text-sm text-gray-600">${escapeHtml(viewLocationWithoutPlot(file.location, file.plot_number) || '-')}</td>
             <td class="px-4 py-3 text-xs text-gray-500">
                 <div class="flex flex-col gap-1">

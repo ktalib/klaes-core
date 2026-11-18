@@ -275,8 +275,25 @@
                                 </div>
                                 <div>
                                     <label class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">TP Number</label>
-                                    <input type="text" class="opTpNo w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-                                        value="{{ $opRow->tp_no ?? $record['tp_number'] ?? '' }}" placeholder="Enter TP number">
+                                    @php
+                                        // A saved TP that is not on the list (or differs only in case/spacing)
+                                        // opens as "Other" with the value already in the specify box.
+                                        $opTpValue = trim((string) ($opRow->tp_no ?? $record['tp_number'] ?? ''));
+                                        $opTpKey = strtoupper(preg_replace('/\s+/', '', $opTpValue));
+                                        $opTpListed = $opTpValue === '' ? null : collect($tpNumbers ?? [])->first(
+                                            fn ($tp) => strtoupper(preg_replace('/\s+/', '', (string) $tp)) === $opTpKey
+                                        );
+                                        $opTpIsOther = $opTpValue !== '' && $opTpListed === null;
+                                    @endphp
+                                    <select class="opTpNo op-tp-select w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
+                                        <option value="">Select TP No.</option>
+                                        @foreach(($tpNumbers ?? []) as $tp)
+                                            <option value="{{ $tp }}" {{ $opTpListed !== null && $tp === $opTpListed ? 'selected' : '' }}>{{ $tp }}</option>
+                                        @endforeach
+                                        <option value="Other" {{ $opTpIsOther ? 'selected' : '' }}>Other (specify)</option>
+                                    </select>
+                                    <input type="text" class="opTpNoOther mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 {{ $opTpIsOther ? '' : 'hidden' }}"
+                                        value="{{ $opTpIsOther ? $opTpValue : '' }}" placeholder="Specify TP number" {{ $opTpIsOther ? '' : 'disabled' }}>
                                 </div>
                             </div>
                         </div>
@@ -538,8 +555,50 @@
 
     {{-- Scripts --}}
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <style>
+        .op-tp-select + .select2-container .select2-selection--single { height: 38px; border-color: #cbd5e1; border-radius: 0.5rem; }
+        .op-tp-select + .select2-container .select2-selection--single .select2-selection__rendered { line-height: 36px; font-size: 0.875rem; color: #334155; padding-left: 12px; }
+        .op-tp-select + .select2-container .select2-selection--single .select2-selection__arrow { height: 36px; }
+    </style>
 
     <script>
+        // ── TP No. dropdown: searchable, one "Other" that reveals a required specify box ──
+        function _initOpTpNo(card) {
+            var sel = card.querySelector('.opTpNo');
+            var other = card.querySelector('.opTpNoOther');
+            if (!sel || !other) return;
+            function sync() {
+                var isOther = sel.value === 'Other';
+                other.classList.toggle('hidden', !isOther);
+                other.disabled = !isOther;
+                if (!isOther) other.value = '';
+            }
+            if (window.jQuery && jQuery.fn.select2) {
+                jQuery(sel).select2({ width: '100%', placeholder: 'Select TP No.' }).on('change', sync);
+            } else {
+                sel.addEventListener('change', sync);
+            }
+        }
+
+        // The TP No. to save: the listed value, or the typed one under "Other". A typed value
+        // that is already on the list (case/spacing aside) saves as the listed value, so the
+        // list never gains a near-duplicate. Returns false when "Other" is left blank.
+        function _opTpNoValue(card) {
+            var sel = card.querySelector('.opTpNo');
+            if (!sel) return null;
+            if (sel.value !== 'Other') return sel.value || null;
+            var typed = (card.querySelector('.opTpNoOther').value || '').trim().replace(/\s+/g, ' ');
+            if (!typed) return false;
+            var key = typed.replace(/\s+/g, '').toUpperCase();
+            for (var i = 0; i < sel.options.length; i++) {
+                var v = sel.options[i].value;
+                if (v && v !== 'Other' && v.replace(/\s+/g, '').toUpperCase() === key) return v;
+            }
+            return typed;
+        }
+
         // ── Strip leading zeros helper ──
         function _stripLeadingZeros(val) {
             val = val.replace(/[^0-9]/g, '');
@@ -676,6 +735,8 @@
                     if (!customerType) { Swal.fire('Required', 'Customer Type is required.', 'warning'); return; }
 
                     if (!/^(?:[1-9][0-9]*|(?!0{6})0[0-9]{5})$/.test((opSerEl?.value || '').trim())) { Swal.fire('Required', 'Enter a valid OP Serial Number without leading zeros.', 'warning'); return; }
+                    var tpNo = _opTpNoValue(card);
+                    if (tpNo === false) { Swal.fire('Required', 'Specify the TP number, or pick one from the list.', 'warning'); return; }
                     var opTypeEl = card.querySelector('.opTypeRadio:checked');
                     var payload = {
                         pra_id:             parseInt(praId),
@@ -686,7 +747,7 @@
                         instrument_type:    'Occupancy Permit (OP)',
                         file_name:          fileName,
                         plot_number:        plotEl ? (plotEl.value || '').trim() || null : null,
-                        tp_number:          card.querySelector('.opTpNo') ? (card.querySelector('.opTpNo').value || '').trim() || null : null,
+                        tp_number:          tpNo,
                         location:           locEl ? (locEl.value || '').trim() || null : null,
                         lga:                lgaEl ? (lgaEl.value || '').trim() || null : null,
                         district:           getDistrictValue() || null,
@@ -929,6 +990,7 @@
 
             document.querySelectorAll('[data-card-type="op"]').forEach(function(card) {
                 _initOpCard(card);
+                _initOpTpNo(card);
             });
             _initTotCards();
             _initPassportCard();

@@ -80,6 +80,10 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'st-file-numbers'], f
         ->name('st-file-numbers.master-destroy');
 });
 
+// File Status > ST Files (user, 2026-11-18): st_file_numbers, view only, for Survey and Cadastral (?url=).
+Route::get('/st-file-status', [\App\Http\Controllers\StFileStatusController::class, 'index'])
+    ->middleware(['auth', 'XSS'])->name('st-file-status.index');
+
 // Capture Existing File Numbers Routes
 Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'existing-file-numbers'], function () {
     Route::get('/', [FileNumberController::class, 'captureIndex'])->name('existing-file-numbers.index');

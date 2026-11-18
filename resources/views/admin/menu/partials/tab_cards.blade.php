@@ -12,7 +12,7 @@
       'amber' => ['#b45309', '#fffbeb'], 'green' => ['#15803d', '#f0fdf4'], 'violet' => ['#6d28d9', '#f5f3ff'],
       'red' => ['#b91c1c', '#fef2f2'], 'rose' => ['#be123c', '#fff1f2'], 'indigo' => ['#4338ca', '#eef2ff'],
       'blue' => ['#1d4ed8', '#eff6ff'], 'teal' => ['#0f766e', '#f0fdfa'], 'slate' => ['#475569', '#f1f5f9'],
-      'orange' => ['#c2410c', '#fff7ed'], 'pink' => ['#be185d', '#fdf2f8'],
+      'orange' => ['#c2410c', '#fff7ed'], 'pink' => ['#be185d', '#fdf2f8'], 'purple' => ['#7e22ce', '#faf5ff'],
   ];
 
   // The printed / not printed strip of the RofO and Recommendation pages, for one set of URLs.
@@ -59,6 +59,29 @@
       // Cadastral: view only, so no Batches, as on the page.
       'cadastral-rofo' => $tcRofo('land-rofos.index', ['url' => 'cadastral'], false),
 
+      // Cadastral > Verification > File Status (user, 2026-11-17), the same as Survey's; repeats
+      // cadastral_dept/partials/_file_status_tabs: change them together.
+      'cadastral-file-status' => [
+          ['Search', 'search', route('cadastral-dept.file-status'), 'pink'],
+          ['RofO', 'file-check', route('land-rofos.index', ['url' => 'cadastral']), 'rose'],
+          ['CofO', 'award', route('propertycard.cofo', ['url' => 'cadastral']), 'amber'],
+          ['Decommissioned', 'archive', route('file-decommissioning.decommissioned', ['url' => 'cadastral']), 'slate'],
+          ['Duplicates', 'copy', route('file-search-db.index', ['url' => 'cadastral']), 'violet'],
+          ['Title Status', 'badge-check', route('title-status.index') . '?url=cadastral', 'green'],
+          ['DCIV', 'folder-kanban', route('dciv-generation.index', ['url' => 'cadastral']), 'blue'],
+          ['ST Files', 'building-2', route('st-file-status.index', ['url' => 'cadastral']), 'purple'],
+          ['group' => 'Regrant Files', 'items' => [
+              ['Regrant Register', 'list', route('regrant.index', ['tab' => 'register', 'url' => 'cadastral']), 'teal'],
+              ['To be Regranted', 'alarm-clock', route('regrant.index', ['tab' => 'due', 'url' => 'cadastral']), 'teal'],
+          ]],
+          ['group' => 'Encumbrance', 'items' => [
+              ['Caveat', 'shield-alert', route('caveat.index') . '?url=cadastral', 'orange'],
+              ['Mortgage', 'landmark', route('mortgages.index') . '?url=cadastral', 'orange'],
+              ['Surrender & Release', 'key-round', route('surrender-release.index', ['url' => 'cadastral']), 'orange'],
+              ['Lien', 'lock', null, 'slate'],
+          ]],
+      ],
+
       // Survey
       'survey-file-status' => [
           ['Search', 'search', route('survey-module.file-status'), 'pink'],
@@ -68,6 +91,7 @@
           ['Duplicates', 'copy', route('file-search-db.index', ['url' => 'survey']), 'violet'],
           ['Title Status', 'badge-check', route('title-status.index') . '?url=survey', 'green'],
           ['DCIV', 'folder-kanban', route('dciv-generation.index', ['url' => 'survey']), 'blue'],
+          ['ST Files', 'building-2', route('st-file-status.index', ['url' => 'survey']), 'purple'],
           ['group' => 'Regrant Files', 'items' => [
               ['Regrant Register', 'list', route('regrant.index', ['tab' => 'register', 'url' => 'survey']), 'teal'],
               ['To be Regranted', 'alarm-clock', route('regrant.index', ['tab' => 'due', 'url' => 'survey']), 'teal'],

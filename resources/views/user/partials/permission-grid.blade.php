@@ -196,9 +196,19 @@
 
     usort($departmentOptions, fn ($a, $b) => strcasecmp($a['label'], $b['label']));
 
+    // Within a department, modules listed here follow their sidebar order (user, 2026-11-17);
+    // the rest stay alphabetical after them.
+    $sidebarOrder = array_flip([
+        'PP - Title Status Update', 'Shadow File Commissioning', 'Conversion Applications', 'ST One Stop Shop',
+        'SLTR Applications', 'Parcel/Title Management', 'Bills & Payments',
+        'PP Director - Master JSI Approval', 'PP Director - Conversion', 'PP Director - Sectional Titling', 'PP Director - SLTR',
+        'PP - Digital Archive', 'PP Reports',
+    ]);
+    $orderOf = fn ($row) => $sidebarOrder[$row['name']] ?? PHP_INT_MAX;
+
     // Bonus modules first, so they sit above the chosen department's own modules.
-    usort($gridRows, function ($a, $b) {
-        return [!$a['bonus'], $a['dept'], $a['name']] <=> [!$b['bonus'], $b['dept'], $b['name']];
+    usort($gridRows, function ($a, $b) use ($orderOf) {
+        return [!$a['bonus'], $a['dept'], $orderOf($a), $a['name']] <=> [!$b['bonus'], $b['dept'], $orderOf($b), $b['name']];
     });
 @endphp
 

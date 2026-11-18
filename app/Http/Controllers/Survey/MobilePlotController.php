@@ -177,7 +177,7 @@ class MobilePlotController extends Controller
             'tp_other.required'         => 'Specify the TP No.',
             'shown_at.regex'            => 'Give the time as HH:MM.',
             'allottee_present.required' => 'Say whether the allottee was there.',
-            'reason.required'           => 'This OP has been shown before: say why (Change of Ownership or Verification).',
+            'reason.required'           => 'This plot has been shown before: say why (Change of Ownership or Verification).',
         ]);
         [$staffId, $name] = $this->surveyor($data);
         // Who asked for the showing (user, 2026-11-02). Not required of a showing queued on a phone

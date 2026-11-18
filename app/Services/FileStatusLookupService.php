@@ -108,6 +108,16 @@ class FileStatusLookupService
             ->get(['mlsFNo', 'kangisFileNo', 'NewKANGISFileno', 'fileno', 'Grantee'])
             ->each(fn ($r) => $add($this->firstNumber([$r->mlsFNo, $r->kangisFileNo, $r->NewKANGISFileno, $r->fileno]), $r->Grantee, 'OP grantee'));
 
+        // ST applicants (user, 2026-11-18): a unit by its own ST no., a primary by the ST mother no.
+        $this->db()->table('st_file_numbers')
+            ->where(fn ($w) => $w->where('corporate_name', 'like', $like)->orWhere('multiple_owners_names', 'like', $like)
+                ->orWhereRaw("LTRIM(RTRIM(CONCAT(ISNULL(first_name, ''), ' ', ISNULL(middle_name, ''), ' ', ISNULL(surname, '')))) LIKE ?", [$like])
+                ->orWhereRaw("LTRIM(RTRIM(CONCAT(ISNULL(first_name, ''), ' ', ISNULL(surname, '')))) LIKE ?", [$like]))
+            ->orderByDesc('id')->limit(self::NAME_LIMIT)
+            ->get(['np_fileno', 'fileno', 'file_no_type', 'first_name', 'middle_name', 'surname', 'corporate_name'])
+            ->each(fn ($r) => $add(strtoupper((string) $r->file_no_type) === 'PRIMARY' ? $r->np_fileno : $r->fileno,
+                trim((string) $r->corporate_name) !== '' ? $r->corporate_name : trim(implode(' ', array_filter([$r->first_name, $r->middle_name, $r->surname]))), 'ST applicant'));
+
         return array_values($out);
     }
 
@@ -174,6 +184,7 @@ class FileStatusLookupService
         'regrant_due'    => ['Expiry Year', 'Term'],
         'title_status'   => ['Title Type', 'Status', 'Date'],
         'dciv'           => ['DCIV File No.', 'Reason', 'Commissioned'],
+        'st'             => ['ST File No.', 'Type', 'Applicant'],
         'caveat'         => ['Caveat No.', 'Status', 'Placed'],
         'mortgage'       => ['Reg. Particulars', 'Date', 'Parties'],
         'surrender'      => ['Reg. Particulars', 'Date', 'Parties'],
@@ -367,6 +378,39 @@ class FileStatusLookupService
             ]);
         $rows = $rows->concat($linked)->unique(fn ($r) => mb_strtoupper((string) $r['DCIV File No.']))->values()->all();
         $add('dciv', 'DCIV', 'DCIV', $rows, route('dciv-generation.index', ['url' => $ctx, 'fs' => $fileNo]));
+
+        // ST Files (user, 2026-11-18): the ST family of this file, from st_file_numbers (the ST File Numbers page).
+        // A primary row holds the ST mother no. in np_fileno and its land (CON) file in fileno / mls_fileno; a unit
+        // (PuA / SuA) holds its own ST no. in fileno under the mother's np_fileno. A land file, an ST mother or a unit
+        // number finds the whole family: the mother first, then its units.
+        $mothers = $this->db()->table('st_file_numbers')
+            ->where(fn ($w) => $w->whereIn('fileno', $nos)->orWhereIn('np_fileno', $nos)->orWhereIn('mls_fileno', $nos))
+            ->whereNotNull('np_fileno')->distinct()->limit(20)->pluck('np_fileno')->all();
+        $rows = ! $mothers ? [] : $this->db()->table('st_file_numbers')->whereIn('np_fileno', $mothers)
+            ->orderBy('np_fileno')
+            ->orderByRaw("CASE WHEN file_no_type = 'PRIMARY' THEN 0 ELSE 1 END")->orderBy('unit_sequence')->orderBy('id')
+            ->limit(200)
+            ->get(['np_fileno', 'fileno', 'mls_fileno', 'file_no_type', 'status', 'applicant_type', 'applicant_title', 'first_name', 'middle_name', 'surname',
+                'corporate_name', 'multiple_owners_names', 'property_plot_no', 'property_district', 'property_lga', 'date_commissioned'])
+            ->map(function ($r) {
+                $primary = strtoupper((string) $r->file_no_type) === 'PRIMARY';
+                $name = trim((string) $r->corporate_name) !== '' ? $r->corporate_name
+                    : (trim(implode(' ', array_filter([$r->applicant_title, $r->first_name, $r->middle_name, $r->surname]))) ?: self::listText($r->multiple_owners_names));
+
+                return [
+                    'ST File No.' => $primary ? $r->np_fileno : $r->fileno,
+                    'Type' => $primary ? 'Primary (mother)' : (strtoupper((string) $r->file_no_type) === 'SUA' ? 'SuA (unit)' : 'PuA (unit)'),
+                    'Land / Mother File' => $primary ? ($r->mls_fileno ?: $r->fileno) : $r->np_fileno,
+                    'Applicant' => $name,
+                    // Property order: Plot No., District, LGA.
+                    'Plot No.' => $r->property_plot_no,
+                    'District' => $r->property_district,
+                    'LGA' => $r->property_lga,
+                    'Status' => ucfirst(strtolower((string) $r->status)),
+                    'Commissioned' => self::date($r->date_commissioned),
+                ];
+            })->all();
+        $add('st', 'ST Files', 'ST Files', $rows, route('st-file-status.index', ['url' => $ctx, 'fs' => $fileNo]));
 
         // Encumbrance.
         $rows = $this->anyOf($this->db()->table('caveats'), ['file_number', 'file_number_kangis', 'file_number_mlsf', 'file_number_new_kangis'], $nos)

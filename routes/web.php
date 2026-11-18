@@ -1618,6 +1618,8 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'create-file-tracker'
     Route::get('/list/export', [App\Http\Controllers\CreateFileTrackerController::class, 'exportPdf'])->name('create-file-tracker.export-pdf');
     Route::get('/list/export-csv', [App\Http\Controllers\CreateFileTrackerController::class, 'exportCsv'])->name('create-file-tracker.export-csv');
     Route::get('/search', [App\Http\Controllers\CreateFileTrackerController::class, 'search'])->name('create-file-tracker.search');
+    // Block-indexed file: its Block ID and files, for the Log a File checkboxes (user, 2026-11-18).
+    Route::get('/block-group', [App\Http\Controllers\CreateFileTrackerController::class, 'blockGroup'])->name('create-file-tracker.block-group');
 
     // Quick Search & File Location module (standalone page)
     Route::get('/quick-search', [App\Http\Controllers\CreateFileTrackerController::class, 'quickSearch'])->name('create-file-tracker.quick-search');

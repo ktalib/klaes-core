@@ -639,6 +639,23 @@
     @endforeach
 </div>
 
+{{-- Public and Private, each its own tab (user, 2026-11-18); the views below work inside the tab chosen. --}}
+<div class="br-tabs br-type-tabs" role="tablist" aria-label="Beacon type">
+    @foreach ($layoutTypes as $type => $typeLabel)
+        <a href="{{ route('survey-module.workflow.beacon-register.index', \Illuminate\Support\Arr::except(request()->query(), ['layout', 'page', 'edit', 'new', 'group', 'gpage']) + ['layout' => $type]) }}"
+           class="{{ request('layout') === $type ? 'on' : '' }}" role="tab" aria-selected="{{ request('layout') === $type ? 'true' : 'false' }}">
+            <i class="fas {{ $type === 'Government' ? 'fa-landmark' : 'fa-user' }}"></i> {{ $typeLabel }}
+            <span class="br-type-count">{{ number_format($stats['by_type'][$type]['entries'] ?? 0) }}</span>
+        </a>
+    @endforeach
+</div>
+<style>
+    .survey-proto .br-type-tabs { margin-bottom: 6px; }
+    .survey-proto .br-type-tabs a { font-size: 15px; }
+    .survey-proto .br-type-count { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #e2e8f0; color: #334155; margin-left: 4px; }
+    .survey-proto .br-type-tabs a.on .br-type-count { background: var(--primary, #1d4ed8); color: #fff; }
+</style>
+
 <div class="br-tabs" role="tablist">
     <a href="{{ route('survey-module.workflow.beacon-register.index', \Illuminate\Support\Arr::except(request()->query(), ['view', 'page', 'edit', 'new'])) }}"
        class="{{ $view === 'issues' ? 'on' : '' }}" role="tab" aria-selected="{{ $view === 'issues' ? 'true' : 'false' }}">
@@ -661,12 +678,8 @@
     <div class="left" style="flex-wrap:wrap;gap:8px;">
         @php $fs = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;'; @endphp
         <input type="text" name="q" value="{{ request('q') }}" placeholder="Beacon no., company, surveyor, plan, teller…" style="{{ $fs }}width:240px;" />
-        <select name="layout" style="{{ $fs }}">
-            <option value="">All Types</option>
-            @foreach ($layoutTypes as $key => $label)
-                <option value="{{ $key }}" @selected(request('layout') === $key)>{{ $label }}</option>
-            @endforeach
-        </select>
+        {{-- The type is the tab above (user, 2026-11-18). --}}
+        <input type="hidden" name="layout" value="{{ request('layout') }}" />
         <select name="year" style="{{ $fs }}">
             <option value="">All Years</option>
             @foreach ($years as $y)
@@ -692,8 +705,8 @@
             <option value="audited" @selected(request('status') === 'audited')>Audited</option>
         </select>
         <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
-        @if (request()->hasAny(['q', 'layout', 'year', 'quarter', 'month', 'status']))
-            <a class="btn btn-outline btn-sm" href="{{ route('survey-module.workflow.beacon-register.index', $view !== 'issues' ? ['view' => $view] : []) }}">Clear</a>
+        @if (request()->hasAny(['q', 'year', 'quarter', 'month', 'status']))
+            <a class="btn btn-outline btn-sm" href="{{ route('survey-module.workflow.beacon-register.index', ($view !== 'issues' ? ['view' => $view] : []) + ['layout' => request('layout')]) }}">Clear</a>
         @endif
     </div>
 </form>
@@ -739,7 +752,7 @@
             <tbody id="brGroups" data-rows-url="{{ route('survey-module.workflow.beacon-register.group-rows', request()->only(['q', 'layout', 'year', 'quarter', 'month', 'status'])) }}" data-open-all="{{ request()->filled('q') ? '1' : '' }}">
                 @forelse ($letterGroups as $g)
                     {{-- One row per letter group, its first entry in full; a click opens the rest under it, in place. --}}
-                    @include('survey_module.partials.sections._beacon_issue_rows', ['entries' => collect([$g->firstEntry]), 'group' => $g, 'groupNo' => $loop->iteration])
+                    @include('survey_module.partials.sections._beacon_issue_rows', ['entries' => collect(), 'group' => $g, 'groupNo' => $loop->iteration])
                 @empty
                     <tr>
                         <td colspan="23" style="text-align:center;padding:28px;color:var(--gray-500);">

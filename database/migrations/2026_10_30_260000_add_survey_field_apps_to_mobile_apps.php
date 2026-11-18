@@ -14,7 +14,7 @@ return new class extends Migration
         ['slug' => 'field-observations', 'name' => 'Field Observations Mobile App',
          'short_description' => 'Computation & Field Observations: survey readings captured in the field.'],
         ['slug' => 'plot-confirmation', 'name' => 'Plot Confirmation Mobile App',
-         'short_description' => 'Show OP plots to their allottees and ground-check plots against the Beacon Register.'],
+         'short_description' => 'Record Plot Showing for allottees and ground-check plots against the Beacon Register.'],
     ];
 
     public function up(): void

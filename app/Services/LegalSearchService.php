@@ -1621,6 +1621,14 @@ class LegalSearchService
                 $txDate = '-';
             }
 
+            // A plain "Related File" link (no transaction type) is a link between two files, not
+            // a transaction, so it has no date of its own. The date above was borrowed from an
+            // endpoint's or the family's latest transaction (IND-2018-2 read Aug 14, 2020, MLKN
+            // 3010's Deed of Variation; user, 2026-11-17). sort_date still places the row.
+            if ($txType === 'Related File') {
+                $txDate = '-';
+            }
+
             if ($txType === 'Land Recertification (File Commissioning)' && ($txDate === '-' || trim($txDate) === '')) {
                 if (preg_match('/(?:^|[-_\/ ])(19\d{2}|20\d{2})(?:[-_\/ ]|$)/', $relNo, $matches)) {
                     $txDate = $matches[1];
@@ -1640,7 +1648,12 @@ class LegalSearchService
                 // Title/holder of the endpoint shown in the orange cell (see $displayTitle above).
                 // A deprecated_records fallback for any remaining blanks is applied after the loop.
                 'party_1'           => $displayTitle,
-                'party_2'           => $row->party_2 ?: '-',
+                // rfn.party_2 is the file_number side's holder. When the related_fileno side is
+                // shown, take that file's own holder, or the row pairs one file with the other
+                // file's owner (IND-2018-2 read "SACVIN" from COM-RC-1985-19; user, 2026-11-17).
+                'party_2'           => $showParent
+                    ? (trim((string) $row->party_2, " \"") ?: '-')
+                    : (trim((string) ($row->related_current_holder ?: $row->related_file_title ?: ''), " \"") ?: '-'),
                 'party_3'           => '-',
                 'party_4'           => '-',
                 'land_use'          => '-',
@@ -1848,14 +1861,22 @@ class LegalSearchService
         // "<mother> | Subdivision" rows. The reciprocal-collapse pass above can't merge them
         // because each is a distinct unordered pair. Since the displayed columns (file number,
         // type, parties, date) are identical, keep only the first of each visual group.
+        //
+        // A KANGIS recertification is the exception: one KANGIS file linked to several land
+        // files (MLKN 3010 -> IND-2018-1, IND-RC-1982-33, IND-2018-3, IND-2018-2) reads the
+        // same on every row, but each row is a different land file's link, so the land file
+        // is part of the key and each one keeps its line and its own lifecycle block (user,
+        // 2026-11-17). Quote marks stored around a name are ignored when comparing.
         $seenDisplay = [];
         $deduped = [];
         foreach ($out as $r) {
+            $isKangisRecert = stripos((string) ($r['transaction_type'] ?? ''), 'KANGIS Recertification') !== false;
             $key = implode('|', [
                 $normNo($r['fileno'] ?? ''),
                 strtoupper(trim((string) ($r['transaction_type'] ?? ''))),
-                strtoupper(trim((string) ($r['party_1'] ?? ''))),
-                strtoupper(trim((string) ($r['party_2'] ?? ''))),
+                strtoupper(trim((string) ($r['party_1'] ?? ''), " \"")),
+                strtoupper(trim((string) ($r['party_2'] ?? ''), " \"")),
+                $isKangisRecert ? $normNo($r['parent_file_number'] ?? '') : '',
             ]);
             if (isset($seenDisplay[$key])) {
                 continue;
@@ -2490,7 +2511,16 @@ class LegalSearchService
             // (lifecycle_file_no) so it folds INTO the mother block, and flagged
             // (_st_primary_commissioning + _pinned) so the frontend places it by DATE among
             // the transactions instead of hoisting it to the top with the land commissioning.
-            $landFileNo = trim((string) ($primaryRow->mls_fileno ?? '')) ?: trim((string) ($primaryRow->fileno ?? '')) ?: $primaryNo;
+            // mls_fileno can hold the ST number itself (ST-RES-2025-1), so take the first
+            // number that is not an ST number; fileno is the land file there.
+            $landFileNo = $primaryNo;
+            foreach ([$primaryRow->mls_fileno ?? '', $primaryRow->fileno ?? ''] as $candidate) {
+                $candidate = trim((string) $candidate);
+                if ($candidate !== '' && !preg_match('/^ST[-\/ ]/i', $candidate)) {
+                    $landFileNo = $candidate;
+                    break;
+                }
+            }
             if (!isset($existing['ST FILE COMMISSIONING|' . strtoupper($primaryNo)])) {
                 $out[] = $buildRow($primaryNo, 'ST File Commissioning', $primaryRow, [
                     'lifecycle_file_no'         => $landFileNo,
@@ -8663,6 +8693,19 @@ class LegalSearchService
                     if ($main !== '') {
                         $lifecycle = $this->normalizeLifecycleFileNo($main);
                     }
+                }
+            }
+            // One KANGIS file recertified against several land files (MLKN 3010 -> IND-2018-1,
+            // IND-RC-1982-33, IND-2018-3, IND-2018-2): each recertification LINK row belongs to
+            // its own land file, so that file gets its own block and File Commissioning row
+            // instead of every link folding into the KANGIS file's owner, where all but one land
+            // file disappeared (user, 2026-11-17). The KANGIS file's other rows (C of O, deeds)
+            // still roll into the owner above.
+            if (($row['source_table'] ?? '') === 'Related Fileno' && $this->isKangisRecertificationRow($row)) {
+                $ownMain = $this->extractMainEndpoint($row);
+                $ownMain = $ownMain !== '' ? $this->normalizeLifecycleFileNo($ownMain) : '';
+                if ($ownMain !== '' && $ownMain !== $lifecycle && !$this->isKangisFormat($ownMain)) {
+                    $lifecycle = $ownMain;
                 }
             }
             if ($lifecycle !== '' && $this->isSystemTempFileNo($lifecycle) && $normPrimary !== '') {

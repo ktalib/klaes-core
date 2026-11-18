@@ -221,6 +221,12 @@ class CaseController extends Controller
     {
         $data    = $this->validated($r);
         $project = SurveyProject::findOrFail($data['survey_project_id']);
+        if (! $project->isNewInKlaes()) {
+            throw ValidationException::withMessages([
+                'survey_project_id' => "{$project->project_code} is an existing project: it already has its sections and lands. "
+                    . 'Capture its records with Capture Existing Farm Record.',
+            ]);
+        }
 
         $benRows  = $data['beneficiaries'] ?? [];
         $treeRows = $data['trees'] ?? [];
@@ -445,7 +451,9 @@ class CaseController extends Controller
     {
         // Active projects, plus whichever project this case already belongs to
         // even if that project has since been closed.
-        $projects = SurveyProject::where('status', 'Active')
+        // A new farm goes under a new project only (user, 2026-11-18); an existing project's records are captured
+        // through Capture Existing Farm Record.
+        $projects = SurveyProject::where(fn ($q) => $q->where('status', 'Active')->when(! $case->exists, fn ($n) => $n->newInKlaes()))
             ->when($case->survey_project_id, fn ($q) => $q->orWhere('id', $case->survey_project_id))
             ->orderBy('name')
             ->get();

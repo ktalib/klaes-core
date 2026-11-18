@@ -480,6 +480,8 @@
         <label>File Title *</label>
         <input type="text" id="createFileName" placeholder="e.g. Alhaji Ibrahim Dantata" autocomplete="off">
       </div>
+      {{-- Block files ticked on Quick Search (user, 2026-11-18): logged under the Block ID. --}}
+      <div id="createBlockNote" style="display:none;margin-bottom:14px;"></div>
       <div class="grid-2">
         <div class="field-wrap">
           <label>Tracking ID</label>
@@ -1215,6 +1217,79 @@ function renderFileList() {
     </div>`).join('');
 }
 
+// ─── Block files: Quick Search ticks → Log a File (user, 2026-11-18) ───────
+// As on the web Quick Search: the block card's ticked files are logged together
+// under the block's Block ID. Cleared when the File Number changes or on save.
+let createBlock = null;   // { block_id, file_number, members: [keys], files, total, label }
+
+function renderCreateBlock() {
+  const box = document.getElementById('createBlockNote');
+  if (!box) return;
+  if (!createBlock) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const b = createBlock;
+  const list = b.files.map((f, i) => `<div style="padding:4px 0;border-top:1px solid rgba(124,58,237,.15);font-size:12px;"><strong>${i + 1}. ${esc(f.file_number || '—')}</strong>${f.holder ? ` — ${esc(f.holder)}` : ''}${f.plot_number ? ` <span style="opacity:.75;">· Plot ${esc(f.plot_number)}</span>` : ''}</div>`).join('');
+  box.innerHTML = `
+    <div style="background:rgba(124,58,237,.07);border:1px solid rgba(124,58,237,.35);border-radius:12px;padding:10px 12px;">
+      <div style="font-size:12px;font-weight:800;color:#6d28d9;"><i class="fas fa-layer-group" style="margin-right:5px;"></i>${esc(b.label || 'Block')} — Block ID ${esc(b.block_id)}</div>
+      <div style="margin:2px 0 6px;font-size:11px;color:var(--text);opacity:.8;">${b.files.length} of ${b.total} file${b.total === 1 ? '' : 's'} in this block will be logged</div>
+      ${list}
+      <button type="button" onclick="clearCreateBlock()" style="margin-top:6px;background:none;border:0;padding:0;font-size:11px;font-weight:700;color:#6d28d9;text-decoration:underline;cursor:pointer;">Change the ticked files on Quick Search</button>
+    </div>`;
+  box.style.display = '';
+}
+
+function clearCreateBlock() {
+  createBlock = null;
+  renderCreateBlock();
+  setActiveTab('files');
+}
+
+function logBlockFromSearch() {
+  const d = lastFileSearch;
+  const g = d && d.block_group;
+  const card = document.querySelector('[data-mb-block]');
+  if (!g || !g.block_id || !card) { toast('Search the file again to load its block.', 'error'); return; }
+  const boxes = Array.from(card.querySelectorAll('.mb-block-member'));
+  const picked = boxes.filter(b => b.checked).map(b => b.value).filter(Boolean);
+  if (!picked.length) { toast('Tick at least one file in this block to log.', 'error'); return; }
+  createBlock = {
+    block_id: g.block_id,
+    file_number: String(d.file_number || '').trim(),
+    members: picked,
+    files: (g.files || []).filter(f => picked.includes(f.key)),
+    total: boxes.length,
+    label: g.label,
+  };
+  setActiveTab('create');
+  document.getElementById('createFileNumber').value = createBlock.file_number;
+  document.getElementById('createFileName').value = d.file_title || '';
+  document.getElementById('trackingIdField').value = createBlock.block_id;
+  renderCreateBlock();
+}
+
+// Block card: Select all + the "N of M selected" count.
+document.addEventListener('change', (e) => {
+  const card = e.target.closest && e.target.closest('[data-mb-block]');
+  if (!card) return;
+  const boxes = Array.from(card.querySelectorAll('.mb-block-member'));
+  if (e.target.id === 'mbBlockAll') boxes.forEach(b => { b.checked = e.target.checked; });
+  const n = boxes.filter(b => b.checked).length;
+  const all = card.querySelector('#mbBlockAll');
+  if (all) { all.checked = n === boxes.length; all.indeterminate = n > 0 && n < boxes.length; }
+  const c = card.querySelector('[data-mb-block-count]');
+  if (c) c.textContent = n;
+});
+
+// Typing another File Number drops the block (it belonged to the searched file).
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'createFileNumber' || !createBlock) return;
+  if (e.target.value.trim() !== createBlock.file_number) {
+    createBlock = null;
+    renderCreateBlock();
+    document.getElementById('trackingIdField').value = genTrackingId();
+  }
+});
+
 // ─── Create file ──────────────────────────────────────────────────────────
 async function createNewFile() {
   const fileNumber   = document.getElementById('createFileNumber').value.trim();
@@ -1271,11 +1346,18 @@ async function createNewFile() {
         notes: notes,
       }],
     };
+    // Block files ticked on Quick Search: tracked under the Block ID (the server checks both).
+    if (createBlock && fileNumber === createBlock.file_number) {
+      payload.block_id = createBlock.block_id;
+      payload.block_members = createBlock.members;
+      payload.proposed_tracking_id = createBlock.block_id;
+    }
     const res = await api(API_BASE, { method: 'POST', body: JSON.stringify(payload) });
     if (res.success || res.data?.id) {
       toast(`✅ File created! Tracking: ${res.data?.tracking_id||'—'}`);
       // Reset form
       ['createFileNumber','createFileName','createNotes'].forEach(id => { document.getElementById(id).value=''; });
+      createBlock = null; renderCreateBlock();
       document.getElementById('trackingIdField').value = genTrackingId();
       document.getElementById('logIdField').value      = genLogId();
       fillDateTime();
@@ -1498,6 +1580,7 @@ async function searchFile() {
       const d = res.data;
       // Land file inside a KANGIS file: KANGIS Registry + (when that KANGIS file is
       // out) the officer holding it. Mirrors the web Quick Search.
+      applyStRegistry(d);
       const kh = applyKangisContainer(d);
       const meta = (kh && LOC_STATUS_META.IN_TRANSIT)
         || LOC_STATUS_META[d.status] || { label:d.status, color:'#6b7185', icon:'fa-file' };
@@ -1598,7 +1681,7 @@ async function searchFile() {
       const scbFormHidden = directsToLand && hasCandidates;
       if (renderScbForm) {
         const isMissing = d.is_missing_file;
-        const regName = d._kangisApplied ? d.registry : 'the Original Registry';
+        const regName = (d._kangisApplied || d._stApplied) ? (d.redirect_registry || d.registry) : 'the Original Registry';
         const label = isMissing
           ? (d.is_blind ? `Send Blind Request to ${regName}` : `Send File Search Request to ${regName}`)
           : (d.next_action || (d.is_blind ? 'Send Blind Request to SCB Monitor' : 'Send File Search Request to SCB Monitor'));
@@ -1764,6 +1847,8 @@ async function searchFile() {
         // A land file listed under its KANGIS file is kept there, not in the Archive.
         const km = (title === 'Land file' && k.status === 'IN_ARCHIVE')
           ? { label: 'KANGIS Registry', color: '#ea580c', icon: LOC_STATUS_META.REFER_TO_ORIGINAL_REGISTRY.icon }
+          : (title === 'ST file' && ['REFER_TO_ORIGINAL_REGISTRY', 'IN_ARCHIVE', 'IN_POOL_OFFICE'].includes(k.status))
+          ? { label: 'ST Registry', color: '#2563eb', icon: LOC_STATUS_META.REFER_TO_ORIGINAL_REGISTRY.icon }
           : (LOC_STATUS_META[k.status] || { label: k.status, color: '#6b7185', icon: 'fa-file' });
         const where = k.is_in_transit
           ? `Out at <strong>${esc(k.current_location || '—')}</strong>${k.receiving_officer_name ? ` — ${esc(k.receiving_officer_name)}` : ''}`
@@ -1782,10 +1867,67 @@ async function searchFile() {
           <div style="padding:0 12px 10px;"><div id="${idPrefix}${i}"></div></div>
         </details>`;
       }).join('');
-      const kangisPanel = linkedPanel(kangisFiles, 'KANGIS file', '234,88,12', '#ea580c', 'kangisTimeline')
+      // ST: a land file shows its ST file; an ST primary shows the land file it was made from.
+      const stFiles = Array.isArray(d.st_files) ? d.st_files : [];
+      const stLandFiles = Array.isArray(d.st_land_files) ? d.st_land_files : [];
+      // Block-indexed file (Land Block / KANGIS Block): every file in the block, whichever
+      // one was searched (user, 2026-11-17). KANGIS block files are separate jackets, so each
+      // shows where it is now; a Land Block is one physical file holding the plots.
+      const blockPanel = (() => {
+        const g = d.block_group;
+        const files = (g && Array.isArray(g.files)) ? g.files : [];
+        if (!files.length) return '';
+        const isKangis = g.type === 'kangis';
+        const rows = files.map((f, i) => {
+          let where = '';
+          if (isKangis) {
+            if (f.is_self) {
+              where = `<div style="margin-top:3px;font-size:11px;font-weight:700;color:#0f766e;">This file (above)</div>`;
+            } else if (f.status) {
+              const m = LOC_STATUS_META[f.status] || { label: f.status, color: '#6b7185', icon: 'fa-file' };
+              const at = f.is_in_transit
+                ? `Out at ${esc(f.current_location || '—')}${f.receiving_officer_name ? ` — ${esc(f.receiving_officer_name)}` : ''}`
+                : `${esc(f.current_location || f.registry || '—')}${f.rack_shelf && !String(f.current_location || '').includes(f.rack_shelf) ? ` — Shelf/Rack ${esc(f.rack_shelf)}` : ''}`;
+              where = `<div style="margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11px;color:var(--text);opacity:.85;"><span style="white-space:nowrap;font-size:10px;font-weight:700;color:${m.color};background:${m.color}1a;border:1px solid ${m.color}55;padding:2px 7px;border-radius:30px;"><i class="fas ${m.icon}" style="margin-right:3px;"></i>${esc(m.label)}</span>${at}</div>`;
+            }
+          }
+          const plotPlace = [f.plot_number ? `Plot ${esc(f.plot_number)}` : '', esc(f.location || '')].filter(Boolean).join(' · ');
+          // Tick box per file, as on the web Quick Search (user, 2026-11-18): the ticked files go to Log a File.
+          return `
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-top:1px solid rgba(13,148,136,.25);cursor:pointer;${f.is_self ? 'background:rgba(13,148,136,.08);' : ''}">
+            <input type="checkbox" class="mb-block-member" value="${esc(f.key || '')}" checked aria-label="Track ${esc(f.file_number || '')} ${esc(f.holder || '')}" style="margin-top:2px;width:18px;height:18px;flex:none;accent-color:#7c3aed;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:800;color:var(--text);">${i + 1}. ${esc(f.file_number || '—')}${isKangis && f.role ? ` <span style="font-size:10px;font-weight:600;opacity:.7;">${esc(f.role)}</span>` : ''}</div>
+              <div style="margin-top:2px;font-size:12px;font-weight:600;color:var(--text);opacity:.9;">${esc(f.holder || '—')}</div>
+              ${plotPlace ? `<div style="margin-top:2px;font-size:11px;color:var(--text);opacity:.75;">${plotPlace}</div>` : ''}
+              ${where}
+            </div>
+          </label>`;
+        }).join('');
+        return `
+        <div data-mb-block style="margin-bottom:12px;background:rgba(13,148,136,.07);border:1px solid rgba(13,148,136,.40);border-radius:12px;overflow:hidden;">
+          <div style="padding:10px 12px;">
+            <div style="font-size:12px;font-weight:800;color:#0f766e;"><i class="fas fa-layer-group" style="margin-right:5px;"></i>Files in this Block (${files.length})</div>
+            <div style="margin-top:2px;font-size:11px;color:var(--text);opacity:.75;">${esc(g.label)}${isKangis ? ` · Land file ${esc(g.land_file)} · each shows where it is now` : ' · one physical file holding these plots'}</div>
+            ${g.block_id ? `<div style="margin-top:2px;font-size:11px;font-weight:700;color:#7c3aed;">Block ID ${esc(g.block_id)}</div>` : ''}
+            <label style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#0f766e;cursor:pointer;">
+              <input type="checkbox" id="mbBlockAll" checked aria-label="Select all files in this block" style="width:18px;height:18px;accent-color:#7c3aed;"> Select all
+            </label>
+          </div>
+          ${rows}
+          <div style="padding:10px 12px;border-top:1px solid rgba(13,148,136,.25);">
+            <div style="font-size:12px;font-weight:700;color:#7c3aed;"><span data-mb-block-count>${files.length}</span> of ${files.length} selected — the ticked files go to Log a File</div>
+            ${g.block_id ? `<button type="button" class="btn" onclick="logBlockFromSearch()" style="width:100%;margin-top:8px;padding:11px;font-size:13px;box-shadow:none;background:linear-gradient(135deg,#8b5cf6,#7c3aed);"><i class="fas fa-file-circle-plus"></i> Log ticked files</button>` : ''}
+          </div>
+        </div>`;
+      })();
+      const kangisPanel = blockPanel
+        + linkedPanel(stFiles, 'ST file', '79,70,229', '#4f46e5', 'stTimeline')
+        + linkedPanel(stLandFiles, 'Land file of this ST file', '37,99,235', '#2563eb', 'stLandTimeline')
+        + linkedPanel(kangisFiles, 'KANGIS file', '234,88,12', '#ea580c', 'kangisTimeline')
         + linkedPanel(landFiles, 'Land file', '37,99,235', '#2563eb', 'landTimeline');
       // A linked file has its own panel, so it is not repeated as a related chip.
-      const linkedNos = [...kangisFiles, ...landFiles].map(k => String(k.file_number).toUpperCase());
+      const linkedNos = [...stFiles, ...stLandFiles, ...kangisFiles, ...landFiles].map(k => String(k.file_number).toUpperCase());
       const relatedChips = (Array.isArray(d.related_files) ? d.related_files : [])
         .filter(f => !linkedNos.includes(String(f.file_number).toUpperCase()));
 
@@ -1943,7 +2085,7 @@ async function searchFile() {
       // Same when the file sits inside a KANGIS file that is out (kh). A file linked to a
       // KANGIS file reads plain "KANGIS Registry", as on the web Quick Search.
       const badge = (d.origin_registry && !kh && !/^IN_TRANSIT/.test(d.status || '') && d.status !== 'MISSING_FILE')
-        ? { label: (d._kangisApplied ? '' : 'In ') + d.origin_registry, color: REGISTRY_THEME[d.origin_registry] || meta.color, icon: 'fa-folder-open' }
+        ? { label: ((d._kangisApplied || d.redirect_registry) ? '' : 'In ') + d.origin_registry, color: REGISTRY_THEME[d.origin_registry] || meta.color, icon: 'fa-folder-open' }
         : meta;
 
       // Keep the duplicate-registry notice above the file-picker gate. When a
@@ -2020,6 +2162,7 @@ async function searchFile() {
               ${/* The file's own title straight under its number, before any related file (user, 2026-11-11: with a
                    related file it sat under the related-file chip and read as missing). */''}
               <div style="font-size:12px;font-weight:600;color:var(--text);opacity:.82;margin-top:3px;">${esc(d.file_title||'—')}</div>
+              ${(d.block_group && Array.isArray(d.block_group.files) && d.block_group.files.length) ? `<div style="margin-top:5px;"><span style="display:inline-block;font-size:10px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:#fff;background:#7c3aed;padding:2px 7px;border-radius:5px;"><i class="fas fa-layer-group" style="margin-right:4px;"></i>${esc(d.block_group.label)} · ${d.block_group.files.length} file${d.block_group.files.length === 1 ? '' : 's'}</span></div>` : ''}
               ${relatedChips.length ? `
               <div style="margin-top:5px;font-size:11px;line-height:1.55;color:var(--muted);">
                 <span style="font-weight:800;color:var(--primary);">Related file${relatedChips.length === 1 ? '' : 's'}:</span>
@@ -2071,7 +2214,7 @@ async function searchFile() {
             <div style="margin-bottom:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:10px 12px;">
               <div style="display:flex;align-items:center;gap:8px;">
                 <i class="fas fa-circle-info" style="color:#2563eb;"></i>
-                <span style="font-size:13px;font-weight:700;color:#1e40af;">This file was indexed and returned to the ${d._kangisApplied ? esc(d.registry) : 'Original Registry'} before archiving.</span>
+                <span style="font-size:13px;font-weight:700;color:#1e40af;">This file was indexed and returned to the ${(d._kangisApplied || d._stApplied) ? esc(d.registry) : 'Original Registry'} before archiving.</span>
               </div>
               ${(d.registry || d.rack_shelf) ? `
               <div style="margin-top:6px;padding-left:22px;display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:#1e40af;">
@@ -2938,7 +3081,7 @@ async function sendFrFromSearch(btn) {
         ? `Request ${res.data?.request_no || ''} saved — file is on the Not With KLAES (NWK) list`
         : `${d.is_blind ? 'Blind ' : ''}Request ${res.data?.request_no || ''} sent to SCB`;
       toast(msg);
-      btn.outerHTML = `<div style="margin-top:12px;text-align:center;font-size:12px;font-weight:700;color:#10b981;"><i class="fas fa-check-circle"></i> Request ${esc(res.data?.request_no || '')} ${isMissing ? `saved (Refer to ${d._kangisApplied ? esc(d.registry) : 'Original Registry'})` : 'sent to SCB Monitor'}</div>`;
+      btn.outerHTML = `<div style="margin-top:12px;text-align:center;font-size:12px;font-weight:700;color:#10b981;"><i class="fas fa-check-circle"></i> Request ${esc(res.data?.request_no || '')} ${isMissing ? `saved (Refer to ${(d._kangisApplied || d._stApplied) ? esc(d.redirect_registry || d.registry) : 'Original Registry'})` : 'sent to SCB Monitor'}</div>`;
       if (IS_OFS && document.getElementById('myReqContainer')) loadMyRequests();
     } else if (res.duplicate) {
       toast(res.message || 'This file already has an open request to SCB', 'error');
@@ -2965,6 +3108,8 @@ async function sendFrFromSearch(btn) {
 function applyKangisContainer(d) {
   const ks = Array.isArray(d.kangis_files) ? d.kangis_files : [];
   d._kangisHolder = null;
+  // The ST Registry wins over a KANGIS link (applyStRegistry runs first).
+  if (d._stApplied) return null;
   // A KANGIS file holding land files is worded the same way as a land file inside a
   // KANGIS file. Its own location and shelf stay as they are.
   if (!ks.length && !d._kangisApplied && Array.isArray(d.land_files) && d.land_files.length) {
@@ -2997,6 +3142,42 @@ function applyKangisContainer(d) {
   if (blocked) return null;
   d._kangisHolder = ks.find(k => k.is_in_transit && (k.receiving_officer_name || k.current_location)) || null;
   return d._kangisHolder;
+}
+
+// An ST file (primary or unit) lives in the ST Registry, and so does a land file that
+// has an ST file (d.st_files): unless the file is logged out, the request is worded as
+// going to the ST Registry, even when a KANGIS file is linked. A land file takes its ST
+// file's location and shelf; a KANGIS land file keeps its own and only the re-direct
+// goes to ST. Mirrors applyStRegistry() on the web Quick Search; display only.
+function applyStRegistry(d) {
+  if (d._stApplied) return;
+  const isSt = /^ST[-\/ ]/i.test(String(d.file_number || '').trim());
+  const sts = Array.isArray(d.st_files) ? d.st_files : [];
+  if (!isSt && !sts.length) return;
+  d._stApplied = true;
+  // A logged-out land file keeps its own registry and holder.
+  if (!isSt && d.status === 'IN_TRANSIT') return;
+  // Where the request is re-directed (status pill, Registry (Origin), wording).
+  d.redirect_registry = 'ST Registry';
+  if (!isSt && /kangis/i.test(d.registry || '')) {
+    // KANGIS file that is an ST land file: stays in the KANGIS Registry.
+  } else if (!isSt) {
+    const s = sts.find(x => x.is_in_transit) || sts[0];
+    d.original_registry = d.registry;
+    d.registry = 'ST Registry';
+    d.current_location = s.is_in_transit ? 'ST Registry' : (s.current_location || 'ST Registry');
+    d.rack_shelf = s.rack_shelf || null;
+  } else if (!d.registry) {
+    d.registry = 'ST Registry';
+  }
+  if (d.status !== 'IN_TRANSIT') {
+    d.origin_registry = 'ST Registry';
+    if (typeof d.next_action === 'string') {
+      d.next_action = d.next_action === 'Send File Search Request to SCB Monitor'
+        ? 'Send Request to ST Registry'
+        : d.next_action.replace(/Original Registry/g, 'ST Registry');
+    }
+  }
 }
 
 async function redirectFromSearch(btn) {

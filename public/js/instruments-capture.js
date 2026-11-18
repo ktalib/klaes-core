@@ -28,7 +28,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Serial-only OP lookup (fetch candidates, let the user pick one) is restricted
     // to the MLS File Number Generator page. Everywhere else keeps the 5-field
     // disambiguation flow — see the comment in lookupOpSerialNumberAndAutofill().
-    const isMlsFileNumberGeneratorPage = window.location.pathname.toLowerCase().replace(/\/+$/, '') === '/file-numbers';
+    // Survey's OP pages opt in to the same serial pick-list with window.opSerialPickLookup (user, 2026-11-18).
+    const isMlsFileNumberGeneratorPage = window.location.pathname.toLowerCase().replace(/\/+$/, '') === '/file-numbers'
+        || window.opSerialPickLookup === true;
 
     // Wire up `#close-property-form` and cancel button for the property modal dialog on the instruments capture page
     const propDialogCloseBtn = document.getElementById('close-property-form');
@@ -9723,17 +9725,17 @@ document.addEventListener('DOMContentLoaded', function () {
                                             <div class="bg-blue-500 text-white p-1 rounded-lg">
                                                 <i data-lucide="refresh-cw" class="h-3 w-3"></i>
                                             </div>
-                                            <span class="text-[10px] font-black text-blue-700 uppercase tracking-tight">System Records Synchronized</span>
+                                            <span class="text-[10px] font-black text-blue-700 uppercase tracking-tight">New Holder Recorded</span>
                                         </div>
 
-                                        ${data.sync_result && data.sync_result.synced ? `
+                                        ${data.sync_result && data.sync_result.recorded ? `
                                         <div class="mb-4 space-y-2">
                                             <div class="flex justify-between items-center bg-white/60 p-2 rounded-xl border border-blue-100/50 shadow-sm">
-                                                <span class="text-[7px] text-blue-400 font-black uppercase tracking-wider">Old File Name</span>
+                                                <span class="text-[7px] text-blue-400 font-black uppercase tracking-wider">File Title (unchanged)</span>
                                                 <span class="text-[9px] text-slate-500 font-bold truncate max-w-[150px] ml-2 text-right">${data.sync_result.old_name || 'N/A'}</span>
                                             </div>
                                             <div class="flex justify-between items-center bg-emerald-50/60 p-2 rounded-xl border border-emerald-200/50 shadow-sm">
-                                                <span class="text-[7px] text-emerald-600 font-black uppercase tracking-wider">New File Name</span>
+                                                <span class="text-[7px] text-emerald-600 font-black uppercase tracking-wider">New Holder</span>
                                                 <span class="text-[9px] text-emerald-900 font-black truncate max-w-[150px] ml-2 text-right">${data.sync_result.new_name || 'N/A'}</span>
                                             </div>
                                         </div>
@@ -9741,10 +9743,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                     </div>
 
                                     <ul class="text-[9px] text-blue-600 space-y-1 font-bold pt-3 border-t border-blue-100/50 mt-auto">
-                                        <li>. File Indexing: Updated File Title</li>
-                                        <li>. Customer: Updated Customer Name</li>
-                                        <li>. Entity: Updated Entity Name</li>
-                                        <li>. FileNumber: Updated File Name</li>
+                                        <li>. File Title: kept as it is</li>
+                                        <li>. New holder saved in the title history</li>
                                     </ul>
                                 </div>
                                 ` : ''}
@@ -9835,6 +9835,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             window.location.href = window.ossOpCaptureReturnUrl;
                             return;
                         }
+                        // Survey Record Plot Showing carries the captured OP into the showing (user, 2026-11-18).
+                        window.dispatchEvent(new CustomEvent('instrument-captured', {
+                            detail: { type: currentInstrumentType, opSerial: (elements.opSerialNumberInput?.value || '').trim(), data }
+                        }));
                     }
                 });
             } else {

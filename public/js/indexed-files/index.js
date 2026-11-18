@@ -489,6 +489,11 @@ function ensureBlockStyles() {
     .blk-table thead, .blk-table thead tr, .blk-table th { position:static !important; height:auto !important; top:auto !important; }
     .blk-table th { text-align:left; padding:6px 12px; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; white-space:nowrap; }
     .blk-table td { padding:6px 12px; border-top:1px solid #f1f5f9; color:#334155; white-space:nowrap; }
+    tr.block-index-row { background-color:#ede9fe !important; }
+    tr.block-index-row:hover { background-color:#ddd6fe !important; }
+    tr.block-index-row > td:first-child { box-shadow: inset 4px 0 0 0 #7c3aed !important; }
+    .blk-tag { display:inline-flex; align-items:center; gap:3px; margin-top:4px; padding:1px 6px; border-radius:4px; font-size:9.5px; font-weight:800;
+      letter-spacing:.03em; text-transform:uppercase; background:#7c3aed; color:#fff; white-space:nowrap; }
     @media (prefers-reduced-motion: reduce) { .blk-toggle .blk-chevron { transition:none; } }`;
   document.head.insertAdjacentHTML('beforeend', `<style id="blk-styles">${css}</style>`);
 }
@@ -503,12 +508,22 @@ function attachBlockButtons(rows) {
     const tr = dom.tableBody.querySelector(`tr[data-row-id="${CSS.escape(String(row.id))}"]`);
     const td = tr && tr.children[col];
     if (!td) return;
+    // KANGIS Block (user, 2026-11-17): a land file holding several KANGIS files, and each
+    // of those KANGIS files, list the land file + every KANGIS file.
+    const isKangis = row.block_type === 'kangis';
+    // The whole row is tinted violet with a small tag, so a block row stands out in the
+    // list (user, 2026-11-17). The colour key lists it beside the gender colours.
+    tr.classList.add('block-index-row');
+    td.insertAdjacentHTML('beforeend', `<div class="rsv-label"><span class="blk-tag" title="${isKangis ? 'KANGIS Block Indexing: several KANGIS files on one land file' : 'Land Block Indexing: several plots and holders in one file'}"><i data-lucide="layers" class="w-2.5 h-2.5"></i>${isKangis ? 'KANGIS Block Indexing' : 'Land Block Indexing'}</span></div>`);
     td.insertAdjacentHTML('beforeend', `<div class="rsv-label"><button type="button" class="blk-toggle" aria-expanded="false"
-        data-id="${escapeHtml(row.id)}" title="Show the files in this block">
+        data-id="${escapeHtml(row.id)}" title="${isKangis ? 'Show the KANGIS files of this land file' : 'Show the files in this block'}">
         <i data-lucide="chevron-right" class="blk-chevron w-3.5 h-3.5"></i><i data-lucide="layers" class="w-3 h-3"></i>
-        <span>Block &middot; ${files.length} file${files.length === 1 ? '' : 's'}</span>
+        <span>${isKangis ? 'KANGIS Block' : 'Block'} &middot; ${files.length} file${files.length === 1 ? '' : 's'}</span>
       </button></div>`);
-    td.querySelector('.blk-toggle')._blockFiles = files;
+    const btn = td.querySelector('.blk-toggle');
+    btn._blockFiles = files;
+    btn._blockType = row.block_type || 'land';
+    btn._blockLand = row.block_land_file || '';
   });
 }
 
@@ -524,13 +539,14 @@ function toggleBlockFiles(btn) {
   const dash = '<span class="text-gray-400">-</span>';
   const cell = v => (v === null || v === undefined || String(v).trim() === '') ? dash : escapeHtml(v);
   // Property order: Plot No., District, LGA, Location.
-  const body = files.map((f, i) => `<tr>
-      <td>${i + 1}</td><td class="font-semibold">${cell(f.file_number)}</td><td>${cell(f.holder)}</td>
+  const isKangis = btn._blockType === 'kangis';
+  const body = files.map((f, i) => `<tr${isKangis && f.role === 'Land file' ? ' style="background:#eef2ff;"' : ''}>
+      <td>${i + 1}</td><td class="font-semibold">${cell(f.file_number)}${isKangis && f.role ? `<div class="text-[10px] font-normal text-gray-500">${escapeHtml(f.role)}</div>` : ''}</td><td>${cell(f.holder)}</td>
       <td>${cell(f.plot_number)}</td><td>${cell(f.district)}</td><td>${cell(f.lga)}</td><td>${cell(f.location)}</td>
     </tr>`).join('');
   tr.insertAdjacentHTML('afterend', `<tr class="blk-row" data-blk-of="${escapeHtml(id)}"><td colspan="${tr.children.length}">
       <div class="blk-panel" data-column-picker="off">
-        <p class="blk-title"><i data-lucide="layers" class="w-3.5 h-3.5"></i> Files in this block (${files.length})</p>
+        <p class="blk-title"><i data-lucide="layers" class="w-3.5 h-3.5"></i> Files in this block (${files.length})${isKangis ? ` &mdash; KANGIS Block, land file ${escapeHtml(btn._blockLand)}` : ''}</p>
         <table class="blk-table"><thead><tr><th>S/N</th><th>File No.</th><th>Holder</th><th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th></tr></thead>
         <tbody>${body}</tbody></table>
       </div></td></tr>`);
@@ -1580,7 +1596,7 @@ function openRelatedFilesModal(id, options) {
                     <i data-lucide="download" class="w-3 h-3 opacity-60"></i>
                 </button>
             </td>
-            <td class="px-4 py-3 text-sm text-gray-700 font-semibold js-cell-title">${escapeHtml(file.file_title || '-')}</td>
+            <td class="px-4 py-3 text-sm text-gray-700 font-semibold"><span class="js-cell-title">${escapeHtml(file.file_title || '-')}</span>${file.link_file_title ? `<div class="text-[10px] font-normal text-gray-400 mt-0.5" title="Name typed on this link; the title above is from the file's own indexing">Typed on link: ${escapeHtml(file.link_file_title)}</div>` : ''}</td>
             <td class="px-4 py-3 text-sm text-gray-600 js-cell-location">${escapeHtml(locationWithoutPlot(file.location, file.plot_number) || '-')}</td>
             <td class="px-4 py-3 text-xs text-gray-500">
                 <div class="flex flex-col gap-1">
@@ -1598,7 +1614,7 @@ function openRelatedFilesModal(id, options) {
                     data-id="${file.id}"
                     data-parent-id="${id}"
                     data-file-number="${escapeHtml(file.file_number)}"
-                    data-file-title="${escapeHtml(file.file_title || '')}"
+                    data-file-title="${escapeHtml(file.link_file_title || file.file_title || '')}"
                     data-location="${escapeHtml(locationWithoutPlot(file.location, file.plot_number))}"
                     data-plot-number="${escapeHtml(file.plot_number || '')}"
                     data-tp-no="${escapeHtml(file.tp_no || '')}"

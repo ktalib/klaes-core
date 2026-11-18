@@ -103,7 +103,7 @@ class ComputationSheetPromote
         $counts = ['projects' => 0, 'lands' => 0, 'farmers' => 0, 'linked' => 0, 'farms' => 0, 'lines' => 0];
 
         // Farmers: one per person, numbered on from the last Farmer ID.
-        $fmr = (int) substr((string) ($db->table('survey_farmers')->max('farmer_id_no') ?? 'FMR-0'), 4);
+        $fmr = (int) substr((string) ($db->table('survey_farmers')->where('farmer_id_no', 'like', 'FMR-[0-9]%')->max('farmer_id_no') ?? 'FMR-0'), 4);
         $nos = [];
         foreach (array_chunk(array_keys($this->persons), self::CHUNK) as $keys) {
             $db->transaction(function () use ($db, $keys, $stamp, &$fmr, &$nos, &$counts) {
@@ -146,7 +146,7 @@ class ComputationSheetPromote
         $counts['projects']++;
 
         // Lands, each with its farms and lines.
-        $frm = (int) substr((string) ($db->table('survey_beneficiaries')->max('farm_id_no') ?? 'FRM-0'), 4);
+        $frm = (int) substr((string) ($db->table('survey_beneficiaries')->where('farm_id_no', 'like', 'FRM-[0-9]%')->max('farm_id_no') ?? 'FRM-0'), 4);
         $farmIds = [];   // person|KMC Property ID => FRM-
         foreach ($this->lands as $sheet => $idx) {
             $db->transaction(function () use ($db, $sheet, $idx, $stamp, $projectId, $farmerOf, &$frm, &$farmIds, &$counts) {

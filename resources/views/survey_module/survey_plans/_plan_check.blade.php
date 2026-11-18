@@ -20,8 +20,13 @@
       $spcPrefill = ['sys' => old('coord_system'), 'ref' => null, 'others' => collect((array) old('beacons'))->map(fn ($b) => ['beacon_no' => $b['beacon_no'] ?? '', 'x' => $b['x'] ?? '', 'y' => $b['y'] ?? '', 'source' => $b['source'] ?? ''])->values()->all()];
   }
   $spcDigital = $spcMode === 'digital';
+  // Review (Kunle, 2026-11-18): a plan opened for checking. The checker is not plotting: the system and the reference
+  // come from the upload and show on the map; Reset / Refresh, the charts, the other beacons (section 3), the drawing
+  // tools and Add layer are hidden (kept on the page, as the card's script works with them).
+  $spcReview = ! empty($spcReview);
   // Section numbers: Digital Plotting has no reference section (2).
   $spcN = $spcDigital ? ['beacons' => 2, 'map' => 3] : ['beacons' => 3, 'map' => 4];
+  if ($spcReview) $spcN['map'] = 3;   // review: section 3 (other beacons) is hidden
   $spcErrors = isset($errors) ? collect($errors->getMessages())->filter(fn ($m, $k) => str_starts_with($k, 'beacons') || $k === 'coord_system')->flatten() : collect();
 @endphp
 @php
@@ -30,12 +35,12 @@
         ? route('surveyor-portal.survey-plans.gis-tiles', ['layer' => '__LAYER__'])
         : route('survey-module.survey-plans.gis-tiles', ['layer' => '__LAYER__']);
 @endphp
-<div class="spc" id="spc" data-gdb-catalog="{{ request()->routeIs('surveyor-portal.*') ? route('surveyor-portal.survey-plans.gdb-catalog') : route('survey-module.survey-plans.gdb-catalog') }}" data-gdb-read="{{ request()->routeIs('surveyor-portal.*') ? route('surveyor-portal.survey-plans.gdb-catalog.read') : route('survey-module.survey-plans.gdb-catalog.read') }}" data-csrf="{{ csrf_token() }}" data-column-picker="off" data-mode="{{ $spcMode }}" data-search="{{ $spcSearchUrl }}" data-gis="{{ $spcGisUrl }}" data-gis-full="{{ request()->routeIs('surveyor-portal.*') ? '0' : '1' }}" data-prefill='@json($spcPrefill)'>
+<div class="spc @if ($spcReview) spc-review @endif" id="spc" data-review="{{ $spcReview ? '1' : '0' }}" data-gdb-catalog="{{ request()->routeIs('surveyor-portal.*') ? route('surveyor-portal.survey-plans.gdb-catalog') : route('survey-module.survey-plans.gdb-catalog') }}" data-gdb-read="{{ request()->routeIs('surveyor-portal.*') ? route('surveyor-portal.survey-plans.gdb-catalog.read') : route('survey-module.survey-plans.gdb-catalog.read') }}" data-csrf="{{ csrf_token() }}" data-column-picker="off" data-mode="{{ $spcMode }}" data-search="{{ $spcSearchUrl }}" data-gis="{{ $spcGisUrl }}" data-gis-full="{{ request()->routeIs('surveyor-portal.*') ? '0' : '1' }}" data-prefill='@json($spcPrefill)'>
   {{-- Coloured top bar with Refresh and Reset, as on the FC commissioning card (user, 2026-11-15).
        Refresh reloads the Beacon Register and redraws, keeping what is typed; Reset clears what was entered. --}}
   <div class="spc-topbar">
     <div class="spc-topbar-t"><span class="spc-topbar-ic"><i class="fas fa-map-location-dot"></i></span>
-      <div><b>{{ $spcDigital ? 'Digital Plotting' : 'Survey Plan Check' }}</b><small>{{ $spcDigital ? 'Plot the plan: beacons by X / Y or by bearing and distance' : 'Coordinates, beacons and the plan on the map' }}</small></div></div>
+      <div><b>{{ $spcDigital ? 'Digital Plotting' : 'Survey Plan Check' }}</b><small>{{ $spcDigital ? 'Plot the plan: beacons by X / Y or by bearing and distance' : ($spcReview ? 'The plan on the map, as the surveyor sent it' : 'Coordinates, beacons and the plan on the map') }}</small></div></div>
     <span class="spc-topbar-msg" id="spc-topMsg" hidden></span>
     <div class="spc-topbar-btns">
       <button type="button" class="spc-top-btn reset" id="spc-resetBtn" title="Clear everything entered on this card and start again"><i class="fas fa-eraser"></i> Reset</button>
@@ -85,8 +90,6 @@
                 'text' => 'How the NTM belts (Minna) line up with the UTM zones (WGS 84). Kano is in the NTM Mid Belt and UTM zone 32N. Never convert one to the other by adding constants.'],
       'sheets' => ['tab' => 'Sheet Index', 'img' => 'assets/survey/utm-sheet-index.webp', 'title' => 'Greater Kano UTM Sheet Index',
                 'text' => 'The map sheets of Greater Kano (Minna / UTM 32N): the nine A0 sheets, the metric index grid and the 1:50,000 topo sheets. Use it to find the Map Sheet for the plan.'],
-      'datasheet' => ['tab' => 'Data Sheet', 'img' => 'assets/survey/application-plan-data-sheet.webp', 'title' => 'Application Plan: Data Sheet',
-                'text' => 'The entries of an Application Plan, in the order they appear on the plan: particulars, beacon coordinates, ground status, survey and office use.'],
     ];
     $spcGuideJson = json_encode(array_map(fn ($g) => ['title' => $g['title'], 'src' => asset($g['img'])], $spcGuides), JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES);
   @endphp
@@ -134,6 +137,7 @@
   </div>
 
   {{-- Other Beacons (3) before the Map (4) (user, 2026-11-13): the plot shows right under the lines being typed. --}}
+  <div class="spc-sv-sec">
   @if ($spcDigital)
     <div class="spc-group"><span class="n">{{ $spcN['beacons'] }}</span><span>Beacons (in order of the traverse) <span class="spc-req">*</span></span><span class="aside" id="spc-data-note">Loading the Beacon Register…</span></div>
     <p class="spc-note">Point 1 (X1) is the reference: pick it from the Beacon Register or type its X / Y. Then the next beacons in order, by X / Y or by bearing and distance. At least three.</p>
@@ -200,6 +204,7 @@
     </details>
   </div>
   <div class="spc-stats" id="spc-svStats" hidden></div>
+  </div>
   </div></div>
 
   <div class="spc-group"><span class="n">{{ $spcN['map'] }}</span><span>Map</span>
@@ -261,6 +266,9 @@
            and remove them from the card header"). --}}
     </aside>
     <div class="spc-map" id="spc-map">
+      @if ($spcMode === 'upload')
+        <span class="spc-map-watermark" aria-hidden="true">Dev-SDK4.3-Demo</span>
+      @endif
       <div class="spc-drawinfo" id="spc-drawinfo" hidden></div>
       <div class="spc-fullstats" id="spc-fullStats"></div>
     </div>
@@ -275,7 +283,7 @@
         <div><h3 id="spc-geoTitle">Put a scanned plan on the map</h3><p class="spc-note">A GeoTIFF places itself from the georeferencing inside it: no coordinates to type. A plain scan (TIFF, JPG, PNG) is placed from at least four beacons on it (X1 Y1 … X4 Y4). The file stays in your browser: nothing is uploaded.</p></div>
         <span style="flex:1"></span>
         <label class="spc-geo-btn spc-geo-btn-primary" for="spc-geoFile"><i class="fas fa-folder-open"></i> Open scan<input type="file" id="spc-geoFile" accept=".tif,.tiff,.jpg,.jpeg,.png,image/tiff,image/jpeg,image/png" hidden></label>
-        <button type="button" class="spc-geo-btn" id="spc-geoSample" title="A GeoTIFF layout plan from Abia, until the Kano plans are added"><i class="fas fa-flask"></i> Load the sample (GeoTIFF)</button>
+        <button type="button" class="spc-geo-btn" id="spc-geoSample" title="Kano 1:2,500 map sheet 439/1326/NE (Minjibir), georeferenced to Minna / UTM 32N"><i class="fas fa-flask"></i> Load the sample (GeoTIFF)</button>
         <button type="button" class="spc-geo-ib" id="spc-geoClose" aria-label="Close" title="Close (Esc)"><i class="fas fa-xmark"></i></button>
       </div>
       <div class="spc-geo-body">
@@ -320,3 +328,14 @@
   @endif
 
 </div>
+@if ($spcReview)
+<style>
+  /* Review: what the checker does not need is hidden; the system and reference are as uploaded (read only). */
+  .spc-review .spc-topbar-btns, .spc-review .spc-guides, .spc-review .spc-sv-sec, .spc-review #spc-tools,
+  .spc-review #spc-addLayerBtn, .spc-review #spc-sideBtn, .spc-review .spc-scan-grp, .spc-review #spc-refRows .spc-del,
+  .spc-review #spc-refRows .hint, .spc-review > .spc-entry-home .spc-note { display: none !important; }
+  .spc-review .spc-sys { pointer-events: none; }
+  .spc-review .spc-sys .spc-opt:not(:has(input[data-sys]:checked)) { display: none; }
+  .spc-review #spc-refRows td.b, .spc-review #spc-refRows input { pointer-events: none; background: #f8fafc; }
+</style>
+@endif

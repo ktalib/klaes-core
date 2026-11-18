@@ -761,6 +761,16 @@
             // date is deliberately NOT carried from request time: the return clock starts
             // when the file is logged out.
             if (d.request_purpose_id) params.set('req_purpose_id', d.request_purpose_id);
+            // Block file: the files ticked on the block card (all of them by default).
+            const blockBoxes = Array.from(document.querySelectorAll('[data-qs-block] .qs-block-member'));
+            if (blockBoxes.length) {
+                const picked = blockBoxes.filter(b => b.checked).map(b => b.value).filter(Boolean);
+                if (!picked.length) {
+                    Swal.fire({ icon: 'warning', title: 'Select the block files', text: 'Tick at least one file in this block to log.' });
+                    return;
+                }
+                if (picked.length < blockBoxes.length) params.set('block_members', picked.join(','));
+            }
             window.location = '/create-file-tracker?' + params.toString();
         }
 
@@ -1302,6 +1312,8 @@
             // Works both ways: a land file shows its KANGIS file, a KANGIS file its land file.
             const linkedFiles = [
                 ...(Array.isArray(d.st_files) ? d.st_files : []).map(k => ({ ...k, _title: 'ST file', _box: 'border-indigo-200 bg-indigo-50', _head: 'text-indigo-700' })),
+                // The other way: an ST primary shows the land file it was made from.
+                ...(Array.isArray(d.st_land_files) ? d.st_land_files : []).map(k => ({ ...k, _title: 'Land file of this ST file', _box: 'border-blue-200 bg-blue-50', _head: 'text-blue-700' })),
                 ...(Array.isArray(d.kangis_files) ? d.kangis_files : []).map(k => ({ ...k, _title: 'KANGIS file', _box: 'border-orange-200 bg-orange-50', _head: 'text-orange-700' })),
                 ...(Array.isArray(d.land_files) ? d.land_files : []).map(k => ({ ...k, _title: 'Land file', _box: 'border-blue-200 bg-blue-50', _head: 'text-blue-700' })),
             ];
@@ -1332,6 +1344,54 @@
                     </details>`;
             }).join('');
 
+            // Block-indexed file (Land Block / KANGIS Block): every file in the block, whichever
+            // one was searched (user, 2026-11-17). A KANGIS block's files are separate jackets,
+            // so each shows where it is now; a Land Block is one physical file.
+            const blockPanelHtml = (() => {
+                const g = d.block_group;
+                const files = (g && Array.isArray(g.files)) ? g.files : [];
+                if (!files.length) return '';
+                const isKangis = g.type === 'kangis';
+                const cell = v => (v === null || v === undefined || String(v).trim() === '') ? '<span class="text-gray-400">—</span>' : esc(v);
+                const whereCell = f => {
+                    if (f.is_self) return '<span class="font-semibold text-teal-700">This file (above)</span>';
+                    if (!f.status) return '<span class="text-gray-400">—</span>';
+                    const m = STATUS_META[f.status] || { label: f.status, cls: 'bg-gray-100 text-gray-800 border-gray-300', icon: 'file' };
+                    const where = f.is_in_transit
+                        ? `Out at ${esc(f.current_location || '—')}${f.receiving_officer_name ? ` — ${esc(f.receiving_officer_name)}` : ''}`
+                        : `${esc(f.current_location || f.registry || '—')}${f.rack_shelf && !String(f.current_location || '').includes(f.rack_shelf) ? ` — Shelf/Rack ${esc(f.rack_shelf)}` : ''}`;
+                    return `<span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${m.cls}"><i data-lucide="${m.icon}" class="h-3 w-3"></i> ${esc(m.label)}</span><div class="mt-0.5 text-[11px] text-gray-600">${where}</div>`;
+                };
+                const rows = files.map((f, i) => `
+                    <tr class="${f.is_self ? 'bg-teal-50' : ''} border-t border-teal-100 align-top">
+                        <td class="px-2 py-1.5"><input type="checkbox" class="qs-block-member h-4 w-4 rounded border-gray-300 text-violet-600" value="${esc(f.key || '')}" checked aria-label="Track ${esc(f.file_number || '')} ${esc(f.holder || '')}"></td>
+                        <td class="px-2 py-1.5 text-gray-500">${i + 1}</td>
+                        <td class="px-2 py-1.5 font-semibold text-gray-900 whitespace-nowrap">${cell(f.file_number)}${isKangis && f.role ? `<div class="text-[10px] font-medium text-gray-500">${esc(f.role)}</div>` : ''}</td>
+                        <td class="px-2 py-1.5">${cell(f.holder)}</td>
+                        <td class="px-2 py-1.5 whitespace-nowrap">${cell(f.plot_number)}</td>
+                        <td class="px-2 py-1.5">${cell(f.district)}</td>
+                        <td class="px-2 py-1.5">${cell(f.lga)}</td>
+                        ${isKangis ? `<td class="px-2 py-1.5">${whereCell(f)}</td>` : ''}
+                    </tr>`).join('');
+                return `
+                    <div class="mb-3 rounded-lg border border-teal-200 bg-teal-50/40" data-qs-block>
+                        <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+                            <span class="inline-flex items-center gap-1.5 text-xs font-bold text-teal-800"><i data-lucide="layers" class="h-3.5 w-3.5"></i> Files in this Block (${files.length}) — ${esc(g.label)}${isKangis ? ` · Land file ${esc(g.land_file)}` : ''}${g.block_id ? ` · Block ID <span class="font-mono">${esc(g.block_id)}</span>` : ''}</span>
+                            <span class="text-[11px] text-teal-700">${isKangis ? 'Separate files — each shows where it is now' : 'One physical file holding these plots'}</span>
+                        </div>
+                        <div class="overflow-x-auto px-2 pb-2" data-column-picker="off">
+                            <table class="w-full text-xs" data-column-picker="off">
+                                <thead><tr class="text-left text-[10px] uppercase tracking-wide text-teal-700">
+                                    <th class="px-2 py-1"><input type="checkbox" id="qs-block-all" class="h-4 w-4 rounded border-gray-300 text-violet-600" checked aria-label="Select all files in this block"></th>
+                                    <th class="px-2 py-1">S/N</th><th class="px-2 py-1">File No.</th><th class="px-2 py-1">Holder</th><th class="px-2 py-1">Plot No.</th><th class="px-2 py-1">District</th><th class="px-2 py-1">LGA</th>${isKangis ? '<th class="px-2 py-1">Where it is now</th>' : ''}
+                                </tr></thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                        <div class="px-4 pb-2 text-xs font-semibold text-violet-700"><span data-qs-block-count>${files.length}</span> of ${files.length} selected — the ticked files go to Log File</div>
+                    </div>`;
+            })();
+
             result.innerHTML = `
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -1341,6 +1401,7 @@
                             <div class="text-lg font-bold text-gray-900">${esc(d.file_number)}</div>
                             ${/* The file's own title under its number, before any related file (user, 2026-11-11). */''}
                             <div class="text-sm text-gray-500">${esc(d.file_title || '—')}</div>
+                            ${(d.block_group && Array.isArray(d.block_group.files) && d.block_group.files.length) ? `<div class="mt-1"><span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white" style="background:#7c3aed;" title="Block-indexed file: see Files in this Block below"><i data-lucide="layers" class="h-3 w-3"></i> ${esc(d.block_group.label)} · ${d.block_group.files.length} file${d.block_group.files.length === 1 ? '' : 's'}</span></div>` : ''}
                             ${relatedChips.length ? `
                             <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                                 <span class="font-semibold text-violet-700">Related file${relatedChips.length === 1 ? '' : 's'}:</span>
@@ -1467,6 +1528,7 @@
                             </div>
                         </details>
                         ${movementDetailsHtml}
+                        ${blockPanelHtml}
                         ${kangisPanelHtml}
                         ${row('Registry', d.registry)}
                         ${row('Shelf/Rack', d.rack_shelf || '—')}
@@ -1776,6 +1838,23 @@
         function renderError(msg) {
             result.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">${esc(msg)}</div>`;
             result.classList.remove('hidden');
+        }
+
+        // Block card checkboxes (user, 2026-11-18): tick the block's files to track; the
+        // ticked ones are carried to Log a File by logFile().
+        if (!window.__qsBlockWired) {
+            window.__qsBlockWired = true;
+            document.addEventListener('change', (e) => {
+                const card = e.target.closest && e.target.closest('[data-qs-block]');
+                if (!card) return;
+                const boxes = Array.from(card.querySelectorAll('.qs-block-member'));
+                if (e.target.id === 'qs-block-all') boxes.forEach(b => { b.checked = e.target.checked; });
+                const n = boxes.filter(b => b.checked).length;
+                const all = card.querySelector('#qs-block-all');
+                if (all) { all.checked = n === boxes.length; all.indeterminate = n > 0 && n < boxes.length; }
+                const c = card.querySelector('[data-qs-block-count]');
+                if (c) c.textContent = n;
+            });
         }
 
         async function search() {

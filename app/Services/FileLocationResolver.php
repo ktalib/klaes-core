@@ -520,8 +520,16 @@ class FileLocationResolver
         $key     = strtoupper(trim($fileNumber));
         $numbers = $this->kangisContainerNumbers([$fileNumber])[$key] ?? [];
 
-        // 181 land numbers sit in two KANGIS files; none in more than a handful.
-        return $this->describeLinkedFiles(array_slice($numbers, 0, 5), 'KANGIS Registry');
+        // 181 land numbers sit in two KANGIS files; none in more than a handful. A KANGIS
+        // Block land file holds them all by design (RES-2014-241 has 6), so it lists every
+        // one - the cap hid the sixth (user, 2026-11-17).
+        $limit = 5;
+        if (count($numbers) > $limit && FileIndexing::query()->where('file_number', trim($fileNumber))
+            ->where('allow_multiple_kangis', 1)->exists()) {
+            $limit = count($numbers);
+        }
+
+        return $this->describeLinkedFiles(array_slice($numbers, 0, $limit), 'KANGIS Registry');
     }
 
     /**
@@ -624,6 +632,54 @@ class FileLocationResolver
         }
 
         return $out;
+    }
+
+    /**
+     * The block a file belongs to (Land Block or KANGIS Block), for the "Files in this
+     * Block" card on Quick Search (user, 2026-11-17). Same list as the block's tracking
+     * sheet (BlockTrackingGroup). A KANGIS block's files are separate jackets, so each is
+     * resolved to where it is now - all of them, no 5-file cap. A Land Block is one
+     * physical file: its entries carry holder and plot only. Read-only; null when the
+     * file is not in a block.
+     */
+    public function blockFilesFor(string $fileNumber): ?array
+    {
+        $group = app(\App\Services\FileIndexing\BlockTrackingGroup::class)->forFileNumber($fileNumber);
+        if (!$group || empty($group['files'])) {
+            return null;
+        }
+
+        $self = \App\Services\FileIndexing\KangisBlockIndexing::key($fileNumber);
+        $where = [];
+        if ($group['type'] === 'kangis') {
+            $others = [];
+            foreach ($group['files'] as $f) {
+                $k = \App\Services\FileIndexing\KangisBlockIndexing::key($f['file_number'] ?? '');
+                if ($k !== '' && $k !== $self) {
+                    $others[$k] = $f['file_number'];
+                }
+            }
+            foreach ($this->describeLinkedFiles(array_values($others), null) as $d) {
+                $where[\App\Services\FileIndexing\KangisBlockIndexing::key($d['file_number'])] = $d;
+            }
+        }
+
+        $group['files'] = array_map(function ($f) use ($self, $where) {
+            $k = \App\Services\FileIndexing\KangisBlockIndexing::key($f['file_number'] ?? '');
+            $d = $where[$k] ?? null;
+
+            return $f + [
+                'is_self'                => $k === $self,
+                'status'                 => $d['status'] ?? null,
+                'registry'               => $d['registry'] ?? null,
+                'current_location'       => $d['current_location'] ?? null,
+                'rack_shelf'             => $d['rack_shelf'] ?? null,
+                'is_in_transit'          => $d['is_in_transit'] ?? false,
+                'receiving_officer_name' => $d['receiving_officer_name'] ?? null,
+            ];
+        }, $group['files']);
+
+        return $group;
     }
 
     /**
@@ -788,6 +844,41 @@ class FileLocationResolver
             ->all();
 
         return $this->describeLinkedFiles(array_slice($numbers, 0, 5), 'ST Registry');
+    }
+
+    /**
+     * The reverse of stFilesFor(): the land file an ST primary was made from, each
+     * resolved to where it is now. Read from the PRIMARY st_file_numbers row
+     * (mls_fileno, else fileno; whichever is not an ST number). Empty for a unit and
+     * for a non-ST number. Read-only.
+     *
+     * @return array<int, array{file_number:string, file_title:?string, registry:?string, status:string, current_location:?string, rack_shelf:?string, is_in_transit:bool, has_tracker:bool, receiving_officer_name:?string}>
+     */
+    public function stLandFilesFor(string $fileNumber): array
+    {
+        $fileNumber = trim($fileNumber);
+        if (!$this->isStFileNumber($fileNumber)) {
+            return [];
+        }
+
+        $numbers = [];
+        $rows = DB::connection('sqlsrv')->table('st_file_numbers')
+            ->where('file_no_type', 'PRIMARY')
+            ->whereIn('status', ['ACTIVE', 'USED'])
+            ->where('np_fileno', $fileNumber)
+            ->orderBy('id')
+            ->get(['fileno', 'mls_fileno']);
+        foreach ($rows as $row) {
+            foreach ([$row->mls_fileno, $row->fileno] as $candidate) {
+                $candidate = trim((string) $candidate);
+                if ($candidate !== '' && !$this->isStFileNumber($candidate)) {
+                    $numbers[strtoupper($candidate)] = $candidate;
+                    break;
+                }
+            }
+        }
+
+        return $this->describeLinkedFiles(array_slice(array_values($numbers), 0, 5), null);
     }
 
     /** ST primary or unit file number (ST-RES-2026-10, ST-RES-2026-9-004). */

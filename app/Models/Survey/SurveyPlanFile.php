@@ -20,8 +20,13 @@ class SurveyPlanFile extends Model
     public const KIND_CORRECTION = 'correction';
     public const KIND_FINAL = 'final';
     public const KIND_SIGNED = 'signed';
+    /** Digital Plotting's data for the checker, in the format the plotter chose (stage 1; 2026-11-18). */
+    public const KIND_PLOTTED = 'plotted';
+    /** file_path of a traverse sheet: made from the saved plotting when opened, nothing on disk. */
+    public const GENERATED_TRAVERSE = 'generated:traverse';
 
     public const KIND_LABELS = [
+        self::KIND_PLOTTED => 'Plotted data',
         self::KIND_CORRECTION => 'Correction',
         self::KIND_FINAL => 'Final copy',
         self::KIND_SIGNED => 'Signed copy',

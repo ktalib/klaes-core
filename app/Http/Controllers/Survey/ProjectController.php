@@ -298,7 +298,10 @@ class ProjectController extends Controller
             $treeRates[$t->name][$t->maturity ?: 'Mature'] = $t->default_unit_price === null ? null : (float) $t->default_unit_price;
         }
 
-        return compact('project', 'coFiles', 'surveyors', 'usedMax', 'treeRates');
+        // TP No.: the layout register's TP numbers (tp_lookups), as on the other TP No. dropdowns (user, 2026-11-17).
+        $tpNos = \App\Models\Survey\SurveyApplicationPlan::planNoChoices();
+
+        return compact('project', 'coFiles', 'surveyors', 'usedMax', 'treeRates', 'tpNos');
     }
 
     /**
@@ -430,11 +433,15 @@ class ProjectController extends Controller
 
             'name'        => 'required|string|max:255',
             // The layout plan's TP number, e.g. TP/KNUPDA/UC/GZ/02 (an identifier: trimmed, never re-cased).
+            // A dropdown of the TP No. register, or Other (specify) (user, 2026-11-17).
             'plan_no'     => 'nullable|string|max:100',
+            'plan_no_other' => 'required_if:plan_no,other|nullable|string|max:100',
             'purpose'     => 'nullable|string|max:100',
             'scheme_type' => ['required', Rule::in([SurveyProject::SCHEME_MONETARY, SurveyProject::SCHEME_LAND])],
             // The sharing ratio (CR 30102026 item 11), one of Configurable Entities > Survey; Land to Land only.
-            'farmer_share_pct' => ['nullable', 'integer', Rule::in(\App\Services\Survey\SurveySettings::sharingRatios()->pluck('farmer_pct')->map(fn ($p) => (int) $p)->all())],
+            // Or Other (specify): the farmer's share typed, 1-99 % (user, 2026-11-17: the list is not exhaustive).
+            'farmer_share_pct' => ['nullable', Rule::in(array_merge(\App\Services\Survey\SurveySettings::sharingRatios()->pluck('farmer_pct')->map(fn ($p) => (string) (int) $p)->all(), ['other']))],
+            'farmer_share_other' => 'nullable|required_if:farmer_share_pct,other|integer|min:1|max:99',
             'status'      => ['required', Rule::in(['Active', 'Draft', 'Closed'])],
             'start_date'  => 'nullable|date',
             'description' => 'nullable|string|max:4000',
@@ -450,13 +457,41 @@ class ProjectController extends Controller
             'surveyors.*.surveyor_other.required_if' => 'Surveyor is Other: please specify the surveyor\'s name.',
             'surveyors.*.portions.required'        => 'Every surveyor needs a number of portions.',
             'surveyors.*.portion_size_ha.required' => 'Every surveyor needs a size per portion.',
-            'farmer_share_pct.in'                  => 'Choose a sharing ratio from the list.',
+            'farmer_share_pct.in'                  => 'Choose a sharing ratio from the list, or Other (specify).',
+            'farmer_share_other.required_if'       => "Sharing ratio is Other: type the farmer's share (%).",
+            'farmer_share_other.min'               => "The farmer's share must be between 1 and 99 %.",
+            'farmer_share_other.max'               => "The farmer's share must be between 1 and 99 %.",
+            'plan_no_other.required_if'            => 'TP No. is Other: please specify the TP No.',
         ]);
+
+        // TP No.: one from the register, or the typed one (a typed number already on the register is taken as it).
+        $tpNos = \App\Models\Survey\SurveyApplicationPlan::planNoChoices();
+        $tp = ($data['plan_no'] ?? null) === 'other' ? (string) ($data['plan_no_other'] ?? '') : (string) ($data['plan_no'] ?? '');
+        $tp = trim((string) preg_replace('/\s+/u', ' ', $tp));
+        if (($data['plan_no'] ?? null) !== 'other' && $tp !== '' && ! in_array($tp, $tpNos, true) && $tp !== (string) $r->route('project')?->plan_no) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['plan_no' => 'Choose a TP No. from the list, or Other (specify).']);
+        }
+        $data['plan_no'] = $tp === '' ? null : \App\Models\Survey\SurveyApplicationPlan::matchChoice($tp, $tpNos);
+        unset($data['plan_no_other']);
+
+        // Each surveyor once per project (user, 2026-11-17): the same listed surveyor, or the same typed name, twice is refused.
+        $seen = [];
+        foreach (array_values($data['surveyors'] ?? []) as $n => $row) {
+            $key = ($row['surveyor_id'] ?? '') === 'other'
+                ? 'other:' . mb_strtolower(trim((string) preg_replace('/\s+/u', ' ', (string) ($row['surveyor_other'] ?? ''))))
+                : 'id:' . ($row['surveyor_id'] ?? '');
+            if (isset($seen[$key])) {
+                throw ValidationException::withMessages(['surveyors' => 'Row ' . ($n + 1) . ' repeats the surveyor in row ' . ($seen[$key] + 1) . '. Each surveyor can be added only once.']);
+            }
+            $seen[$key] = $n;
+        }
 
         $data['trees'] = $this->validatedTrees($r);
 
         // A Monetary Compensation project has no plots to share; a Land to Land one keeps the
         // ratio picked, else the general one.
+        if (($data['farmer_share_pct'] ?? null) === 'other') $data['farmer_share_pct'] = $data['farmer_share_other'] ?? null;
+        unset($data['farmer_share_other']);
         $data['farmer_share_pct'] = ($data['scheme_type'] ?? null) === SurveyProject::SCHEME_LAND
             ? (int) ($data['farmer_share_pct'] ?? \App\Services\Survey\SurveySettings::defaultFarmerPct())
             : null;

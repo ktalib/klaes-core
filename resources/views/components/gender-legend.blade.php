@@ -19,4 +19,7 @@
     <span class="inline-flex items-center gap-1.5"><span class="gender-swatch gender-swatch-corporate"></span>Corporate</span>
     <span class="inline-flex items-center gap-1.5"><span class="gender-swatch gender-swatch-joint"></span>Joint</span>
     <span class="inline-flex items-center gap-1.5 text-gray-400"><span class="gender-swatch gender-swatch-none"></span>Not recorded</span>
+    {{-- Block Indexing rows (Land Block / KANGIS Block) are tinted violet over any gender
+         colour; the tint is set by public/js/indexed-files/index.js (user, 2026-11-17). --}}
+    <span class="inline-flex items-center gap-1.5"><span class="gender-swatch" style="background-color:#ede9fe; box-shadow: inset 4px 0 0 0 #7c3aed;"></span>Block Indexing</span>
 </div>

@@ -223,8 +223,13 @@ return [
         'programmes.rofo*' => 'ST - Certificate',
         'programmes.white_copy_rofo' => 'ST - Certificate',
 
-        'programmes.*' => 'PHYSICAL PLANNING',
-        'planning-recommendation.*' => 'Planning Recommendation',
+        // Physical Planning: one module per sidebar item since 2026-11-17 (the older
+        // PHYSICAL PLANNING / Planning Recommendation modules were folded into these).
+        'programmes.*' => 'ST One Stop Shop',
+        'planning-recommendation.*' => 'Conversion Applications',
+        'physical-planning.regular.*' => 'Conversion Applications',
+        'physical-planning.conversion.*' => 'Conversion Applications',
+        'physical-planning.sltr.*' => 'SLTR Applications',
         'sectionaltitling.*' => 'ST - Applications',
         'stmemo.*' => 'ST - ST Memo',
         'sltr-recommendations.*' => 'SLTR - Approvals',
@@ -257,7 +262,7 @@ return [
     | (user, 2026-10-30) open just their own pages.
     */
     'alternatives' => [
-        'survey-printlabel.*'                    => ['Print File Labels'],
+        'survey-printlabel.*'                    => ['Print File Labels', 'Survey - Digital Archive'],
         'survey-module.gkn.*'                    => ['Survey - GKN'],
         'survey-module.survey-plans.*'           => ['Survey - GKN', 'Survey - Examination/Verification', 'Survey - Public Survey', 'Survey - SG'],
         'survey-module.workflow.uploaded-plans'  => ['Survey - Examination/Verification'],

@@ -552,14 +552,20 @@
     }
 
     /**
-     * True while a KANGIS approval file still has no Office Details on it — either the
-     * approvals are outstanding, or every approval is in but the file is still sitting in
-     * the Department Queue waiting to be logged in. Its record is incomplete until then,
-     * so the log sheet / details / print actions must stay disabled.
+     * True while a KANGIS approval file's approvals are still outstanding (Director GIS
+     * recommendation / DG approval): the record is incomplete, so the log sheet / details /
+     * print actions stay disabled.
+     *
+     * Once the DG has approved (status 'approved'), the file waits in the Department Queue
+     * for the receiving officer to accept it. That wait no longer locks anything (user,
+     * 2026-11-18): the department may not use the system, and the registry still needs the
+     * action menu and the tracking sheet. Transfers still wait for the acceptance.
      */
     function isKangisAwaitingOfficeDetails(tracker) {
         if (!isKangisWorkflowTracker(tracker)) return false;
-        return isKangisWorkflowInFlight(tracker && tracker.status);
+        const status = String((tracker && tracker.status) ?? '').trim().toLowerCase();
+        if (status === 'approved') return false;
+        return isKangisWorkflowInFlight(status);
     }
 
     /**
@@ -2861,6 +2867,7 @@
         }
 
         clearCrossRequestPreview();
+        if (typeof loadBlockGroupPanel === 'function') loadBlockGroupPanel('');
 
         const trackingField = $('#tracking-id');
         const fileNameField = $('#file-name');
@@ -3022,6 +3029,94 @@
         });
     }
 
+    // ── Block-indexed file (user, 2026-11-18) ───────────────────────────────────
+    // A Land Block / KANGIS Block is tracked under its system Block ID, not the file's
+    // own tracking ID, and the operator ticks which of the block's files are moving.
+    // Not on Quick Search: it shows the block, and Log File brings it here.
+    window.cftBlock = null;
+    let blockGroupRequestSeq = 0;
+    function loadBlockGroupPanel(fileNumber) {
+        const panel = document.getElementById('block-group-panel');
+        const seq = ++blockGroupRequestSeq;
+        window.cftBlock = null;
+        if (!panel) return;
+        panel.classList.add('hidden');
+        panel.innerHTML = '';
+        const no = String(fileNumber || '').trim();
+        if (!no) return;
+        $.getJSON(@json(route('create-file-tracker.block-group')), { file_number: no })
+            .done(function (res) {
+                if (seq !== blockGroupRequestSeq || !res || !res.success || !res.data || !res.data.block_id) return;
+                const g = res.data;
+                const files = Array.isArray(g.files) ? g.files : [];
+                if (!files.length) return;
+                window.cftBlock = g;
+                const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+                const isKangis = g.type === 'kangis';
+                // Files ticked on the Quick Search block card arrive as ?block_members=;
+                // without it, every file in the block starts ticked.
+                const preset = (new URLSearchParams(window.location.search).get('block_members') || '')
+                    .split(',').map(v => v.trim()).filter(Boolean);
+                const isTicked = (f) => !preset.length || preset.includes(f.key);
+                const rows = files.map((f, i) => `
+                    <tr class="border-t border-violet-100">
+                        <td class="px-2 py-1.5"><input type="checkbox" class="cft-block-member h-4 w-4 rounded border-gray-300 text-violet-600" value="${esc(f.key)}" ${isTicked(f) ? 'checked' : ''} aria-label="Track ${esc(f.file_number)} ${esc(f.holder || '')}"></td>
+                        <td class="px-2 py-1.5 text-gray-500">${i + 1}</td>
+                        <td class="px-2 py-1.5 font-semibold text-gray-900 whitespace-nowrap">${esc(f.file_number || '—')}${isKangis && f.role ? `<div class="text-[10px] font-medium text-gray-500">${esc(f.role)}</div>` : ''}</td>
+                        <td class="px-2 py-1.5">${esc(f.holder || '—')}</td>
+                        <td class="px-2 py-1.5 whitespace-nowrap">${esc(f.plot_number || '—')}</td>
+                        <td class="px-2 py-1.5">${esc(f.district || '—')}</td>
+                        <td class="px-2 py-1.5">${esc(f.lga || '—')}</td>
+                    </tr>`).join('');
+                panel.innerHTML = `
+                    <div class="mb-4 rounded-lg border border-violet-200 bg-violet-50/50">
+                        <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+                            <div>
+                                <div class="flex items-center gap-2 text-sm font-bold text-violet-800"><i data-lucide="layers" class="h-4 w-4"></i> ${esc(g.label)} — tracked under Block ID <span class="font-mono">${esc(g.block_id)}</span></div>
+                                <div class="text-xs text-violet-700">Tick the files in this block that are being tracked. The Block ID is used instead of the file's own tracking ID.</div>
+                            </div>
+                            <label class="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-800"><input type="checkbox" id="cft-block-all" class="h-4 w-4 rounded border-gray-300 text-violet-600" checked> Select all</label>
+                        </div>
+                        <div class="overflow-x-auto px-2 pb-2">
+                            <table class="w-full text-xs">
+                                <thead><tr class="text-left text-[10px] uppercase tracking-wide text-violet-700">
+                                    <th class="px-2 py-1"></th><th class="px-2 py-1">S/N</th><th class="px-2 py-1">File No.</th><th class="px-2 py-1">Holder</th><th class="px-2 py-1">Plot No.</th><th class="px-2 py-1">District</th><th class="px-2 py-1">LGA</th>
+                                </tr></thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                        <div class="px-4 pb-2 text-xs font-semibold text-violet-700"><span id="cft-block-count">${files.length}</span> of ${files.length} selected</div>
+                    </div>`;
+                panel.classList.remove('hidden');
+                const boxes = () => Array.from(panel.querySelectorAll('.cft-block-member'));
+                const sync = () => {
+                    const n = boxes().filter(b => b.checked).length;
+                    const all = panel.querySelector('#cft-block-all');
+                    if (all) { all.checked = n === files.length; all.indeterminate = n > 0 && n < files.length; }
+                    const c = panel.querySelector('#cft-block-count');
+                    if (c) c.textContent = n;
+                };
+                panel.querySelector('#cft-block-all')?.addEventListener('change', (e) => { boxes().forEach(b => { b.checked = e.target.checked; }); sync(); });
+                boxes().forEach(b => b.addEventListener('change', sync));
+                sync();
+
+                // Track under the Block ID: it replaces the file's own tracking ID as the base,
+                // and the registry code is appended to it the same way.
+                const $trackingField = $('#tracking-id');
+                $trackingField.data('base-tracking-id', g.block_id).prop('disabled', true).addClass('tracking-id-locked');
+                const code = $('#origin-office option:selected').data('registry-code');
+                setTrackingDisplay(withTempCode(code ? g.block_id + '-' + code : g.block_id));
+                if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+            });
+    }
+
+    /** The ticked block files, or null when the file is not a block. */
+    function selectedBlockMembers() {
+        if (!window.cftBlock) return null;
+        return Array.from(document.querySelectorAll('#block-group-panel .cft-block-member'))
+            .filter(b => b.checked).map(b => b.value);
+    }
+
     function applyMetadataResult(data, context = {}) {
         const trackingField = $('#tracking-id');
         const fileNameField = $('#file-name');
@@ -3054,6 +3149,9 @@
         if (existingCode && trackingValue) {
             setTrackingDisplay(withTempCode(trackingValue + '-' + existingCode));
         }
+
+        // A block file is tracked under its Block ID with ticked files (see above).
+        loadBlockGroupPanel(resolvedFileNumber || context.originalFileNumber || '');
 
         const resolvedName = (data.file_name || data.file_title || '').trim();
         fileNameField.removeClass('metadata-loading');
@@ -4661,6 +4759,8 @@
             // See getMotherFileLocation() / getTempFileLocation() server-side.
             motherFileLocation: tracker.mother_file_location ?? tracker.motherFileLocation ?? null,
             tempFileLocation: tracker.temp_file_location ?? tracker.tempFileLocation ?? null,
+            // Block-indexed file: every file in the block, printed on the one Tracking Sheet.
+            blockGroup: tracker.block_group ?? tracker.blockGroup ?? null,
             // Request Purpose + timeline (Green/Amber/Red), computed server-side from
             // date_created/deadline in FileTracker::getTimelineStatusAttribute().
             requestPurposeId: tracker.request_purpose_id ?? tracker.requestPurposeId ?? null,
@@ -5740,6 +5840,17 @@
             requester_director_last_name: currentTracker.requesterDirectorLastName || null,
             ...(window.cftUnitFields ? window.cftUnitFields() : {})
         };
+
+        // Block-indexed file: tracked under its Block ID with the ticked files.
+        const blockMembers = selectedBlockMembers();
+        if (blockMembers !== null) {
+            if (!blockMembers.length) {
+                Swal.fire({ icon: 'warning', title: 'Select the block files', text: 'Tick at least one file in this block to track.' });
+                return;
+            }
+            apiData.block_id = window.cftBlock.block_id;
+            apiData.block_members = blockMembers;
+        }
 
         // Other on the Unit must be specified.
         if (document.getElementById('receiving-unit')?.value === 'other' && !apiData.receiving_unit_other) {
@@ -7883,6 +7994,8 @@
                         
                         ${quickAcceptSection}
 
+                        ${tracker.blockGroup ? `<div class="mt-4 rounded-lg border border-teal-200 bg-teal-50/40 p-3 text-gray-800">${blockGroupSheetHtml(tracker.blockGroup, { compact: true })}</div>` : ''}
+
                         ${(() => {
                             const approvalPurposes = ['recommendation', 'approval'];
                             const approvalEntries = tracker.logEntries.filter(e => approvalPurposes.includes((e.purpose || '').toLowerCase()));
@@ -8403,6 +8516,48 @@
         return html;
     }
 
+    // "Files in this Block" table for a block-indexed file (Land Block or KANGIS Block):
+    // the one Tracking Sheet lists every file in the block, so the group is tracked
+    // together (user, 2026-11-17). Data: tracker.blockGroup from BlockTrackingGroup.
+    function blockGroupSheetHtml(group, opts = {}) {
+        const files = (group && Array.isArray(group.files)) ? group.files : [];
+        if (!files.length) return '';
+        const cell = (v) => escapeHtml(v == null || String(v).trim() === '' ? '-' : String(v));
+        const isKangis = group.type === 'kangis';
+        const td = 'border:1px solid #d1d5db; padding:0.2rem 0.3rem;';
+        const rows = files.map((f, i) => `
+            <tr${f.role === 'Land file' ? ' style="background:#eef2ff;"' : ''}>
+                <td style="${td} text-align:center;">${i + 1}</td>
+                <td style="${td} font-weight:600;">${cell(f.file_number)}${isKangis && f.role ? `<div style="font-size:0.65rem; font-weight:500; color:#6b7280;">${cell(f.role)}</div>` : ''}</td>
+                <td style="${td}">${cell(f.holder)}</td>
+                <td style="${td}">${cell(f.plot_number)}</td>
+                <td style="${td}">${cell(f.district)}</td>
+                <td style="${td}">${cell(f.lga)}</td>
+                <td style="${td}">${cell(f.location)}</td>
+            </tr>`).join('');
+        const countText = group.selected_of ? `${files.length} of ${group.selected_of}` : `${files.length}`;
+        const title = `Files in this Block (${countText}) &mdash; ${cell(group.label)}${isKangis ? ' &middot; Land file ' + cell(group.land_file) : ''}${group.block_id ? ' &middot; Block ID ' + cell(group.block_id) : ''}`;
+        return `
+            <div class="section block-group-section" style="page-break-inside: avoid;${opts.compact ? ' margin-bottom:0.6rem;' : ''}">
+                <div class="section-title" style="border-left-color:#0d9488;">${title}</div>
+                <table style="width:100%; border-collapse:collapse; font-size:${opts.compact ? '0.72rem' : '0.78rem'};">
+                    <thead>
+                        <tr style="background:#f0fdfa;">
+                            <th style="${td} width:2.2rem;">S/N</th>
+                            <th style="${td}">File No.</th>
+                            <th style="${td}">Holder</th>
+                            <th style="${td}">Plot No.</th>
+                            <th style="${td}">District</th>
+                            <th style="${td}">LGA</th>
+                            <th style="${td}">Location</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <div style="font-size:0.68rem; color:#6b7280; margin-top:0.2rem;">${group.selected_of ? 'Only the files above are being tracked on this sheet; the rest of the block stays where it is.' : 'All the files above move together on this one sheet.'}</div>
+            </div>`;
+    }
+
     // Print tracker details - routes to KANGIS landscape version for ?url=kangis and ?url=new_kangis, otherwise uses general portrait format
     function printFileTrackerDetails(tracker, options = {}) {
         const urlView = new URLSearchParams(window.location.search).get('url');
@@ -8774,6 +8929,8 @@
                             </div>
                         </div>
                         ` : ''}
+
+                        ${blockGroupSheetHtml(tracker.blockGroup)}
 
                         <div class="section table-section">
                             <div class="section-title">Movement History</div>
@@ -9316,6 +9473,8 @@
                             </div>
                         </div>
                         ` : ''}
+
+                        ${blockGroupSheetHtml(tracker.blockGroup, { compact: true })}
 
                         <!-- Movement history — single aggregated row, or the one scoped log entry -->
                         <div class="section-title">

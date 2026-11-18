@@ -75,6 +75,7 @@ class SurveyPlanUploadController extends Controller
             ],
             'rows'      => $this->listQuery($r, $unit, $scope)
                 ->when(\App\Models\Survey\SurveyApplicationPlan::installed(), fn ($q) => $q->with('applicationPlan'))
+                ->with('files')   // the row menu's plotted data (2026-11-18)
                 ->paginate(25)->withQueryString(),
             'term'      => trim((string) $r->query('q', '')),
             'stats'     => [
@@ -176,7 +177,7 @@ class SurveyPlanUploadController extends Controller
         ], fn ($x) => [
             'ref' => $x->upload_ref, 'method' => $x->method_label, 'type' => $x->plan_type, 'unit' => $x->unit, 'plot_no' => $x->plot_no, 'district' => $x->district, 'lga' => $x->lga,
             'location' => $x->location, 'drawn_by' => $x->drawn_by, 'source' => $x->source_label, 'uploaded_by' => $x->uploaded_by_name,
-            'uploaded' => $this->exportDate($x->created_at), 'status' => $x->status, 'stage' => $x->stage_no . ' ' . $x->stage_label,
+            'uploaded' => $this->exportDate($x->created_at), 'status' => $x->status, 'stage' => $x->step_no . ' ' . $x->stage_label,
         ], 'created_at');
     }
 
@@ -231,10 +232,42 @@ class SurveyPlanUploadController extends Controller
      */
     public function applicationPlan(Plan $plan)
     {
-        $plan->load('referenceBeacons');
+        $plan->load(['referenceBeacons', 'files']);
+
+        // The uploaded plan shows in the frame (user, 2026-11-17): the newest copy (signed, then final, then the
+        // upload itself) that is an image or a PDF. TIFF scans cannot be shown by a browser.
+        $kind = fn (?string $mime, ?string $name) => match (true) {
+            str_starts_with((string) $mime, 'image/') && ! str_contains((string) $mime, 'tif') => 'image',
+            $mime === 'application/pdf' || str_ends_with(strtolower((string) $name), '.pdf') => 'pdf',
+            default => null,
+        };
+        $planImage = null;
+        foreach ([PlanFile::KIND_SIGNED, PlanFile::KIND_FINAL] as $k) {
+            $f = $plan->latestFile($k);
+            if ($f && $f->file_path && ($t = $kind($f->file_mime, $f->file_name))) {
+                $planImage = ['url' => route('survey-module.survey-plans.stage-file', [$plan, $f]), 'type' => $t, 'name' => $f->file_name];
+                break;
+            }
+        }
+        if (! $planImage && $plan->file_path && ($t = $kind($plan->file_mime, $plan->file_name))) {
+            $planImage = ['url' => route('survey-module.survey-plans.file', $plan), 'type' => $t, 'name' => $plan->file_name];
+        }
+
+        $ap = \App\Models\Survey\SurveyApplicationPlan::entriesFor($plan);
+        // The QR at the top right (user, 2026-11-17): readable text plus the plan's page in KLAES.
+        $qrPayload = collect([
+            'KLAES Application Plan',
+            'Ref: ' . $plan->upload_ref,
+            $ap['plan_no'] !== '' ? 'Plan No: ' . $ap['plan_no'] : null,
+            $ap['plot_no'] !== '' ? 'Plot No: ' . $ap['plot_no'] : null,
+            $ap['location'] !== '' ? 'Location: ' . $ap['location'] : null,
+            route('survey-module.survey-plans.show', $plan),
+        ])->filter()->implode("\n");
 
         return view('survey_module.survey_plans.application_plan', [
-            'ap' => \App\Models\Survey\SurveyApplicationPlan::entriesFor($plan),
+            'planImage' => $planImage,
+            'qrPayload' => $qrPayload,
+            'ap' => $ap,
             'beacons' => $plan->referenceBeacons
                 ->map(fn ($b) => ['no' => (string) $b->beacon_no, 'e' => $b->coord_x, 'n' => $b->coord_y])->all(),
             'coordSystem' => $plan->coord_system ?: '26332',
@@ -257,12 +290,45 @@ class SurveyPlanUploadController extends Controller
         $rules['scale'] = ['nullable', 'in:' . implode(',', $AP::SCALES)];
         $rules['ground_open'] = ['nullable', 'in:Yes,No'];
         $rules['date'] = ['nullable', 'date'];
+        // Purpose and Plan No. are dropdowns with one Other + specify (user, 2026-11-17; development standard 6).
+        $planNos = $AP::planNoChoices();
+        $rules['purpose'] = ['nullable', \Illuminate\Validation\Rule::in([...$AP::PURPOSES, $AP::OTHER])];
+        $rules['purpose_other'] = ['nullable', 'required_if:purpose,' . $AP::OTHER, 'string', 'max:300'];
+        $rules['plan_no'] = ['nullable', \Illuminate\Validation\Rule::in([...$planNos, $AP::OTHER])];
+        $rules['plan_no_other'] = ['nullable', 'required_if:plan_no,' . $AP::OTHER, 'string', 'max:120'];
+        // Surveyed by / Checked by / Passed by: the Survey staff list, or Other + specify (user, 2026-11-18). A name saved
+        // before (title case) still counts as listed.
+        $people = $AP::peopleChoices();
+        $peopleKeys = array_map('mb_strtolower', $people);
+        foreach ($AP::PEOPLE_FIELDS as $k) {
+            $rules[$k] = ['nullable', 'string', 'max:120', function ($attr, $v, $fail) use ($peopleKeys, $AP) {
+                if ($v !== $AP::OTHER && ! in_array(mb_strtolower(trim((string) $v)), $peopleKeys, true)) $fail('Choose a name from the list, or Other.');
+            }];
+            $rules[$k . '_other'] = ['nullable', 'required_if:' . $k . ',' . $AP::OTHER, 'string', 'max:120'];
+        }
         $rules['amount_paid'] = ['nullable', 'numeric', 'min:0', 'max:999999999999'];
         $d = $r->validate($rules, [
+            'surveyed_by_other.required_if' => 'Specify who surveyed it.',
+            'checked_by_other.required_if' => 'Specify who checked it.',
+            'passed_by_other.required_if' => 'Specify who passed it.',
             'scale.in' => 'Choose a scale from the list, or Auto.',
             'amount_paid.numeric' => 'Amount Paid must be a number.',
             'date.date' => 'Date must be a date.',
-        ], $AP::FIELDS);
+            'purpose.in' => 'Choose the purpose from the list, or Other.',
+            'purpose_other.required_if' => 'Specify the purpose.',
+            'plan_no.in' => 'Choose the Plan No. from the list, or Other.',
+            'plan_no_other.required_if' => 'Specify the Plan No.',
+        ], $AP::FIELDS + ['purpose_other' => 'Specify purpose', 'plan_no_other' => 'Specify Plan No.', 'surveyed_by_other' => 'Specify Surveyed by', 'checked_by_other' => 'Specify Checked by', 'passed_by_other' => 'Specify Passed by']);
+        foreach ($AP::PEOPLE_FIELDS as $k) {
+            if (($d[$k] ?? null) === $AP::OTHER) $d[$k] = $AP::matchChoice(\App\Services\CadastralDept\Normalise::text($d[$k . '_other']), $people);
+        }
+        // Other: the typed value is kept; one that matches a listed choice (any case or spacing) becomes that choice.
+        if (($d['purpose'] ?? null) === $AP::OTHER) {
+            $d['purpose'] = $AP::matchChoice(\App\Services\CadastralDept\Normalise::text($d['purpose_other']), $AP::PURPOSES);
+        }
+        if (($d['plan_no'] ?? null) === $AP::OTHER) {
+            $d['plan_no'] = $AP::matchChoice(\App\Services\CadastralDept\Normalise::text($d['plan_no_other']), $planNos);
+        }
 
         $N = \App\Services\CadastralDept\Normalise::class;
         $fields = [];
@@ -297,42 +363,57 @@ class SurveyPlanUploadController extends Controller
         return view('survey_module.survey_plans.show', [
             'plan'     => $plan,
             'canCheck' => Stages::isChecker($u, $plan),
-            'canSign'  => Stages::isSigner($u),
+            'canSign'  => Stages::isSigner($u, $plan),
             'canFinal' => Stages::isStaffUploader($u, $plan),
+            'traverse' => app(\App\Services\Survey\PlanTraverseSheet::class)->lines($plan),
         ]);
     }
 
+    /** Stage 2, Check (Kunle, 2026-11-18): falls on location or not, corrections or none; back to the surveyor. */
     public function corrections(Request $r, Plan $plan, Stages $stages)
     {
-        abort_unless(Stages::isChecker(Auth::user(), $plan), 403, 'Only the checking unit can send corrections.');
-        $r->validate(['note' => 'required|string|max:2000', 'markups' => 'array|max:20', 'correction_file' => 'nullable|file|max:25600'],
-            ['note.required' => 'Say what has to be corrected.']);
-        if ($r->hasFile('correction_file')) $stages->checkFile($r->file('correction_file'), 'correction_file');
-        $stages->sendCorrections($plan, Auth::user(), (string) $r->input('note'), (array) $r->input('markups', []), $r->file('correction_file'));
+        abort_unless(Stages::isChecker(Auth::user(), $plan), 403, 'Only the checking unit can check a plan, and never its own uploader.');
+        $r->validate([
+            'check_location'  => ['required', \Illuminate\Validation\Rule::in(array_keys(Plan::CHECK_LOCATIONS))],
+            'check_result'    => ['required', \Illuminate\Validation\Rule::in(array_keys(Plan::CHECK_RESULTS))],
+            'note'            => 'nullable|required_if:check_result,corrections|string|max:2000',
+            'markups'         => 'array|max:20',
+            'correction_file' => 'nullable|file|max:25600',
+        ], [
+            'check_location.required' => 'Say whether the map falls on location.',
+            'check_result.required'   => 'Say whether there are corrections.',
+            'note.required_if'        => 'Say what has to be corrected.',
+        ]);
+        if ($r->input('check_result') === 'corrections' && $r->hasFile('correction_file')) $stages->checkFile($r->file('correction_file'), 'correction_file');
+        $stages->check($plan, Auth::user(), (string) $r->input('check_result'), (string) $r->input('check_location'), $r->input('note'),
+            (array) $r->input('markups', []), $r->file('correction_file'));
 
-        return redirect()->route('survey-module.survey-plans.show', $plan)->with('success', "Corrections sent back on {$plan->upload_ref}.");
+        return redirect()->route('survey-module.survey-plans.show', $plan)->with('success', "{$plan->upload_ref} checked and sent back to {$plan->uploaded_by_name} for the final survey plan.");
     }
 
+    /** The old "No corrections" button: now the same check, without corrections. */
     public function pass(Request $r, Plan $plan, Stages $stages)
     {
-        abort_unless(Stages::isChecker(Auth::user(), $plan), 403, 'Only the checking unit can pass a plan.');
-        $stages->passToSigning($plan, Auth::user(), $r->input('note'));
+        $r->merge(['check_result' => 'none']);
 
-        return redirect()->route('survey-module.survey-plans.show', $plan)->with('success', "{$plan->upload_ref} passed and sent to the SG/DSG for signing.");
+        return $this->corrections($r, $plan, $stages);
     }
 
     public function final(Request $r, Plan $plan, Stages $stages)
     {
-        abort_unless(Stages::isStaffUploader(Auth::user(), $plan), 403, 'Only the uploader can send the final copy.');
-        $r->validate(['final_file' => 'required|file|max:25600', 'note' => 'nullable|string|max:2000'], ['final_file.required' => 'Choose the corrected plan.']);
-        $stages->uploadFinal($plan, $r->file('final_file'), Auth::user(), null, $r->input('note'));
+        abort_unless(Stages::isStaffUploader(Auth::user(), $plan), 403, 'Only the surveyor who uploaded the plan can send the final survey plan.');
+        $r->validate(['final_file' => 'required|file|max:25600', 'produced' => 'nullable|in:manual,digital', 'note' => 'nullable|string|max:2000'],
+            ['final_file.required' => 'Choose the final survey plan.']);
+        $how = ['manual' => 'Produced manually (other software)', 'digital' => 'Produced by digital plotting'][$r->input('produced')] ?? null;
+        $note = collect([$how, trim((string) $r->input('note')) ?: null])->filter()->implode('. ');
+        $stages->uploadFinal($plan, $r->file('final_file'), Auth::user(), null, $note ?: null);
 
-        return redirect()->route('survey-module.survey-plans.show', $plan)->with('success', "Final copy of {$plan->upload_ref} sent to the SG/DSG.");
+        return redirect()->route('survey-module.survey-plans.show', $plan)->with('success', "Final survey plan {$plan->upload_ref} sent to the SG/DSG.");
     }
 
     public function sign(Request $r, Plan $plan, Stages $stages)
     {
-        abort_unless(Stages::isSigner(Auth::user()), 403, 'Only the SG or DSG can sign.');
+        abort_unless(Stages::isSigner(Auth::user(), $plan), 403, 'Only the SG or DSG can sign, and never their own upload.');
         $r->validate(['signing_method' => 'required|in:digital,manual', 'signed_file' => 'required|file|max:25600', 'note' => 'nullable|string|max:2000'],
             ['signed_file.required' => 'Upload the signed copy.', 'signing_method.required' => 'Choose Digital or Manual.']);
         $stages->sign($plan, Auth::user(), (string) $r->input('signing_method'), $r->file('signed_file'), $r->input('note'));
@@ -344,11 +425,24 @@ class SurveyPlanUploadController extends Controller
     public function stageFile(Plan $plan, PlanFile $file)
     {
         abort_unless((int) $file->survey_plan_upload_id === (int) $plan->id, 404);
+        if ($file->file_path === PlanFile::GENERATED_TRAVERSE) return $this->traverse($plan);
         abort_unless($file->file_path && Storage::disk(Plan::DISK)->exists($file->file_path), 404);
 
         return Storage::disk(Plan::DISK)->response($file->file_path, $file->file_name ?: basename($file->file_path), [
             'Cache-Control' => 'private, max-age=3600',
             'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /** A Digital Plotting's traverse with the reference beacon details, as CSV (Kunle, 2026-11-17). */
+    public function traverse(Plan $plan)
+    {
+        abort_unless($plan->isDigital(), 404);
+
+        return response(app(\App\Services\Survey\PlanTraverseSheet::class)->csv($plan), 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $plan->upload_ref . '-traverse.csv"',
+            'Cache-Control' => 'private, no-store',
         ]);
     }
 

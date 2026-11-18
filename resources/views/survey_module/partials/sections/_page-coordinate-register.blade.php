@@ -5,7 +5,8 @@
     $inputStyle = 'padding:8px 14px;border:1.5px solid var(--gray-300);border-radius:var(--radius-sm);font-family:var(--font);font-size:14px;background:#fff;';
     $colours = ['its' => 'pink', 'private' => 'yellow', 'beacon' => 'blue', 'control' => 'purple', 'lpkn' => 'green'];
     $chip = fn ($label, $c) => '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-' . $c . '-100 text-' . $c . '-800">' . e($label) . '</span>';
-    $n = fn ($v) => $v === null ? '—' : number_format((float) $v, 3);
+    // Coordinates as surveyors write them (Kunle, 2026-11-18): X before Y, no thousands commas.
+    $n = fn ($v) => $v === null ? '—' : number_format((float) $v, 3, '.', '');
 @endphp
 
 @include('survey_module.partials._flash')
@@ -48,8 +49,8 @@
                     <th>S/N</th>
                     <th>Source</th>
                     <th>Point</th>
-                    <th style="text-align:right;">Northing (Y)</th>
                     <th style="text-align:right;">Easting (X)</th>
+                    <th style="text-align:right;">Northing (Y)</th>
                     <th style="text-align:right;">Elevation</th>
                     <th>File No.</th>
                     <th>Reference</th>
@@ -89,8 +90,8 @@
                                 <span class="cr-coordinate-group-label">{{ $groupLetter === '#' ? 'Other' : $groupLetter }} · {{ number_format((int) ($groupCounts[$groupLetter] ?? 0)) }} points</span>
                             @endif
                         </td>
-                        <td style="text-align:right;font-family:monospace;">{{ $n($p->northing) }}</td>
                         <td style="text-align:right;font-family:monospace;">{{ $n($p->easting) }}</td>
+                        <td style="text-align:right;font-family:monospace;">{{ $n($p->northing) }}</td>
                         <td style="text-align:right;font-family:monospace;">{{ $n($p->elevation) }}</td>
                         <td style="font-family:monospace;">{{ $p->file_number ?: '—' }}</td>
                         <td>{{ $p->reference ?: '—' }}</td>

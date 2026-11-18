@@ -3101,7 +3101,10 @@ class FileIndexController extends Controller
             $PageDescription = 'Generate tracking sheet for file indexing record';
             $settings = settings(); // Add missing settings variable
 
-            return view('fileindexing.tracking-sheet', compact('PageTitle', 'PageDescription', 'fileIndexing', 'tracker', 'settings'));
+            // Block-indexed file: the whole block on this one sheet (user, 2026-11-17).
+            $blockGroup = app(\App\Services\FileIndexing\BlockTrackingGroup::class)->forFileNumber($fileIndexing->file_number);
+
+            return view('fileindexing.tracking-sheet', compact('PageTitle', 'PageDescription', 'fileIndexing', 'tracker', 'settings', 'blockGroup'));
         } catch (Exception $e) {
             Log::error('Error generating tracking sheet', [
                 'file_indexing_id' => $id,
@@ -3216,12 +3219,18 @@ class FileIndexController extends Controller
                 'generated_at' => $trackingSheet->generated_at->format('M d, Y g:i A')
             ] : null;
 
+            // Block-indexed files (Land Block / KANGIS Block): every file in the block is
+            // listed on the sheet so the group travels on one sheet (user, 2026-11-17).
+            $blockGroup = app(\App\Services\FileIndexing\BlockTrackingGroup::class);
+            $blockGroups = $fileIndexings->mapWithKeys(fn ($fi) => [$fi->id => $blockGroup->forFileNumber($fi->file_number)])->all();
+
             return view('fileindexing.batch-tracking-sheet', compact(
                 'PageTitle',
                 'PageDescription',
                 'fileIndexings',
                 'trackersData',
-                'batchInfo'
+                'batchInfo',
+                'blockGroups'
             ));
         } catch (Exception $e) {
             Log::error('Error generating batch tracking sheets', [

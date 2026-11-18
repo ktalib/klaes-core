@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Route;
 */
 Route::middleware(['auth'])->prefix('system-admin/configurable-entries')->name('configurable-entries.')->group(function () {
     Route::get('/', [Entries::class, 'index'])->name('index');
+    // Farm Features tab (2026-11-18): the Survey tree catalogue inside this page.
+    Route::get('/farm-features', [Entries::class, 'farmFeatures'])->name('farm-features');
 
     Route::post('/revenue-items', [Entries::class, 'storeRevenueItem'])->name('revenue.store');
     Route::post('/revenue-items/{item}', [Entries::class, 'updateRevenueItem'])->whereNumber('item')->name('revenue.update');

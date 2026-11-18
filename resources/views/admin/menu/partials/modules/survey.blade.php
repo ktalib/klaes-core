@@ -4,7 +4,7 @@
 
     @if(
       $hasRole('Survey - Records') || $hasRole('Survey - AI Digital Assistant') ||
-      $hasRole('Survey - GIS') || $hasRole('Survey - E-Registry') ||
+      $hasRole('Survey - GIS') || $hasRole('Survey - E-Registry') || $hasRole('Survey - Digital Archive') ||
       $hasRole('Survey Reports') || $hasRole('Survey - Beacon Register') || $hasRole('Supper Admin') ||
       $hasRole('Survey - Compensation Check') || $hasRole('Survey - DSG') || $hasRole('Survey - Examination') || $hasRole('Survey - SG') ||
       $hasRole('Survey - Compensation') || $hasRole('Survey - Public Survey') || $hasRole('Survey - GKN') ||
@@ -42,6 +42,103 @@
           <i data-lucide="layout-dashboard" class="h-4 w-4 text-pink-500"></i>
           <span>Dashboard</span>
         </a>
+        @endif
+
+        {{-- c. GKN --}}
+        @if($svPublic || $svGkn)
+        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-gkn">
+          <div class="flex items-center gap-2">
+            <i data-lucide="building-2" class="h-4 w-4 text-pink-500"></i>
+            <span>GKN</span>
+          </div>
+          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="survey-gkn"></i>
+        </div>
+
+        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-gkn">
+
+          {{-- c.i Applications: GKN / LPKN / LPPL / Misc KN as tabs on one page (transcript, 2026-10-25).
+               The old GKN Files, LPKN and Misc KN pages keep their routes but leave the sidebar. --}}
+          @if($svRecords || $svGkn)
+          <a href="{{ route('survey-module.gkn.applications') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.applications') ? 'active' : '' }}">
+            <i data-lucide="folders" class="h-3.5 w-3.5 text-pink-400"></i>
+            <span>Applications</span>
+          </a>
+          @endif
+
+          @if($svPublic)
+          {{-- c.ii - c.vii --}}
+          {{-- Public Survey (was Layout Plan; Workflow_V02 3 + sidebar update 2026-10-29) --}}
+          {{-- A collapsible group with its pages nested under it (user, 2026-10-30). --}}
+          <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-gkn-public">
+            <div class="flex items-center gap-2">
+              <i data-lucide="landmark" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Public Survey</span>
+            </div>
+            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-gkn-public"></i>
+          </div>
+          <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-gkn-public">
+            {{-- Public Layout Plans shows the TP Nos table; the separate TP Nos entry is gone (user, 2026-10-30).
+                 The LPKN register stays reachable from the dashboard, GKN Applications and the Coordinate Register. --}}
+            <a href="{{ route('survey-module.records.tp-numbers') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.tp-numbers*', 'survey-module.records.lpkn*') ? 'active' : '' }}">
+              <i data-lucide="map" class="h-3.5 w-3.5 text-pink-400"></i><span>Public Layout Plans</span>
+            </a>
+            <a href="{{ route('survey-module.records.private-layouts') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.private-layouts*') ? 'active' : '' }}">
+              <i data-lucide="map-pinned" class="h-3.5 w-3.5 text-pink-400"></i><span>Private Layout</span>
+            </a>
+            <a href="{{ route('survey-module.records.layout-records') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.layout-records') ? 'active' : '' }}">
+              <i data-lucide="table-2" class="h-3.5 w-3.5 text-pink-400"></i><span>Layout Records</span>
+            </a>
+          </div>
+          @endif
+          @if($svRecords || $svGkn)
+          {{-- Survey Management (CR 30102026 item 15 and the sidebar outline, 2026-10-31). --}}
+          <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-gkn-mgmt">
+            <div class="flex items-center gap-2">
+              <i data-lucide="briefcase" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Survey Management</span>
+            </div>
+            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-gkn-mgmt"></i>
+          </div>
+          <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-gkn-mgmt">
+          <a data-tab-card="survey-surveyors" href="{{ route('survey-module.records.surveyors.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.surveyors.*') ? 'active' : '' }}">
+            <i data-lucide="users" class="h-3.5 w-3.5 text-pink-400"></i><span>Surveyors</span>
+          </a>
+          {{-- Government = Survey's own (LPKN), Private = Cadastral's (LPPL) (CR 30102026 items 12-14). --}}
+          <a data-tab-card="survey-computation-files" href="{{ route('survey-module.gkn.computation-files') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.computation-files') ? 'active' : '' }}">
+            <i data-lucide="folder-archive" class="h-3.5 w-3.5 text-pink-400"></i><span>Computation Files (Field Jackets)</span>
+          </a>
+          <a data-tab-card="survey-its" href="{{ route('survey-module.gkn.its.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.its.*') ? 'active' : '' }}">
+            <i data-lucide="clipboard-list" class="h-3.5 w-3.5 text-pink-400"></i><span>Instruction to Survey</span>
+          </a>
+          {{-- One page (recording, 2026-11-06): Beacon Nos, List of Coordinates and Computation Field Observations are
+               the three sections of its table, no longer items here. Their record pages keep this item current. --}}
+          <a href="{{ route('survey-module.gkn.reports.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.reports.*', 'survey-module.gkn.beacons.*', 'survey-module.gkn.coordinates.*', 'survey-module.gkn.observations.*') ? 'active' : '' }}">
+            <i data-lucide="file-text" class="h-3.5 w-3.5 text-pink-400"></i><span>Surveyors Report</span>
+          </a>
+          </div>
+          {{-- Resettlement + Direct Allocation, with the actions (CR 03112026 item 1). --}}
+          <a data-tab-card="survey-plot-showing" href="{{ route('survey-module.gkn.plot-showing') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.plot-showing') ? 'active' : '' }}">
+            <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Plot Showing Register</span>
+          </a>
+          {{-- The old Checking & Passing (Survey Plan) form (CR 30102026 item 21) is switched off: "no longer required"
+               (CR 11112026-2). Checking now happens on each uploaded plan's page (stages 1-2).
+               Uploaded Survey Plan sits inside Checking & Passing (Survey Plan), still under GKN (user, 2026-11-18),
+               as under Examination/Verification. --}}
+          @php $gknPlansOn = request()->routeIs('survey-module.gkn.uploaded-plans'); @endphp
+          <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-gkn-cp">
+            <div class="flex items-center gap-2">
+              <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-pink-400"></i>
+              <span>Checking &amp; Passing (Survey Plan)</span>
+            </div>
+            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200 {{ $gknPlansOn ? 'rotate-90' : '' }}" data-chevron="survey-gkn-cp"></i>
+          </div>
+          <div class="pl-3 mt-1 mb-1 space-y-0.5 {{ $gknPlansOn ? '' : 'hidden' }}" data-content="survey-gkn-cp">
+          <a href="{{ route('survey-module.gkn.uploaded-plans') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $gknPlansOn ? 'active' : '' }}">
+            <i data-lucide="file-up" class="h-3.5 w-3.5 text-pink-400"></i><span>Uploaded Survey Plan</span>
+          </a>
+          </div>
+          @endif
+        </div>
         @endif
 
         @if($svCompensation)
@@ -201,91 +298,6 @@
             <i data-lucide="message-square-warning" class="h-4 w-4 text-pink-400"></i>
             <span>Complaints</span>
           </a>
-        </div>
-        @endif
-
-        {{-- c. GKN --}}
-        @if($svPublic || $svGkn)
-        <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-gkn">
-          <div class="flex items-center gap-2">
-            <i data-lucide="building-2" class="h-4 w-4 text-pink-500"></i>
-            <span>GKN</span>
-          </div>
-          <i data-lucide="chevron-right" class="h-4 w-4 transition-transform duration-200" data-chevron="survey-gkn"></i>
-        </div>
-
-        <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-gkn">
-
-          {{-- c.i Applications: GKN / LPKN / LPPL / Misc KN as tabs on one page (transcript, 2026-10-25).
-               The old GKN Files, LPKN and Misc KN pages keep their routes but leave the sidebar. --}}
-          @if($svRecords || $svGkn)
-          <a href="{{ route('survey-module.gkn.applications') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.applications') ? 'active' : '' }}">
-            <i data-lucide="folders" class="h-3.5 w-3.5 text-pink-400"></i>
-            <span>Applications</span>
-          </a>
-          @endif
-
-          @if($svPublic)
-          {{-- c.ii - c.vii --}}
-          {{-- Public Survey (was Layout Plan; Workflow_V02 3 + sidebar update 2026-10-29) --}}
-          {{-- A collapsible group with its pages nested under it (user, 2026-10-30). --}}
-          <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-gkn-public">
-            <div class="flex items-center gap-2">
-              <i data-lucide="landmark" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Public Survey</span>
-            </div>
-            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-gkn-public"></i>
-          </div>
-          <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-gkn-public">
-            {{-- Public Layout Plans shows the TP Nos table; the separate TP Nos entry is gone (user, 2026-10-30).
-                 The LPKN register stays reachable from the dashboard, GKN Applications and the Coordinate Register. --}}
-            <a href="{{ route('survey-module.records.tp-numbers') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.tp-numbers*', 'survey-module.records.lpkn*') ? 'active' : '' }}">
-              <i data-lucide="map" class="h-3.5 w-3.5 text-pink-400"></i><span>Public Layout Plans</span>
-            </a>
-            <a href="{{ route('survey-module.records.private-layouts') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.private-layouts*') ? 'active' : '' }}">
-              <i data-lucide="map-pinned" class="h-3.5 w-3.5 text-pink-400"></i><span>Private Layout</span>
-            </a>
-            <a href="{{ route('survey-module.records.layout-records') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.layout-records') ? 'active' : '' }}">
-              <i data-lucide="table-2" class="h-3.5 w-3.5 text-pink-400"></i><span>Layout Records</span>
-            </a>
-          </div>
-          @endif
-          @if($svRecords || $svGkn)
-          {{-- Survey Management (CR 30102026 item 15 and the sidebar outline, 2026-10-31). --}}
-          <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md" data-section="survey-gkn-mgmt">
-            <div class="flex items-center gap-2">
-              <i data-lucide="briefcase" class="h-3.5 w-3.5 text-pink-400"></i>
-              <span>Survey Management</span>
-            </div>
-            <i data-lucide="chevron-right" class="h-3.5 w-3.5 transition-transform duration-200" data-chevron="survey-gkn-mgmt"></i>
-          </div>
-          <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-gkn-mgmt">
-          <a data-tab-card="survey-surveyors" href="{{ route('survey-module.records.surveyors.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.records.surveyors.*') ? 'active' : '' }}">
-            <i data-lucide="users" class="h-3.5 w-3.5 text-pink-400"></i><span>Surveyors</span>
-          </a>
-          {{-- Government = Survey's own (LPKN), Private = Cadastral's (LPPL) (CR 30102026 items 12-14). --}}
-          <a data-tab-card="survey-computation-files" href="{{ route('survey-module.gkn.computation-files') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.computation-files') ? 'active' : '' }}">
-            <i data-lucide="folder-archive" class="h-3.5 w-3.5 text-pink-400"></i><span>Computation Files (Field Jackets)</span>
-          </a>
-          <a data-tab-card="survey-its" href="{{ route('survey-module.gkn.its.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.its.*') ? 'active' : '' }}">
-            <i data-lucide="clipboard-list" class="h-3.5 w-3.5 text-pink-400"></i><span>Instruction to Survey</span>
-          </a>
-          {{-- One page (recording, 2026-11-06): Beacon Nos, List of Coordinates and Computation Field Observations are
-               the three sections of its table, no longer items here. Their record pages keep this item current. --}}
-          <a href="{{ route('survey-module.gkn.reports.index') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.reports.*', 'survey-module.gkn.beacons.*', 'survey-module.gkn.coordinates.*', 'survey-module.gkn.observations.*') ? 'active' : '' }}">
-            <i data-lucide="file-text" class="h-3.5 w-3.5 text-pink-400"></i><span>Surveyors Report</span>
-          </a>
-          </div>
-          {{-- Resettlement + Direct Allocation, with the actions (CR 03112026 item 1). --}}
-          <a data-tab-card="survey-plot-showing" href="{{ route('survey-module.gkn.plot-showing') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.plot-showing') ? 'active' : '' }}">
-            <i data-lucide="check-check" class="h-3.5 w-3.5 text-pink-400"></i><span>Plot Showing Register</span>
-          </a>
-          {{-- The old Checking & Passing (Survey Plan) form (CR 30102026 item 21) is switched off: "no longer required"
-               (CR 11112026-2). Checking now happens on each uploaded plan's page (stages 1-2). --}}
-          <a href="{{ route('survey-module.gkn.uploaded-plans') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.gkn.uploaded-plans') ? 'active' : '' }}">
-            <i data-lucide="file-up" class="h-3.5 w-3.5 text-pink-400"></i><span>Uploaded Survey Plan</span>
-          </a>
-          @endif
         </div>
         @endif
 
@@ -457,7 +469,7 @@
         @if($svRecords)
           @php
             // Opens the File Status search page (CR 30102026 item 29); the lists are its tabs.
-            $svFsOn = request()->routeIs('survey-module.file-status') || request('url') === 'survey' && request()->routeIs('land-rofos.index', 'propertycard.cofo', 'file-decommissioning.decommissioned', 'file-search-db.index', 'regrant.index', 'title-status.index', 'dciv-generation.index', 'caveat.index', 'mortgages.index', 'surrender-release.index');
+            $svFsOn = request()->routeIs('survey-module.file-status') || request('url') === 'survey' && request()->routeIs('land-rofos.index', 'propertycard.cofo', 'file-decommissioning.decommissioned', 'file-search-db.index', 'regrant.index', 'title-status.index', 'dciv-generation.index', 'caveat.index', 'mortgages.index', 'surrender-release.index', 'st-file-status.index');
           @endphp
           <a data-tab-card="survey-file-status" href="{{ route('survey-module.file-status') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ $svFsOn ? 'active' : '' }}">
             <i data-lucide="file-search" class="h-4 w-4 text-pink-500"></i>
@@ -510,8 +522,8 @@
           </div>
         @endif
 
-        {{-- g. File Digital Library / h. Digital Archive --}}
-        @if($hasRole('Survey - E-Registry') || $hasRole('Supper Admin'))
+        {{-- g. File Digital Library / h. Digital Archive: Survey - E-Registry, or its own role Survey - Digital Archive (user, 2026-11-18). --}}
+        @if($hasRole('Survey - E-Registry') || $hasRole('Survey - Digital Archive') || $hasRole('Supper Admin'))
           <a data-tab-card="survey-docware" href="{{ route('filearchive.index', ['url' => 'survey']) }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('filearchive.index') && request('url') === 'survey' ? 'active' : '' }}">
             <i data-lucide="library" class="h-4 w-4 text-pink-500"></i>

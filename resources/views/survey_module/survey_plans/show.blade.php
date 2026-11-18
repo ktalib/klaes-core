@@ -16,6 +16,8 @@
   $final = $plan->latestFile(PlanFile::KIND_FINAL);
   $signed = $plan->latestFile(PlanFile::KIND_SIGNED);
   $corrections = $plan->files->where('kind', PlanFile::KIND_CORRECTION);
+  // Digital Plotting: the plotting sent to the checker in the plotter's chosen format (2026-11-18).
+  $plotted = $plan->latestFile(PlanFile::KIND_PLOTTED);
   $finalUrl = $final ? $fileUrl($final) : null;
   $ext = strtolower(pathinfo((string) $plan->file_name, PATHINFO_EXTENSION));
   $drawable = in_array($ext, ['pdf', 'jpg', 'jpeg', 'png'], true);
@@ -108,27 +110,46 @@
 
 <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
   <a class="btn btn-secondary" href="{{ url()->previous() !== url()->current() ? url()->previous() : route('survey-module.survey-plans.index') }}"><i class="fas fa-arrow-left"></i> Back</a>
-  <a class="btn btn-primary" href="{{ route('survey-module.survey-plans.check-plan', $plan) }}"><i class="fas fa-map-location-dot"></i> Check survey plan</a>
 </div>
 
+{{-- Open Stages (Kunle, 2026-11-18): everything about the plan opens from here. Each stage belongs to one person:
+     1 Upload and 3 Final Survey Plan the surveyor who drew it, 2 Check the checking unit, 4 Sign the SG/DSG only.
+     A stage that is not open to the person viewing is shown greyed, with who has it. --}}
 <div style="display:grid;gap:12px;">
-  @include('survey_module.survey_plans._plan_summary', ['originalUrl' => $original, 'planFileUrl' => route('survey-module.survey-plans.file', $plan), 'plotUrl' => $plotUrl, 'spTabs' => true])
+  @include('survey_module.survey_plans._plan_summary', ['originalUrl' => $original, 'planFileUrl' => route('survey-module.survey-plans.file', $plan), 'plotUrl' => $plotUrl, 'spTabs' => true, 'traverse' => $traverse])
 
-  {{-- ============ Stage 1 -> 2 / 3: the checking unit ============ --}}
-  @if ($canCheck && in_array($stage, [Plan::STAGE_UPLOADED, Plan::STAGE_CORRECTION], true))
-    <div class="sp-section">
-      <h3><span class="ic"><i class="fas fa-ruler-combined"></i></span> Check the plan <small>{{ $plan->unit }}</small></h3>
+  {{-- ============ Stage 1 · Upload: done on upload, preview only ============ --}}
+  <div class="sp-box done">
+    <div class="h"><span class="n"><i class="fas fa-check"></i></span> Stage 1 · Upload <span class="sub">{{ $plan->uploaded_by_name }} · {{ $plan->created_at?->format('d M Y H:i') }}</span></div>
+    <p>Uploaded and sent to {{ $plan->unit }}. Preview only.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      @if ($plan->file_path)<a class="btn btn-secondary btn-sm" href="{{ route('survey-module.survey-plans.file', $plan) }}" target="_blank" rel="noopener"><i class="fas fa-eye"></i> Preview plan</a>@endif
+      @if ($isDigital)<a class="btn btn-secondary btn-sm" href="{{ $plotUrl }}" target="_blank" rel="noopener"><i class="fas fa-map-location-dot"></i> Preview on the map</a>@endif
+    </div>
+  </div>
+
+  {{-- ============ Stage 2 · Check: the checking unit, back to the surveyor ============ --}}
+  @if ($stage === Plan::STAGE_UPLOADED && $canCheck)
+    <div class="sp-section" x-data="{ result: @js(old('check_result', '')) }">
+      <h3><span class="ic"><i class="fas fa-ruler-combined"></i></span> Stage 2 · Check <small>{{ $plan->unit }}</small></h3>
       <form method="POST" action="{{ route('survey-module.survey-plans.corrections', $plan) }}" enctype="multipart/form-data" id="spCorrForm">
         @csrf
         <div class="sp-grid2">
           <div class="sp-box sp-download">
-            <div class="h"><span class="n">1</span> Download
-              <span class="sub">@if ($isDigital)<a class="btn btn-secondary btn-sm" href="{{ $plotUrl }}"><i class="fas fa-map-location-dot"></i> Open on the map</a>@if ($plan->file_path) <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.survey-plans.file', $plan) }}" target="_blank" rel="noopener"><i class="fas fa-download"></i> Download plan</a>@endif @else<a class="btn btn-secondary btn-sm" href="{{ $original }}" target="_blank" rel="noopener"><i class="fas fa-download"></i> Download plan</a>@endif</span>
+            <div class="h"><span class="n">1</span> Check survey plan
+              <span class="sub">
+                <a class="btn btn-primary btn-sm" href="{{ route('survey-module.survey-plans.check-plan', $plan) }}" target="_blank" rel="noopener"><i class="fas fa-map-location-dot"></i> Check on the map</a>
+                @if ($isDigital && $plotted && $plotted->file_path !== PlanFile::GENERATED_TRAVERSE) <a class="btn btn-secondary btn-sm" href="{{ $fileUrl($plotted) }}"><i class="fas fa-file-arrow-down"></i> Plotted data ({{ Plan::CHECK_FORMATS[$plotted->note] ?? 'file' }})</a>@endif
+                @if ($plan->file_path) <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.survey-plans.file', $plan) }}" target="_blank" rel="noopener"><i class="fas fa-download"></i> Download plan</a>@endif
+              </span>
             </div>
+            <p>Open the plan on the map: the coordinate system and the reference coordinate come from the upload. Then say below whether it falls on location and whether there are corrections.@if ($drawable) Corrections can be marked on the plan here; use <strong>Full screen</strong> to see the whole plan.@endif</p>
             @if ($isDigital)
-            <p>{{ $plan->file_path ? 'A digital plotting, with the plan file attached:' : 'A digital plotting has no file:' }} open it on the map to check the beacons, lines and closing. Write the corrections in the note, or upload a marked copy.</p>
-            @else
-            <p>Download the plan as uploaded, or mark it up on screen below. Use <strong>Full screen</strong> to see the whole plan.</p>
+              {{-- Traverse + reference beacons as a card, not a download (user, 2026-11-18). --}}
+              <div class="sp-box" style="box-shadow:none;">
+                <div class="h"><i class="fas fa-route"></i> Traverse + reference beacons</div>
+                @include('survey_module.survey_plans._traverse_table', ['tvPlan' => $plan, 'tvLines' => $traverse])
+              </div>
             @endif
             @if ($drawable)
               <div class="sp-work" id="spWork">
@@ -179,106 +200,129 @@
                 </div>
                 <div class="sp-hint"><span><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo</span><span><kbd>+</kbd> <kbd>-</kbd> zoom</span><span>Ctrl + mouse wheel zooms</span><span><kbd>F</kbd> full screen</span><span><kbd>Esc</kbd> close full screen</span></div>
               </div>
-            @elseif ($isDigital)
-              <div class="sp-drop"><i class="fas fa-map-location-dot"></i>Digital plotting: {{ $plan->referenceBeacons->count() }} beacons. <a href="{{ $plotUrl }}">Open on the map</a>.</div>
-            @else
-              <div class="sp-drop"><i class="fas fa-file-circle-exclamation"></i>This file type cannot be drawn on in the browser. Download it, mark it, and upload the marked copy under Upload.</div>
+            @elseif (! $isDigital)
+              <div class="sp-drop"><i class="fas fa-file-circle-exclamation"></i>This file type cannot be drawn on in the browser. Download it, mark it, and upload the marked copy with the corrections.</div>
             @endif
           </div>
 
           <div class="sp-box tone-violet">
-            <div class="h"><span class="n">2</span> Correction <span class="sub" id="spPageCount">0 pages</span></div>
-            <p>Mark the corrections on the plan, then add the page. Add as many pages as needed.</p>
-            @if ($drawable)<div><button type="button" class="btn btn-primary" id="spAddPage"><i class="fas fa-plus"></i> Add this marked page</button></div>@endif
-            <div class="sp-thumbs" id="spThumbs"></div>
-            <div class="sp-empty" id="spThumbsEmpty">No marked pages yet.</div>
-            <label style="font-size:13px;font-weight:600;">What has to be corrected <span class="required">*</span>
-              <textarea name="note" required maxlength="2000" placeholder="e.g. Bearing on line 3-4 does not close; check beacon A0879A">{{ old('note') }}</textarea>
-            </label>
+            <div class="h"><span class="n">2</span> Map check <span class="spc-req" style="color:#dc2626;">*</span></div>
+            @foreach (Plan::CHECK_LOCATIONS as $k => $label)
+              <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;font-weight:600;cursor:pointer;">
+                <input type="radio" name="check_location" value="{{ $k }}" required @checked(old('check_location') === $k)> {{ $label }}
+              </label>
+            @endforeach
           </div>
 
           <div class="sp-box tone-green">
-            <div class="h"><span class="n">3</span> Upload</div>
-            <p>Or upload a copy you marked outside KLAES. Then send it back to {{ $plan->uploaded_by_name }}.</p>
-            <label class="sp-drop" style="cursor:pointer;display:block;"><i class="fas fa-cloud-arrow-up"></i>PDF, JPG, PNG or TIFF, up to 25 MB
-              <input type="file" name="correction_file" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff" style="margin-top:8px;">
+            <div class="h"><span class="n">3</span> Corrections <span class="spc-req" style="color:#dc2626;">*</span> <span class="sub" id="spPageCount" x-show="result === 'corrections'">0 pages</span></div>
+            @foreach (Plan::CHECK_RESULTS as $k => $label)
+              <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;font-weight:600;cursor:pointer;">
+                <input type="radio" name="check_result" value="{{ $k }}" required x-model="result"> {{ $label }}
+              </label>
+            @endforeach
+            <div x-show="result === 'corrections'" x-cloak style="display:grid;gap:10px;">
+              @if ($drawable)
+                <p>Mark the corrections on the plan, then add the page. Add as many pages as needed.</p>
+                <div><button type="button" class="btn btn-primary btn-sm" id="spAddPage"><i class="fas fa-plus"></i> Add this marked page</button></div>
+              @endif
+              <div class="sp-thumbs" id="spThumbs"></div>
+              <div class="sp-empty" id="spThumbsEmpty">No marked pages yet.</div>
+              <label style="font-size:13px;font-weight:600;">Or upload a marked copy (optional)
+                <input type="file" name="correction_file" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff" style="margin-top:6px;">
+              </label>
+            </div>
+            <label style="font-size:13px;font-weight:600;" x-show="result !== ''" x-cloak>
+              <span x-text="result === 'corrections' ? 'What has to be corrected *' : 'Remark (optional)'"></span>
+              <textarea name="note" maxlength="2000" :required="result === 'corrections'" placeholder="e.g. Bearing on line 3-4 does not close; check beacon A0879A">{{ old('note') }}</textarea>
             </label>
             <div id="spMarkupInputs"></div>
-            <div><button class="btn btn-success" type="submit"><i class="fas fa-reply"></i> Send corrections to the uploader</button></div>
+            <p>It goes back to {{ $plan->uploaded_by_name }} for the final survey plan (stage 3), not to the SG/DSG.</p>
+            <div><button class="btn btn-success" type="submit"><i class="fas fa-reply"></i> Send back to {{ $plan->uploaded_by_name }}</button></div>
           </div>
         </div>
       </form>
-
-      @if ($stage === Plan::STAGE_UPLOADED)
-        <form method="POST" action="{{ route('survey-module.survey-plans.pass', $plan) }}" class="sp-box sp-pass">
-          @csrf
-          <div class="h"><span class="n" style="background:#16a34a;"><i class="fas fa-check"></i></span> No corrections</div>
-          <p>The plan is correct as uploaded. It goes straight to the SG/DSG for signing as the final copy.</p>
-          <input type="text" name="note" maxlength="2000" placeholder="Remark (optional)" style="padding:8px;border:1.5px solid #d1d5db;border-radius:6px;">
-          <div><button class="btn btn-primary" type="submit"><i class="fas fa-check"></i> Pass and send to the SG/DSG</button></div>
-        </form>
-      @endif
+    </div>
+  @elseif ($stage === Plan::STAGE_UPLOADED)
+    <div class="sp-box off">
+      <div class="h"><span class="n">2</span> Stage 2 · Check <span class="sub">{{ $plan->unit }}</span></div>
+      <p>With {{ $plan->unit }} for checking.@if (\App\Services\Survey\SurveyPlanStages::isOwnPlan(auth()->user(), $plan)) You uploaded this plan, so its check is done by the checking unit.@endif</p>
     </div>
   @endif
 
-  {{-- ============ Stage 2 -> 3: the uploader's final copy (KLAES uploads) ============ --}}
+  {{-- ============ Stage 3 · Final Survey Plan: the surveyor who drew it ============ --}}
   @if ($stage === Plan::STAGE_CORRECTION && $canFinal)
-    <div class="sp-section">
-      <h3>Upload the final copy</h3>
-      <form method="POST" action="{{ route('survey-module.survey-plans.final', $plan) }}" enctype="multipart/form-data" class="sp-grid4">
+    @php $hasCorrections = $plan->check_result === 'corrections' || ($plan->check_result === null && $corrections->isNotEmpty()); @endphp
+    <div class="sp-section" x-data="{ produced: @js(old('produced', '')) }">
+      <h3><span class="ic"><i class="fas fa-file-signature"></i></span> Stage 3 · Final Survey Plan <small>{{ $plan->uploaded_by_name }}</small></h3>
+      <form method="POST" action="{{ route('survey-module.survey-plans.final', $plan) }}" enctype="multipart/form-data" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;">
         @csrf
-        <div class="sp-box">
-          <div class="h"><span class="n">1</span> Download corrections</div>
-          @foreach ($corrections as $c)
-            <div><a class="btn btn-secondary" href="{{ $fileUrl($c) }}" target="_blank" rel="noopener"><i class="fas fa-download"></i> {{ $c->file_name }}</a></div>
-          @endforeach
-          <p><strong>Note:</strong> {{ optional($corrections->last())->note }}</p>
+        <div class="sp-box {{ $hasCorrections ? '' : 'off' }}">
+          <div class="h"><span class="n">1</span> Correct <span class="sub">{{ $hasCorrections ? 'corrections from ' . $plan->unit : 'skipped: no corrections' }}</span></div>
+          @if ($hasCorrections)
+            @foreach ($corrections as $c)
+              <div><a class="btn btn-secondary btn-sm" href="{{ $fileUrl($c) }}" target="_blank" rel="noopener"><i class="fas fa-download"></i> {{ $c->file_name }}</a></div>
+            @endforeach
+            <p><strong>What to correct:</strong> {{ $plan->check_note ?: optional($corrections->last())->note }}</p>
+          @else
+            <p>{{ $plan->unit }} found no corrections. Go on to produce the final survey plan.</p>
+          @endif
         </div>
         <div class="sp-box">
-          <div class="h"><span class="n">2</span> Upload final copy</div>
-          <p>The corrected plan goes straight to the SG/DSG for signing.</p>
+          <div class="h"><span class="n">2</span> Produce final survey plan</div>
+          <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;font-weight:600;"><input type="radio" name="produced" value="manual" x-model="produced"> Manual (drawn in other software)</label>
+          <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;font-weight:600;"><input type="radio" name="produced" value="digital" x-model="produced"> Digital (KLAES Digital Plotting)</label>
+          <p x-show="produced === 'digital'" x-cloak>Plot it on <a class="sp-link" href="{{ route('survey-module.survey-plans.digital') }}" target="_blank" rel="noopener">Digital Plotting</a>, then upload the final plan here.</p>
+        </div>
+        <div class="sp-box tone-green">
+          <div class="h"><span class="n">3</span> Upload</div>
+          <p>The final survey plan goes to the SG/DSG for signing (stage 4).</p>
           <input type="file" name="final_file" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff" required>
           <input type="text" name="note" maxlength="2000" placeholder="Remark (optional)" style="padding:8px;border:1.5px solid #d1d5db;border-radius:6px;">
           <div><button class="btn btn-success" type="submit"><i class="fas fa-paper-plane"></i> Send to the SG/DSG</button></div>
         </div>
       </form>
     </div>
-  @elseif ($stage === Plan::STAGE_CORRECTION && $plan->source === 'portal')
-    <div class="sp-box"><p>Waiting for {{ $plan->uploaded_by_name }} to upload the final copy on the KN-MLPP-SG portal.</p></div>
+  @elseif ($stage === Plan::STAGE_CORRECTION)
+    <div class="sp-box off">
+      <div class="h"><span class="n">3</span> Stage 3 · Final Survey Plan <span class="sub">{{ $plan->uploaded_by_name }}</span></div>
+      <p>With {{ $plan->uploaded_by_name }}{{ $plan->source === 'portal' ? ' on the KN-MLPP-SG portal' : '' }} to {{ $plan->check_result === 'corrections' ? 'correct it, produce' : 'produce' }} the final survey plan and upload it.</p>
+    </div>
   @endif
 
-  {{-- ============ Stage 3 -> 4: the SG/DSG signs ============ --}}
+  {{-- ============ Stage 4 · Sign: SG/DSG only ============ --}}
   @if ($stage === Plan::STAGE_FINAL && $canSign)
-    <div class="sp-section" x-data="{ method: '{{ old('signing_method', 'manual') }}', got: false, printed: false, scanned: false }">
-      <h3>Sign the plan</h3>
+    <div class="sp-section" x-data="{ method: '{{ old('signing_method', 'manual') }}', got: false, printed: false, signed: false }">
+      <h3><span class="ic"><i class="fas fa-signature"></i></span> Stage 4 · Sign <small>SG/DSG only</small></h3>
       <form method="POST" action="{{ route('survey-module.survey-plans.sign', $plan) }}" enctype="multipart/form-data" style="display:grid;gap:12px;">
         @csrf
         <div class="sp-method" role="radiogroup" aria-label="How the plan is signed">
           <label><input type="radio" name="signing_method" value="manual" x-model="method"><span>Manual</span></label>
           <label><input type="radio" name="signing_method" value="digital" x-model="method"><span>Digital</span></label>
         </div>
-        <p style="margin:0;font-size:13px;color:#4b5563;" x-show="method === 'manual'">Download the final copy, print it, sign it, scan the signed copy, and upload the scan.</p>
-        <p style="margin:0;font-size:13px;color:#4b5563;" x-show="method === 'digital'">Download the final copy, sign it digitally, and upload the signed file.</p>
-
-        <div class="sp-grid4">
+        <div class="sp-grid4" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
           <div class="sp-box" :class="got && 'done'">
-            <div class="h"><span class="n">1</span> Download</div>
-            <p>The final copy{{ $final && $final->note ? ' · ' . $final->note : '' }}.</p>
-            <div><a class="btn btn-secondary" href="{{ $finalUrl ?? $original }}" target="_blank" rel="noopener" @click="got = true"><i class="fas fa-download"></i> Download final copy</a></div>
+            <div class="h"><span class="n">1</span> Check / Download</div>
+            <p>The final survey plan{{ $final && $final->note ? ' · ' . $final->note : '' }}.</p>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <a class="btn btn-secondary btn-sm" href="{{ $finalUrl ?? $original }}" target="_blank" rel="noopener" @click="got = true"><i class="fas fa-download"></i> Download</a>
+              <a class="btn btn-secondary btn-sm" href="{{ route('survey-module.survey-plans.check-plan', $plan) }}" target="_blank" rel="noopener" @click="got = true"><i class="fas fa-map-location-dot"></i> Check on the map</a>
+            </div>
           </div>
-          <div class="sp-box" x-show="method === 'manual'" :class="{ done: scanned, off: ! printed }">
-            <div class="h"><span class="n">3</span> Scan</div>
-            <p>Scan the signed paper copy to PDF or an image.</p>
-            <label style="font-size:13px;"><input type="checkbox" x-model="scanned" :disabled="! printed"> The signed copy is scanned</label>
+          <div class="sp-box" :class="{ done: printed, off: method === 'digital' || ! got }">
+            <div class="h"><span class="n">2</span> Print</div>
+            <p x-show="method === 'manual'">Open the final survey plan and print it.</p>
+            <p x-show="method === 'digital'" x-cloak>Skipped: signed digitally.</p>
+            <div x-show="method === 'manual'"><a class="btn btn-secondary btn-sm" href="{{ $finalUrl ?? $original }}" target="_blank" rel="noopener" @click="got = true"><i class="fas fa-print"></i> Open to print</a></div>
+            <label style="font-size:13px;" x-show="method === 'manual'"><input type="checkbox" x-model="printed" :disabled="! got"> Printed</label>
           </div>
-          <div class="sp-box" x-show="method === 'manual'" :class="{ done: printed, off: ! got }">
-            <div class="h"><span class="n">2</span> Print and sign</div>
-            <p>Open the final copy and print it from the viewer, then sign the printed plan.</p>
-            <div><a class="btn btn-secondary" href="{{ $finalUrl ?? $original }}" target="_blank" rel="noopener" @click="got = true"><i class="fas fa-print"></i> Open to print</a></div>
-            <label style="font-size:13px;"><input type="checkbox" x-model="printed" :disabled="! got"> Printed and signed</label>
+          <div class="sp-box" :class="{ done: signed, off: method === 'manual' ? ! printed : ! got }">
+            <div class="h"><span class="n">3</span> Sign</div>
+            <p x-text="method === 'manual' ? 'Sign the printed plan, then scan it.' : 'Sign the final survey plan digitally.'"></p>
+            <label style="font-size:13px;"><input type="checkbox" x-model="signed" :disabled="method === 'manual' ? ! printed : ! got"> Signed</label>
           </div>
-          <div class="sp-box" :class="{ off: method === 'manual' ? ! scanned : ! got }">
-            <div class="h"><span class="n" x-text="method === 'manual' ? 4 : 2">4</span> Upload</div>
+          <div class="sp-box tone-green" :class="{ off: ! signed }">
+            <div class="h"><span class="n">4</span> Upload</div>
             <p x-text="method === 'manual' ? 'Upload the scanned signed copy.' : 'Upload the digitally signed file.'"></p>
             <input type="file" name="signed_file" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff" required>
             <input type="text" name="note" maxlength="2000" placeholder="Remark (optional)" style="padding:8px;border:1.5px solid #d1d5db;border-radius:6px;">
@@ -288,12 +332,15 @@
       </form>
     </div>
   @elseif ($stage === Plan::STAGE_FINAL)
-    <div class="sp-box"><p>With the SG/DSG for signing.</p></div>
+    <div class="sp-box off">
+      <div class="h"><span class="n">4</span> Stage 4 · Sign <span class="sub">SG/DSG only</span></div>
+      <p>With the SG/DSG to check, print, sign and upload.</p>
+    </div>
   @endif
 
   @if ($stage === Plan::STAGE_SIGNED && $signed)
     <div class="sp-box done">
-      <div class="h">Signed copy</div>
+      <div class="h"><span class="n"><i class="fas fa-check"></i></span> Signed copy</div>
       <p>Signed {{ $plan->signing_method === Plan::SIGN_DIGITAL ? 'digitally' : 'by hand' }} by {{ $signed->by_name }} on {{ $signed->created_at?->format('d M Y H:i') }}.</p>
       <div><a class="btn btn-success" href="{{ $fileUrl($signed) }}" target="_blank" rel="noopener"><i class="fas fa-download"></i> Download signed copy</a></div>
     </div>
@@ -302,7 +349,7 @@
 @endsection
 
 @push('scripts')
-@if ($canCheck && in_array($stage, [Plan::STAGE_UPLOADED, Plan::STAGE_CORRECTION], true) && $drawable)
+@if ($canCheck && $stage === Plan::STAGE_UPLOADED && $drawable)
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 /*

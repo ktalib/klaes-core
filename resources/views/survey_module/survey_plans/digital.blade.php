@@ -29,6 +29,7 @@
   @include('survey_module.survey_plans._plan_check', ['spcMode' => 'digital', 'spcSearchUrl' => route('survey-module.survey-plans.beacons')])
   @include('survey_module.survey_plans._plan_details_klaes', ['no' => 4, 'withFile' => true, 'fileOptional' => true])
   @include('survey_module.survey_plans._plan_check_export', ['spcExportNo' => 5, 'spcExportGate' => true])
+  @include('survey_module.survey_plans._checker_send')
   <div class="form-actions">
     <div class="left"><a class="btn btn-secondary" href="{{ route('survey-module.survey-plans.index', ['method' => 'digital']) }}"><i class="fas fa-times"></i> Close</a></div>
     <div class="right"><button class="btn btn-success" type="submit"><i class="fas fa-paper-plane"></i> Plot and Send</button></div>

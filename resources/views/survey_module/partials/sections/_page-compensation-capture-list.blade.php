@@ -2,9 +2,12 @@
     use App\Models\Survey\SurveyProject;
     use App\Services\Survey\CompensationListCapture;
 
+    $mode = old('project_mode', 'existing');
+    $pickedProject = (string) old('survey_project_id', $project);
+
     // Grid columns: field => [heading, width, input type].
     $cols = [
-        'fn'        => ['F/No.', 80, 'text'],
+        'fn'        => ['Farm No. (F/No.)', 80, 'text'],
         'name'      => ['Farmer Name', 220, 'text'],
         'area'      => ['Area (Ha)', 90, 'number'],
         'creatable' => ['Creatable', 85, 'text'],
@@ -14,10 +17,21 @@
         'op'        => ['OP No.', 110, 'text'],
         'sign'      => ['Sign', 80, 'text'],
         'remarks'   => ['Status / Remarks', 180, 'text'],
+        // The paper's Farmer ID and Farm ID, optional (user, 2026-11-18). Last, so rows pasted in the old order still line up.
+        'farmer_id' => ['Farmer ID', 120, 'text'],
+        'farm_id'   => ['Farm ID', 120, 'text'],
     ];
     $oldRows = array_values(old('rows', []));
     $rowCount = max(15, count($oldRows));
 
+    // Picking a project shows its CO file, TP No., scheme and sharing ratio, and sets up the plot calculator (user, 2026-11-03).
+    $projectMeta = $projects->mapWithKeys(fn ($p) => [$p->id => [
+        'co'      => $p->coFile ? trim($p->coFile->co_file_no . ($p->coFile->title ? ' · ' . $p->coFile->title : '')) : '',
+        'tp'      => (string) $p->plan_no,
+        'scheme'  => $p->scheme_type,
+        'purpose' => (string) $p->purpose,
+        'farmer'  => $p->farmer_share_pct !== null ? (int) $p->farmer_share_pct : (int) $defaultFarmerPct,
+    ]])->all();
     $calcLandUses = \App\Services\Survey\ResettlementCalculator::LAND_USES;
 @endphp
 
@@ -30,6 +44,11 @@
     .survey-proto .cap-h .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
                               background: var(--primary); color: #fff; font-size: 12px; }
     .survey-proto .cap-h::after { content: ''; flex: 1; height: 1px; background: var(--gray-200); }
+    .survey-proto .cap-modes { display: inline-flex; gap: 4px; padding: 4px; background: var(--gray-100); border-radius: 10px; margin-bottom: 14px; }
+    .survey-proto .cap-modes label { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; font-weight: 600;
+                                     font-size: 13px; color: var(--gray-600); cursor: pointer; margin: 0; }
+    .survey-proto .cap-modes input { display: none; }
+    .survey-proto .cap-modes label.on { background: #fff; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
     .survey-proto .cap-grid-wrap { overflow: auto; max-height: 62vh; border: 1px solid var(--gray-200); border-radius: 8px; }
     .survey-proto table.cap-grid { border-collapse: separate; border-spacing: 0; font-size: 13px; width: max-content; min-width: 100%; }
     .survey-proto table.cap-grid thead th { position: sticky; top: 0; z-index: 2; background: var(--gray-50); padding: 8px 6px; font-size: 11px;
@@ -53,8 +72,48 @@
 
             {{-- 1. Project --}}
             <div class="cap-h"><span class="n">1</span> Project</div>
-            <input type="hidden" name="project_mode" value="new" />
-            <div class="form-grid" id="capNew">
+            <div class="cap-modes" role="radiogroup" aria-label="Project">
+                <label class="{{ $mode === 'existing' ? 'on' : '' }}"><input type="radio" name="project_mode" value="existing" @checked($mode === 'existing')> <i class="fas fa-folder"></i> Existing project</label>
+                <label class="{{ $mode === 'new' ? 'on' : '' }}"><input type="radio" name="project_mode" value="new" @checked($mode === 'new')> <i class="fas fa-folder-plus"></i> New project</label>
+            </div>
+
+            <div class="form-grid" id="capExisting" style="{{ $mode === 'new' ? 'display:none;' : '' }}">
+                {{-- TP No. as a dropdown (user, 2026-11-18): picking one narrows the projects to its own; picking a project sets it.
+                     Not posted: the project carries its TP No. --}}
+                <div class="form-group">
+                    <label>TP No.</label>
+                    <select id="capTp" class="sv-searchable" data-placeholder="Search TP number…">
+                        <option value="">All TP Nos.</option>
+                        @foreach ($projects->pluck('plan_no')->map(fn ($t) => trim((string) $t))->filter()->unique(fn ($t) => mb_strtoupper($t))->sort()->values() as $tp)
+                            <option value="{{ $tp }}">{{ $tp }}</option>
+                        @endforeach
+                    </select>
+                    <p class="helper-text">Pick the TP No. to list its projects.</p>
+                </div>
+                <div class="form-group">
+                    <label>Project <span class="required">*</span></label>
+                    <select name="survey_project_id" class="sv-searchable" data-placeholder="Search project, code or TP No.…">
+                        <option value=""></option>
+                        @foreach ($projects as $p)
+                            <option value="{{ $p->id }}" @selected($pickedProject === (string) $p->id)>
+                                {{ $p->project_code }} · {{ $p->display_name }}{{ $p->plan_no ? ' · ' . $p->plan_no : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="helper-text">Type to search. The list becomes a new land under this project.</p>
+                </div>
+                <div class="form-group">
+                    <label>CO File</label>
+                    <input type="text" id="capCoFile" readonly placeholder="Auto-filled from Project" style="background:var(--gray-100);color:var(--gray-700);" />
+                    <p class="helper-text" id="capCoFileNote" style="display:none;">This project has no CO file yet. Add it with Update on Project Management.</p>
+                </div>
+                <div class="form-group">
+                    <label>Scheme</label>
+                    <input type="text" id="capScheme" readonly placeholder="Auto-filled from Project" style="background:var(--gray-100);color:var(--gray-700);" />
+                </div>
+            </div>
+
+            <div class="form-grid" id="capNew" style="{{ $mode === 'new' ? '' : 'display:none;' }}">
                 <div class="form-group">
                     <label>Project Name <span class="required">*</span></label>
                     <input type="text" name="project_name" value="{{ old('project_name') }}" maxlength="255" placeholder="e.g. Tsamiyar Kara Phase II" />
@@ -103,8 +162,9 @@
                     <p class="helper-text">This list becomes the surveyor's next portion on the project.</p>
                 </div>
                 <div class="form-group">
-                    <label>Section / Block</label>
-                    <input type="text" name="section" value="{{ old('section') }}" maxlength="50" placeholder="e.g. A" />
+                    <label>Section No.</label>
+                    <input type="text" name="section" value="{{ old('section') }}" maxlength="50" placeholder="e.g. 3" />
+                    <p class="helper-text">As on the paper; optional. Farmer ID and Farm ID go on each row.</p>
                 </div>
                 <div class="form-group">
                     <label>List Title</label>
@@ -237,6 +297,16 @@
     var body = document.getElementById('capRows');
     var FIELDS = @json(array_keys($cols));
 
+    // Existing / new project.
+    form.querySelectorAll('input[name="project_mode"]').forEach(function (r) {
+        r.addEventListener('change', function () {
+            var isNew = form.querySelector('input[name="project_mode"]:checked').value === 'new';
+            document.getElementById('capNew').style.display = isNew ? '' : 'none';
+            document.getElementById('capExisting').style.display = isNew ? 'none' : '';
+            form.querySelectorAll('.cap-modes label').forEach(function (l) { l.classList.toggle('on', l.querySelector('input').checked); });
+        });
+    });
+
     function rows() { return Array.prototype.slice.call(body.rows); }
     function isEmpty(tr) { return Array.prototype.every.call(tr.querySelectorAll('input'), function (i) { return !i.value.trim(); }); }
 
@@ -348,12 +418,13 @@
     });
 
     /* Project details + Plot Calculator (user, 2026-11-03). */
-    var RC_PURPOSES = @json($rcPurposes), RC_RATES = @json($rcRates), DEFAULT_FARMER = {{ (int) $defaultFarmerPct }};
-    var schemeSel = form.querySelector('select[name="scheme_type"]');
+    var META = @json($projectMeta), RC_PURPOSES = @json($rcPurposes), RC_RATES = @json($rcRates), DEFAULT_FARMER = {{ (int) $defaultFarmerPct }};
+    var projSel = form.querySelector('select[name="survey_project_id"]'), schemeSel = form.querySelector('select[name="scheme_type"]');
     var luSel = document.getElementById('capLandUse'), pSel = document.getElementById('capPurpose'), dSel = document.getElementById('capDensity');
     var sizeIn = document.getElementById('capPlotSize'), autoBox = document.getElementById('capAutoFill');
     var calc = { land: false, farmer: DEFAULT_FARMER };
 
+    function isNewMode() { var r = form.querySelector('input[name="project_mode"]:checked'); return r && r.value === 'new'; }
     function opt(v, t) { var o = document.createElement('option'); o.value = v; o.textContent = t; return o; }
     function purposeDensity(s) {
         var m = String(s || '').toUpperCase().replace(/\s+/g, ' ').trim().match(/^(VERY HIGH|HIGH|MEDIUM|LOW) DENSITY$/);
@@ -390,7 +461,7 @@
         fillAll(false);
     }
 
-    // The entered purpose (e.g. Residential Layout) picks the land use and matching density.
+    // The project's purpose (e.g. Residential Layout) picks the land use, and the purpose when it is on the list.
     function presetPurpose(text) {
         var want = String(text || '').toUpperCase().trim();
         if (!want) return;
@@ -415,13 +486,20 @@
         form.querySelector('[data-tl="farmer"]').textContent = 'Farmer ' + s.farmer + '%';
     }
 
-    // Scheme on this newly captured project drives the plot calculator.
+    // Which project / scheme is in play, and what it shows.
     function syncProject() {
-        var scheme = schemeSel ? schemeSel.value : '';
+        var m = !isNewMode() && projSel ? META[projSel.value] : null;
+        var co = document.getElementById('capCoFile');
+        co.value = m ? m.co : '';
+        document.getElementById('capCoFileNote').style.display = m && !m.co ? '' : 'none';
+        tpSet(m ? m.tp : null);
+        document.getElementById('capScheme').value = m ? (m.scheme === 'land' ? 'Land to Land' : 'Monetary Compensation') : '';
+        var scheme = isNewMode() ? (schemeSel ? schemeSel.value : '') : (m ? m.scheme : '');
         calc.land = scheme === 'land';
-        calc.farmer = DEFAULT_FARMER;
+        calc.farmer = m ? m.farmer : DEFAULT_FARMER;
         document.getElementById('capCalc').style.display = calc.land ? '' : 'none';
         labels();
+        if (m && m.purpose && !luSel.value) presetPurpose(m.purpose);
         fillAll(false);
     }
 
@@ -474,9 +552,29 @@
         }
     });
     body.addEventListener('paste', function () { setTimeout(function () { fillAll(false); }, 0); });
+    // TP No. dropdown (user, 2026-11-18): narrows the project list to that TP; a picked project sets it.
+    var tpSel = document.getElementById('capTp'), allProjects = projSel ? Array.prototype.map.call(projSel.options, function (o) { return o.cloneNode(true); }) : [];
+    function tpKey(v) { return String(v || '').replace(/\s+/g, '').toUpperCase(); }
+    function select2Sync(el) { if (window.jQuery) jQuery(el).trigger('change.select2'); }
+    function tpSet(tp) { if (!tpSel || tp === null) return; var hit = Array.prototype.filter.call(tpSel.options, function (o) { return o.value && tpKey(o.value) === tpKey(tp); })[0]; tpSel.value = hit ? hit.value : ''; select2Sync(tpSel); }
+    function tpFilter() {
+        if (!projSel) return;
+        var key = tpKey(tpSel.value), keep = projSel.value;
+        projSel.innerHTML = '';
+        allProjects.forEach(function (o) {
+            if (!o.value || !key || tpKey((META[o.value] || {}).tp) === key) projSel.appendChild(o.cloneNode(true));
+        });
+        var opts = Array.prototype.filter.call(projSel.options, function (o) { return o.value; });
+        projSel.value = opts.some(function (o) { return o.value === keep; }) ? keep : (opts.length === 1 ? opts[0].value : '');
+        select2Sync(projSel);
+        if (projSel.value !== keep) { luSel.value = ''; density('landuse'); sizeIn.value = ''; syncProject(); }
+    }
+    if (tpSel) tpSel.addEventListener('change', tpFilter);
+    if (projSel) projSel.addEventListener('change', function () { luSel.value = ''; density('landuse'); sizeIn.value = ''; syncProject(); });
     if (schemeSel) schemeSel.addEventListener('change', syncProject);
+    form.querySelectorAll('input[name="project_mode"]').forEach(function (r) { r.addEventListener('change', syncProject); });
     var newPurpose = form.querySelector('input[name="purpose"]');
-    if (newPurpose) newPurpose.addEventListener('change', function () { if (!luSel.value) presetPurpose(newPurpose.value); });
+    if (newPurpose) newPurpose.addEventListener('change', function () { if (isNewMode() && !luSel.value) presetPurpose(newPurpose.value); });
 
     syncProject();
     totals();

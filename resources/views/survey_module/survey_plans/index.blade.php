@@ -112,7 +112,7 @@
         @endunless
         <select name="stage" style="{{ $field }}">
             <option value="">All stages</option>
-            @foreach (Plan::STAGES as $n => $label)<option value="{{ $n }}" @selected(request('stage') === (string) $n)>{{ $n }} · {{ $label }}</option>@endforeach
+            @foreach (Plan::STAGE_STATUS as $n => $label)<option value="{{ $n }}" @selected(request('stage') === (string) $n)>{{ $label }}</option>@endforeach
         </select>
         <select name="source" style="{{ $field }}">
             <option value="">KLAES and portal</option>
@@ -146,38 +146,25 @@
                         <td>{{ $row->source_label }}</td>
                         <td>{{ $row->uploaded_by_name ?: '—' }}</td>
                         <td style="white-space:nowrap;">{{ $row->created_at?->format('d M Y') }}</td>
-                        <td style="white-space:nowrap;"><span class="status-badge {{ $stageTone[$row->stage_no] ?? 'pending' }}"><span class="dot"></span>{{ $row->stage_no }} · {{ $row->stage_label }}</span>
+                        <td style="white-space:nowrap;"><span class="status-badge {{ $stageTone[$row->stage_no] ?? 'pending' }}"><span class="dot"></span>{{ $row->step_no }} · {{ $row->stage_label }}</span>
                             <div style="font-size:12px;color:var(--gray-500);">{{ $row->stage_status }}</div></td>
                         <td>
                             <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
+                                {{-- Near the foot of the window the menu opens upwards (user, 2026-11-18). --}}
                                 <button type="button" x-ref="btn" title="Actions" aria-label="Actions"
-                                        @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open"
+                                        @click.stop="const r = $refs.btn.getBoundingClientRect(); top = r.bottom + 4; left = Math.max(8, r.right - 224); open = !open;
+                                                     $nextTick(() => { const h = $refs.menu.offsetHeight; if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4); })"
                                         class="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-600 hover:bg-gray-100">
                                     <i data-lucide="more-vertical" class="w-5 h-5"></i>
                                 </button>
-                                <div x-show="open" x-cloak @click.outside="open = false" @scroll.window="open = false"
+                                <div x-show="open" x-ref="menu" x-cloak @click.outside="open = false" @scroll.window="open = false"
                                      :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                                    {{-- One way in (Kunle, 2026-11-18): Open Stages; the map, the plan file, the plotted data and the
+                                         traverse all open from the stages page. Application Plan stays here. --}}
                                     <a href="{{ route('survey-module.survey-plans.show', $row) }}" class="{{ $svItem }}" @click="open = false">
-                                        <i data-lucide="layers" class="w-4 h-4 text-gray-500"></i> Open (stages)
+                                        <i data-lucide="layers" class="w-4 h-4 text-gray-500"></i> Open Stages
                                     </a>
-                                    @if ($row->isDigital())
-                                    <a href="{{ route('survey-module.survey-plans.check-plan', $row) }}" class="{{ $svItem }}" @click="open = false">
-                                        <i data-lucide="map-pinned" class="w-4 h-4 text-gray-500"></i> Open on the map
-                                    </a>
-                                    @if ($row->file_path)
-                                    <a href="{{ route('survey-module.survey-plans.file', $row) }}" target="_blank" rel="noopener" class="{{ $svItem }}" @click="open = false">
-                                        <i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i> Open Plan
-                                    </a>
-                                    @endif
-                                    @else
-                                    <a href="{{ route('survey-module.survey-plans.check-plan', $row) }}" class="{{ $svItem }}" @click="open = false">
-                                        <i data-lucide="map-pinned" class="w-4 h-4 text-gray-500"></i> Check survey plan
-                                    </a>
-                                    <a href="{{ route('survey-module.survey-plans.file', $row) }}" target="_blank" rel="noopener" class="{{ $svItem }}" @click="open = false">
-                                        <i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i> Open Plan
-                                    </a>
-                                    @endif
                                     @if (\App\Models\Survey\SurveyApplicationPlan::installed())
                                     <button type="button" class="{{ $svItem }} w-full text-left" @click="open = false; spOpenApplicationPlan($el)"
                                             data-ap-ref="{{ $row->upload_ref }}" data-ap-save="{{ route('survey-module.survey-plans.application-plan.save', $row) }}"

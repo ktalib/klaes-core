@@ -118,6 +118,22 @@ class KangisBlockIndexing
         return $files;
     }
 
+    /**
+     * The KANGIS files of a block land file with their own holder and plot, for the
+     * block's group tracking sheet (BlockTrackingGroup).
+     */
+    public function kangisMembersFor(string $landFileNo): \Illuminate\Support\Collection
+    {
+        if (self::key($landFileNo) === '') {
+            return collect();
+        }
+
+        return $this->kangisRecordsFor($landFileNo)
+            ->get(['id', 'file_number', 'file_title', 'plot_number', 'district', 'lga'])
+            ->unique(fn ($r) => self::key((string) $r->file_number))
+            ->values();
+    }
+
     /** Live KANGIS Registry records carrying this land file as their Related File No. */
     private function kangisRecordsFor(string $landFileNo, ?int $excludeFileIndexingId = null)
     {
@@ -215,6 +231,10 @@ class KangisBlockIndexing
         foreach ($landFileNos as $landFileNo) {
             if (self::key($landFileNo) !== '') {
                 $this->landRows($landFileNo)->update(['allow_multiple_kangis' => 1]);
+                // The land file now heads a block: give it its Block ID (user, 2026-11-18).
+                foreach ($this->landRows($landFileNo)->pluck('id') as $landId) {
+                    app(BlockTrackingGroup::class)->assignFor((int) $landId);
+                }
             }
         }
     }

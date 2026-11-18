@@ -700,6 +700,32 @@ class FileIndexingController extends Controller
                 ->where('file_indexing_id', $id)
                 ->get();
 
+            // Land Block Indexing: the block's own files (one entry per holder / plot) are not
+            // related files. They all carry the block's number, so keyed by file number below
+            // they collapsed into one, and the form opened the block as a single file; saving
+            // it then lost the rest (RES-2014-205, user 2026-11-18). Hand them to the form as
+            // the block's files instead.
+            $isBlockEntry = fn ($link) => (string) ($link->indexing_type ?? '') === 'Block' && (int) ($link->mfile ?? 0) === 1;
+            $blockEntries = $relatedLinks->filter($isBlockEntry)->sortBy('id')->values();
+            $relatedLinks = $relatedLinks->reject($isBlockEntry)->values();
+            if (($record->indexing_type ?? null) === 'Block' && $blockEntries->isNotEmpty()) {
+                $record->block_files = $blockEntries->map(fn ($l) => [
+                    'title' => $l->file_title,
+                    'plot_number' => $l->plot_number,
+                    'district' => $l->district,
+                    'lga' => $l->lga,
+                    'location' => $l->location,
+                    'land_use_type' => $l->land_use_type,
+                    'plot_size' => $l->plot_size,
+                    'tp_number' => $l->tp_no,
+                    'lpkn_no' => $l->lpkn_no,
+                    'phone' => $l->phone ?? null,
+                    'residence_address' => $l->residence_address ?? null,
+                    'nin' => $l->nin ?? null,
+                    'dob' => $l->dob ?? null,
+                ])->all();
+            }
+
             // Base related details from the link table, keyed by file number so the
             // DCIV / indexed backfills below can extend or enrich them without dupes.
             $relatedDetails = $relatedLinks->map(function ($link) {
@@ -1465,6 +1491,21 @@ class FileIndexingController extends Controller
                     $updatePayload['registry'] = 'KANGIS';
                 }
 
+                // Land Block edited from its file tabs (one per holder / plot): the per-file
+                // values are the block's entries (syncBlockEntries), not the main record's. Taking
+                // the first one renamed the file to its first holder and cut its plot list to
+                // one plot (user, 2026-11-18), so the main title and plot stay as they are.
+                $editedAsBlock = ($existingRecord->indexing_type ?? null) === 'Block'
+                    && is_array($request->input('file_title'))
+                    && count(array_filter($request->input('file_title'), fn ($t) => trim((string) $t) !== '')) >= 2;
+                if ($editedAsBlock) {
+                    foreach (['file_title', 'plot_number'] as $blockKey) {
+                        if (array_key_exists($blockKey, $updatePayload)) {
+                            $updatePayload[$blockKey] = $existingRecord->{$blockKey};
+                        }
+                    }
+                }
+
                 // Flatten any array values in updatePayload (SQL Server columns expect strings)
                 // Pick the first value for most fields, except those we want as JSON.
                 foreach ($updatePayload as $key => $value) {
@@ -1630,6 +1671,7 @@ class FileIndexingController extends Controller
                         $relatedDetails,
                         $explicitRelatedSubmission
                     );
+                    $this->syncBlockEntries($fileIndexingModel, $request);
                     $this->syncMasterDcivLinks($fileIndexingModel, $relatedFileNos, $relatedDetails);
                     $this->syncRelatedSightings($request, $fileIndexingModel, $relatedFileNos);
 
@@ -1727,6 +1769,8 @@ class FileIndexingController extends Controller
 
             // KANGIS Block Indexing: the box's Yes and the live KANGIS count on the land file.
             $this->applyKangisBlock($kangisBlock, (int) $id);
+            // A block keeps its own Block ID, used to track it (user, 2026-11-18).
+            app(\App\Services\FileIndexing\BlockTrackingGroup::class)->assignFor((int) $id);
 
             // Same "where did this record go?" card as the create path — an update
             // fans out across the same tables, so the operator sees the current state.
@@ -4337,6 +4381,11 @@ class FileIndexingController extends Controller
                 // renaming afterwards (what resolveAndSave does) fails on the INSERT.
                 $kangisBaseFileNo = trim((string) ($baseFileNo ?? ''));
                 if ($kangisBaseFileNo !== '') {
+                    $repeatSave = $this->recentKangisRepeatSave($kangisBaseFileNo, $request, $validated);
+                    if ($repeatSave instanceof \Illuminate\Http\JsonResponse) {
+                        return $repeatSave;
+                    }
+
                     $kangisPreResolve = app(KangisFileNoPlaceholderService::class)
                         ->resolveForNewRecord($kangisBaseFileNo);
                     $kangisResolvedFileNo = $kangisPreResolve['resolved'];
@@ -4861,6 +4910,9 @@ class FileIndexingController extends Controller
                         ];
                         FileIndexingLink::create($linkData);
                     }
+
+                    // The block's own Block ID, used to track it (user, 2026-11-18).
+                    app(\App\Services\FileIndexing\BlockTrackingGroup::class)->assignFor((int) $fileIndexing->id);
 
                     // 2. Create Links for Related Files (mfile = 0)
                     foreach ($relatedDetails as $detail) {
@@ -7471,6 +7523,58 @@ class FileIndexingController extends Controller
     }
 
     /**
+     * Double-submit guard for KANGIS variants (KNML 6566, 2026-11-18). A save the
+     * network sent twice reached store() as a second physical file, and the suffix
+     * logic renamed the first record to _1 and saved the repeat as _2. When the
+     * same user already indexed this base number (bare or _N) with the same
+     * placeholder and title in the last few minutes, refuse instead of suffixing.
+     * A genuinely different file (other placeholder, title or user) still gets _N.
+     */
+    protected function recentKangisRepeatSave(string $baseFileNo, Request $request, array $validated): ?\Illuminate\Http\JsonResponse
+    {
+        $userName = Auth::check() ? $this->resolveCurrentUserName() : null;
+        $placeholder = trim((string) $request->input('kangis_fileno_placeholder', ''));
+        $title = $validated['file_title'] ?? $request->input('file_title', '');
+        $title = is_string($title) ? trim($title) : '';
+        if ($userName === null || $placeholder === '' || $title === '') {
+            return null;
+        }
+
+        $like = str_replace('_', '[_]', $baseFileNo) . '[_]%';
+        $existing = DB::connection('sqlsrv')
+            ->table('file_indexings')
+            ->where(function ($q) use ($baseFileNo, $like) {
+                $q->where('file_number', $baseFileNo)->orWhere('file_number', 'like', $like);
+            })
+            ->whereRaw('UPPER(LTRIM(RTRIM(kangis_fileno_placeholder))) = UPPER(?)', [$placeholder])
+            ->whereRaw('UPPER(LTRIM(RTRIM(file_title))) = UPPER(?)', [$title])
+            ->where('created_by', $userName)
+            ->where('created_at', '>=', now()->subMinutes(5))
+            ->where(function ($q) {
+                $q->whereNull('is_deleted')->orWhere('is_deleted', 0);
+            })
+            ->first(['id', 'file_number', 'tracking_id']);
+
+        if (!$existing) {
+            return null;
+        }
+
+        Log::warning('FileIndexing::store - repeat KANGIS save refused', [
+            'base_file_no' => $baseFileNo,
+            'existing_id' => $existing->id,
+            'existing_file_number' => $existing->file_number,
+            'user' => $userName,
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => "This file was already indexed as {$existing->file_number} a moment ago (tracking ID {$existing->tracking_id}). The repeat save was not recorded.",
+            'error_type' => 'duplicate_submit',
+            'existing_file_number' => $existing->file_number,
+        ], 409);
+    }
+
+    /**
      * KANGIS Block Indexing guard (user, 2026-10-17). On a KANGIS Registry record the
      * land (MLS) file is the Related File No; it may be related to one KANGIS file only
      * unless the land file is marked "multiple KANGIS files" — by the KANGIS Block
@@ -7691,6 +7795,72 @@ class FileIndexingController extends Controller
         ) + ['can_mark_multiple' => KangisBlockIndexing::canUse($request->user())]);
     }
 
+    /**
+     * Land Block Indexing on edit (user, 2026-11-18): rebuild the block's own entries (one per
+     * holder / plot, mfile 1) from the form's per-file arrays, as create does. The edit form
+     * now opens with every entry loaded. Guard: a form that sent fewer than two files never
+     * replaces a block that has more (an old page that loaded only one would wipe the rest);
+     * the entries are then kept as they are.
+     */
+    protected function syncBlockEntries($mainRecord, Request $request): void
+    {
+        if (($mainRecord->indexing_type ?? null) !== 'Block') {
+            return;
+        }
+
+        $titles = $request->input('file_title');
+        if (!is_array($titles)) {
+            return;
+        }
+        $titles = array_values($titles);
+        $count = count(array_filter($titles, fn ($t) => trim((string) $t) !== ''));
+
+        $existing = FileIndexingLink::on('sqlsrv')->where('file_indexing_id', $mainRecord->id)
+            ->where('indexing_type', 'Block')->where('mfile', 1);
+        $existingCount = (clone $existing)->count();
+        if ($count === 0 || ($count < 2 && $existingCount > 1)) {
+            Log::info('FileIndexing::syncBlockEntries - kept existing entries', [
+                'main_id' => $mainRecord->id, 'sent' => $count, 'existing' => $existingCount,
+            ]);
+            return;
+        }
+
+        $at = function (string $key, int $i) use ($request) {
+            $v = $request->input($key);
+            return is_array($v) ? ($v[$i] ?? null) : $v;
+        };
+
+        $existing->delete();
+        foreach ($titles as $i => $title) {
+            if (trim((string) $title) === '') {
+                continue;
+            }
+            $district = $at('district', $i);
+            if (is_string($district) && strcasecmp(trim($district), 'Other') === 0) {
+                $district = $at('custom_district', $i) ?: $district;
+            }
+            FileIndexingLink::on('sqlsrv')->create([
+                'file_indexing_id' => $mainRecord->id,
+                'file_number' => $mainRecord->file_number,
+                'file_title' => trim((string) $title),
+                'mfile' => 1,
+                'indexing_type' => 'Block',
+                'plot_number' => $at('plot_number', $i),
+                'district' => $district,
+                'lga' => $at('lga', $i),
+                'location' => $at('location', $i),
+                'land_use_type' => $at('land_use_type', $i),
+                'plot_size' => $at('plot_size', $i),
+                'tp_no' => $at('tp_no', $i),
+                'lpkn_no' => $at('lpkn_no', $i),
+                'created_by' => Auth::id(),
+                'updated_by' => Auth::id(),
+            ]);
+        }
+
+        Log::info('FileIndexing::syncBlockEntries - rebuilt', ['main_id' => $mainRecord->id, 'entries' => $count]);
+    }
+
     protected function syncRelatedFileLinks($mainRecord, array $relatedFileNos, array $relatedDetails = [], bool $allowClear = false)
     {
         // If no related file data is provided, skip the sync to prevent accidental deletion
@@ -7699,16 +7869,23 @@ class FileIndexingController extends Controller
         // really did remove the last related file, and the links must go with it — otherwise
         // file_indexings.related_fileno is nulled while file_indexing_links keeps the row,
         // and the related file reappears from the links side.
+        // A Land Block's own files (indexing_type Block, mfile 1) are not related files: this
+        // sync never touches them. Deleting every link here wiped a block's entries on any
+        // edit (user, 2026-11-18); syncBlockEntries() owns them.
+        $relatedOnly = fn () => FileIndexingLink::on('sqlsrv')->where('file_indexing_id', $mainRecord->id)
+            ->where(fn ($q) => $q->whereNull('indexing_type')->orWhere('indexing_type', '!=', 'Block')
+                ->orWhereNull('mfile')->orWhere('mfile', '!=', 1));
+
         if (empty($relatedFileNos)) {
             if ($allowClear) {
-                FileIndexingLink::on('sqlsrv')->where('file_indexing_id', $mainRecord->id)->delete();
+                $relatedOnly()->delete();
             }
 
             return;
         }
 
         // Remove existing links to avoid duplicates
-        FileIndexingLink::on('sqlsrv')->where('file_indexing_id', $mainRecord->id)->delete();
+        $relatedOnly()->delete();
 
         foreach ($relatedFileNos as $index => $relatedFileNo) {
             // Find details for this file number if available
@@ -7725,6 +7902,10 @@ class FileIndexingController extends Controller
                         }
                     }
                 }
+            }
+
+            if ((int) ($details['mfile'] ?? 0) === 1 && ($mainRecord->indexing_type ?? null) === 'Block') {
+                continue; // a block entry, kept by syncBlockEntries()
             }
 
             FileIndexingLink::on('sqlsrv')->create([

@@ -54,8 +54,11 @@
 
 <div class="page-header">
     <div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.compensation.op.export'), 'title' => $byTp ? 'Existing OPs by TP No.' : 'Existing OPs', 'dateLabel' => 'Date', 'dates' => ! $byTp])</div>
-    <button type="button" class="btn btn-primary" onclick="document.getElementById('opExistingForm').classList.add('open')"><i class="fas fa-plus"></i> Capture Existing OP</button>
+    {{-- The OSS Capture OP card (user, 2026-11-18), not a Survey-only form: one OP card everywhere. The old form
+         above stays only to edit OPs captured on this page before. --}}
+    <button type="button" class="btn btn-primary" onclick="openSurveyOpCard()"><i class="fas fa-plus"></i> Capture Existing OP</button>
 </div>
+@include('survey_module.compensation.partials.capture-op-card')
 
 {{-- List or By TP No. (CR 03112026 item 2). --}}
 @php $opViewUrl = fn (array $p) => route('survey-module.compensation.op', ['tab' => 'existing'] + $p); @endphp
@@ -79,10 +82,11 @@
         <table>
             <thead><tr><th>S/N</th><th>TP No.</th><th>Agency</th><th>Serial No.</th><th>OPs</th><th>Resettlement</th><th>Direct Allocation</th><th>In Public Layout Plans</th></tr></thead>
             <tbody>
+                {{-- Cascade (user, 2026-11-18): clicking a TP No. opens its OPs under the row, in place. --}}
                 @forelse ($byTp as $g)
-                    <tr>
+                    <tr class="tp-row" data-tp="{{ $g->id }}" style="cursor:pointer;" onclick="tpToggle(this)">
                         <td>{{ $byTp->firstItem() + $loop->index }}</td>
-                        <td style="white-space:nowrap;"><a href="{{ $opViewUrl(['tp' => $g->id]) }}"><strong>{{ $g->label }}</strong></a>@if ($g->needs_review)<div class="helper-text" style="margin:0;">Needs checking</div>@endif</td>
+                        <td style="white-space:nowrap;"><i class="fas fa-chevron-right tp-chev" style="width:14px;color:var(--gray-500);transition:transform .15s;"></i> <strong style="color:var(--primary);">{{ $g->label }}</strong>@if ($g->needs_review)<div class="helper-text" style="margin:0;">Needs checking</div>@endif</td>
                         <td>{{ $g->agency ?: '—' }}</td>
                         <td>{{ $g->serial ?: '—' }}</td>
                         <td>{{ number_format($g->op_count) }}</td>
@@ -98,6 +102,49 @@
     </div>
     <div class="table-footer"><span>{{ number_format($byTp->total()) }} layouts</span><div class="pagination">{{ $byTp->links() }}</div></div>
 </div>
+<script>
+(function () {
+    var URL_ = @json(route('survey-module.compensation.op.tp-ops'));
+    var esc = function (s) { return String(s == null || s === '' ? '—' : s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+
+    function load(detail, tp, page) {
+        var body = detail.querySelector('tbody'), foot = detail.querySelector('.tp-foot');
+        foot.innerHTML = '<span style="color:var(--gray-500);">Loading…</span>';
+        fetch(URL_ + '?tp=' + encodeURIComponent(tp) + '&page=' + page, { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                d.rows.forEach(function (op, i) {
+                    body.insertAdjacentHTML('beforeend', '<tr><td>' + (d.from + i) + '</td><td style="white-space:nowrap;">' + esc(op.file_no) + '</td><td><strong>' + esc(op.serial)
+                        + '</strong></td><td>' + esc(op.kind) + '</td><td>' + esc(op.allottee) + '</td><td>' + esc(op.plot_no) + '</td><td>' + esc(op.district)
+                        + '</td><td>' + esc(op.lga) + '</td><td>' + esc(op.location) + '</td><td style="white-space:nowrap;">' + esc(op.issued) + '</td><td>' + esc(op.source) + '</td></tr>');
+                });
+                if (!d.total) body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--gray-500);">No OPs under this TP No.</td></tr>';
+                foot.innerHTML = '<span>' + body.querySelectorAll('tr').length.toLocaleString() + ' of ' + d.total.toLocaleString() + ' OPs</span>'
+                    + (d.more ? ' <button type="button" class="btn btn-outline btn-sm">Show more</button>' : '');
+                var more = foot.querySelector('button');
+                if (more) more.addEventListener('click', function (e) { e.stopPropagation(); load(detail, tp, page + 1); });
+            })
+            .catch(function () { foot.innerHTML = '<span style="color:#b91c1c;">Could not load the OPs. Try again.</span>'; });
+    }
+
+    window.tpToggle = function (row) {
+        var next = row.nextElementSibling, chev = row.querySelector('.tp-chev');
+        if (next && next.classList.contains('tp-detail')) {
+            var open = next.style.display === 'none';
+            next.style.display = open ? '' : 'none';
+            chev.style.transform = open ? 'rotate(90deg)' : '';
+            return;
+        }
+        chev.style.transform = 'rotate(90deg)';
+        // Property order: Plot No., District, LGA, Location.
+        row.insertAdjacentHTML('afterend', '<tr class="tp-detail"><td colspan="8" style="background:var(--gray-50);padding:10px 14px;">'
+            + '<div class="table-scroll" style="max-height:420px;overflow:auto;"><table style="font-size:13px;"><thead><tr><th>S/N</th><th>File No.</th><th>OP Serial</th><th>Type</th><th>Allottee</th>'
+            + '<th>Plot No.</th><th>District</th><th>LGA</th><th>Location</th><th>Date</th><th>Source</th></tr></thead><tbody></tbody></table></div>'
+            + '<div class="tp-foot" style="display:flex;gap:10px;align-items:center;margin-top:8px;font-size:13px;"></div></td></tr>');
+        load(row.nextElementSibling, row.dataset.tp, 1);
+    };
+})();
+</script>
 @else
 <form method="GET" class="table-toolbar">
     <input type="hidden" name="tab" value="existing">

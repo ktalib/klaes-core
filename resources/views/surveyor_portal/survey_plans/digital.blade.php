@@ -19,6 +19,7 @@
         @include('survey_module.survey_plans._plan_check', ['spcMode' => 'digital', 'spcSearchUrl' => route('surveyor-portal.survey-plans.beacons')])
         @include('surveyor_portal.survey_plans._plan_details_portal', ['no' => 4, 'withFile' => true, 'fileOptional' => true])
         @include('survey_module.survey_plans._plan_check_export', ['spcExportNo' => 5, 'spcExportGate' => true])
+  @include('survey_module.survey_plans._checker_send')
         <div class="flex justify-end">
             <button class="ks-btn ks-btn-primary"><i data-lucide="send" class="w-4 h-4"></i> Plot and Send</button>
         </div>

@@ -30,10 +30,10 @@
     const NAME = c => GRID_NAME[c] || { 26331: 'Minna / UTM 31N (EPSG:26331)', 32631: 'UTM 31N, WGS 84 (EPSG:32631)', 4326: 'Latitude / longitude, WGS 84 (EPSG:4326)' }[c] || 'EPSG:' + c;
     const MAXTEX = 4096;   // the map texture limit we keep to; bigger scans are shrunk for the map only
 
-    // The sample, until the Kano plans come (user, 2026-11-15: one file only). An Abia layout plan with an NTM
-    // Mid Belt grid printed on it; its 17 grid crossings were fitted (0.44 m rms) and saved as a GeoTIFF, so it
-    // places itself. It is outside Kano: the map is opened up while it is on, and closed again when removed.
-    const SAMPLE = { file: '005-isieke-ibeku-umuahia.tif', label: 'Sample: Isieke Ibeku layout, Umuahia (Abia)' };
+    // The sample (user, 2026-11-17: the Kano scan replaces the Abia one): Kano 1:2,500 sheet 439/1326/NE (Minjibir),
+    // georeferenced in ArcMap to Minna / UTM 32N (F:\GIS Data\LFS 16-11-2026\Scan0001.tif + .tfwx), turned north-up
+    // at 0.25 m with resources/gis/scan_to_geotiff.py so it places itself. The Abia files stay in the folder.
+    const SAMPLE = { file: '439-1326-ne-minjibir-kano.tif', label: 'Sample: Kano sheet 439/1326/NE, Minjibir' };
     const SAMPLE_URL = (root.dataset.scanSamples || '/maps/samples/tiff') + '/' + SAMPLE.file;
 
     const map = () => S.map();

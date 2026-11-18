@@ -60,6 +60,11 @@ class BeaconRegisterController extends Controller
     public function index(Request $r)
     {
         $this->authorizeAction('view');
+        // Two tabs, Public and Private (user, 2026-11-18): never mixed, so a Public group cannot hold Private entries.
+        // Public is the first tab; the type is carried in the links, the group rows and the exports.
+        if (! array_key_exists((string) $r->query('layout'), SurveyBeaconRegister::LAYOUT_TYPES)) {
+            $r->merge(['layout' => 'Government']);
+        }
         $q = $this->filtered($r);
         $view = in_array($r->query('view'), ['numbers', 'groups'], true) ? $r->query('view') : 'issues';
 
@@ -651,8 +656,7 @@ class BeaconRegisterController extends Controller
             ->whereIn('survey_beacon_register_id', (clone $q)->select('id'))
             ->selectRaw(self::LETTERS_SQL . ' AS letters, COUNT(*) AS issued, COUNT(DISTINCT survey_beacon_register_id) AS entries, MIN(beacon_seq) AS lowest, MAX(beacon_seq) AS highest')
             ->groupByRaw(self::LETTERS_SQL)->get()
-            ->sortBy(fn ($g) => $g->letters === '' ? '~' : $g->letters)->values()
-            ->each(fn ($g) => $g->setRelation('firstEntry', $this->groupEntries($q, (string) $g->letters)->first()));
+            ->sortBy(fn ($g) => $g->letters === '' ? '~' : $g->letters)->values();
     }
 
     /** A letter group's entries, lowest number first, with what their table rows show. */
@@ -671,21 +675,20 @@ class BeaconRegisterController extends Controller
     }
 
     /**
-     * The remaining entries in a leading-letter group. The first entry is already shown in the group row.
+     * A leading-letter group's entries, opened under its row. The group row is only the summary (the letters and the
+     * range of numbers, user 2026-11-18), so every entry, the first too, is listed here with its details.
      */
     public function groupRows(Request $r)
     {
         $this->authorizeAction('view');
         $letters = (string) $r->query('group');
-        $first = $this->groupEntries($this->filtered($r), $letters)->value('id');
-
-        $entries = $this->groupEntries($this->filtered($r), $letters)->where('id', '!=', (int) $first)->get();
+        $entries = $this->groupEntries($this->filtered($r), $letters)->get();
 
         return response()->json([
             'html' => view('survey_module.partials.sections._beacon_issue_rows', [
                 'entries' => $entries,
                 'groupNo' => (int) $r->query('sn'),
-                'rowStart' => 2,
+                'rowStart' => 1,
             ])->render(),
         ]);
     }

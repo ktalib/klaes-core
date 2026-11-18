@@ -1091,7 +1091,6 @@ window.addEventListener('load', function () {
     if (!t) return `<div class="toc-row toc-off"><input type="checkbox" disabled><span>${esc(i.name)}<small class="toc-meta">Not available yet</small></span></div>`;
     const op = IMG_FX[i.key]?.op ?? 100;
     return `<div class="toc-row" data-imgrow="${i.key}"><label class="toc-lbl"><input type="checkbox" data-img="${i.key}" ${IMG_ON[i.key] ? 'checked' : ''}><span class="sw sw-img"></span><span>${esc(i.name)}<small class="toc-meta">${esc(i.note)}${op < 100 ? ` · shown ${op}%` : ''}</small></span></label>
-      <button type="button" class="toc-zoom" data-img-zoom="${i.key}" title="Zoom to this imagery" aria-label="Zoom to ${esc(i.name)}"><i class="fas fa-magnifying-glass-location"></i></button>
       <button type="button" class="tl-menu" data-img-menu="${i.key}" aria-label="Layer actions: ${esc(i.name)}" title="Layer actions"><i class="fas fa-ellipsis-vertical"></i></button></div>`;
   }).join('');
   // Action menu for our imagery (user, 2026-11-16): on/off, zoom, transparency, draw order, properties. For this map
@@ -1293,7 +1292,7 @@ window.addEventListener('load', function () {
       return map.querySourceFeatures('gis-' + g.key, { sourceLayer: lyr.sourceLayer }).filter(f => { const k = JSON.stringify(f.properties); if (seen.has(k)) return false; seen.add(k); return true; })
         .slice(0, 5000).map(f => ({ type: 'Feature', geometry: f.geometry, properties: { ...f.properties } }));
     } }));
-  ent({ key: 'grid', name: 'Coordinate grid', kind: 'line', sw: ['#1e293b', 'line'], ids: ['grid-halo', 'grid-line'], group: 'ref', on: false, grid: true, feats: () => [] });
+  // The coordinate grid is not a layer (user, 2026-11-17): only the map bar's Grid toggle switches it.
   const byKind = keys => keys.sort((a, b) => KIND_RANK[ENTRY[a].kind] - KIND_RANK[ENTRY[b].kind]);
   let groupSeq = 0;
   const GROUPS = [
@@ -1373,7 +1372,6 @@ window.addEventListener('load', function () {
     box.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const g = GROUPS.find(x => x.id === b.dataset.fold); g.open = !g.open; renderToc(); });
     box.querySelectorAll('[data-ffold]').forEach(b => b.onclick = () => { fold[b.dataset.ffold] = !fold[b.dataset.ffold]; renderToc(); });
     box.querySelectorAll('[data-img]').forEach(i => i.onchange = () => { showImagery(i.dataset.img, i.checked); if (i.checked) zoomIfAway(i.dataset.img); });
-    box.querySelectorAll('[data-img-zoom]').forEach(b => b.onclick = () => zoomImagery(b.dataset.imgZoom));
     box.querySelectorAll('[data-img-menu]').forEach(b => b.onclick = ev => { ev.stopPropagation(); imageryMenu(b.dataset.imgMenu, b); });
     box.querySelectorAll('[data-imgrow]').forEach(r => r.addEventListener('contextmenu', ev => { ev.preventDefault(); imageryMenu(r.dataset.imgrow, null, ev); }));
     box.querySelectorAll('[name=spc_tocbase]').forEach(r => r.onchange = () => {
@@ -1651,9 +1649,7 @@ window.addEventListener('load', function () {
   if ($('sideBtn')) { $('sideBtn').onclick = () => setSide(!$('mapbody').classList.contains('withside')); $('sideClose').onclick = () => setSide(false); }
   // The bar's own controls keep the panel in step.
   ['btn-street', 'btn-satellite'].forEach(id => $(id).addEventListener('click', () => setTimeout(renderToc, 0)));
-  // Basemap off ticks the grid on (drawGrid): the panel follows.
-  $('baseOn').addEventListener('change', () => { ENTRY.grid.on = $('gridOn').checked; setTimeout(renderToc, 0); });
-  $('gridOn').addEventListener('change', () => { ENTRY.grid.on = $('gridOn').checked; const g = groupOf('grid'); if (ENTRY.grid.on && g) g.on = true; setTimeout(renderToc, 0); });
+  $('baseOn').addEventListener('change', () => setTimeout(renderToc, 0));
   if (window.matchMedia('(max-width: 700px)').matches) setToc(false);
   renderToc();
   // Applied once the map is ready: what was turned off before, and the order.
@@ -1838,7 +1834,8 @@ window.addEventListener('load', function () {
   }
   const coordsOf = g => g.type === 'Point' ? [g.coordinates] : g.type === 'LineString' ? g.coordinates : g.coordinates[0];
   const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
-  function save(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+  let CAPTURE = null;   // set by SPC_EXPORT: the next save is handed back instead of downloaded
+  function save(blob, name) { if (CAPTURE) { CAPTURE(blob, name); return; } const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
   const EXPORTS = {
     geojson(f) { save(new Blob([JSON.stringify({ type: 'FeatureCollection', features: f }, null, 1)], { type: 'application/geo+json' }), `survey-plan-${stamp()}.geojson`); },
     kml(f) {
@@ -1904,6 +1901,20 @@ window.addEventListener('load', function () {
       if (!r.ok) { let m = 'the server said ' + r.status; try { m = (await r.json()).message || m; } catch (e) { /* not JSON */ } throw new Error(m); }
       save(await r.blob(), `survey-plan-${stamp()}-geodatabase.zip`);
     },
+  };
+  // Digital Plotting sends the plotting to the checker in a chosen format (Kunle, 2026-11-18): the export as a File.
+  window.SPC_EXPORT = async fmt => {
+    const inc = $('incplan'), was = inc ? inc.checked : true;
+    if (inc) inc.checked = true;      // the plan itself always goes to the checker
+    let f;
+    try { f = exportFeatures(); } finally { if (inc) inc.checked = was; }
+    if (!f.length) throw new Error('Nothing is plotted yet.');
+    if (!EXPORTS[fmt]) throw new Error('Unknown format ' + fmt);
+    let got = null;
+    CAPTURE = (blob, name) => { got = new File([blob], name, { type: blob.type || 'application/octet-stream' }); };
+    try { await EXPORTS[fmt](f); } finally { CAPTURE = null; }
+    if (!got) throw new Error('The ' + fmt + ' file was not made.');
+    return got;
   };
   document.querySelectorAll('#spc-export [data-export]').forEach(b => b.onclick = async () => {
     const f = exportFeatures(), note = $('export-note');

@@ -697,6 +697,11 @@
                                                     </div>
                                                 </div>
 
+                                                {{-- Block-indexed file (Land Block / KANGIS Block): tracked under its Block ID; the
+                                                     operator ticks the block's files that are moving (user, 2026-11-18).
+                                                     Filled by loadBlockGroupPanel() in partials/js.blade.php. --}}
+                                                <div id="block-group-panel" class="hidden"></div>
+
                                                 {{-- File No / Tracking ID notices — kept in one shared row so the three
                                                      columns above stay the same height instead of File No's stacked
                                                      boxes pushing everything below it out of alignment. --}}

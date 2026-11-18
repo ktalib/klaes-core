@@ -29,6 +29,19 @@
         font-size: 14px;
     }
     .survey-proto .select2-container--default .select2-selection--single .select2-selection__arrow { height: 40px; }
+    /* District / LGA (multiple) as tall as the inputs beside them, the search text centred, not on a second line
+       (user, 2026-11-18: "correct this form layout"). */
+    .survey-proto .address-builder .select2-container--default .select2-selection--multiple {
+        display: flex; flex-wrap: wrap; align-items: center; padding: 3px 8px;
+    }
+    .survey-proto .address-builder .select2-container--default .select2-selection--multiple .select2-selection__rendered {
+        display: contents;
+    }
+    .survey-proto .address-builder .select2-container--default .select2-selection--multiple .select2-search--inline,
+    .survey-proto .address-builder .select2-container--default .select2-selection--multiple .select2-search__field {
+        margin: 0; height: 30px; line-height: 30px; font-family: var(--font); font-size: 14px;
+    }
+    .survey-proto .address-builder .select2-container--default .select2-selection--multiple .select2-selection__choice { margin: 2px 4px 2px 0; }
     /* Multi-select tags */
     .survey-proto .select2-container--default .select2-selection--multiple .select2-selection__choice {
         background: var(--primary-50);

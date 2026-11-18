@@ -578,7 +578,7 @@ class PlotConfirmationController extends Controller
             'tp_other.required'         => 'Specify the TP No.',
             'shown_at.regex'            => 'Give the time as HH:MM.',
             'allottee_present.required' => 'Say whether the allottee was there.',
-            'reason.required'           => 'This OP has been shown before: say why (Change of Ownership or Verification).',
+            'reason.required'           => 'This plot has been shown before: say why (Change of Ownership or Verification).',
             'photos.max'                => 'At most 10 photographs per showing.',
             'photos.*.mimes'            => 'Photographs must be JPG or PNG.',
             'photos.*.max'              => 'Each photograph can be at most 12 MB.',
@@ -705,7 +705,7 @@ class PlotConfirmationController extends Controller
         $showings = Showing::where('op_source', $op['source'])->where('op_source_id', $op['id']);
         $against = ! empty($data['showing']) ? (clone $showings)->whereKey((int) $data['showing'])->first() : (clone $showings)->orderByDesc('showing_no')->first();
         if (! $against) {
-            throw ValidationException::withMessages(['op' => 'Record the OP showing first: the ground check is the response to a showing.']);
+            throw ValidationException::withMessages(['op' => 'Record the plot showing first: the ground check is the response to a showing.']);
         }
 
         [$staffId, $svName] = $this->pickedSurveyor($data);

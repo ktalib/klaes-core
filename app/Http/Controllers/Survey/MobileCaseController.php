@@ -143,7 +143,8 @@ class MobileCaseController extends CaseController
             ->paginate(12)
             ->withQueryString();
 
-        $projects = SurveyProject::where('status', 'Active')
+        // New projects only (user, 2026-11-18): the dashboard's projects open a new farm.
+        $projects = SurveyProject::where('status', 'Active')->newInKlaes()
             ->withCount('cases')
             ->orderBy('name')
             ->limit(12)

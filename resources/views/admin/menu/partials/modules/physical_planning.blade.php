@@ -1,22 +1,19 @@
 <!-- 8. Physical Planning -->
-@if(
-    $hasRole('PHYSICAL PLANNING') ||
-    $hasRole('Shadow File Commissioning') ||
-    $hasRole('PP - Conversion Applications') ||
-    $hasRole('Planning Recommendation - Conversion') ||
-    $hasRole('Lands eRegistry') ||
-    $hasRole('Conversion Applications for Memo') ||
-    $hasRole('Bills & Payments - Conversion') ||
-    $hasRole('Planning Recommendation') ||
-    $hasRole('ST Applications for Memo') ||
-    $hasRole('ST eRegistry') ||
-    $hasRole('Bills & Payments') ||
-    $hasRole('PP - SLTR Applications') ||
-    $hasRole('PP Director') ||
-    $hasRole('PP Reports') ||
-    $hasRole('Master JSI') ||
-    $hasRole('Parcel/Title Management-PP')
-  )
+{{-- One module per sidebar item (user, 2026-11-17): the permission grid's Physical Planning
+     rows are these ten, in this order. The 17 older module names were folded into them. --}}
+@php
+  $ppModules = ['PP - Title Status Update', 'Shadow File Commissioning', 'Conversion Applications', 'ST One Stop Shop',
+    'SLTR Applications', 'Parcel/Title Management', 'Bills & Payments',
+    'PP Director - Master JSI Approval', 'PP Director - Conversion', 'PP Director - Sectional Titling', 'PP Director - SLTR',
+    'PP - Digital Archive', 'PP Reports'];
+  // PP Director is a group of four modules, one per item (user, 2026-11-17).
+  $ppDirMasterJsi = $hasRole('PP Director - Master JSI Approval');
+  $ppDirConversion = $hasRole('PP Director - Conversion');
+  $ppDirSt = $hasRole('PP Director - Sectional Titling');
+  $ppDirSltr = $hasRole('PP Director - SLTR');
+  $ppAny = collect($ppModules)->contains(fn ($m) => $hasRole($m));
+@endphp
+@if($ppAny)
   <div class="py-1 px-3 mb-0.5 border-t border-slate-100">
     <div
       class="sidebar-module-header flex items-center justify-between py-2 px-3 mb-0.5 cursor-pointer hover:bg-slate-50 rounded-md"
@@ -39,12 +36,14 @@
       </a>
       --}}
 
+    @if($hasRole('PP - Title Status Update'))
       <!-- a. Title Status Update -->
       <a href="{{ route('title-status.index') }}?url=pp"
         class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('title-status.index') && request('url') === 'pp' ? 'active' : '' }}">
         <i data-lucide="badge-check" class="h-4 w-4 text-red-500"></i>
         <span>Title Status Update</span>
       </a>
+    @endif
 
     @if($hasRole('Shadow File Commissioning'))
       <!-- b. Shadow File Commissioning -->
@@ -86,7 +85,7 @@
    @endif
 
       
-      @if($hasRole('PP - Conversion Applications') || $hasRole('Planning Recommendation - Conversion') || $hasRole('Conversion Applications for Memo'))
+      @if($hasRole('Conversion Applications'))
         <!-- c. Conversion Applications -->
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
           data-section="conversionApplications">
@@ -99,28 +98,24 @@
         </div>
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="conversionApplications">
-          @if($hasRole('Planning Recommendation - Conversion'))
             <!-- i. Planning Recommendation -->
             <a href="{{ route('physical-planning.regular.planning-recommendation') }}"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('physical-planning.regular.planning-recommendation', 'physical-planning.regular.planning-recommendation.approval') && request()->query('role') !== 'pp_director' ? 'active' : '' }}">
               <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-red-400"></i>
               <span>Planning Recommendation</span>
             </a>
-          @endif
 
-          @if($hasRole('Conversion Applications for Memo'))
             <!-- ii. Memo -->
             <a href="/physical-planning/regular/memo"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
               <i data-lucide="clipboard-list" class="h-3.5 w-3.5 text-red-400"></i>
               <span>Memo</span>
             </a>
-          @endif
 
         </div>   
       @endif
 
-      @if($hasRole('Planning Recommendation') || $hasRole('ST Applications for Memo') || $hasRole('ST eRegistry'))
+      @if($hasRole('ST One Stop Shop'))
         <!-- d. ST One Stop Shop -->
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
           data-section="stApplications">
@@ -133,36 +128,30 @@
         </div>
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="stApplications">
-          @if($hasRole('Planning Recommendation'))
             <!-- i. Planning Recommendation -->
             <a href="{{ route('programmes.approvals.planning_recomm') }}?url=view"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('programmes.approvals.planning_recomm') && request()->query('url') === 'view' ? 'active' : '' }}">
               <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-red-400"></i>
               <span>Planning Recommendation</span>
             </a>
-          @endif
 
-          @if($hasRole('ST Applications for Memo'))
             <!-- ii. ST Applications for Memo -->
             <a href="{{ route('stmemo.siteplan') }}?url=applications"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('stmemo.siteplan') && request()->query('url') === 'applications' ? 'active' : '' }}">
               <i data-lucide="file-text" class="h-3.5 w-3.5 text-red-400"></i>
               <span>ST Applications for Memo</span>
             </a>
-          @endif
 
-          @if($hasRole('ST eRegistry'))
             <!-- iii. ST eRegistry -->
             <a href="{{ route('programmes.eRegistry') }}?url=pp"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 text-black {{ request()->routeIs('programmes.eRegistry') && request()->query('url') === 'pp' ? 'active' : '' }}">
               <i data-lucide="folder" class="h-3.5 w-3.5 text-red-400"></i>
               <span>ST eRegistry</span>
             </a>
-          @endif
         </div>
       @endif
 
-      @if($hasRole('PP - SLTR Applications') || $hasRole('Planning Recommendation'))
+      @if($hasRole('SLTR Applications'))
         <!-- e. SLTR Applications -->
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
           data-section="sltrApplications">
@@ -175,33 +164,27 @@
         </div>
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="sltrApplications">
-          @if($hasRole('Planning Recommendation'))
             <a href="{{ route('physical-planning.sltr.planning-recommendation') }}"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('physical-planning.sltr.planning-recommendation', 'physical-planning.sltr.planning-recommendation.approval') && request()->query('role') !== 'pp_director' ? 'active' : '' }}">
               <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-red-400"></i>
               <span>Planning Recommendation</span>
             </a>
-          @endif
 
-          @if($hasRole('PP - SLTR Applications'))
             <a href="/physical-planning/sltr/memo"
               class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
               <i data-lucide="clipboard-list" class="h-3.5 w-3.5 text-red-400"></i>
               <span>Memo</span>
             </a>
-          @endif
 
-          @if($hasRole('PP - SLTR Applications'))
             {{-- iii. SLTR e-Registry: placeholder until the screen exists. --}}
             <a href="#" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
               <i data-lucide="folder" class="h-3.5 w-3.5 text-red-400"></i>
               <span>SLTR e-Registry</span>
             </a>
-          @endif
         </div>
       @endif
 
-      @if($hasRole('Parcel/Title Management-PP') || $hasRole('Master JSI'))
+      @if($hasRole('Parcel/Title Management'))
         {{-- f. Parcel/Title Management (sits above PP Director) --}}
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
           data-section="ppParcelTitleManagement">
@@ -223,7 +206,7 @@
         </div>
       @endif
 
-      @if($hasRole('Bills & Payments') || $hasRole('Bills & Payments - Conversion'))
+      @if($hasRole('Bills & Payments'))
         {{-- g. Bills & Payments: one central area, a tab per application type. --}}
         @php
           $ppBillsCentral = \App\Services\PhysicalPlanningBillSources::isCentral(request());
@@ -257,7 +240,7 @@
         </div>
       @endif
 
-      @if($hasRole('PP Director'))
+      @if($ppDirMasterJsi || $ppDirConversion || $ppDirSt || $ppDirSltr)
         <!-- h. PP Director -->
         <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
           data-section="ppDirector">
@@ -271,13 +254,15 @@
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="ppDirector">
 
           {{-- i. Master JSI Approval: every Master JSI created, approved from here. --}}
+          @if($ppDirMasterJsi)
           <a href="{{ route('master-jsi.approvals') }}"
             class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('master-jsi.approvals') && request('stage') !== 'ps' ? 'active' : '' }}">
             <i data-lucide="clipboard-check" class="h-3.5 w-3.5 text-red-400"></i>
             <span>Master JSI Approval</span>
           </a>
+          @endif
 
-
+          @if($ppDirConversion)
           <!-- ii. Conversion -->
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
             data-section="ppDirectorConversion">
@@ -304,9 +289,10 @@
               <span>Physical Planning Memo</span>
             </a>
           </div>
+          @endif
 
-          
-          <!-- i. Sectional Titling -->
+          @if($ppDirSt)
+          <!-- iii. Sectional Titling -->
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
             data-section="ppDirectorST">
             <div class="flex items-center gap-2">
@@ -332,9 +318,10 @@
               <span>Physical Planning Memo</span>
             </a>
           </div>
+          @endif
 
-
-          <!-- iii. SLTR -->
+          @if($ppDirSltr)
+          <!-- iv. SLTR -->
           <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
             data-section="ppDirectorSltr">
             <div class="flex items-center gap-2">
@@ -360,10 +347,12 @@
               <span>Physical Planning Memo</span>
             </a>
           </div>
+          @endif
         </div>
       @endif
 
       {{-- i. Digital Archive --}}
+      @if($hasRole('PP - Digital Archive'))
       <div class="sidebar-submodule-header flex items-center justify-between py-1.5 px-3 cursor-pointer rounded-md"
         data-section="digitalArchive-pp">
         <div class="flex items-center gap-2">
@@ -417,6 +406,7 @@
           <span>DMS Update</span>
         </a>
       </div>
+      @endif
 
       <!-- j. PP Reports -->
       @if($hasRole('PP Reports'))

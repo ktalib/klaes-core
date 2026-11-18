@@ -3,7 +3,12 @@
      $fileUrl: fn (SurveyPlanFile) => url. $plotUrl: a Digital Plotting's beacons on the map (KLAES only), or null. --}}
 @php
   use App\Models\Survey\SurveyPlanUpload as SpPlan;
-  $spNow = $plan->stage_no;
+  // Stage done = `stage`; the step open now is the next one (Kunle, 2026-11-18). Signed: all four done.
+  $spDone = $plan->stage_no;
+  $spSigned = $spDone === SpPlan::STAGE_SIGNED;
+  $spOpen = $plan->step_no;
+  // Plotted Beacons tab (user, 2026-11-18): the traverse from beacon to beacon, X / Y with the bearing and distance.
+  $spLines = $traverse ?? app(\App\Services\Survey\PlanTraverseSheet::class)->lines($plan);
   // KLAES plan page shows Details / Reference Beacons / Files as tabs (user, 2026-11-12); the portal keeps cards.
   $spTabs = $spTabs ?? false;
   $spDigital = $plan->isDigital();
@@ -51,13 +56,18 @@
   @endif
   <div class="sp-track" aria-label="Stages">
     @foreach (SpPlan::STAGES as $n => $label)
-      <div class="sp-step {{ $n < $spNow || $spNow === SpPlan::STAGE_SIGNED ? 'done' : ($n === $spNow ? 'now' : '') }}" @if ($n === $spNow) aria-current="step" @endif>
-        <div class="k">Stage {{ $n }}</div>
-        <div class="t">{{ $label }}</div>
+      @php $spIsNow = ! $spSigned && $n === $spOpen; @endphp
+      <div class="sp-step {{ $n <= $spDone ? 'done' : ($spIsNow ? 'now' : '') }}" @if ($spIsNow) aria-current="step" @endif>
+        <div class="k">Stage {{ $n }} · {{ SpPlan::STAGE_OWNERS[$n] }}</div>
+        <div class="t">@if ($n <= $spDone)<i class="fas fa-check"></i> @endif{{ $label }}</div>
       </div>
     @endforeach
   </div>
   <div style="font-size:13px;color:#374151;"><strong>Now:</strong> {{ $plan->stage_status }}@if ($plan->signing_method) · signed {{ $plan->signing_method === SpPlan::SIGN_DIGITAL ? 'digitally' : 'by hand' }}@endif</div>
+  @if ($plan->check_result)
+    <div style="font-size:13px;color:#374151;"><strong>Check:</strong> {{ $plan->check_location_label }} · {{ $plan->check_result_label }}@if ($plan->check_note) · {{ $plan->check_note }}@endif
+      <span style="color:#6b7280;">({{ $plan->checked_by_name }}, {{ $plan->checked_at?->format('d M Y H:i') }})</span></div>
+  @endif
   @if ($spTabs)
     <div class="sp-tabbar" role="tablist">
       <label for="spTab1" role="tab"><i class="fas fa-circle-info"></i> Details</label>
@@ -94,10 +104,12 @@
 
 <div class="{{ $spTabs ? 'sp-pane sp-pane-2' : 'sp-card' }}">
   @unless ($spTabs)<h3 class="sp-h">{{ $spDigital ? 'Plotted Beacons' : 'Reference Coordinate' }}</h3>@endunless
-  @if ($spDigital)<p style="margin:0 0 8px;font-size:12.5px;color:#6b7280;">In traverse order. The first (X1) is the reference.</p>@endif
+  @if ($spDigital)
+    @include('survey_module.survey_plans._traverse_table', ['tvPlan' => $plan, 'tvLines' => $spLines])
+  @else
   <div style="overflow-x:auto;">
     <table class="sp-tbl">
-      <thead><tr><th>S/N</th><th>Beacon No.</th><th>X (Easting)</th><th>Y (Northing)</th><th>From</th></tr></thead>
+      <thead><tr><th>S/N</th><th>Beacon No.</th><th>X (Easting)</th><th>Y (Northing)</th></tr></thead>
       <tbody>
         @forelse ($plan->referenceBeacons as $b)
           <tr>
@@ -105,14 +117,14 @@
             <td class="sp-mono">{{ $b->beacon_no }}</td>
             <td class="sp-mono">{{ $b->coord_x }}</td>
             <td class="sp-mono">{{ $b->coord_y }}</td>
-            <td>{{ ['captured' => 'Beacon Register', 'extant' => 'Extant Beacons list', 'typed' => 'Typed'][$b->source] ?? $b->source }}</td>
           </tr>
         @empty
-          <tr><td colspan="5" style="color:#6b7280;">No reference beacons: this plan was uploaded before they were asked for.</td></tr>
+          <tr><td colspan="4" style="color:#6b7280;">No reference beacons: this plan was uploaded before they were asked for.</td></tr>
         @endforelse
       </tbody>
     </table>
   </div>
+  @endif
 </div>
 
 <div class="{{ $spTabs ? 'sp-pane sp-pane-3' : 'sp-card' }}">

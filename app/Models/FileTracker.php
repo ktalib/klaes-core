@@ -16,6 +16,9 @@ class FileTracker extends Model
 
     protected $fillable = [
         'tracking_id',
+        // Block-indexed file: the block tracked and the ticked files (user, 2026-11-18).
+        'block_id',
+        'block_members',
         'file_number',
         'file_title',
         'file_type',

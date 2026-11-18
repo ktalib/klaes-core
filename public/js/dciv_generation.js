@@ -325,9 +325,8 @@ function dcivGenerator(config) {
         landUses: config.landUses,
         purposes: config.purposes,
         loadingTrackingId: false,
-        // 'auto' (default) takes whatever dciv_serial_control says is next in the
-        // current year - the current year is Auto only (user, 2026-11-16). 'manual'
-        // lets the operator type a serial in an EARLIER year, from dciv_grouping.
+        // 'auto' takes whatever dciv_serial_control says is next in the current year.
+        // 'manual' lets the operator type a serial in a year from dciv_grouping.
         serialMode: 'auto',
      
         init() {
@@ -397,14 +396,14 @@ function dcivGenerator(config) {
          * so plainly rather than the year simply not being there.
          */
         get availableYears() {
-            // The current year is Auto only (user, 2026-11-16), so Manual lists earlier years alone.
+            // Include the current year as a manual choice alongside earlier reservoir years.
             const byPrefix = (config.serialYears || {})[this.formData.prefix] || [];
             return byPrefix
-                .filter(y => Number(y.year) < Number(config.currentYear))
+                .filter(y => Number(y.year) <= Number(config.currentYear))
                 .sort((a, b) => Number(b.year) - Number(a.year));
         },
 
-        // Manual starts on the latest earlier year; Auto is always the current year.
+        // Manual starts on the latest available year; Auto is always the current year.
         defaultYear() {
             return this.serialMode === 'manual' && this.availableYears.length
                 ? String(this.availableYears[0].year)

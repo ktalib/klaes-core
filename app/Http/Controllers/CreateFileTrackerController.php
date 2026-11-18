@@ -156,6 +156,19 @@ class CreateFileTrackerController extends Controller
     /**
      * Store a new file tracker
      */
+    /**
+     * The block a file belongs to (Land Block / KANGIS Block) with its Block ID and files,
+     * for Log a File: the block is tracked under its Block ID and the operator ticks the
+     * files that are moving (user, 2026-11-18). success:false when it is not a block.
+     */
+    public function blockGroup(Request $request)
+    {
+        $group = app(\App\Services\FileIndexing\BlockTrackingGroup::class)
+            ->forFileNumber((string) $request->query('file_number', ''));
+
+        return response()->json(['success' => (bool) $group, 'data' => $group]);
+    }
+
     public function store(Request $request)
     {
         try {
@@ -212,8 +225,45 @@ class CreateFileTrackerController extends Controller
             // tracking purposes only, so it never collides with the parent file's tracker.
             $isTemporaryFile    = filter_var($request->input('is_temporary_file'), FILTER_VALIDATE_BOOLEAN);
 
+            // Block-indexed file (Land Block / KANGIS Block): tracked under the block's own
+            // Block ID, not the file's tracking ID, with the files the operator ticked
+            // (user, 2026-11-18). Both are checked against the file's real block.
+            $blockId = null;
+            $blockMembers = null;
+            $requestedBlockId = trim((string) $request->input('block_id', ''));
+            if ($requestedBlockId !== '') {
+                $group = app(\App\Services\FileIndexing\BlockTrackingGroup::class)->forFileNumber((string) $request->input('file_number'));
+                if (!$group || ($group['block_id'] ?? null) !== $requestedBlockId) {
+                    DB::rollBack();
+                    $message = 'This file is not in block ' . $requestedBlockId . '. Reload the file and try again.';
+                    return $request->expectsJson()
+                        ? response()->json(['success' => false, 'message' => $message], 422)
+                        : redirect()->back()->withInput()->with('error', $message);
+                }
+                $validKeys = array_column($group['files'], 'key');
+                $picked = array_values(array_intersect($validKeys, array_map('strval', (array) $request->input('block_members', []))));
+                if (!$picked) {
+                    DB::rollBack();
+                    $message = 'Tick at least one file in the block to track.';
+                    return $request->expectsJson()
+                        ? response()->json(['success' => false, 'message' => $message], 422)
+                        : redirect()->back()->withInput()->with('error', $message);
+                }
+                $blockId = $requestedBlockId;
+                // The whole block ticked is stored as null: "all of it".
+                $blockMembers = count($picked) === count($validKeys) ? null : json_encode($picked);
+            }
+
             if ($proposedTrackingId !== '' && !FileTracker::where('tracking_id', $proposedTrackingId)->exists()) {
                 $trackingId = $proposedTrackingId;
+            } elseif ($blockId !== null) {
+                // A block tracked again keeps its Block ID: BLK-...-<registry>-2, -3, ...
+                $base = $blockId . ($registryCode ? '-' . $registryCode : '');
+                $n = 2;
+                while (FileTracker::where('tracking_id', $base . '-' . $n)->exists()) {
+                    $n++;
+                }
+                $trackingId = $base . '-' . $n;
             } else {
                 $trackingId = FileTracker::generateTrackingId($registryCode);
                 if ($isTemporaryFile) {
@@ -346,6 +396,8 @@ class CreateFileTrackerController extends Controller
             // Create file tracker
             $tracker = FileTracker::create([
                 'tracking_id' => $trackingId,
+                'block_id' => $blockId,
+                'block_members' => $blockMembers,
                 'file_number' => $request->file_number,
                 'file_title' => $request->file_title,
                 'file_type' => $request->file_type,
@@ -3056,6 +3108,15 @@ HTML;
             'st_files' => $withCandidates
                 ? app(FileLocationResolver::class)->stFilesFor($result['file_number'])
                 : [],
+            // The reverse: the land file an ST primary was made from. Display only.
+            'st_land_files' => $withCandidates
+                ? app(FileLocationResolver::class)->stLandFilesFor($result['file_number'])
+                : [],
+            // Block-indexed file (Land Block / KANGIS Block): every file in the block, each
+            // KANGIS file with where it is now. Display only.
+            'block_group' => $withCandidates
+                ? app(FileLocationResolver::class)->blockFilesFor($result['file_number'])
+                : null,
             'status'           => $result['status'],
             // In-Transit / Requested / DIIT for the open movement cycle (null when none).
             'request_type'     => app(FileLocationResolver::class)->requestTypeFor($tracker),
@@ -3660,6 +3721,9 @@ HTML;
         // sheet shows its temporary "(T)" file when one exists.
         $tracker->setAttribute('mother_file_location', $this->getMotherFileLocation($tracker->file_number));
         $tracker->setAttribute('temp_file_location', $this->getTempFileLocation($tracker->file_number));
+        // Block-indexed file (Land Block or KANGIS Block): every file in the block, so one
+        // Tracking Sheet carries the whole group (user, 2026-11-17).
+        $tracker->setAttribute('block_group', \App\Services\FileIndexing\BlockTrackingGroup::forTracker($tracker));
 
         // Fetch current resolver location data
         try {

@@ -91,6 +91,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::post('/{plan}/final', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'final'])->whereNumber('plan')->name('final');
         Route::post('/{plan}/sign', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'sign'])->whereNumber('plan')->name('sign');
         Route::get('/{plan}/files/{file}', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'stageFile'])->whereNumber(['plan', 'file'])->name('stage-file');
+        // A Digital Plotting's traverse + reference beacon details, CSV (Kunle, 2026-11-17).
+        Route::get('/{plan}/traverse', [\App\Http\Controllers\Survey\SurveyPlanUploadController::class, 'traverse'])->whereNumber('plan')->name('traverse');
     });
 
     /* ------------------------------ Compensation ------------------------------ */
@@ -222,6 +224,9 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         // Economic trees — catalogue plus per-case lines
         Route::get('/trees', [TreeController::class, 'index'])->name('trees');
         Route::get('/trees/export', [TreeController::class, 'export'])->name('trees.export');
+        // Open Gazette, one per tab (user, 2026-11-18).
+        Route::get('/trees/gazette/{tab}', [TreeController::class, 'gazette'])->whereIn('tab', ['economic', 'cash'])->name('trees.gazette');
+        Route::post('/trees/gazette/{tab}', [TreeController::class, 'storeGazette'])->whereIn('tab', ['economic', 'cash'])->name('trees.gazette.store');
         Route::post('/trees', [TreeController::class, 'store'])->name('trees.store');
         Route::put('/trees/{treeType}', [TreeController::class, 'update'])->name('trees.update');
         Route::delete('/trees/{treeType}', [TreeController::class, 'destroy'])->name('trees.destroy');
@@ -247,6 +252,8 @@ Route::middleware(['auth'])->prefix('survey-module')->name('survey-module.')->gr
         Route::post('/op/generate', [OpController::class, 'generate'])->name('op.generate');
         // Existing OPs, captured as issued (user, 2026-11-03): the Existing tab; no generator.
         Route::post('/op/existing', [OpController::class, 'storeExisting'])->name('op.existing.store');
+        // By TP No.: a layout's OPs, cascaded under its row (user, 2026-11-18).
+        Route::get('/op/tp-ops', [OpController::class, 'tpOps'])->name('op.tp-ops');
         Route::put('/op/existing/{op}', [OpController::class, 'updateExisting'])->whereNumber('op')->name('op.existing.update');
         Route::delete('/op/existing/{op}', [OpController::class, 'destroyExisting'])->whereNumber('op')->name('op.existing.destroy');
         Route::post('/op/{op}/advance', [OpController::class, 'advance'])->name('op.advance');

@@ -18,8 +18,8 @@
 @endsection
 
 @section('card')
-    <h1 class="mb-1" id="ksHeading">Register as a surveyor</h1>
-    <p class="ks-help mb-5">The Office of the Surveyor General confirms each registration. We will text you when you can sign in.</p>
+    @include('surveyor_portal.partials._card_tools', ['ctForm' => 'ksRegisterForm', 'ctTitle' => 'Register as a surveyor', 'ctHeadingId' => 'ksHeading',
+        'ctSub' => 'The Office of the Surveyor General confirms each registration. We will text you when you can sign in.'])
     @include('surveyor_portal.auth._surveyor_form', ['sfAction' => route('surveyor-portal.register.submit'), 'sfSubmit' => 'Register'])
     <p class="ks-help ks-auth-alt">Already registered? <a href="{{ route('surveyor-portal.login') }}" data-signin-dialog-trigger style="color:var(--ks-blue);font-weight:600;">Sign in</a></p>
 @endsection

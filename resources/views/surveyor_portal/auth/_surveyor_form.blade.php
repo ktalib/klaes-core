@@ -73,10 +73,17 @@
         <div class="ks-reg-section">
             <div class="ks-reg-head"><span class="ks-reg-icon"><i data-lucide="lock-keyhole" class="w-4 h-4"></i></span> Username and Password</div>
             <div class="mb-4">
+                {{-- System generated from the name (user, 2026-11-17), greyed out; the pencil lets them change it. --}}
+                @php $unEdited = old('username_auto', '1') !== '0'; @endphp
                 <label class="ks-label" for="username">Username <span class="ks-req">*</span></label>
-                <input class="ks-input" id="username" name="username" value="{{ old('username') }}" minlength="3" maxlength="150" required
-                       pattern="[A-Za-z0-9._@\-]+" title="Letters, numbers and . _ - @ only, no spaces" autocomplete="username" autocapitalize="none" spellcheck="false">
-                <p class="ks-help">You sign in with this. Letters, numbers and . _ - @ only, no spaces.</p>
+                <input type="hidden" name="username_auto" id="username_auto" value="{{ $unEdited ? '1' : '0' }}">
+                <div class="ks-un-wrap">
+                    <input class="ks-input{{ $unEdited ? ' ks-un-auto' : '' }}" id="username" name="username" value="{{ old('username') }}" minlength="3" maxlength="150"
+                           @if ($unEdited) readonly @endif placeholder="Made from your name"
+                           pattern="[A-Za-z0-9._@\-]+" title="Letters, numbers and . _ - @ only, no spaces" autocomplete="username" autocapitalize="none" spellcheck="false">
+                    <button type="button" class="ks-un-edit" id="usernameEdit" title="Edit username" aria-label="Edit username" @if (! $unEdited) hidden @endif><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                </div>
+                <p class="ks-help" id="usernameHelp">{{ $unEdited ? 'Made by the system from your name. You sign in with this. Use the pencil to change it.' : 'You sign in with this. Letters, numbers and . _ - @ only, no spaces.' }}</p>
                 @error('username')<p class="ks-error">{{ $message }}</p>@enderror
             </div>
             <div class="grid sm:grid-cols-2 gap-4">
@@ -97,6 +104,12 @@
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
 <style>
+    /* System-generated username: grey and read-only until the pencil is pressed. */
+    .ks-un-wrap { position: relative; }
+    .ks-un-wrap .ks-input { padding-right: 44px; }
+    .ks-input.ks-un-auto { background: #f1f5f9; color: #64748b; cursor: not-allowed; }
+    .ks-un-edit { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: #475569; padding: 6px; border-radius: 6px; cursor: pointer; }
+    .ks-un-edit:hover { background: #e2e8f0; color: #0b3a7e; }
     /* Each group of fields in a light box with a titled head; the address builder's own box matches it. */
     .ks-reg-section { border: 1px solid var(--ks-line); border-radius: 12px; padding: 16px; background: #FAFBFC; }
     .ks-reg-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; color: var(--ks-blue); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
@@ -135,6 +148,35 @@
         models: @json(asset('models/face-detection')),
         thresholds: { minConfidence: 0.60, minFaceCoverage: 0.05, rejectIllustrations: true, maxFlatness: 0.62 }
     };
+</script>
+<script>
+(function () {
+    // Username from the name, as company logins are made: first two words joined by a dot, plus two digits.
+    // The server makes it unique when it is saved (and regenerates it if this one is taken).
+    var name = document.getElementById('name'), un = document.getElementById('username'),
+        auto = document.getElementById('username_auto'), edit = document.getElementById('usernameEdit'), help = document.getElementById('usernameHelp');
+    if (!name || !un) return;
+    var tail = String(10 + Math.floor(Math.random() * 90));
+    var make = function () {
+        var words = name.value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().split(/[\s,&.\/-]+/)
+            .map(function (w) { return w.replace(/[^a-z0-9]/g, ''); }).filter(Boolean);
+        return words.length ? words.slice(0, 2).join('.').slice(0, 40) + tail : '';
+    };
+    var fill = function () { if (auto.value === '1') un.value = make(); };
+    name.addEventListener('input', fill);
+    fill();
+    // Reset on the card (_card_tools): the username goes back to being made from the name.
+    window.ksAfterReset = function () {
+        auto.value = '1'; un.readOnly = true; un.required = false; un.classList.add('ks-un-auto'); edit.hidden = false;
+        help.textContent = 'Made by the system from your name. You sign in with this. Use the pencil to change it.';
+        fill();
+    };
+    edit.addEventListener('click', function () {
+        auto.value = '0'; un.readOnly = false; un.classList.remove('ks-un-auto'); edit.hidden = true;
+        help.textContent = 'You sign in with this. Letters, numbers and . _ - @ only, no spaces.';
+        un.required = true; un.focus(); un.select();
+    });
+})();
 </script>
 <script src="{{ asset('js/face-detection/loader.js') }}?v={{ filemtime(public_path('js/face-detection/loader.js')) }}"></script>
 <script src="{{ asset('js/passport-face-check.js') }}?v={{ filemtime(public_path('js/passport-face-check.js')) }}"></script>

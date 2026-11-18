@@ -65,12 +65,43 @@
                         @if ($locked)
                             <input type="text" value="{{ $project->share_label }}" disabled />
                         @else
-                            <select name="farmer_share_pct" @disabled($scheme !== 'land')>
+                            {{-- The listed ratios are not exhaustive (user, 2026-11-17): Other (specify) takes the farmer's
+                                 share typed, the Government's is the rest. A saved ratio not on the list opens as Other. --}}
+                            @php
+                                $ratioListed = $ratios->contains(fn ($x) => (string) $x->farmer_pct === $farmerPct);
+                                $ratioOther = $farmerPct === 'other' || ! $ratioListed;
+                                $ratioOtherVal = old('farmer_share_other', $ratioOther && $farmerPct !== 'other' ? $farmerPct : '');
+                            @endphp
+                            <select name="farmer_share_pct" id="projRatio" @disabled($scheme !== 'land')>
                                 @foreach ($ratios as $ratio)
-                                    <option value="{{ $ratio->farmer_pct }}" @selected($farmerPct === (string) $ratio->farmer_pct)>{{ $ratio->label }}{{ $ratio->is_default ? ' (general)' : '' }}</option>
+                                    <option value="{{ $ratio->farmer_pct }}" @selected(! $ratioOther && $farmerPct === (string) $ratio->farmer_pct)>{{ $ratio->label }}{{ $ratio->is_default ? ' (general)' : '' }}</option>
                                 @endforeach
+                                <option value="other" @selected($ratioOther)>Other (specify)</option>
                             </select>
-                            <p class="helper-text">The general ratio is 50:50. Pick another only for a project agreed on different terms. The ratios are set in Configurable Entities &gt; Survey.</p>
+                            <div id="projRatioOther" style="margin-top:6px;align-items:center;gap:8px;{{ $ratioOther ? 'display:flex;' : 'display:none;' }}">
+                                <input type="number" name="farmer_share_other" id="projRatioOtherIn" min="1" max="99" step="1" value="{{ $ratioOtherVal }}"
+                                       placeholder="Farmer %" style="max-width:120px;" @if ($ratioOther && $scheme === 'land') required @else disabled @endif />
+                                <span style="white-space:nowrap;">: <b id="projRatioGov">{{ is_numeric($ratioOtherVal) ? 100 - (int) $ratioOtherVal : '—' }}</b> Government (%)</span>
+                            </div>
+                            @error('farmer_share_other')<p style="color:#dc2626;font-size:12px;margin-top:4px;">{{ $message }}</p>@enderror
+                            <p class="helper-text">The general ratio is 50:50. Pick another only for a project agreed on different terms; not listed? Choose Other (specify) and type the farmer's share. The listed ratios are set in Configurable Entities &gt; Survey.</p>
+                            <script>
+                            (function () {
+                                var sel = document.getElementById('projRatio'), box = document.getElementById('projRatioOther'),
+                                    inp = document.getElementById('projRatioOtherIn'), gov = document.getElementById('projRatioGov');
+                                window.projRatioSync = function () {
+                                    var on = sel.value === 'other' && !sel.disabled;
+                                    box.style.display = sel.value === 'other' ? 'flex' : 'none';
+                                    inp.disabled = !on; inp.required = on;
+                                };
+                                sel.addEventListener('change', projRatioSync);
+                                if (window.jQuery) jQuery(sel).on('change', projRatioSync);
+                                inp.addEventListener('input', function () {
+                                    var f = parseInt(inp.value, 10);
+                                    gov.textContent = f >= 1 && f <= 99 ? (100 - f) : '—';
+                                });
+                            })();
+                            </script>
                         @endif
                     </div>
 
@@ -108,10 +139,37 @@
                 </div>
 
                 <div class="form-group">
+                    {{-- TP No. from the layout register (tp_lookups), type to search, or Other (specify) (user, 2026-11-17).
+                         A saved number not on the register shows as Other with it typed in. --}}
+                    @php
+                        $tpList = $tpNos ?? [];
+                        $tpSaved = (string) old('plan_no', $project->plan_no);
+                        $tpOtherVal = old('plan_no_other', ($tpSaved !== '' && $tpSaved !== 'other' && ! in_array($tpSaved, $tpList, true)) ? $tpSaved : '');
+                        $tpIsOther = $tpSaved === 'other' || $tpOtherVal !== '';
+                    @endphp
                     <label>TP No.</label>
-                    <input type="text" name="plan_no" value="{{ old('plan_no', $project->plan_no) }}" maxlength="100"
-                           placeholder="e.g. TP/KNUPDA/UC/GZ/02" />
-                    <p class="helper-text">The layout plan number, as written on the plan.</p>
+                    <select name="plan_no" id="pjTpNo" class="sv-searchable">
+                        <option value="">— Select TP No. —</option>
+                        @foreach ($tpList as $tp)
+                            <option value="{{ $tp }}" @selected(! $tpIsOther && $tpSaved === $tp)>{{ $tp }}</option>
+                        @endforeach
+                        <option value="other" @selected($tpIsOther)>Other (specify)</option>
+                    </select>
+                    <input type="text" name="plan_no_other" id="pjTpNoOther" maxlength="100" placeholder="e.g. TP/KNUPDA/UC/GZ/02"
+                           value="{{ $tpOtherVal }}" style="margin-top:6px;{{ $tpIsOther ? '' : 'display:none' }}" @if ($tpIsOther) required @else disabled @endif />
+                    <p class="helper-text">The layout plan's TP No., from the TP No. register. Not listed? Choose Other and type it.</p>
+                    <script>
+                    (function () {
+                        var sel = document.getElementById('pjTpNo'), other = document.getElementById('pjTpNoOther');
+                        var sync = function () {
+                            var on = sel.value === 'other';
+                            other.style.display = on ? '' : 'none'; other.disabled = !on; other.required = on;
+                            if (!on) other.value = '';
+                        };
+                        sel.addEventListener('change', sync);
+                        if (window.jQuery) jQuery(sel).on('change', sync);
+                    })();
+                    </script>
                 </div>
 
                 <div class="form-group">
@@ -436,6 +494,7 @@
                 sum += p * s;
             });
             document.getElementById('projSurveyorEmpty').style.display = rows.length ? 'none' : '';
+            dedupe();
 
             var acq = parseFloat(document.getElementById('projAcqSize').value) || 0;
             var out = document.getElementById('projSurveyorTotal');
@@ -470,6 +529,21 @@
 
         function $j() { return window.jQuery && window.jQuery.fn && window.jQuery.fn.select2 ? window.jQuery : null; }
 
+        // Each surveyor once per project (user, 2026-11-17): a surveyor picked in one row is greyed out in the
+        // others. Other (specify) can repeat; the server refuses the same typed name twice.
+        function dedupe() {
+            var sels = body.querySelectorAll('select.pa-surveyor');
+            var taken = {};
+            sels.forEach(function (s) { if (s.value && s.value !== 'other') taken[s.value] = (taken[s.value] || 0) + 1; });
+            sels.forEach(function (s) {
+                Array.prototype.forEach.call(s.options, function (o) {
+                    if (!o.value || o.value === 'other') return;
+                    var used = taken[o.value] && !(o.value === s.value && taken[o.value] === 1);
+                    o.disabled = !!used && o.value !== s.value;
+                });
+            });
+        }
+
         // "Other (specify)" reveals a required name box; any other choice hides, clears and disables it.
         function syncOther(sel) {
             var box = sel.closest('td').querySelector('input.pa-other');
@@ -487,9 +561,9 @@
             if ($) {
                 // No dropdownParent: the default (<body>) keeps the panel clear of the scroll containers.
                 $(sel).select2({ width: '100%', placeholder: '— Select surveyor —' })
-                      .on('change', function () { syncOther(sel); });
+                      .on('change', function () { syncOther(sel); dedupe(); });
             } else {
-                sel.addEventListener('change', function () { syncOther(sel); });
+                sel.addEventListener('change', function () { syncOther(sel); dedupe(); });
             }
         }
 
@@ -580,6 +654,7 @@
         var box = document.getElementById('projRatioBox'), sel = box ? box.querySelector('select') : null;
         if (box) box.style.display = type === 'land' ? '' : 'none';
         if (sel) sel.disabled = type !== 'land';
+        if (window.projRatioSync) window.projRatioSync();
         // Economic trees belong to Monetary Compensation only; their lines are dropped on save otherwise.
         var trees = document.getElementById('projTreeSection');
         if (trees) trees.style.display = type === 'monetary' ? '' : 'none';

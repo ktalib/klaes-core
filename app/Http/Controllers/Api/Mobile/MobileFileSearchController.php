@@ -232,6 +232,11 @@ class MobileFileSearchController extends Controller
                 'kangis_files'       => $resolver->kangisContainersFor($result['file_number'], $result['indexing'] ?? null),
                 // The reverse: land file(s) kept inside this KANGIS file.
                 'land_files'         => $resolver->landFilesFor($result['file_number'], $result['indexing'] ?? null),
+                // ST file(s) made from this land file (the request then goes to the ST
+                // Registry), and the reverse: the land file of an ST primary. As on web.
+                'st_files'           => $resolver->stFilesFor($result['file_number']),
+                'st_land_files'      => $resolver->stLandFilesFor($result['file_number']),
+                'block_group'        => $resolver->blockFilesFor($result['file_number']),
                 'file_title'       => $fileTitle,
                 // Old file numbers, as on web Quick Search.
                 'searched_old_number' => $result['searched_old_number'] ?? null,

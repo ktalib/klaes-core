@@ -21,10 +21,15 @@ use Illuminate\Validation\ValidationException;
  */
 class CompensationCaptureController extends Controller
 {
-    public function create()
+    public function create(Request $r)
     {
         return view('survey_module.compensation.capture_list', [
-            // TP No. is selected from the searchable Public Layout Plans register.
+            // An existing project, or a new one (Existing project restored, user 2026-11-18). With the CO file, TP No., purpose
+            // and sharing ratio: picking a project shows them and feeds the plot calculator (user, 2026-11-03).
+            'projects'  => SurveyProject::with('coFile:id,co_file_no,title')->orderByDesc('id')
+                ->get(['id', 'project_code', 'name', 'plan_no', 'scheme_type', 'purpose', 'farmer_share_pct', 'survey_co_file_id']),
+            'project'   => $r->query('project'),
+            // A new project's TP No. is selected from the searchable Public Layout Plans register.
             'tpNumbers' => $this->planNumbers(),
             'rcPurposes' => \App\Services\Survey\ResettlementCalculator::purposes(),
             'rcRates'    => \App\Models\Survey\SurveyResettlementRate::query()->where('is_active', 1)->orderBy('land_use')->orderBy('sort_order')
@@ -41,6 +46,7 @@ class CompensationCaptureController extends Controller
     public function store(Request $r, CompensationListCapture $capture)
     {
         $d = $r->validate($this->rules(), [
+            'survey_project_id.required_if' => 'Choose the project this list belongs to.',
             'project_name.required_if'      => 'Enter the project name.',
             'scheme_type.required_if'       => 'Choose the project scheme.',
             'rows.*.area.numeric'           => 'Area must be a number (row :position).',
@@ -100,7 +106,7 @@ class CompensationCaptureController extends Controller
 
         return [
             'project_mode'      => ['required', Rule::in(['existing', 'new'])],
-            'survey_project_id' => ['nullable', Rule::exists('sqlsrv.survey_projects', 'id')->whereNull('deleted_at')],
+            'survey_project_id' => ['nullable', 'required_if:project_mode,existing', Rule::exists('sqlsrv.survey_projects', 'id')->whereNull('deleted_at')],
             'project_name'      => 'nullable|required_if:project_mode,new|string|max:255',
             'plan_no'           => ['nullable', 'string', 'max:100', Rule::in($this->planNumbers()->pluck('no')->all())],
             'purpose'           => 'nullable|string|max:100',
@@ -124,6 +130,9 @@ class CompensationCaptureController extends Controller
             'rows.*.op'         => 'nullable|string|max:50',
             'rows.*.sign'       => 'nullable|string|max:100',
             'rows.*.remarks'    => 'nullable|string|max:500',
+            // The paper's own numbers, optional (user, 2026-11-18).
+            'rows.*.farmer_id'  => 'nullable|string|max:20',
+            'rows.*.farm_id'    => 'nullable|string|max:20',
         ] + AddressBuilder::rules('prop_', false);
     }
 

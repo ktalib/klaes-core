@@ -228,7 +228,7 @@
         if (!f.req_district.value.trim()) return "Give the requester's district.";
         if (!f.req_lga.value) return "Choose the requester's LGA.";
         if (!f.req_state.value) return "Choose the requester's state.";
-        if (next > 1 && !f.reason.value) return 'This OP has been shown before: say why (Change of Ownership or Verification).';
+        if (next > 1 && !f.reason.value) return 'This plot has been shown before: say why (Change of Ownership or Verification).';
         return '';
     }, function (res) {
         var note = document.getElementById('savedNote');

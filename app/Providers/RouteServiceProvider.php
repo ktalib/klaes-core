@@ -33,6 +33,11 @@ class RouteServiceProvider extends ServiceProvider
                 ->prefix('api')
                 ->group(base_path('routes/api.php'));
 
+            // KLAES-CORE Survey Desktop (2026-11-17): stateless, Sanctum tokens with the desktop-api ability.
+            Route::middleware('api')
+                ->prefix('api/desktop/v1')
+                ->group(base_path('routes/desktop.php'));
+
             Route::middleware(['web', 'XSS'])
                 ->prefix('api/mobile')
                 ->group(function () {

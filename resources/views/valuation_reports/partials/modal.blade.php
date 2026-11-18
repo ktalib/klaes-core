@@ -108,6 +108,7 @@
                                                 <option value="Mortgage">Mortgage</option>
                                                 <option value="Gift">Gift</option>
                                                 <option value="Sub-division">Sub-division Valuation</option>
+                                                <option value="Regrant">Regrant</option>
                                             </select>
                                         </div>
                                         <div class="col-span-2 space-y-1">

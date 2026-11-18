@@ -88,7 +88,7 @@
                             <span class="ks-badge accepted">Signed</span>
                             @if ($signed)<div class="ks-help" style="margin:0;">{{ $signed->created_at?->format('d/m/Y') }} · {{ $p->signing_method === Plan::SIGN_DIGITAL ? 'digital' : 'by hand' }}</div>@endif
                         @else
-                            {{ $p->stage_no }} · {{ $p->stage_label }}<div class="ks-help" style="margin:0;">{{ $p->stage_status }}</div>
+                            {{ $p->step_no }} · {{ $p->stage_label }}<div class="ks-help" style="margin:0;">{{ $p->stage_status }}</div>
                         @endif
                     </td>
                     <td style="text-align:right;">

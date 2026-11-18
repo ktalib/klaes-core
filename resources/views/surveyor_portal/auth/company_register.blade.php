@@ -31,8 +31,8 @@
 @endsection
 
 @section('card')
-    <h1 class="text-lg font-bold mb-1">Register a survey company</h1>
-    <p class="ks-help mb-4">The Office of the Surveyor General must approve the company before surveyors can register under it.</p>
+    @include('surveyor_portal.partials._card_tools', ['ctForm' => 'ksCompanyRegisterForm', 'ctTitle' => 'Register a survey company',
+        'ctSub' => 'The Office of the Surveyor General must approve the company before surveyors can register under it.'])
     <form method="POST" action="{{ route('surveyor-portal.company.submit') }}" class="space-y-4" id="ksCompanyRegisterForm">
         @csrf
         <div>

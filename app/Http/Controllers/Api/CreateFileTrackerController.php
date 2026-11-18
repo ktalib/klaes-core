@@ -2735,6 +2735,9 @@ HTML;
         // sheet shows its temporary "(T)" file when one exists.
         $tracker->setAttribute('mother_file_location', $this->getMotherFileLocation($tracker->file_number));
         $tracker->setAttribute('temp_file_location', $this->getTempFileLocation($tracker->file_number));
+        // Block-indexed file (Land Block or KANGIS Block): every file in the block, so one
+        // Tracking Sheet carries the whole group (user, 2026-11-17).
+        $tracker->setAttribute('block_group', \App\Services\FileIndexing\BlockTrackingGroup::forTracker($tracker));
 
         return $tracker;
     }

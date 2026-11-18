@@ -79,36 +79,51 @@ class ConfigurableEntriesController extends Controller
      * cyan, violet, fuchsia or rose to name.
      */
     public const TABS = [
-        'revenue' => ['label' => 'Revenue Items', 'icon' => 'banknote', 'accent' => '#1d4ed8', 'tint' => '#eff6ff'],
-        'billing' => ['label' => 'Bill Formulas', 'icon' => 'sigma', 'accent' => '#6d28d9', 'tint' => '#f5f3ff'],
+        'revenue' => ['label' => 'Revenue Items', 'icon' => 'banknote', 'accent' => '#1d4ed8', 'tint' => '#eff6ff', 'group' => 'revenue'],
+        'billing' => ['label' => 'Bill Formulas', 'icon' => 'sigma', 'accent' => '#6d28d9', 'tint' => '#f5f3ff', 'group' => 'revenue'],
         // KLAES REV-M: one tab, a sub-tab per Bill Master type (SPAS items, folded Bill Formulas).
-        'bill-settings' => ['label' => 'Bill Settings', 'icon' => 'receipt-text', 'accent' => '#047857', 'tint' => '#ecfdf5'],
-        'departments' => ['label' => 'Departments', 'icon' => 'building', 'accent' => '#a21caf', 'tint' => '#fdf4ff'],
-        'units' => ['label' => 'Units', 'icon' => 'network', 'accent' => '#7e22ce', 'tint' => '#faf5ff'],
-        'user-roles' => ['label' => 'User Roles', 'icon' => 'shield', 'accent' => '#be123c', 'tint' => '#fff1f2'],
-        'module-permissions' => ['label' => 'Module Permissions', 'icon' => 'shield-check', 'accent' => '#4338ca', 'tint' => '#eef2ff'],
-        'fileno' => ['label' => 'FileNo Prefix & SerialNo', 'icon' => 'hash', 'accent' => '#c2410c', 'tint' => '#fff7ed'],
-        'serials' => ['label' => 'Serial Initialization', 'icon' => 'list-ordered', 'accent' => '#047857', 'tint' => '#ecfdf5'],
-        'volume' => ['label' => 'Deeds Instrument Volume', 'icon' => 'book-marked', 'accent' => '#b45309', 'tint' => '#fffbeb'],
-        'pipeline' => ['label' => 'Instrument Registration Pipeline', 'icon' => 'git-commit-horizontal', 'accent' => '#4d7c0f', 'tint' => '#f7fee7'],
-        'deeds-workflow' => ['label' => 'Valuation - Consent - Registration', 'icon' => 'workflow', 'accent' => '#4d7c0f', 'tint' => '#f7fee7'],
-        'land-rates' => ['label' => 'Land Rates (G.Rent & LUC)', 'icon' => 'map', 'accent' => '#0f766e', 'tint' => '#f0fdfa'],
-        'logos' => ['label' => 'Logos', 'icon' => 'image', 'accent' => '#4338ca', 'tint' => '#eef2ff'],
-        'surveyor-portal' => ['label' => 'KN-MLPP-SG Portal', 'icon' => 'globe-2', 'accent' => '#1d4ed8', 'tint' => '#eff6ff'],
-        'signatories' => ['label' => 'Signatories', 'icon' => 'pen-line', 'accent' => '#9d174d', 'tint' => '#fdf2f8'],
+        'bill-settings' => ['label' => 'Bill Settings', 'icon' => 'receipt-text', 'accent' => '#047857', 'tint' => '#ecfdf5', 'group' => 'revenue'],
+        'departments' => ['label' => 'Departments', 'icon' => 'building', 'accent' => '#a21caf', 'tint' => '#fdf4ff', 'group' => 'admin'],
+        'units' => ['label' => 'Units', 'icon' => 'network', 'accent' => '#7e22ce', 'tint' => '#faf5ff', 'group' => 'admin'],
+        'user-roles' => ['label' => 'User Roles', 'icon' => 'shield', 'accent' => '#be123c', 'tint' => '#fff1f2', 'group' => 'admin'],
+        'module-permissions' => ['label' => 'Module Permissions', 'icon' => 'shield-check', 'accent' => '#4338ca', 'tint' => '#eef2ff', 'group' => 'admin'],
+        'fileno' => ['label' => 'FileNo Prefix & SerialNo', 'icon' => 'hash', 'accent' => '#c2410c', 'tint' => '#fff7ed', 'group' => 'lands'],
+        'serials' => ['label' => 'Serial Initialization', 'icon' => 'list-ordered', 'accent' => '#047857', 'tint' => '#ecfdf5', 'group' => 'admin'],
+        'volume' => ['label' => 'Deeds Instrument Volume', 'icon' => 'book-marked', 'accent' => '#b45309', 'tint' => '#fffbeb', 'group' => 'deeds'],
+        'pipeline' => ['label' => 'Instrument Registration Pipeline', 'icon' => 'git-commit-horizontal', 'accent' => '#4d7c0f', 'tint' => '#f7fee7', 'group' => 'deeds'],
+        'deeds-workflow' => ['label' => 'Valuation - Consent - Registration', 'icon' => 'workflow', 'accent' => '#4d7c0f', 'tint' => '#f7fee7', 'group' => 'deeds'],
+        'land-rates' => ['label' => 'Land Rates (G.Rent & LUC)', 'icon' => 'map', 'accent' => '#0f766e', 'tint' => '#f0fdfa', 'group' => 'revenue'],
+        'logos' => ['label' => 'Logos', 'icon' => 'image', 'accent' => '#4338ca', 'tint' => '#eef2ff', 'group' => 'admin'],
+        'surveyor-portal' => ['label' => 'KN-MLPP-SG Portal', 'icon' => 'globe-2', 'accent' => '#1d4ed8', 'tint' => '#eff6ff', 'group' => 'survey'],
+        'signatories' => ['label' => 'Signatories', 'icon' => 'pen-line', 'accent' => '#9d174d', 'tint' => '#fdf2f8', 'group' => 'admin'],
         // The Kano State MDAs list (OP Source = Kano MDAs, File Movement External sender).
-        'kano-mdas' => ['label' => 'Kano MDAs', 'icon' => 'landmark', 'accent' => '#0369a1', 'tint' => '#f0f9ff'],
+        'kano-mdas' => ['label' => 'Kano MDAs', 'icon' => 'landmark', 'accent' => '#0369a1', 'tint' => '#f0f9ff', 'group' => 'lands'],
         // Green like the fee sheet it configures (green-700 on green-50).
-        'cadastral' => ['label' => 'Cadastral', 'icon' => 'compass', 'accent' => '#15803d', 'tint' => '#f0fdf4'],
+        'cadastral' => ['label' => 'Cadastral', 'icon' => 'compass', 'accent' => '#15803d', 'tint' => '#f0fdf4', 'group' => 'cadastral'],
         // The Special Assignment (SPAS) contravention tariff. Lime, the SPAS colour.
-        'spa-bill-items' => ['label' => 'SPAS Bill Items', 'icon' => 'receipt', 'accent' => '#4d7c0f', 'tint' => '#f7fee7'],
-        'map-types' => ['label' => 'Map Types', 'icon' => 'map-pin', 'accent' => '#0e7490', 'tint' => '#ecfeff', 'route' => 'sdi.admin.map-types.index'],
-        // Survey compensation: economic tree rates live on the tree catalogue (user, 2026-10-25).
+        'spa-bill-items' => ['label' => 'SPAS Bill Items', 'icon' => 'receipt', 'accent' => '#4d7c0f', 'tint' => '#f7fee7', 'group' => 'revenue'],
+        'map-types' => ['label' => 'Map Types', 'icon' => 'map-pin', 'accent' => '#0e7490', 'tint' => '#ecfeff', 'route' => 'sdi.admin.map-types.index', 'group' => 'survey'],
         // Survey settings (CR 30102026, 2026-10-31): sharing ratios, Classmark, land rates, beacon prefixes.
-        'survey-settings' => ['label' => 'Survey', 'icon' => 'compass', 'accent' => '#be185d', 'tint' => '#fdf2f8'],
-        'survey-tree-rates' => ['label' => 'Economic Tree Rates', 'icon' => 'tree-pine', 'accent' => '#be185d', 'tint' => '#fdf2f8', 'route' => 'survey-module.compensation.trees'],
+        'survey-settings' => ['label' => 'Survey', 'icon' => 'compass', 'accent' => '#be185d', 'tint' => '#fdf2f8', 'group' => 'survey'],
+        // Survey compensation: the Farm Features catalogue (economic trees + cash crops, 2026-10-25).
+        // Was "Economic Tree Rates", a link into Compensation Mgt; since 2026-11-18 it opens here as
+        // a tab (farmFeatures() below) and Compensation Mgt is not lit up.
+        'survey-tree-rates' => ['label' => 'Farm Features', 'icon' => 'tree-pine', 'accent' => '#be185d', 'tint' => '#fdf2f8', 'route' => 'configurable-entries.farm-features', 'group' => 'survey'],
         // Indexing piece-rate pay (Kunle, 2026-11-01): the approved rate card, effective-dated.
-        'indexing-pay' => ['label' => 'Indexing Pay', 'icon' => 'wallet', 'accent' => '#047857', 'tint' => '#ecfdf5'],
+        'indexing-pay' => ['label' => 'Indexing Pay', 'icon' => 'wallet', 'accent' => '#047857', 'tint' => '#ecfdf5', 'group' => 'lands'],
+    ];
+
+    /**
+     * The departments the tab bar is grouped under, in display order (user, 2026-11-18).
+     * Each TABS entry names its `group`; a group with no available tab is not shown.
+     */
+    public const TAB_GROUPS = [
+        'admin' => ['label' => 'Administration', 'icon' => 'settings'],
+        'revenue' => ['label' => 'Revenue & Billing', 'icon' => 'banknote'],
+        'lands' => ['label' => 'Lands Registry', 'icon' => 'folder-open'],
+        'deeds' => ['label' => 'Deeds', 'icon' => 'book-marked'],
+        'cadastral' => ['label' => 'Cadastral', 'icon' => 'compass'],
+        'survey' => ['label' => 'Survey & GIS', 'icon' => 'map'],
     ];
 
     /**
@@ -322,6 +337,41 @@ class ConfigurableEntriesController extends Controller
         );
     }
 
+    /**
+     * The available tabs under their departments (TAB_GROUPS order); empty departments drop out.
+     */
+    private function tabGroups(array $tabs): array
+    {
+        $tabGroups = [];
+        foreach (self::TAB_GROUPS as $groupKey => $group) {
+            $members = array_filter($tabs, fn ($meta) => ($meta['group'] ?? 'admin') === $groupKey);
+            if ($members) {
+                $tabGroups[$groupKey] = $group + ['tabs' => $members];
+            }
+        }
+
+        return $tabGroups;
+    }
+
+    /**
+     * Farm Features as a Configurable Entries tab (user, 2026-11-18): the Survey
+     * catalogue TreeController builds, drawn under this page's tab bar on its own
+     * route, so the sidebar shows Configurable Entries rather than Compensation Mgt.
+     * Saves still post to the Survey routes and come back here.
+     */
+    public function farmFeatures(Request $request)
+    {
+        $this->authorizeAdmin();
+
+        $view = app(\App\Http\Controllers\Survey\TreeController::class)->index($request);
+
+        return view('system_admin.configurable_entries.farm-features', $view->getData() + [
+            'ceTab' => 'survey-tree-rates',
+            'tabGroups' => $this->tabGroups($this->availableTabs()),
+            'treesRoute' => 'configurable-entries.farm-features',
+        ]);
+    }
+
     public function index(Request $request, WorkflowPipeline $pipeline, ScheduleFileNumberService $schedules, InstrumentRegistrationService $registration)
     {
         $this->authorizeAdmin();
@@ -332,7 +382,7 @@ class ConfigurableEntriesController extends Controller
         if ($route = $tabs[$tab]['route'] ?? null) {
             return redirect()->route($route);
         }
-        $data = ['tab' => $tab, 'tabs' => $tabs];
+        $data = ['tab' => $tab, 'tabs' => $tabs, 'tabGroups' => $this->tabGroups($tabs)];
 
         return view('system_admin.configurable_entries.index', $data + match ($tab) {
             'revenue' => $this->revenueData($request),

@@ -942,7 +942,13 @@
 
                 onGroupingRecordUpdated(record) {
                     if (!record) return;
-                    
+                    // A Land Block being edited opened with its own files (init(), block_files):
+                    // the main record's title and full plot list must not overwrite file 1.
+                    if (this.indexing_type === 'Block' && window.editingRecord
+                        && Array.isArray(window.editingRecord.block_files) && window.editingRecord.block_files.length) {
+                        return;
+                    }
+
                     if (this.fileParams.length > 0) {
                         const param = this.fileParams[0];
                         
@@ -1018,6 +1024,37 @@
                 init() {
                     const record = window.editingRecord;
                     if (record) {
+                        // Land Block Indexing: open with every file in the block, each with its own
+                        // holder and property details (FileIndexingController::edit -> block_files).
+                        // Before, a block opened as one file and saving it lost the rest
+                        // (user, 2026-11-18).
+                        if (record.indexing_type === 'Block' && Array.isArray(record.block_files) && record.block_files.length > 0) {
+                             this.fileParams = record.block_files.map((f, index) => ({
+                                 id: Date.now() + Math.random() + index,
+                                 title: f.title || '',
+                                 applicant_name: f.title || '',
+                                 gender: record.gender || '',
+                                 plot_number: f.plot_number || '',
+                                 district: f.district || record.district || '',
+                                 custom_district: '',
+                                 lga: f.lga || record.lga || '',
+                                 location: f.location || '',
+                                 latitude: null,
+                                 longitude: null,
+                                 land_use_type: f.land_use_type || record.land_use_type || '',
+                                 tp_number: f.tp_number || '',
+                                 lpkn_no: f.lpkn_no || '',
+                                 plot_size: f.plot_size || '',
+                                 phone: f.phone || '',
+                                 residence_address: f.residence_address || '',
+                                 nin: f.nin || '',
+                                 dob: f.dob || '',
+                                 customer_name: '',
+                                 entity_name: '',
+                                 street_name: '',
+                                 custom_street_name: ''
+                             }));
+                        } else
                         // If the record has file_titles array (from previous multi-file save), use it
                         if (Array.isArray(record.file_titles) && record.file_titles.length > 0) {
                              this.fileParams = record.file_titles.map((title, index) => ({

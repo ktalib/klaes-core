@@ -16,14 +16,15 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
- * The four stages of a survey plan (CR 11112026-2, item 5), for KLAES and the MLPP-SG portal alike.
+ * The four stages of a survey plan (Kunle, 2026-11-18), for KLAES and the MLPP-SG portal alike.
  *
- *   1 -> 2  the checking unit (GKN or Examination/Verification) sends corrections: marked-up copies drawn on
- *           screen and/or a file, with a note, back to the uploader;
- *   1 -> 3  or passes the plan as it is, straight to the SG/DSG;
- *   2 -> 3  the uploader uploads the final copy, which goes straight to the SG/DSG;
- *   3 -> 4  the SG/DSG signs, digitally or by hand (download, print, sign, scan), and uploads the signed copy.
+ *   1      the surveyor uploads (or plots) the plan;
+ *   1 -> 2 the checking unit (GKN or Examination/Verification) checks it: falls on location or not, corrections
+ *          (marked on screen and/or a file, with a note) or none, and sends it back to the surveyor. Never to the SG;
+ *   2 -> 3 the surveyor corrects (if any), produces the final survey plan and uploads it, to the SG/DSG;
+ *   3 -> 4 the SG/DSG checks/downloads, prints, signs and uploads the signed copy.
  *
+ * The uploader acts on stages 1 and 3 only: they cannot check or sign their own plan.
  * Every step is told: the staff bell (which the KLAES app mirrors as a push) or the portal's own notices.
  */
 class SurveyPlanStages
@@ -34,17 +35,25 @@ class SurveyPlanStages
 
     /* ----------------------------------------------------------------- who may act */
 
+    /** The KLAES staff member who uploaded the plan (a portal plan has none). */
+    public static function isOwnPlan(?User $u, Plan $plan): bool
+    {
+        return $u && $plan->source !== 'portal' && $plan->created_by && (int) $plan->created_by === (int) $u->id;
+    }
+
+    /** Stage 2: the plan's unit (or Survey - Records, or a Super Admin), never the uploader (Kunle, 2026-11-18). */
     public static function isChecker(?User $u, Plan $plan): bool
     {
-        if (! $u) return false;
+        if (! $u || self::isOwnPlan($u, $plan)) return false;
         $role = Plan::UNIT_ROLES[$plan->unit] ?? null;
 
         return ($role && $u->canDo($role, 'view')) || $u->canDo('Survey - Records', 'view') || $u->isSuperAdmin();
     }
 
-    public static function isSigner(?User $u): bool
+    /** Stage 4: the SG or DSG (or a Super Admin); with a plan, never its uploader. */
+    public static function isSigner(?User $u, ?Plan $plan = null): bool
     {
-        if (! $u) return false;
+        if (! $u || ($plan && self::isOwnPlan($u, $plan))) return false;
         foreach (Plan::SIGNING_ROLES as $role) {
             if ($u->canDo($role, 'view')) return true;
         }
@@ -52,32 +61,38 @@ class SurveyPlanStages
         return $u->isSuperAdmin();
     }
 
-    /** The KLAES uploader of a KLAES plan, or Survey - Records, may send the final copy in. */
+    /** Stage 3: only the surveyor who uploaded a KLAES plan (Kunle, 2026-11-18: "stage three is for the surveyor who did it"). */
     public static function isStaffUploader(?User $u, Plan $plan): bool
     {
-        return $u && $plan->source !== 'portal'
-            && ((int) $plan->created_by === (int) $u->id || $u->canDo('Survey - Records', 'view') || $u->isSuperAdmin());
+        return self::isOwnPlan($u, $plan);
     }
 
     /* ----------------------------------------------------------------- the steps */
 
     /**
-     * Stage 1 -> 2. $markups: PNG data URLs drawn on the plan on screen. $file: a marked file uploaded instead.
+     * Stage 2, Check: whether the plan falls on location ($location: falls | not_falls) and whether there are corrections
+     * ($result: corrections | none). Either way it goes back to the surveyor who drew it for stage 3, never to the SG.
+     * Corrections need a note; $markups (pages marked on screen, as image data URLs) and $file (a marked copy) are optional.
      */
-    public function sendCorrections(Plan $plan, User $by, string $note, array $markups, ?UploadedFile $file): Plan
+    public function check(Plan $plan, User $by, string $result, string $location, ?string $note, array $markups = [], ?UploadedFile $file = null): Plan
     {
-        $this->expect($plan, [Plan::STAGE_UPLOADED, Plan::STAGE_CORRECTION]);
-        $note = trim(preg_replace('/\s+/u', ' ', $note));
-        if ($note === '') {
+        $this->expect($plan, [Plan::STAGE_UPLOADED]);
+        if (! array_key_exists($result, Plan::CHECK_RESULTS)) {
+            throw ValidationException::withMessages(['check_result' => 'Say whether there are corrections.']);
+        }
+        if (! array_key_exists($location, Plan::CHECK_LOCATIONS)) {
+            throw ValidationException::withMessages(['check_location' => 'Say whether the map falls on location.']);
+        }
+        $note = trim(preg_replace('/\s+/u', ' ', (string) $note));
+        $corrections = $result === 'corrections';
+        if ($corrections && $note === '') {
             throw ValidationException::withMessages(['note' => 'Say what has to be corrected.']);
         }
-        $pngs = array_values(array_filter($markups, fn ($d) => is_string($d)
-            && (str_starts_with($d, 'data:image/png;base64,') || str_starts_with($d, 'data:image/jpeg;base64,'))));
-        if (! $pngs && ! $file) {
-            throw ValidationException::withMessages(['correction_file' => 'Mark the corrections on the plan, or upload a marked copy.']);
-        }
+        $pngs = $corrections ? array_values(array_filter($markups, fn ($d) => is_string($d)
+            && (str_starts_with($d, 'data:image/png;base64,') || str_starts_with($d, 'data:image/jpeg;base64,')))) : [];
+        $file = $corrections ? $file : null;
 
-        return $this->write($plan, function () use ($plan, $by, $note, $pngs, $file) {
+        return $this->write($plan, function () use ($plan, $by, $note, $pngs, $file, $result, $location, $corrections) {
             foreach ($pngs as $i => $data) {
                 $jpeg = str_starts_with($data, 'data:image/jpeg;');
                 $bytes = base64_decode(substr($data, strpos($data, ',') + 1), true);
@@ -95,35 +110,23 @@ class SurveyPlanStages
                 $this->storeUpload($plan, Plan::STAGE_CORRECTION, PlanFile::KIND_CORRECTION, $file, $note, $by, null);
             }
             $plan->stage = Plan::STAGE_CORRECTION;
-            $plan->status = Plan::STAGE_CODES[Plan::STAGE_CORRECTION];
+            $plan->status = $corrections ? 'Corrections Sent' : 'Checked - No Corrections';
+            $plan->check_result = $result;
+            $plan->check_location = $location;
+            $plan->check_note = $note !== '' ? mb_substr($note, 0, 2000) : null;
+            $plan->checked_by = $by->id;
+            $plan->checked_by_name = mb_substr((string) $by->name, 0, 255);
+            $plan->checked_at = now();
             $plan->saveQuietly();
 
-            $this->tellUploader($plan, "Corrections on {$plan->upload_ref}",
-                "{$plan->unit} returned {$plan->upload_ref} with corrections: {$note} Upload the final copy when it is corrected.");
+            $where = Plan::CHECK_LOCATIONS[$location];
+            $this->tellUploader($plan, ($corrections ? 'Corrections on ' : 'Checked: ') . $plan->upload_ref,
+                "{$plan->unit} checked {$plan->upload_ref}: {$where}; " . ($corrections ? "corrections: {$note}" : 'no corrections' . ($note !== '' ? " ({$note})" : ''))
+                . '. ' . ($corrections ? 'Correct it, produce' : 'Produce') . ' the final survey plan and upload it for the SG/DSG.');
         });
     }
 
-    /** Stage 1 -> 3: no corrections; the plan as uploaded goes to the SG/DSG. */
-    public function passToSigning(Plan $plan, User $by, ?string $note): Plan
-    {
-        $this->expect($plan, [Plan::STAGE_UPLOADED]);
-
-        return $this->write($plan, function () use ($plan, $by, $note) {
-            // The plan as uploaded becomes the final copy: a row pointing at the same stored file.
-            $this->record($plan, Plan::STAGE_FINAL, PlanFile::KIND_FINAL, $plan->file_path, $plan->file_name,
-                $plan->file_mime, $plan->file_size, trim((string) $note) ?: 'Passed without corrections.', $by, null);
-            $plan->stage = Plan::STAGE_FINAL;
-            $plan->status = Plan::STAGE_CODES[Plan::STAGE_FINAL];
-            $plan->saveQuietly();
-
-            $this->tellSigners($plan, "{$plan->upload_ref} is ready for signing",
-                "{$plan->unit} passed {$plan->upload_ref} ({$plan->plan_type}) without corrections. Sign and upload the signed copy.");
-            $this->tellUploader($plan, "{$plan->upload_ref} passed",
-                "{$plan->unit} passed {$plan->upload_ref} without corrections. It is with the SG/DSG for signing.");
-        });
-    }
-
-    /** Stage 2 -> 3: the uploader's corrected plan, straight to the SG/DSG. */
+    /** Stage 3: the surveyor's final survey plan (corrected, when there were corrections), to the SG/DSG. */
     public function uploadFinal(Plan $plan, UploadedFile $file, ?User $staff, ?SurveyorPortalAccount $account, ?string $note): Plan
     {
         $this->expect($plan, [Plan::STAGE_CORRECTION]);
@@ -135,10 +138,10 @@ class SurveyPlanStages
             $plan->status = Plan::STAGE_CODES[Plan::STAGE_FINAL];
             $plan->saveQuietly();
 
-            $this->tellSigners($plan, "Final copy of {$plan->upload_ref} for signing",
-                ($account ? $account->name : ($staff?->name ?? 'The uploader')) . " uploaded the corrected final copy of {$plan->upload_ref}. Sign and upload the signed copy.");
-            $this->tellUnit($plan, "Final copy of {$plan->upload_ref} uploaded",
-                "The corrected final copy of {$plan->upload_ref} went to the SG/DSG for signing.");
+            $this->tellSigners($plan, "Final survey plan {$plan->upload_ref} for signing",
+                ($account ? $account->name : ($staff?->name ?? 'The surveyor')) . " uploaded the final survey plan {$plan->upload_ref}. Check, print, sign and upload the signed copy.");
+            $this->tellUnit($plan, "Final survey plan {$plan->upload_ref} uploaded",
+                "The final survey plan {$plan->upload_ref} went to the SG/DSG for signing.");
         });
     }
 

@@ -5,7 +5,9 @@
      $coordSystem (EPSG code; Minna / UTM Zone 32N when not given). Plotted in the frame to scale; the frame's centre
      ticks carry the coordinates. Behind the drawing the frame shows the map (satellite, our Kano imagery where we have
      it) at the same scale, centred on the parcel (user, 2026-11-17: "that big box ... will be the map").
-     Header: the two Ministry logos; foot: the KLAES logo (user, 2026-11-17). --}}
+     Header: the two Ministry logos; foot: the KLAES logo (user, 2026-11-17).
+     $planImage: the uploaded plan (image or PDF, first page), shown in the frame by default (user, 2026-11-17);
+     the bar switches the frame between it, the map drawing and plain. --}}
 @php
   $ap = $ap ?? [];
   // Saved entries print in the form's style: the date as 17 November 2026, the amount in naira.
@@ -79,7 +81,9 @@
   .row .fill[title] { cursor: help; }
   .box { border: 1px solid #000; padding: 1.5mm 2mm; font-size: 10.5pt; line-height: 1.45; }
   .title { font-size: 15pt; font-weight: 700; text-align: center; }
-  .rows { margin-top: 3mm; font-size: 11.5pt; line-height: 1.6; }
+  .rows { position: relative; margin-top: 3mm; font-size: 11.5pt; line-height: 1.6; }
+  .ap-qr { position: absolute; right: 0; top: 1mm; width: 28mm; height: 28mm; border: 1px solid #000; padding: 1mm; box-sizing: border-box; }
+  .ap-qr img { display: block; width: 100%; height: 100%; }
   .row { display: flex; align-items: baseline; gap: 1mm; width: 145mm; }
   .row > span:not(.fill):not(.blank) { white-space: nowrap; }
   .blank { flex: 1; border-bottom: 1px solid #000; height: 1em; display: inline-block; }
@@ -93,6 +97,9 @@
   .ap-map { position: absolute; left: 13mm; top: 12mm; width: 160mm; height: 120mm; overflow: hidden; background: #fff; }
   #apMap { position: absolute !important; inset: 0; width: 100%; height: 100%; }
   .ap-map .maplibregl-ctrl-attrib { display: none; }
+  .ap-upload { position: absolute; left: 13mm; top: 12mm; width: 160mm; height: 120mm; overflow: hidden; background: #fff; display: flex; align-items: center; justify-content: center; }
+  .ap-upload img, .ap-upload canvas { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; }
+  .ap-upload .msg { font: 9pt Arial, sans-serif; color: #555; }
   .halo { paint-order: stroke; stroke: #fff; stroke-width: .7; stroke-linejoin: round; }
   .map-credit { position: absolute; right: 14mm; top: 132.6mm; font: 6pt Arial, sans-serif; color: #555; }
   .scale { text-align: center; font-family: Arial, sans-serif; font-size: 9.5pt; margin-top: 0; }
@@ -107,10 +114,12 @@
 </style>
 </head>
 <body>
+@php $frameMode = ! empty($planImage) ? 'upload' : ($plot ? 'map' : 'plain'); @endphp
 <div class="bar noprint">
-  @if ($plot)
+  @if ($plot || ! empty($planImage))
     <span>Frame:</span>
-    <button type="button" data-ap-bg="map">Map</button>
+    @if (! empty($planImage))<button type="button" data-ap-bg="upload">Uploaded plan</button>@endif
+    @if ($plot)<button type="button" data-ap-bg="map" class="{{ $frameMode === 'map' ? '' : 'off' }}">Map</button>@endif
     <button type="button" data-ap-bg="plain" class="off">Plain</button>
   @endif
   <button type="button" id="apPrint" onclick="window.apPrint ? window.apPrint() : window.print()">Print</button>
@@ -128,6 +137,10 @@
   </div>
 
   <div class="rows">
+    {{-- QR (user, 2026-11-17): the plan's ref, Plan No., plot and location, and its KLAES link. --}}
+    @if (! empty($qrPayload) && ($qrImg = qr_data_uri($qrPayload, 220)) !== '')
+      <div class="ap-qr"><img src="{{ $qrImg }}" alt="QR code"></div>
+    @endif
     <div class="row for"><span>For</span>{!! $line('purpose') !!}<span>(PURPOSE)</span></div>
     <div class="row"><span>Name of Applicant:</span>{!! $line('applicant') !!}</div>
     <div class="row"><span>Address:</span>{!! $line('address') !!}</div>
@@ -138,7 +151,16 @@
   {{-- The frame: 160 x 120 mm, centre ticks on each side, north arrow to the right. --}}
   <div class="frame-wrap">
     @if ($plot)
-      <div class="ap-map" aria-hidden="true"><div id="apMap"></div></div>
+      <div class="ap-map" aria-hidden="true" @if ($frameMode !== 'map') style="visibility:hidden" @endif><div id="apMap"></div></div>
+    @endif
+    @if (! empty($planImage))
+      <div class="ap-upload" id="apUpload" title="{{ $planImage['name'] }}">
+        @if ($planImage['type'] === 'image')
+          <img id="apUploadImg" src="{{ $planImage['url'] }}" alt="Uploaded survey plan">
+        @else
+          <canvas id="apUploadPdf"></canvas>
+        @endif
+      </div>
     @endif
     <svg viewBox="-13 -12 186 140" xmlns="http://www.w3.org/2000/svg" font-family="Arial, sans-serif">
       <rect x="0" y="0" width="{{ $fw }}" height="{{ $fh }}" fill="none" stroke="#000" stroke-width=".45"/>
@@ -147,6 +169,7 @@
       <line x1="-1.5" y1="{{ $fh / 2 }}" x2="1.5" y2="{{ $fh / 2 }}" stroke="#000" stroke-width=".3"/>
       <line x1="{{ $fw - 1.5 }}" y1="{{ $fh / 2 }}" x2="{{ $fw + 1.5 }}" y2="{{ $fh / 2 }}" stroke="#000" stroke-width=".3"/>
       @if ($plot)
+        <g id="apDraw" @if ($frameMode === 'upload') style="display:none" @endif>
         <text x="{{ $fw / 2 }}" y="-3.5" font-size="3" text-anchor="middle">{{ $fmt($plot['ce']) }} mE</text>
         <text x="{{ $fw / 2 }}" y="{{ $fh + 5.5 }}" font-size="3" text-anchor="middle">{{ $fmt($plot['ce']) }} mE</text>
         <text x="-3" y="{{ $fh / 2 - 1.5 }}" font-size="3" text-anchor="end">{{ $fmt($plot['cn']) }}</text>
@@ -173,6 +196,7 @@
         @if (count($beacons) >= 3)
           <text class="halo" x="{{ $fw / 2 }}" y="{{ $fh - 4 }}" font-size="2.8" text-anchor="middle">Area: {{ number_format($plot['area'], 2) }} m² ({{ number_format($plot['area'] / 10000, 4) }} ha)</text>
         @endif
+        </g>
       @else
         <line x1="{{ $fw / 2 - 8 }}" y1="-3" x2="{{ $fw / 2 + 8 }}" y2="-3" stroke="#000" stroke-width=".3"/>
         <line x1="{{ $fw / 2 - 8 }}" y1="{{ $fh + 5 }}" x2="{{ $fw / 2 + 8 }}" y2="{{ $fh + 5 }}" stroke="#000" stroke-width=".3"/>
@@ -187,7 +211,7 @@
       </g>
     </svg>
     @if ($plot)
-      <div class="map-credit" id="apCredit"></div>
+      <div class="map-credit" id="apCredit" @if ($frameMode !== 'map') style="visibility:hidden" @endif></div>
     @endif
     <div class="scale">Scale 1:<span class="u">{{ $scaleText }}</span>@if ($plot && isset($coordSystemLabel)) &nbsp;·&nbsp; Coordinates: {{ $coordSystemLabel }}@endif</div>
   </div>
@@ -214,6 +238,63 @@
   </div>
   @include('partials._klaes_print_logo', ['klaesLogoStyle' => 'padding-top:2mm;', 'klaesLogoHeight' => '10mm'])
 </div>
+<script>
+(function () {
+  // Print waits for everything drawn in the frame (map tiles, the uploaded plan); each adds a promise here.
+  var waits = [], btn = document.getElementById('apPrint');
+  window.apWaitFor = function (p) { waits.push(p); };
+  window.apPrint = function () {
+    if (btn) btn.textContent = 'Preparing…';
+    Promise.all(waits).then(function () { if (btn) btn.textContent = 'Print'; window.print(); });
+  };
+  // Frame: the uploaded plan, the map with the parcel drawn, or plain.
+  document.querySelectorAll('[data-ap-bg]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var m = b.dataset.apBg, el;
+      if ((el = document.querySelector('.ap-map'))) el.style.visibility = m === 'map' ? '' : 'hidden';
+      if ((el = document.getElementById('apCredit'))) el.style.visibility = m === 'map' ? '' : 'hidden';
+      if ((el = document.getElementById('apUpload'))) el.style.display = m === 'upload' ? '' : 'none';
+      if ((el = document.getElementById('apDraw'))) el.style.display = m === 'upload' ? 'none' : '';
+      document.querySelectorAll('[data-ap-bg]').forEach(function (x) { x.classList.toggle('off', x !== b); });
+    });
+  });
+})();
+</script>
+@if (! empty($planImage))
+  @if ($planImage['type'] === 'image')
+<script>
+(function () {
+  var img = document.getElementById('apUploadImg');
+  window.apWaitFor(new Promise(function (res) {
+    if (img.complete) return res();
+    img.addEventListener('load', res);
+    img.addEventListener('error', function () { img.replaceWith(Object.assign(document.createElement('span'), { className: 'msg', textContent: 'The uploaded plan could not be loaded.' })); res(); });
+  }));
+})();
+</script>
+  @else
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(function () {
+  // A PDF plan: its first page, drawn sharp enough for print (about 3x the frame size).
+  var cv = document.getElementById('apUploadPdf');
+  var fail = function () { cv.replaceWith(Object.assign(document.createElement('span'), { className: 'msg', textContent: 'The uploaded plan could not be shown.' })); };
+  if (!window.pdfjsLib) { fail(); return; }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  window.apWaitFor(pdfjsLib.getDocument({ url: @json($planImage['url']), withCredentials: true }).promise
+    .then(function (doc) { return doc.getPage(1); })
+    .then(function (page) {
+      var v1 = page.getViewport({ scale: 1 }), box = cv.parentNode;
+      var k = Math.min(box.clientWidth / v1.width, box.clientHeight / v1.height) * 3;
+      var vp = page.getViewport({ scale: k });
+      cv.width = vp.width; cv.height = vp.height;
+      return page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    })
+    .catch(fail));
+})();
+</script>
+  @endif
+@endif
 @if ($plot)
 <link rel="stylesheet" href="{{ asset('maps/vendor/maplibre-gl.css') }}">
 <script src="{{ asset('maps/vendor/maplibre-gl.js') }}"></script>
@@ -229,11 +310,9 @@
   proj4.defs('EPSG:26332', '+proj=utm +zone=32 ' + MINNA);
   proj4.defs('EPSG:32632', '+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs');
   var box = document.getElementById('apMap'), credit = document.getElementById('apCredit');
-  // Print waits until the map is drawn (tiles still loading would print half a map).
-  var ready = false, wantPrint = false, printBtn = document.getElementById('apPrint');
-  var done = function () { ready = true; if (printBtn) printBtn.textContent = 'Print'; if (wantPrint) { wantPrint = false; window.print(); } };
-  window.apPrint = function () { if (ready) return window.print(); wantPrint = true; if (printBtn) printBtn.textContent = 'Preparing map…'; };
-  setTimeout(done, 20000);
+  // Print waits until the map is drawn (tiles still loading would print half a map), 20 s at most.
+  var done;
+  window.apWaitFor(new Promise(function (res) { done = res; setTimeout(res, 20000); }));
   if (!box || !window.maplibregl || !window.proj4 || !proj4.defs(sys)) { if (box) box.remove(); done(); return; }
   var ll = proj4(sys, 'EPSG:4326', [ce, cn]);
   // Metres per CSS pixel on paper (96 px = 25.4 mm), then the web-mercator zoom that gives it at this latitude.
@@ -264,13 +343,6 @@
     // Print once every tile is drawn (the canvas keeps its picture for printing: preserveDrawingBuffer).
     map.once('idle', done);
     map.on('error', function () { /* a missing tile leaves that square white; the drawing still prints */ });
-  });
-  document.querySelectorAll('[data-ap-bg]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      var on = b.dataset.apBg === 'map';
-      box.style.visibility = on ? '' : 'hidden'; if (credit) credit.style.visibility = on ? '' : 'hidden';
-      document.querySelectorAll('[data-ap-bg]').forEach(function (x) { x.classList.toggle('off', x !== b); });
-    });
   });
 })();
 </script>

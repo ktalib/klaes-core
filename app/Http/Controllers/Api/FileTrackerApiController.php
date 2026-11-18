@@ -280,6 +280,34 @@ class FileTrackerApiController extends Controller
                 }
             }
 
+            // Block-indexed file (Land Block / KANGIS Block): tracked under the block's own
+            // Block ID, not the file's tracking ID, with the files the operator ticked
+            // (user, 2026-11-18). Both are checked against the file's real block.
+            $blockId = null;
+            $blockPicked = null;     // ticked keys
+            $blockMembers = null;    // stored JSON; null = the whole block
+            $requestedBlockId = trim((string) $request->input('block_id', ''));
+            if ($requestedBlockId !== '') {
+                $group = app(\App\Services\FileIndexing\BlockTrackingGroup::class)->forFileNumber((string) $request->input('file_number'));
+                if (!$group || ($group['block_id'] ?? null) !== $requestedBlockId) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'This file is not in block ' . $requestedBlockId . '. Reload the file and try again.',
+                    ], 422);
+                }
+                $validKeys = array_column($group['files'], 'key');
+                $blockPicked = array_values(array_intersect($validKeys, array_map('strval', (array) $request->input('block_members', []))));
+                if (!$blockPicked) {
+                    return response()->json(['success' => false, 'message' => 'Tick at least one file in the block to track.'], 422);
+                }
+                $blockId = $requestedBlockId;
+                $blockMembers = count($blockPicked) === count($validKeys) ? null : json_encode($blockPicked);
+                $blockLabels = [];
+                foreach ($group['files'] as $f) {
+                    $blockLabels[$f['key']] = trim(($f['file_number'] ?? '') . ' ' . ($f['holder'] ? '(' . $f['holder'] . ')' : ''));
+                }
+            }
+
             // Check if the file is already logged out (no active movement entry on an existing tracker).
             // A file is "logged out" when it has been checked out to another office and has not been
             // logged back in — indicated by at least one 'completed' log entry but no 'active' one.
@@ -308,6 +336,25 @@ class FileTrackerApiController extends Controller
                         fn($e) => strtolower($e['status'] ?? '') === 'active' && empty($e['log_out_date'])
                     );
 
+                    // A block's files can move separately: another tracker of the same block
+                    // only blocks the files it already holds (none of its ticks overlap).
+                    if (!$currentlyCheckedIn && $blockId !== null && (string) $existing->block_id === $blockId) {
+                        $held = json_decode((string) ($existing->block_members ?? ''), true);
+                        $held = is_array($held) && $held ? $held : array_keys($blockLabels);
+                        $overlap = array_values(array_intersect($blockPicked, $held));
+                        if (!$overlap) {
+                            continue;
+                        }
+                        return response()->json([
+                            'success'              => false,
+                            'message'              => 'These block files are already logged out on tracker ' . $existing->tracking_id . ': '
+                                . implode(', ', array_map(fn ($k) => $blockLabels[$k] ?? $k, $overlap))
+                                . '. Untick them, or log them back in first.',
+                            'code'                 => 'file_already_logged_out',
+                            'existing_tracking_id' => $existing->tracking_id,
+                        ], 422);
+                    }
+
                     if (!$currentlyCheckedIn) {
                         return response()->json([
                             'success'              => false,
@@ -328,6 +375,14 @@ class FileTrackerApiController extends Controller
 
             if ($proposedTrackingId !== '' && !FileTracker::where('tracking_id', $proposedTrackingId)->exists()) {
                 $trackingId = $proposedTrackingId;
+            } elseif ($blockId !== null) {
+                // A block tracked again keeps its Block ID: BLK-...-<registry>-2, -3, ...
+                $base = $blockId . ($registryCode ? '-' . $registryCode : '');
+                $n = 2;
+                while (FileTracker::where('tracking_id', $base . '-' . $n)->exists()) {
+                    $n++;
+                }
+                $trackingId = $base . '-' . $n;
             } else {
                 $trackingId = FileTracker::generateTrackingId($registryCode);
             }
@@ -418,6 +473,8 @@ class FileTrackerApiController extends Controller
             // Create file tracker
             $tracker = FileTracker::create([
                 'tracking_id' => $trackingId,
+                'block_id' => $blockId,
+                'block_members' => $blockMembers,
                 'file_number' => $request->file_number,
                 'file_title' => $request->file_title,
                 'file_type' => $request->file_type,

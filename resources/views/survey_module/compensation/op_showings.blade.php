@@ -1,13 +1,13 @@
 @extends('survey_module.layouts.klaes')
 
-@section('page-title', 'Showing History — ' . ($op->op_number ?: 'OP #' . $op->id) . ' — KLAES')
+@section('page-title', 'Plot Showing History — ' . ($op->op_number ?: 'OP #' . $op->id) . ' — KLAES')
 
 @php
   use App\Http\Controllers\Survey\OpShowingController as C;
   use App\Models\Survey\SurveyOpShowing as Showing;
 
   $ref = $op->op_number ?: 'OP #' . $op->id;
-  $PageTitle = 'Showing History · ' . $ref;
+  $PageTitle = 'Plot Showing History · ' . $ref;
   $PageDescription = 'Compensation Status → Verification (Records): each time the site is shown to the allottee.';
   $nextNo = (int) ($showings->max('showing_no') ?? 0) + 1;
   $nextLabel = Showing::ordinal($nextNo) . ' Showing';
@@ -45,7 +45,7 @@
     <div class="kpi-card"><div class="kpi-label">Allottee</div><div style="font-size:15px;font-weight:600;">{{ $op->beneficiary?->full_name ?? '—' }}</div>
         <div style="font-size:12px;color:var(--gray-500);">{{ $op->case?->case_ref }}{{ $op->case?->project?->coFile ? ' · ' . $op->case->project->coFile->co_file_no : '' }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Plot / Cash Ref.</div><div style="font-size:15px;font-weight:600;">{{ $op->plot_or_cash_ref ?: '—' }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Showings</div><div class="kpi-value">{{ $showings->count() }}</div>
+    <div class="kpi-card"><div class="kpi-label">Showing</div><div class="kpi-value">{{ $showings->count() }}</div>
         <div style="font-size:12px;color:var(--gray-500);">{{ $showings->first() ? 'Last ' . $showings->first()->shown_on->format('d M Y') : 'None yet' }}</div></div>
 </div>
 

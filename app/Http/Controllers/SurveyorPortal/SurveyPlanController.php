@@ -95,14 +95,17 @@ class SurveyPlanController extends Controller
         return view('surveyor_portal.survey_plans.show', ['plan' => $p]);
     }
 
-    /** Stage 2 -> 3: the corrected final copy, straight to the SG/DSG. */
+    /** Stage 3: the final survey plan (corrected, when there were corrections), to the SG/DSG. */
     public function final(Request $r, int $plan, \App\Services\Survey\SurveyPlanStages $stages)
     {
         $p = Plan::where('surveyor_portal_account_id', $this->me()->id)->findOrFail($plan);
-        $r->validate(['final_file' => 'required|file|max:25600', 'note' => 'nullable|string|max:2000'], ['final_file.required' => 'Choose the corrected plan.']);
-        $stages->uploadFinal($p, $r->file('final_file'), null, $this->me(), $r->input('note'));
+        $r->validate(['final_file' => 'required|file|max:25600', 'produced' => 'nullable|in:manual,digital', 'note' => 'nullable|string|max:2000'],
+            ['final_file.required' => 'Choose the final survey plan.']);
+        $how = ['manual' => 'Produced manually (other software)', 'digital' => 'Produced by digital plotting'][$r->input('produced')] ?? null;
+        $note = collect([$how, trim((string) $r->input('note')) ?: null])->filter()->implode('. ');
+        $stages->uploadFinal($p, $r->file('final_file'), null, $this->me(), $note ?: null);
 
-        return redirect()->route('surveyor-portal.survey-plans.show', $p->id)->with('status', "Final copy of {$p->upload_ref} sent to the SG/DSG for signing.");
+        return redirect()->route('surveyor-portal.survey-plans.show', $p->id)->with('status', "Final survey plan {$p->upload_ref} sent to the SG/DSG for signing.");
     }
 
     /** A stage file of the surveyor's own plan. */
@@ -110,6 +113,10 @@ class SurveyPlanController extends Controller
     {
         $p = Plan::where('surveyor_portal_account_id', $this->me()->id)->findOrFail($plan);
         $f = \App\Models\Survey\SurveyPlanFile::where('survey_plan_upload_id', $p->id)->findOrFail($file);
+        if ($f->file_path === \App\Models\Survey\SurveyPlanFile::GENERATED_TRAVERSE) {
+            return response(app(\App\Services\Survey\PlanTraverseSheet::class)->csv($p), 200, ['Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="' . $p->upload_ref . '-traverse.csv"', 'Cache-Control' => 'private, no-store']);
+        }
         abort_unless($f->file_path && Storage::disk(Plan::DISK)->exists($f->file_path), 404);
 
         return Storage::disk(Plan::DISK)->response($f->file_path, $f->file_name ?: basename($f->file_path), [

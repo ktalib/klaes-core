@@ -49,12 +49,13 @@
       </div>
 
       <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="digitalFilesEdmsUpdate">
-        <a href="/scanning?url=scmore" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
+        {{-- from=archive keeps these under Digital File Archive, not Land (same screens). --}}
+        <a href="/scanning?url=scmore&from=archive" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('scanning') && request()->query('url') === 'scmore' && request()->query('from') === 'archive' ? 'active' : '' }}">
         <i data-lucide="scan-line" class="h-3.5 w-3.5 text-amber-400"></i>
         <span>Scan More</span>
         </a>
 
-        <a href="/pagetyping?url=ptmore" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
+        <a href="/pagetyping?url=ptmore&from=archive" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('pagetyping') && request()->query('url') === 'ptmore' && request()->query('from') === 'archive' ? 'active' : '' }}">
         <i data-lucide="file-text" class="h-3.5 w-3.5 text-amber-400"></i>
         <span>Type More</span>
         </a>

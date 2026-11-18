@@ -459,6 +459,15 @@ document.addEventListener('DOMContentLoaded', function() {
         return { valid: true, raw, values: [] };
     }
 
+    // The extension's measurement (see syncExtensionVisibility).
+    const EXTENSION_MEASUREMENT_CONFIG = {
+        inputId: 'extensionMeasurementInput',
+        lengthId: 'extensionSiteLength',
+        widthId: 'extensionSiteWidth',
+        areaId: 'extensionSiteArea',
+        label: 'Extension site measurement',
+    };
+
     function syncAllSiteMeasurementFields(options = {}) {
         const configs = [
             {
@@ -468,6 +477,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 areaId: 'existingSiteArea',
                 label: 'Existing site measurement',
             },
+            EXTENSION_MEASUREMENT_CONFIG,
             {
                 inputId: 'recommendedMeasurementInput',
                 lengthId: 'recommendedSiteLength',
@@ -521,6 +531,31 @@ document.addEventListener('DOMContentLoaded', function() {
             || isNeedForEiaMetaDescription(description)
             || isConversionPurposeLutMetaDescription(description)
             || isConversionReservationMetaDescription(description);
+    }
+
+    // Extension (user, 2026-11-18): Yes shows the extension's measurement and area (both required);
+    // No hides, disables and clears them, so nothing is sent.
+    function syncExtensionVisibility() {
+        const selected = document.querySelector('input[name="has_extension"]:checked');
+        const wrapper = document.getElementById('extensionMeasurementWrapper');
+        if (!wrapper) {
+            return;
+        }
+        const isYes = !!selected && selected.value === '1';
+        wrapper.classList.toggle('hidden', !isYes);
+        ['extensionMeasurementInput', 'extensionSiteLength', 'extensionSiteWidth', 'extensionSiteArea'].forEach(id => {
+            const field = document.getElementById(id);
+            if (!field) {
+                return;
+            }
+            field.disabled = !isYes;
+            if (id === 'extensionMeasurementInput' || id === 'extensionSiteArea') {
+                field.required = isYes;
+            }
+            if (!isYes) {
+                field.value = '';
+            }
+        });
     }
 
     function syncReservationVisibility() {
@@ -2756,6 +2791,18 @@ document.addEventListener('DOMContentLoaded', function() {
             requireRadio('accessibility', 'Accessibility');
             requireRadio('adequate_size_requirement', 'Adequate size requirement');
             requireRadio('land_traversing_utility', 'Land traversing utility');
+            requireRadio('has_extension', 'Extension (Yes or No)');
+
+            if (document.querySelector('input[name="has_extension"]:checked')?.value === '1') {
+                const extensionInput = document.getElementById('extensionMeasurementInput');
+                const extensionArea = document.getElementById('extensionSiteArea');
+                if (extensionInput && extensionInput.value.trim() === '') {
+                    pushError(extensionInput, 'Extension site measurement is required when there is an extension.');
+                }
+                if (extensionArea && extensionArea.value.trim() === '') {
+                    pushError(extensionArea, 'Extension area covered is required when there is an extension.');
+                }
+            }
 
             const numericField = (id, label) => {
                 const field = document.getElementById(id);
@@ -2771,6 +2818,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
 
             numericField('existingSiteArea', 'Existing area covered');
+            numericField('extensionSiteArea', 'Extension area covered');
             numericField('recommendedSiteArea', 'Recommended area covered');
 
             const siteMeasurementSync = syncAllSiteMeasurementFields({ autoFillArea: false });
@@ -3643,9 +3691,12 @@ document.addEventListener('DOMContentLoaded', function() {
         applyRadioValue('accessibility', report.accessibility);
         applyRadioValue('adequate_size_requirement', report.adequate_size_requirement);
         applyRadioValue('land_traversing_utility', report.land_traversing_utility);
+        applyRadioValue('has_extension', report.has_extension);
+        syncExtensionVisibility();
 
         const numericFieldMappings = [
             { id: 'existingSiteArea', key: 'existing_site_area' },
+            { id: 'extensionSiteArea', key: 'extension_site_area' },
             { id: 'recommendedSiteArea', key: 'recommended_site_area' },
         ];
 
@@ -3663,6 +3714,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         populateSiteMeasurementInput('existingMeasurementInput', report.existing_site_length, report.existing_site_width);
+        populateSiteMeasurementInput('extensionMeasurementInput', report.extension_site_length, report.extension_site_width);
         populateSiteMeasurementInput('recommendedMeasurementInput', report.recommended_site_length, report.recommended_site_width);
         syncAllSiteMeasurementFields({ autoFillArea: false });
 
@@ -3939,6 +3991,15 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('input[name="reservation_required"]').forEach(radio => {
         radio.addEventListener('change', syncReservationVisibility);
     });
+
+    document.querySelectorAll('input[name="has_extension"]').forEach(radio => {
+        radio.addEventListener('change', syncExtensionVisibility);
+    });
+    // Two dimensions (e.g. 20x30) fill an empty extension area; a form reset hides the block again.
+    document.getElementById('extensionMeasurementInput')?.addEventListener('blur', () => syncSiteMeasurementField(EXTENSION_MEASUREMENT_CONFIG));
+    if (jointInspectionForm) {
+        jointInspectionForm.addEventListener('reset', () => setTimeout(syncExtensionVisibility, 0));
+    }
 
     document.querySelectorAll('input[name="non_conversion_reservation_required"]').forEach(radio => {
         radio.addEventListener('change', syncNonConversionReservationVisibility);

@@ -128,7 +128,9 @@ return [
         // Recorded from Physical Planning → PP Director → Instrument Registration Approval;
         // passing it generates the LIC. The Town Planning role name is kept so
         // existing assignments keep working.
-        'check.planning' => ['Instrument Workflow - Physical Planning', 'Instrument Workflow - Town Planning', 'PP Director'],
+        // PP Director was split into four modules (2026-11-17); any of them still passes.
+        'check.planning' => ['Instrument Workflow - Physical Planning', 'Instrument Workflow - Town Planning',
+            'PP Director - Master JSI Approval', 'PP Director - Conversion', 'PP Director - Sectional Titling', 'PP Director - SLTR'],
         // The TIN lookup (ALAES also verifies an ABSSIN here; Kano has none).
         'codes.verify' => ['Instrument Workflow - Lands', 'Instrument Workflow - Cashier'],
         // The registration fee bill, raised after the checks pass.

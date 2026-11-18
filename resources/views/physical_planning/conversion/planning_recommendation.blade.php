@@ -207,7 +207,7 @@ $(document).ready(function() {
      | The action menu is built in JavaScript, so the answer travels here rather than through
      | a blade guard. The endpoint is gated independently by the route middleware.
     */
-    const canApproveJsi = @json(auth()->check() && auth()->user()->canDo('Planning Recommendation', 'approve'));
+    const canApproveJsi = @json(auth()->check() && auth()->user()->canDo('Conversion Applications', 'approve'));
     const isPPDirector = @json($isPPDirector ?? false) && canApproveJsi;
 
     function setStatsValue(id, value) {

@@ -521,7 +521,12 @@ class IndexedFileTableController extends Controller
                 ->groupBy('file_indexing_id')
             : collect();
 
-        $data = $items->map(function ($item) use ($scanningCounts, $pageTypingCounts, $workflowScanningCounts, $workflowTypingCounts, $creators, $groupingFallbacks, $relatedFileCounts, $edmsFolderMap, $duplicateSet, $shelfLookup, $oldKangisLookup, $kangisLinks, $versionCounts, $blockFiles) {
+        // KANGIS Block Indexing: a land file holding several KANGIS files, and each of those
+        // KANGIS files, get the same Block button listing the land file + every KANGIS file
+        // (user, 2026-11-17). Only the block land files touched by this page are looked up.
+        $kangisBlocks = $this->kangisBlocksForPage($items, $pageIds, $blockFiles);
+
+        $data = $items->map(function ($item) use ($scanningCounts, $pageTypingCounts, $workflowScanningCounts, $workflowTypingCounts, $creators, $groupingFallbacks, $relatedFileCounts, $edmsFolderMap, $duplicateSet, $shelfLookup, $oldKangisLookup, $kangisLinks, $versionCounts, $blockFiles, $kangisBlocks) {
             $scanned = (int) ($scanningCounts->get($item->id) ?? 0);
             $typed = (int) ($pageTypingCounts->get($item->id) ?? 0);
             $hasRelatedFilesFromLinks = (int) ($relatedFileCounts->get($item->id) ?? 0) > 0;
@@ -684,6 +689,15 @@ class IndexedFileTableController extends Controller
                     'location'    => implode(', ', array_filter([$district, $lga], fn ($v) => $v !== '')) ?: null,
                 ];
             })->values()->all();
+            $rowData['block_type'] = $rowData['block_files'] ? 'land' : null;
+            $rowData['block_land_file'] = null;
+
+            $kangisBlock = $kangisBlocks[(int) $item->id] ?? null;
+            if (!$rowData['block_files'] && $kangisBlock) {
+                $rowData['block_files'] = $kangisBlock['files'];
+                $rowData['block_type'] = 'kangis';
+                $rowData['block_land_file'] = $kangisBlock['land_file'];
+            }
 
             return $rowData;
         });
@@ -706,6 +720,86 @@ class IndexedFileTableController extends Controller
      * that snapshot recorded it, so the table draws it with the same cells as the live
      * row. Read from file_snapshots (see IndexingVersionHistory).
      */
+    /**
+     * KANGIS Block groups for the rows on this page, keyed by file_indexings id.
+     *
+     * A row belongs to a KANGIS block when it is a land file marked allow_multiple_kangis,
+     * or a KANGIS Registry record whose Related File No is such a land file. Each distinct
+     * block land file is resolved once through BlockTrackingGroup (same list as the
+     * block's tracking sheet). Land Block rows are skipped: they keep their own list.
+     *
+     * @return array<int, array{land_file:string, files:array}>
+     */
+    private function kangisBlocksForPage($items, array $pageIds, $landBlockFiles): array
+    {
+        if (!$pageIds) {
+            return [];
+        }
+
+        try {
+            $conn = DB::connection('sqlsrv');
+            $rows = $conn->table('file_indexings')->whereIn('id', $pageIds)
+                ->get(['id', 'file_number', 'general_registry', 'related_fileno', 'allow_multiple_kangis']);
+
+            $key = fn ($v) => \App\Services\FileIndexing\KangisBlockIndexing::key($v);
+            $landFor = [];      // row id => land file key
+            $kangisLands = [];  // land key => true, KANGIS rows to check
+            foreach ($rows as $row) {
+                if ($landBlockFiles->has((int) $row->id)) {
+                    continue;
+                }
+                if ((int) ($row->allow_multiple_kangis ?? 0) === 1
+                    && !\App\Services\FileIndexing\KangisBlockIndexing::isKangisRegistry($row->general_registry)) {
+                    $landFor[(int) $row->id] = $key($row->file_number);
+                } elseif (\App\Services\FileIndexing\KangisBlockIndexing::isKangisRegistry($row->general_registry)) {
+                    foreach (\App\Services\FileIndexing\KangisBlockIndexing::landFilesFrom($row->related_fileno) as $land) {
+                        $kangisLands[$key($land)][] = (int) $row->id;
+                    }
+                }
+            }
+
+            // Which of the KANGIS rows' land files are block land files.
+            if ($kangisLands) {
+                $blockLands = $conn->table('file_indexings')
+                    ->where('allow_multiple_kangis', 1)
+                    ->whereIn(DB::raw("REPLACE(REPLACE(UPPER(file_number), ' ', ''), CHAR(9), '')"), array_keys($kangisLands))
+                    ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+                    ->pluck('file_number')
+                    ->map($key)->unique()->all();
+                foreach ($blockLands as $land) {
+                    foreach ($kangisLands[$land] ?? [] as $rowId) {
+                        $landFor[$rowId] ??= $land;
+                    }
+                }
+            }
+
+            if (!$landFor) {
+                return [];
+            }
+
+            $group = app(\App\Services\FileIndexing\BlockTrackingGroup::class);
+            $groups = [];
+            foreach (array_unique($landFor) as $land) {
+                $g = $group->forFileNumber($land);
+                if ($g && $g['type'] === 'kangis') {
+                    $groups[$land] = ['land_file' => $g['land_file'], 'files' => $g['files']];
+                }
+            }
+
+            $out = [];
+            foreach ($landFor as $rowId => $land) {
+                if (isset($groups[$land])) {
+                    $out[$rowId] = $groups[$land];
+                }
+            }
+
+            return $out;
+        } catch (\Throwable $e) {
+            report($e);
+            return [];
+        }
+    }
+
     public function versions(int $id): JsonResponse
     {
         try {
@@ -1776,6 +1870,8 @@ class IndexedFileTableController extends Controller
                 $query->whereIn(DB::raw('UPPER(LTRIM(RTRIM(file_number)))'), $keys)
                     ->orWhereIn(DB::raw('UPPER(LTRIM(RTRIM(temp_file_no)))'), $keys);
             })
+            // Deleted rows first, so a live record always wins over a deleted one.
+            ->orderByRaw('CASE WHEN ISNULL(is_deleted, 0) = 1 THEN 0 ELSE 1 END')
             ->orderBy('id')
             ->get(['file_number', 'temp_file_no', 'file_title', 'location', 'plot_number', 'tp_no', 'lpkn_no', 'prop_id']);
 
@@ -1801,7 +1897,24 @@ class IndexedFileTableController extends Controller
                 continue;
             }
             $src = $map[$fn];
-            foreach (['file_title', 'location', 'plot_number', 'tp_no', 'lpkn_no'] as $field) {
+
+            // The File Title always comes from the related file's own indexed record, so the
+            // popup matches the Indexed Files table (user, 2026-11-17). A different name typed
+            // on the link itself is kept in link_file_title and shown under it.
+            $indexedTitle = trim((string) ($src->file_title ?? ''));
+            if (!$isBlank($indexedTitle)) {
+                $typed = trim((string) ($isObj ? ($r->file_title ?? '') : ($r['file_title'] ?? '')));
+                $linkTitle = (!$isBlank($typed) && strcasecmp($typed, $indexedTitle) !== 0) ? $typed : null;
+                if ($isObj) {
+                    $r->file_title = $indexedTitle;
+                    $r->link_file_title = $linkTitle;
+                } else {
+                    $r['file_title'] = $indexedTitle;
+                    $r['link_file_title'] = $linkTitle;
+                }
+            }
+
+            foreach (['location', 'plot_number', 'tp_no', 'lpkn_no'] as $field) {
                 $current = $isObj ? ($r->$field ?? null) : ($r[$field] ?? null);
                 if ($isBlank($current) && !$isBlank($src->$field ?? null)) {
                     if ($isObj) {

@@ -56,10 +56,10 @@ class CoordinateRegisterController extends Controller
     public function export(Request $r)
     {
         return $this->exportRecords($r, fn () => $this->filtered($r)->orderBy('source')->orderBy('point_id')->get(), [
-            'source' => 'Source', 'point' => 'Point', 'northing' => 'Northing (Y)', 'easting' => 'Easting (X)', 'elevation' => 'Elevation',
+            'source' => 'Source', 'point' => 'Point', 'easting' => 'Easting (X)', 'northing' => 'Northing (Y)', 'elevation' => 'Elevation',
             'file_number' => 'File No.', 'reference' => 'Reference', 'recorded' => 'Recorded',
         ], fn ($p) => [
-            'source' => self::SOURCES[$p->source] ?? $p->source, 'point' => $p->point_id, 'northing' => $p->northing, 'easting' => $p->easting, 'elevation' => $p->elevation,
+            'source' => self::SOURCES[$p->source] ?? $p->source, 'point' => $p->point_id, 'easting' => $p->easting, 'northing' => $p->northing, 'elevation' => $p->elevation,
             'file_number' => $p->file_number, 'reference' => $p->reference, 'recorded' => $p->recorded_at,
         ], 'recorded_at');
     }

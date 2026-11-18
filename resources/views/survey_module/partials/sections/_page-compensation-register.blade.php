@@ -53,6 +53,8 @@
         'location' => $projectLocation($p),
         // Picking a project shows its CO file (user, 2026-11-03).
         'co'       => $p->coFile ? trim($p->coFile->co_file_no . ($p->coFile->title ? ' · ' . $p->coFile->title : '')) : '',
+        // The TP No. dropdown narrows the projects to this one (user, 2026-11-18).
+        'tp'       => trim((string) $p->plan_no),
     ]])->all();
 
     // Catalogue rates per name and Category (Mature / Immature / Seedling, Kano schedule 2026-11-01), for the price
@@ -229,6 +231,18 @@
                 </div>
 
                 <div class="form-grid">
+                    {{-- TP No. as a dropdown, as on Capture Existing Farm Record (user, 2026-11-18): picking one narrows
+                         the projects to its own; picking a project sets it. Not posted: the project carries its TP No. --}}
+                    <div class="form-group">
+                        <label>TP No.</label>
+                        <select id="caseTp" class="sv-searchable" data-placeholder="Search TP number…">
+                            <option value="">All TP Nos.</option>
+                            @foreach ($projects->pluck('plan_no')->map(fn ($t) => trim((string) $t))->filter()->unique(fn ($t) => mb_strtoupper($t))->sort()->values() as $tp)
+                                <option value="{{ $tp }}">{{ $tp }}</option>
+                            @endforeach
+                        </select>
+                        <p class="helper-text">Pick the TP No. to list its projects.</p>
+                    </div>
                     <div class="form-group">
                         <label>Select Project <span class="required">*</span></label>
                         <select name="survey_project_id" id="caseProject" onchange="caseReg.onProject()"
@@ -245,7 +259,7 @@
                             @endforeach
                         </select>
                         <p class="helper-text">
-                            Active projects appear here. Create new ones under
+                            New projects appear here; an existing project's records go in through Capture Existing Farm Record. Create new ones under
                             <a href="{{ route('survey-module.compensation.projects') }}">Project Management</a>.
                             @if ($editing)
                                 A farm assessment keeps the scheme it was registered under, so projects on the other scheme are not selectable.
@@ -1121,7 +1135,37 @@
         var purpose = qs('casePurpose');
         if (meta && purpose && !purpose.value && meta.purpose) purpose.value = meta.purpose;
 
+        if (meta) tpSet(meta.tp);
         applyScheme(meta ? meta.scheme : null);
+    }
+
+    /* --------------------- TP No. -> project filter --------------------- */
+    // As on Capture Existing Farm Record (user, 2026-11-18): the TP No. narrows the project
+    // list to its own projects; picking a project sets its TP No.
+    var allProjectOptions = null;
+    function tpKey(v) { return String(v || '').replace(/\s+/g, '').toUpperCase(); }
+    function select2Sync(el) { if (window.jQuery) jQuery(el).trigger('change.select2'); }
+    function tpSet(tp) {
+        var tpSel = qs('caseTp');
+        if (!tpSel) return;
+        var hit = Array.prototype.filter.call(tpSel.options, function (o) { return o.value && tpKey(o.value) === tpKey(tp); })[0];
+        tpSel.value = hit ? hit.value : '';
+        select2Sync(tpSel);
+    }
+    function tpFilter() {
+        var tpSel = qs('caseTp'), projSel = qs('caseProject');
+        if (!tpSel || !projSel) return;
+        if (!allProjectOptions) allProjectOptions = Array.prototype.map.call(projSel.options, function (o) { return o.cloneNode(true); });
+        var key = tpKey(tpSel.value), keep = projSel.value;
+        projSel.innerHTML = '';
+        allProjectOptions.forEach(function (o) {
+            if (!o.value || !key || tpKey((PROJECTS[o.value] || {}).tp) === key) projSel.appendChild(o.cloneNode(true));
+        });
+        var opts = Array.prototype.filter.call(projSel.options, function (o) { return o.value && !o.disabled; });
+        projSel.value = opts.some(function (o) { return o.value === keep; }) ? keep : (opts.length === 1 ? opts[0].value : '');
+        select2Sync(projSel);
+        // A changed project runs the usual project change (location, CO file, scheme, surveyor portions).
+        if (projSel.value !== keep) projSel.dispatchEvent(new Event('change'));
     }
 
     /* ------------------------------ rows ------------------------------ */
@@ -1507,6 +1551,12 @@
                         });
                 }, 250);
             });
+        }
+        var tpBox = qs('caseTp');
+        if (tpBox) {
+            tpBox.addEventListener('change', tpFilter);   // Select2 picks arrive as native events (_searchable_selects)
+            var picked = qs('caseProject');
+            if (picked && picked.value && PROJECTS[picked.value]) tpSet(PROJECTS[picked.value].tp);
         }
         @unless ($editing)
         // A new case opened with its project already chosen gets that project's location too.

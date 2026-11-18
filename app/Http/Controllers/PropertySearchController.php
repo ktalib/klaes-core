@@ -201,7 +201,11 @@ class PropertySearchController extends Controller
             if ($fileNumber !== '') {
                 $query['file_number'] = $fileNumber;
             }
-            if ($propId !== '') {
+            // The Prop ID is only the key when there is no file number. Sent together, the
+            // report keeps just that one property's rows, so the card lost the related and
+            // land files the Legal Search timeline shows (IND-2018-3: 5 rows instead of 9;
+            // user, 2026-11-17). The Prop ID is still shown on the card.
+            if ($propId !== '' && $fileNumber === '') {
                 $query['prop_id'] = $propId;
             }
 

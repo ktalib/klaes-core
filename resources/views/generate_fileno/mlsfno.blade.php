@@ -1234,6 +1234,13 @@
                                                  file number's EDMS scan folder and registered as a scan document —
                                                  see storeCommissioningPassport(). -->
                                             <div x-show="customerType === 'Individual'" x-transition>
+                                                {{-- VIP and other files without a photo (user, 2026-11-18): the passport is asked for only on Yes. --}}
+                                                <p class="block text-xs font-medium text-gray-600 mb-1">Has Passport? <span class="text-red-500">*</span></p>
+                                                <div class="flex items-center gap-4 mb-2 text-xs text-gray-700" id="passportAvailableGroup">
+                                                    <label class="inline-flex items-center gap-1"><input type="radio" name="passport_available" value="yes" :checked="passportAvailable === 'yes'" @change="setPassportAvailable('yes')"> Yes</label>
+                                                    <label class="inline-flex items-center gap-1"><input type="radio" name="passport_available" value="no" :checked="passportAvailable === 'no'" @change="setPassportAvailable('no')"> No</label>
+                                                </div>
+                                                <div x-show="passportAvailable === 'yes'">
                                                 <label for="generatePassport" class="block text-xs font-medium text-gray-600 mb-1">
                                                     Upload Passport
                                                     <span class="text-red-500">*</span>
@@ -1243,11 +1250,12 @@
                                                        accept="image/jpeg,image/jpg,image/png"
                                                        @change="handlePassportChange($event)"
                                                        class="w-full text-xs text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded-md p-1.5 h-[42px] focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                       :required="!batchMode && customerType === 'Individual' && !passport">
+                                                       :required="!batchMode && customerType === 'Individual' && passportAvailable === 'yes' && !passport">
+                                                </div>
                                             </div>
 
                                             <!-- Preview, full width under the picker. -->
-                                            <div x-show="customerType === 'Individual'" x-transition class="col-span-2">
+                                            <div x-show="customerType === 'Individual' && passportAvailable === 'yes'" x-transition class="col-span-2">
                                                 <label class="block text-xs font-medium text-gray-600 mb-1">
                                                     Passport
                                                     <span class="text-red-500">*</span>

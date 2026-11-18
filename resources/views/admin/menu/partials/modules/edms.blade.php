@@ -268,14 +268,16 @@
         </div>
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="edmsUpdate">
-          <a href="/scanning?url=scmore"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
+          {{-- from=dms keeps these under DMS: the same screens are on Land's sidebar, which
+               otherwise claims the URL and opens the page under Land. --}}
+          <a href="/scanning?url=scmore&from=dms"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('scanning') && request()->query('url') === 'scmore' && request()->query('from') === 'dms' ? 'active' : '' }}">
             <i data-lucide="scan-line" class="h-3.5 w-3.5 text-emerald-400"></i>
             <span>Scan More</span>
           </a>
 
-          <a href="/pagetyping?url=ptmore"
-            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200">
+          <a href="/pagetyping?url=ptmore&from=dms"
+            class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->is('pagetyping') && request()->query('url') === 'ptmore' && request()->query('from') === 'dms' ? 'active' : '' }}">
             <i data-lucide="file-text" class="h-3.5 w-3.5 text-emerald-400"></i>
             <span>Type More</span>
           </a>

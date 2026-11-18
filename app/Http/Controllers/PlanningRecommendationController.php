@@ -1091,6 +1091,11 @@ class PlanningRecommendationController extends Controller
             'existing_site_length' => 'nullable|string',
             'existing_site_width' => 'nullable|string',
             'existing_site_area' => 'nullable|numeric|min:0',
+            // Conversion JSI extension (user, 2026-11-18): on Yes its dimensions and area are required.
+            'has_extension' => 'nullable|boolean',
+            'extension_site_length' => 'required_if:has_extension,1|nullable|string',
+            'extension_site_width' => 'nullable|string',
+            'extension_site_area' => 'required_if:has_extension,1|nullable|numeric|min:0',
             'recommended_site_length' => 'nullable|string',
             'recommended_site_width' => 'nullable|string',
             'recommended_site_area' => 'nullable|numeric|min:0',
@@ -1426,6 +1431,11 @@ class PlanningRecommendationController extends Controller
         $report->existing_site_length = $validated['existing_site_length'] ?? null;
         $report->existing_site_width = $validated['existing_site_width'] ?? null;
         $report->existing_site_area = $validated['existing_site_area'] ?? null;
+        $hasExtension = isset($validated['has_extension']) ? (bool) $validated['has_extension'] : null;
+        $report->has_extension = $hasExtension;
+        $report->extension_site_length = $hasExtension ? ($validated['extension_site_length'] ?? null) : null;
+        $report->extension_site_width = $hasExtension ? ($validated['extension_site_width'] ?? null) : null;
+        $report->extension_site_area = $hasExtension ? ($validated['extension_site_area'] ?? null) : null;
         $report->recommended_site_length = $validated['recommended_site_length'] ?? null;
         $report->recommended_site_width = $validated['recommended_site_width'] ?? null;
         $report->recommended_site_area = $validated['recommended_site_area'] ?? null;

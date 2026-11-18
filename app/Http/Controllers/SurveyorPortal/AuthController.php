@@ -177,6 +177,8 @@ class AuthController extends Controller
         if ($lockedCompanyId) {
             $r->merge(['company_choice' => (string) $lockedCompanyId]);
         }
+        // The username is made by the system from the name unless they edited it with the pencil (user, 2026-11-17).
+        $autoUsername = $r->input('username_auto') !== '0';
         $data = $r->validate([
             'company_choice' => ['required', 'string', 'max:30'],
             'name'           => 'required|string|max:255',
@@ -184,7 +186,7 @@ class AuthController extends Controller
             'email'          => 'required|email|max:150',
             'surcon_number'  => 'nullable|string|max:50',
             // Signs in with this (user, 2026-11-09). Letters, digits and . _ - @ so an email works too.
-            'username'       => ['required', 'string', 'min:3', 'max:150', 'regex:/^[A-Za-z0-9._@-]+$/'],
+            'username'       => $autoUsername ? ['nullable', 'string', 'max:150'] : ['required', 'string', 'min:3', 'max:150', 'regex:/^[A-Za-z0-9._@-]+$/'],
             'password'       => 'required|string|min:8|confirmed',
             // Passport photograph (user, 2026-11-05). 2 MB, as at MLPP commissioning.
             'passport'       => 'required|file|image|mimes:jpg,jpeg,png|max:2048',
@@ -218,8 +220,12 @@ class AuthController extends Controller
         if (Account::surveyors()->where('email', $email)->exists()) {
             throw ValidationException::withMessages(['email' => 'An account already exists for this email address.']);
         }
-        $username = trim($data['username']);
-        if (Account::whereRaw('LOWER(username) = ?', [mb_strtolower($username)])->exists()) {
+        $username = trim((string) ($data['username'] ?? ''));
+        $taken = fn (string $u) => Account::whereRaw('LOWER(username) = ?', [mb_strtolower($u)])->exists();
+        if ($autoUsername && ($username === '' || ! preg_match('/^[A-Za-z0-9._@-]{3,150}$/', $username) || $taken($username))) {
+            // The suggestion shown was taken meanwhile (or never made): a fresh one from the name, as for company logins.
+            $username = app(\App\Services\Survey\SurveyCompanyLogins::class)->uniqueUsername($data['name']);
+        } elseif (! $autoUsername && $taken($username)) {
             throw ValidationException::withMessages(['username' => 'That username is taken. Choose another.']);
         }
 

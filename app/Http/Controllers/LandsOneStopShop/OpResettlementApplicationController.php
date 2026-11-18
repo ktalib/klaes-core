@@ -486,6 +486,56 @@ class OpResettlementApplicationController extends Controller
                         AND dup_ic.prop_id IS NOT NULL AND dup_ic.prop_id != 0
                         AND (dup_ic.is_deleted IS NULL OR dup_ic.is_deleted = '0')
                   )
+
+                UNION ALL
+
+                -- Files re-filed here from Land by \"Move from Land to OSS\"
+                -- (CommissioningRegistryMoveService). The move only restamps
+                -- mls_file_no.system_sub_type, and a Land commissioning such as a Direct
+                -- Allocation has no OSS Transfer of Title or OP row for the branches above
+                -- to find — so the file left the Land list and appeared on neither
+                -- (RES-2026-1601 / RES-2026-1607, 2026-11-18). The commissioning row is all
+                -- such a file has, so list it from that. A blank sub_source is what tells
+                -- these apart from OSS's own commissionings, which always stamp one.
+                --
+                -- \"Capture OP for Commissioned File\" then gives such a file its OP, but
+                -- deliberately no Transfer of Title (opCaptureForCommissionedFile), so the
+                -- branches above still miss it. Carry that OP's serial, TEMP number, prop_id
+                -- and parties on the row. id stays NULL: the ToT-only actions key on it.
+                SELECT CAST(NULL AS int) as id, captured_op.prop_id,
+                       NULL as parent_prop_id, moved_mfn.full_file_number as mlsFNo,
+                       NULL as fileno, captured_op.temp_fileno, captured_op.instrument_type,
+                       captured_op.Grantor, COALESCE(NULLIF(captured_op.Grantee, ''), moved_mfn.file_name) as Grantee,
+                       captured_op.party_1, COALESCE(NULLIF(captured_op.party_2, ''), moved_mfn.file_name) as party_2,
+                       captured_op.regNo, captured_op.op_type, captured_op.op_serial_number,
+                       captured_op.property_description,
+                       COALESCE(NULLIF(moved_mfn.location, ''), captured_op.location) as location,
+                       CAST(moved_mfn.created_by AS nvarchar(100)) as created_by, moved_mfn.created_at,
+                       COALESCE(NULLIF(moved_mfn.plot_no, ''), captured_op.plot_no) as plot_no,
+                       COALESCE(NULLIF(moved_mfn.tp_no, ''), captured_op.tp_no) as tp_no,
+                       COALESCE(NULLIF(moved_mfn.lga, ''), captured_op.lgsaOrCity) as lgsaOrCity,
+                       moved_mfn.land_use, 'MLS_REGISTRY_MOVE' as system_source,
+                       moved_mfn.created_at as commissioned_sort_at,
+                       CAST(NULL AS varchar(10)) as deleted_record_type,
+                       ROW_NUMBER() OVER (PARTITION BY moved_mfn.full_file_number ORDER BY moved_mfn.id DESC) as rn
+                FROM mls_file_no moved_mfn
+                OUTER APPLY (
+                    SELECT TOP 1 cap.prop_id, cap.temp_fileno, cap.instrument_type,
+                           cap.Grantor, cap.Grantee, cap.party_1, cap.party_2, cap.regNo,
+                           cap.op_type, cap.op_serial_number, cap.property_description,
+                           cap.location, cap.plot_no, cap.tp_no, cap.lgsaOrCity
+                    FROM pra cap
+                    WHERE cap.system_source = 'OSSOPCHANGEOFNAME'
+                      AND cap.mlsFNo = moved_mfn.full_file_number
+                      AND cap.instrument_type LIKE '%Occupancy Permit%'
+                      AND (cap.is_deleted IS NULL OR cap.is_deleted = 0)
+                    ORDER BY cap.id DESC
+                ) captured_op
+                WHERE '1' = '" . ($isChangeOfName ? '1' : '0') . "'
+                  AND moved_mfn.system_sub_type = 'OSS'
+                  AND (moved_mfn.sub_source IS NULL OR LTRIM(RTRIM(moved_mfn.sub_source)) = '')
+                  AND (moved_mfn.is_deleted IS NULL OR moved_mfn.is_deleted = 0)
+                  " . $notEmittedByPraBranch('moved_mfn.full_file_number') . "
         ";
 
         // Apply file ownership before search and pagination, including historical OP rows.
@@ -584,6 +634,7 @@ class OpResettlementApplicationController extends Controller
                 // Change-of-Ownership holder and must take precedence in the FC table.
                 DB::raw("COALESCE(NULLIF(fn.FileName, ''), p.Grantee) as FileName"),
                 'p.instrument_type as pra_instrument_type',
+                'p.system_source as source_branch',
                 'p.Grantor',
                 'p.Grantee',
                 'p.party_1 as pra_party_1',
@@ -847,7 +898,9 @@ class OpResettlementApplicationController extends Controller
                 }
 
                 // Use instrument_type from PRA directly
-                $resolvedSource = $isChangeOfName
+                // A file moved in from Land has no Transfer of Title; show what it was
+                // commissioned as, which also keeps the ToT-only actions off its row.
+                $resolvedSource = $isChangeOfName && ($row->source_branch ?? null) !== 'MLS_REGISTRY_MOVE'
                     ? 'TRANSFER OF TITLE (OP)'
                     : ($row->pra_instrument_type ?: ($row->mls_source ?: ($row->file_number_source ?? null)));
 
@@ -4406,6 +4459,10 @@ class OpResettlementApplicationController extends Controller
 
     public function captureEdit(string $id): View
     {
+        // TP No. is a dropdown of the registry's TP numbers, the list the OSS application
+        // form's OP TP No. picker already uses (ApplicationController::ossDistinctTpNumbers).
+        $tpNumbers = $this->opEditTpNumbers();
+
         // Support fileNumber.id (numeric), pra-{praId}, and ic-{icId} formats
         $praOnly = false;
         $praId = null;
@@ -4791,6 +4848,7 @@ class OpResettlementApplicationController extends Controller
                 'totApplicantContacts',
                 'passportFileNumber',
                 'passport',
+                'tpNumbers',
             ));
         }
 
@@ -4911,6 +4969,7 @@ class OpResettlementApplicationController extends Controller
                 'totApplicantContacts',
                 'passportFileNumber',
                 'passport',
+                'tpNumbers',
             ));
         }
 
@@ -4951,12 +5010,20 @@ class OpResettlementApplicationController extends Controller
             ->orderByDesc('id')
             ->first();
 
+        // A Transfer of Title written by Match OP gets a fresh prop_id and points back at its
+        // OP through parent_prop_id. Looking only at the ToT's own prop_id missed the OP, so
+        // the page took the ToT (0/0/0) as the OP and the registration particulars came out
+        // blank (RES-2026-1601 / RES-2026-1607, 2026-11-18). Search the OP's prop_id too.
+        $lineagePropIds = array_values(array_unique(array_filter(
+            [$latestPra->prop_id ?? null, $latestPra->parent_prop_id ?? null],
+            static fn ($v) => trim((string) $v) !== ''
+        )));
+
         $opPra = DB::connection('sqlsrv')
             ->table('pra')
-            ->where(function ($q) use ($base, $latestPra) {
-                $propId = $latestPra->prop_id ?? null;
-                if ($propId) {
-                    $q->where('prop_id', $propId);
+            ->where(function ($q) use ($base, $lineagePropIds) {
+                if ($lineagePropIds) {
+                    $q->whereIn('prop_id', $lineagePropIds);
                 } else {
                     $q->where('mlsFNo', $base->mlsfNo)
                         ->orWhere('fileno', $base->mlsfNo);
@@ -5084,8 +5151,10 @@ class OpResettlementApplicationController extends Controller
             $resolvedPropId = DB::connection('sqlsrv')->table($captureTable)->where('id', $base->ic_id)->value('prop_id');
         }
         if ($resolvedPropId) {
+            // The OP and its fresh-prop_id ToT are both cards on this page.
+            $cardPropIds = array_values(array_unique(array_merge([(string) $resolvedPropId], $lineagePropIds)));
             $allPraRows = DB::connection('sqlsrv')->table('pra')
-                ->where('prop_id', $resolvedPropId)
+                ->whereIn('prop_id', $cardPropIds)
                 ->orderBy('id')
                 ->get();
         } elseif (!empty($base->mlsfNo)) {
@@ -5112,7 +5181,26 @@ class OpResettlementApplicationController extends Controller
             'totApplicantContacts',
             'passportFileNumber',
             'passport',
+            'tpNumbers',
         ));
+    }
+
+    /**
+     * Distinct, non-empty TP numbers from the file registry, for the Update OP page's
+     * TP No. dropdown. Same list as the OSS application form's OP TP No. picker.
+     */
+    private function opEditTpNumbers(): \Illuminate\Support\Collection
+    {
+        try {
+            return DB::connection('sqlsrv')->table('fileNumber')
+                ->whereNotNull('tp_no')
+                ->where('tp_no', '!=', '')
+                ->distinct()
+                ->orderBy('tp_no')
+                ->pluck('tp_no');
+        } catch (\Throwable $e) {
+            return collect();
+        }
     }
 
     /**

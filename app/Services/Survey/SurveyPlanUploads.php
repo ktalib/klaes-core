@@ -48,6 +48,12 @@ class SurveyPlanUploads
             'district'       => ['required', 'string', 'max:150', Rule::in(array_merge($districts, [self::OTHER]))],
             'district_other' => ['nullable', 'string', 'max:150', Rule::requiredIf(fn () => $r->input('district') === self::OTHER)],
             'lga'            => ['required', Rule::in(CompensationListReader::LGAS)],
+            // Digital Plotting: the format the checker receives, and the file the card built in it (2026-11-18).
+            'checker_format' => [$digital ? 'required' : 'nullable', Rule::in(array_keys(Plan::CHECK_FORMATS))],
+            'checker_file'   => ['nullable', 'file', 'max:51200', Rule::requiredIf(fn () => $digital && $r->filled('checker_format') && $r->input('checker_format') !== 'traverse'),
+                function ($attr, $file, $fail) {
+                    if (! in_array(strtolower($file->getClientOriginalExtension()), Plan::CHECK_FILE_TYPES, true)) $fail('The plotted data file is not in a format the checker can open.');
+                }],
             'drawn_by'       => ['required', 'string', 'max:255'],
             'drawn_by_other' => ['nullable', 'string', 'max:255', Rule::requiredIf(fn () => $staff && $r->input('drawn_by') === self::OTHER)],
             'remarks'        => 'nullable|string|max:1000',
@@ -65,6 +71,8 @@ class SurveyPlanUploads
             }],
         ], [
             'unit.required'           => 'Choose the unit the plan is going to.',
+            'checker_format.required' => 'Choose the format the checker receives the plotting in.',
+            'checker_file.required'   => 'The plotting file for the checker was not made: plot the plan first, or send the traverse sheet.',
             'plan_type.required'      => 'Choose the type: Final Survey Plan or Application Plan.',
             'district.required'       => 'Choose the district.',
             'district.in'             => 'Choose a district from the list, or Other.',
@@ -120,6 +128,9 @@ class SurveyPlanUploads
             'beacons'           => $beacons,
             'plan_method'       => $digital ? Plan::METHOD_DIGITAL : Plan::METHOD_MANUAL,
             'plot_data'         => $plot,
+            // Not columns: store() files them for the checker.
+            '_checker_format'   => $digital ? ($d['checker_format'] ?? null) : null,
+            '_checker_file'     => $digital && ! empty($d['checker_format']) && $d['checker_format'] !== 'traverse' ? $r->file('checker_file') : null,
         ];
     }
 
@@ -309,9 +320,12 @@ class SurveyPlanUploads
     {
         $stored = null;
         $beacons = $fields['beacons'] ?? [];
-        unset($fields['beacons']);
+        $checkFormat = $fields['_checker_format'] ?? null;
+        $checkFile = $fields['_checker_file'] ?? null;
+        $checkStored = null;
+        unset($fields['beacons'], $fields['_checker_format'], $fields['_checker_file']);
         try {
-            $plan = DB::connection('sqlsrv')->transaction(function () use ($fields, $beacons, $file, $staff, $account, &$stored) {
+            $plan = DB::connection('sqlsrv')->transaction(function () use ($fields, $beacons, $file, $staff, $account, &$stored, $checkFormat, $checkFile, &$checkStored) {
                 // A digital plotting's file is optional (2026-11-16).
                 if ($file) {
                     $ext = strtolower($file->getClientOriginalExtension() ?: ($file->extension() ?: 'pdf'));
@@ -344,12 +358,35 @@ class SurveyPlanUploads
                 foreach (array_values($beacons) as $i => $b) {
                     \App\Models\Survey\SurveyPlanReferenceBeacon::create($b + ['survey_plan_upload_id' => $plan->id, 'sort' => $i + 1]);
                 }
-                $this->notifyUnit($plan, $staff?->id);
+                // Digital Plotting: the plotting goes to the checker in the chosen format (2026-11-18). The traverse
+                // sheet is made from the saved plotting when it is opened; any other format is the card's file.
+                if ($checkFormat) {
+                    if ($checkFile) {
+                        $ext = strtolower($checkFile->getClientOriginalExtension());
+                        $checkStored = Storage::disk(Plan::DISK)->putFileAs('app/survey/survey-plans/' . now()->format('Y/m'), $checkFile, Str::uuid() . '.' . $ext);
+                        if (! $checkStored) throw new \RuntimeException('The plotted data could not be stored.');
+                    }
+                    \App\Models\Survey\SurveyPlanFile::create([
+                        'survey_plan_upload_id' => $plan->id,
+                        'stage'                 => Plan::STAGE_UPLOADED,
+                        'kind'                  => \App\Models\Survey\SurveyPlanFile::KIND_PLOTTED,
+                        'file_path'             => $checkStored ?? \App\Models\Survey\SurveyPlanFile::GENERATED_TRAVERSE,
+                        'file_name'             => $checkFile ? mb_substr($plan->upload_ref . '-' . $checkFile->getClientOriginalName(), 0, 255) : $plan->upload_ref . '-traverse.csv',
+                        'file_mime'             => $checkFile ? mb_substr((string) $checkFile->getMimeType(), 0, 120) : 'text/csv',
+                        'file_size'             => $checkFile?->getSize(),
+                        'note'                  => $checkFormat,
+                        'by_user_id'            => $staff?->id,
+                        'by_portal_account_id'  => $account?->id,
+                        'by_name'               => $account ? $account->name : $staff?->name,
+                    ]);
+                }
+                $this->notifyUnit($plan, $staff?->id, $checkFormat);
 
                 return $plan;
             });
         } catch (\Throwable $e) {
             if ($stored) Storage::disk(Plan::DISK)->delete($stored);
+            if ($checkStored) Storage::disk(Plan::DISK)->delete($checkStored);
             throw $e;
         }
         Log::info('Survey plan uploaded', ['ref' => $plan->upload_ref, 'unit' => $plan->unit, 'source' => $plan->source]);
@@ -404,9 +441,9 @@ class SurveyPlanUploads
      * and DSG, and the Super Admins, once each; the uploader gets a confirmation instead (a portal uploader on the
      * portal bell).
      */
-    private function notifyUnit(Plan $plan, ?int $uploaderId): void
+    private function notifyUnit(Plan $plan, ?int $uploaderId, ?string $checkFormat = null): void
     {
-        DB::connection('sqlsrv')->afterCommit(function () use ($plan, $uploaderId) {
+        DB::connection('sqlsrv')->afterCommit(function () use ($plan, $uploaderId, $checkFormat) {
             try {
                 $route = $plan->unit === Plan::UNIT_GKN ? 'survey-module.gkn.uploaded-plans' : 'survey-module.workflow.uploaded-plans';
                 $unitPath = parse_url(route($route), PHP_URL_PATH);
@@ -414,7 +451,8 @@ class SurveyPlanUploads
                 $who = $plan->source === 'portal' ? ($plan->uploaded_by_name . ' (KN-MLPP-SG Portal)') : (string) $plan->uploaded_by_name;
                 $where = trim(($plan->plot_no ? 'Plot ' . $plan->plot_no . ', ' : '') . (string) $plan->location, ', ');
                 $title = "{$plan->plan_type} uploaded: {$plan->upload_ref}";
-                $body = trim("{$who} sent a {$plan->plan_type} to {$plan->unit} for checking" . ($where !== '' ? " ({$where})" : '') . '. Drawn by ' . $plan->drawn_by . '.');
+                $body = trim("{$who} sent a {$plan->plan_type} to {$plan->unit} for checking" . ($where !== '' ? " ({$where})" : '') . '. Drawn by ' . $plan->drawn_by . '.'
+                    . ($checkFormat ? ' Plotted data attached: ' . (Plan::CHECK_FORMATS[$checkFormat] ?? $checkFormat) . '.' : ''));
 
                 // Unit holders open the unit's list; the heads and Super Admins open the list of every upload.
                 $to = [];

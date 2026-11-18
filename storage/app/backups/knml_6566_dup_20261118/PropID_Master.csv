@@ -1,0 +1,4 @@
+id,prop_id,primary_file_number,mlsFNo,kangisFileNo,NewKANGISFileno,temp_fileno,source_table,source_record_id,status,notes,created_at,updated_at,primary_file_number_norm,mlsFNo_norm,kangisFileNo_norm,NewKANGISFileno_norm,temp_fileno_norm
+326189,319967,"KNML 6566",,,,,,,active,,"2026-11-18 10:58:06","2026-11-18 10:58:06","KNML 6566",,,,
+326190,319968,"KNML 6566_2-REF-319968",,,,,,,active,,"2026-11-18 10:58:15","2026-11-18 10:58:15","KNML 6566_2-REF-319968",,,,
+326191,319969,"KNML 6566_2",,,,,,,active,,"2026-11-18 10:58:15","2026-11-18 10:58:15","KNML 6566_2",,,,

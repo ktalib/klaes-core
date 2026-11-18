@@ -4063,8 +4063,22 @@
             // subdivision batch it remains available to upload, but must not block
             // the entire batch when the existing records have no passport image.
             const isBatchSubmission = !!(alpineData && alpineData.batchMode);
-            const requiresPassport = !!passportInput && !isBatchSubmission && customerTypeValue === 'Individual';
+            const asksPassport = !!passportInput && !isBatchSubmission && customerTypeValue === 'Individual';
+            const passportAvailable = (alpineData && alpineData.passportAvailable) || '';
+            const requiresPassport = asksPassport && passportAvailable === 'yes';
             const hasPassport = !!(passportInput && passportInput.files && passportInput.files.length > 0);
+
+            if (asksPassport && passportAvailable === '') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Has Passport?',
+                    text: 'Please answer "Has Passport?" (Yes or No) before generating the file number.',
+                    confirmButtonColor: '#f59e0b'
+                }).then(() => {
+                    document.querySelector('#passportAvailableGroup input')?.focus();
+                });
+                return;
+            }
 
             // The face check is still running on the chosen photo (CR 30102026 item 36).
             if (passportInput && passportInput.dataset.faceCheck === 'pending') {
@@ -4105,7 +4119,7 @@
             const customerTypeValue = (alpineData && alpineData.customerType
                 ? alpineData.customerType
                 : (document.getElementById('customerType')?.value || '')).toString().trim();
-            if (customerTypeValue !== 'Individual') {
+            if (customerTypeValue !== 'Individual' || (alpineData && alpineData.passportAvailable === 'no')) {
                 formData.delete('passport');
             }
         }
@@ -7871,6 +7885,13 @@
             // URL behind the thumbnail.
             passport: '',
             passportPreview: '',
+            // "Has Passport?" (user, 2026-11-18): 'yes' asks for the photo as before; 'no' (a VIP
+            // or other file with no photo) hides the upload and commissions without one.
+            passportAvailable: '',
+            setPassportAvailable(value) {
+                this.passportAvailable = value;
+                if (value !== 'yes') this.clearPassport();
+            },
             handlePassportChange(event) {
                 const input = event.target;
                 const file = input.files && input.files[0];

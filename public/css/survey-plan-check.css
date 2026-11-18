@@ -351,8 +351,6 @@ body.spc-noscroll { overflow: hidden; }
 /* Imagery rows in the Layers panel (Kunle, 2026-11-15): tick + name + area note, and a zoom-to button. */
 .spc .spc-toc .toc-lbl { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; cursor: pointer; margin: 0; }
 .spc .spc-toc .toc-meta { display: block; font-size: 11px; font-weight: 400; color: #64748b; }
-.spc .spc-toc .toc-zoom { flex: none; border: 0; background: transparent; color: #2563eb; padding: 2px 4px; cursor: pointer; border-radius: 6px; }
-.spc .spc-toc .toc-zoom:hover { background: #eff6ff; }
 .spc .spc-toc .toc-off { color: #94a3b8; cursor: default; }
 .spc .spc-toc .sw-img { width: 14px; height: 14px; border-radius: 3px; flex: none; background: linear-gradient(135deg, #65a30d, #a16207 55%, #94a3b8); }
 

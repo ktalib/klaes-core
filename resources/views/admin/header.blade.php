@@ -217,8 +217,12 @@
 </div>
 
 {{-- Survey > File Status tabs: one sidebar entry, each list a tab (user, 2026-10-30). --}}
-@if (request('url') === 'survey' && request()->routeIs('land-rofos.index', 'propertycard.cofo', 'file-decommissioning.decommissioned', 'file-search-db.index', 'regrant.index', 'title-status.index', 'dciv-generation.index', 'caveat.index', 'mortgages.index', 'surrender-release.index'))
+@if (request('url') === 'survey' && request()->routeIs('land-rofos.index', 'propertycard.cofo', 'file-decommissioning.decommissioned', 'file-search-db.index', 'regrant.index', 'title-status.index', 'dciv-generation.index', 'caveat.index', 'mortgages.index', 'surrender-release.index', 'st-file-status.index'))
   @include('survey_module.partials._file_status_tabs')
+@endif
+{{-- Cadastral > File Status tabs, as Survey's (user, 2026-11-17): one sidebar entry, each list a tab. --}}
+@if (request()->routeIs('cadastral-dept.file-status') || request('url') === 'cadastral' && request()->routeIs('land-rofos.index', 'propertycard.cofo', 'file-decommissioning.decommissioned', 'file-search-db.index', 'regrant.index', 'title-status.index', 'dciv-generation.index', 'caveat.index', 'mortgages.index', 'surrender-release.index', 'st-file-status.index'))
+  @include('cadastral_dept.partials._file_status_tabs')
 @endif
 {{-- Cadastral > File Status > Search: a list opened from a result comes filtered to the file (2026-10-31). --}}
 @if (request('url') === 'cadastral' && request('fs'))

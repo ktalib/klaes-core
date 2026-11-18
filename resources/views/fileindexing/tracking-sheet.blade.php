@@ -276,6 +276,41 @@
             </div>
         </div>
 
+        @if(!empty($blockGroup) && !empty($blockGroup['files']))
+        <!-- Files in this Block: the whole block is tracked on this one sheet -->
+        <div class="mb-4" style="page-break-inside: avoid;">
+            <div style="background:#7c3aed; color:#fff; padding:4px 8px; font-weight:700; font-size:12px;">
+                FILES IN THIS BLOCK ({{ count($blockGroup['files']) }}) &mdash; {{ strtoupper($blockGroup['label']) }}@if($blockGroup['type'] === 'kangis') &middot; LAND FILE {{ $blockGroup['land_file'] }}@endif
+            </div>
+            <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                <thead>
+                    <tr style="background:#f5f3ff;">
+                        <th style="border:1px solid #d1d5db; padding:3px;">S/N</th>
+                        <th style="border:1px solid #d1d5db; padding:3px;">File No.</th>
+                        <th style="border:1px solid #d1d5db; padding:3px;">Holder</th>
+                        <th style="border:1px solid #d1d5db; padding:3px;">Plot No.</th>
+                        <th style="border:1px solid #d1d5db; padding:3px;">District</th>
+                        <th style="border:1px solid #d1d5db; padding:3px;">LGA</th>
+                        <th style="border:1px solid #d1d5db; padding:3px;">Location</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($blockGroup['files'] as $bf)
+                    <tr @if(($bf['role'] ?? null) === 'Land file') style="background:#eef2ff;" @endif>
+                        <td style="border:1px solid #d1d5db; padding:3px; text-align:center;">{{ $loop->iteration }}</td>
+                        <td style="border:1px solid #d1d5db; padding:3px; font-weight:600;">{{ $bf['file_number'] ?? '-' }}@if($blockGroup['type'] === 'kangis' && !empty($bf['role']))<div style="font-size:9px; font-weight:400; color:#6b7280;">{{ $bf['role'] }}</div>@endif</td>
+                        <td style="border:1px solid #d1d5db; padding:3px;">{{ $bf['holder'] ?? '-' }}</td>
+                        <td style="border:1px solid #d1d5db; padding:3px;">{{ $bf['plot_number'] ?? '-' }}</td>
+                        <td style="border:1px solid #d1d5db; padding:3px;">{{ $bf['district'] ?? '-' }}</td>
+                        <td style="border:1px solid #d1d5db; padding:3px;">{{ $bf['lga'] ?? '-' }}</td>
+                        <td style="border:1px solid #d1d5db; padding:3px;">{{ $bf['location'] ?? '-' }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @endif
+
         <!-- Signing Section -->
         <div class="print-compact-small pt-0">
             <!-- Enhanced signing section header with better styling -->

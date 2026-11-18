@@ -47,7 +47,7 @@ class SurveyPlanUpload extends SurveyModel
         return $this->coord_system ? (self::COORD_SYSTEMS[$this->coord_system] ?? $this->coord_system) : null;
     }
 
-    protected $casts = ['file_size' => 'integer', 'plot_data' => 'array'];
+    protected $casts = ['file_size' => 'integer', 'plot_data' => 'array', 'checked_at' => 'datetime'];
 
     /*
      | Survey Plan Management (user, Recording 5, 2026-11-16): a Manual Upload is a scanned / hard copy plan with its
@@ -61,6 +61,22 @@ class SurveyPlanUpload extends SurveyModel
         self::METHOD_MANUAL => 'Manual Upload',
         self::METHOD_DIGITAL => 'Digital Plotting',
     ];
+
+    /**
+     * Digital Plotting sends the plotting to the checking unit in one of these (Kunle, 2026-11-17: "automatically send the
+     * data in the selected format to the person that will check ... either the format or the traverse with the reference
+     * beacon details"). The traverse sheet is made from the saved plotting; the others are built by the card and attached.
+     */
+    public const CHECK_FORMATS = [
+        'traverse' => 'Traverse + reference beacon details (CSV)',
+        'shp'      => 'Shapefile',
+        'gdb'      => 'Geodatabase',
+        'dxf'      => 'DXF (CAD)',
+        'geojson'  => 'GeoJSON',
+        'kml'      => 'KML (Google Earth)',
+        'csv'      => 'CSV (points)',
+    ];
+    public const CHECK_FILE_TYPES = ['zip', 'dxf', 'geojson', 'json', 'kml', 'csv'];
 
     public function getMethodAttribute(): string
     {
@@ -105,28 +121,39 @@ class SurveyPlanUpload extends SurveyModel
     }
 
     /*
-     | The four stages (CR 11112026-2, item 5). `stage` is where the plan is now.
-     |   1 Upload          sent, waiting for the unit to check it;
-     |   2 Correction      the unit sent corrections back; waiting for the uploader's final copy;
-     |   3 Final copy      at the SG/DSG for signing;
-     |   4 Signed          the signed copy is uploaded; done.
+     | The four stages (Kunle, 2026-11-18), each with its own owner:
+     |   1 Upload               the surveyor who drew the plan;
+     |   2 Check                the checking unit: falls on location or not, corrections or none; back to the surveyor;
+     |   3 Final Survey Plan    the surveyor: correct (if any), produce the final survey plan, upload; to the SG/DSG;
+     |   4 Sign                 SG/DSG only: check/download, print, sign, upload.
+     | `stage` holds the last stage done, so 1 = uploaded and waiting for the check, 4 = signed. step_no is the one open.
      */
     public const STAGE_UPLOADED = 1;
+    /** Checked (with or without corrections): back with the surveyor for the final survey plan. */
     public const STAGE_CORRECTION = 2;
     public const STAGE_FINAL = 3;
     public const STAGE_SIGNED = 4;
 
+    /** The stage names, by step. */
     public const STAGES = [
-        self::STAGE_UPLOADED => 'Upload',
-        self::STAGE_CORRECTION => 'Correction',
-        self::STAGE_FINAL => 'Final Copy',
-        self::STAGE_SIGNED => 'Signed Copy',
+        1 => 'Upload',
+        2 => 'Check',
+        3 => 'Final Survey Plan',
+        4 => 'Sign (SG/DSG)',
     ];
 
-    /** What the plan is waiting for, by stage. */
+    /** Whose step it is, by step. */
+    public const STAGE_OWNERS = [
+        1 => 'Surveyor',
+        2 => 'Checking unit',
+        3 => 'Surveyor',
+        4 => 'SG/DSG only',
+    ];
+
+    /** What the plan is waiting for, by `stage`. */
     public const STAGE_STATUS = [
         self::STAGE_UPLOADED => 'Awaiting check',
-        self::STAGE_CORRECTION => 'Corrections sent, awaiting final copy',
+        self::STAGE_CORRECTION => 'Checked, awaiting the final survey plan',
         self::STAGE_FINAL => 'Awaiting signature (SG/DSG)',
         self::STAGE_SIGNED => 'Signed',
     ];
@@ -134,9 +161,19 @@ class SurveyPlanUpload extends SurveyModel
     /** The status column's value per stage (30 characters at most). */
     public const STAGE_CODES = [
         self::STAGE_UPLOADED => 'Submitted',
-        self::STAGE_CORRECTION => 'Corrections Sent',
+        self::STAGE_CORRECTION => 'Checked',
         self::STAGE_FINAL => 'Awaiting Signature',
         self::STAGE_SIGNED => 'Signed',
+    ];
+
+    /** Stage 2's two questions (Kunle, 2026-11-18). */
+    public const CHECK_LOCATIONS = [
+        'falls'     => 'Map falls on location',
+        'not_falls' => 'Map does not fall on location (redraw)',
+    ];
+    public const CHECK_RESULTS = [
+        'corrections' => 'Corrections',
+        'none'        => 'No corrections',
     ];
 
     public const SIGN_DIGITAL = 'digital';
@@ -166,9 +203,25 @@ class SurveyPlanUpload extends SurveyModel
         return max(1, min(4, (int) ($this->stage ?: 1)));
     }
 
+    /** The stage open now (1 is done on upload, so a new plan is at 2, Check); a signed plan stays on 4. */
+    public function getStepNoAttribute(): int
+    {
+        return min(4, $this->stage_no + ($this->stage_no === self::STAGE_SIGNED ? 0 : 1));
+    }
+
     public function getStageLabelAttribute(): string
     {
-        return self::STAGES[$this->stage_no];
+        return $this->stage_no === self::STAGE_SIGNED ? 'Signed' : self::STAGES[$this->step_no];
+    }
+
+    public function getCheckLocationLabelAttribute(): ?string
+    {
+        return self::CHECK_LOCATIONS[$this->check_location] ?? null;
+    }
+
+    public function getCheckResultLabelAttribute(): ?string
+    {
+        return self::CHECK_RESULTS[$this->check_result] ?? null;
     }
 
     public function getStageStatusAttribute(): string

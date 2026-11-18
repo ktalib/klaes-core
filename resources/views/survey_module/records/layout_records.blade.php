@@ -19,7 +19,7 @@
     <div class="kpi-card"><div class="kpi-label">Layouts</div><div class="kpi-value">{{ number_format($totals['layouts']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Allocation list lines</div><div class="kpi-value">{{ number_format($totals['lines']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">OPs on layouts</div><div class="kpi-value">{{ number_format($totals['ops']) }}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Showings</div><div class="kpi-value">{{ number_format($totals['showings']) }}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Showing</div><div class="kpi-value">{{ number_format($totals['showings']) }}</div></div>
 </div>
 
 <div class="table-container">
@@ -30,7 +30,7 @@
             <select name="has" style="{{ $field }}">
                 <option value="">All layouts</option>
                 <option value="lists" @selected(request('has') === 'lists')>With allocation lists</option>
-                <option value="shown" @selected(request('has') === 'shown')>With showings</option>
+                <option value="shown" @selected(request('has') === 'shown')>With a showing</option>
             </select>
             <button class="btn btn-secondary btn-sm" type="submit"><i class="fas fa-search"></i></button>
             @if ($filtered)<a class="btn btn-secondary btn-sm" href="{{ route('survey-module.records.layout-records') }}">Clear</a>@endif
@@ -38,7 +38,7 @@
     </div>
     <div class="table-scroll">
         <table>
-            <thead><tr><th>S/N</th><th>Layout No.</th><th>Name</th><th>Plan numbers as written</th><th style="text-align:right;">Allocation lines</th><th style="text-align:right;">OPs</th><th style="text-align:right;">Showings</th><th></th></tr></thead>
+            <thead><tr><th>S/N</th><th>Layout No.</th><th>Name</th><th>Plan numbers as written</th><th style="text-align:right;">Allocation lines</th><th style="text-align:right;">OPs</th><th style="text-align:right;">Showing</th><th></th></tr></thead>
             <tbody>
                 @forelse ($layouts as $l)
                     @php $url = route('survey-module.records.layout-records', ['layout' => $l['key']]); @endphp

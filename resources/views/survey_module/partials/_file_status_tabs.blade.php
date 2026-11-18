@@ -19,6 +19,8 @@
       ]],
       ['Title Status', 'badge-check', route('title-status.index') . '?url=survey', request()->routeIs('title-status.index')],
       ['DCIV', 'folder-kanban', route('dciv-generation.index', ['url' => 'survey']), request()->routeIs('dciv-generation.index')],
+      // ST Files, its own screen (user, 2026-11-18).
+      ['ST Files', 'building-2', route('st-file-status.index', ['url' => 'survey']), request()->routeIs('st-file-status.index')],
       ['Encumbrance', 'shield', [
           ['Caveat', 'shield-alert', route('caveat.index') . '?url=survey', request()->routeIs('caveat.index')],
           ['Mortgage', 'landmark', route('mortgages.index') . '?url=survey', request()->routeIs('mortgages.index')],
@@ -36,6 +38,7 @@
       'Regrant Files' => ['#0f766e', '#f0fdfa'],
       'Title Status' => ['#047857', '#ecfdf5'],
       'DCIV' => ['#1d4ed8', '#eff6ff'],
+      'ST Files' => ['#7e22ce', '#faf5ff'],
       'Encumbrance' => ['#c2410c', '#fff7ed'],
   ];
   $fsStyle = fn (string $label) => '--c:' . ($fsColors[$label][0] ?? '#be185d') . ';--bg:' . ($fsColors[$label][1] ?? '#fdf2f8');

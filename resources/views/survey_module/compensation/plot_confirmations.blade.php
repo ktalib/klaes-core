@@ -480,6 +480,8 @@
         </form>
     </div>
 </div>
+{{-- The OSS Capture OP card (user, 2026-11-18), opened by "OP is not captured — capture it now". --}}
+@include('survey_module.compensation.partials.capture-op-card')
 
 <script>
 // The buttons (user, 2026-11-06): the new form as Plot Showing or Ground Check, or the Old Register form.
@@ -668,13 +670,21 @@ document.addEventListener('DOMContentLoaded', function () {
         captureModal.style.display = 'none';
         if (resetChoice) noOp.checked = false;
     }
+    // "OP is not captured — capture it now" opens the Capture Occupancy Permit (OP) card OSS uses (user, 2026-11-18:
+    // one OP card everywhere). Once the OP is captured its serial is searched here, to pick into the showing.
+    // The old modal below is no longer opened.
     noOp.addEventListener('change', function () {
-        if (noOp.checked) {
-            openCaptureModal();
-            clearPick();
-        } else {
-            closeCaptureModal(false);
-        }
+        if (!noOp.checked) return;
+        noOp.checked = false;
+        clearPick();
+        openSurveyOpCard({
+            onDone: function (serial) {
+                if (!serial) return;
+                box.value = serial;
+                box.dispatchEvent(new Event('input', { bubbles: true }));
+                box.focus();
+            }
+        });
     });
     document.getElementById('pcOpCaptureClose').addEventListener('click', function () { closeCaptureModal(true); });
     document.getElementById('pcOpCaptureCancel').addEventListener('click', function () { closeCaptureModal(true); });
@@ -1018,7 +1028,7 @@ document.addEventListener('DOMContentLoaded', function () {
     form.addEventListener('submit', function (e) {
         var checking = document.getElementById('pcFormKind').value === 'check';
         if (!document.getElementById('pcOp').value) { e.preventDefault(); plotBox.style.borderColor = '#dc2626'; box.style.borderColor = '#dc2626'; alert(checking ? 'Choose the TP No. and the plot that was checked.' : 'Choose the TP No. and the plot that was shown.'); return; }
-        if (checking && !against.value) { e.preventDefault(); alert('Record the OP showing first: the ground check is the response to a showing.'); }
+        if (checking && !against.value) { e.preventDefault(); alert('Record the plot showing first: the ground check is the response to a showing.'); }
     });
     // Back from a failed save with an OP chosen: look it up again so its details and the reason show.
     var keep = document.getElementById('pcOp').value;
@@ -1070,13 +1080,11 @@ document.addEventListener('DOMContentLoaded', function () {
 </style>
 
 <div x-data="{ view: null }">
-<div class="pc-tabs">
-    <a href="{{ $tabUrl('showings') }}" data-tab="showings" class="{{ $tab === 'showings' ? 'on' : '' }}">Plot Showing</a>
-</div>
+{{-- The lone Plot Showing tab at the top was removed (user, 2026-11-18: "no need for it"). --}}
 
 <div id="pcMain">
 <div class="kpi-grid">
-    <div class="kpi-card"><div class="kpi-label">Showings</div><div class="kpi-value">{{ number_format($totals['showings']) }}</div><div class="pc-sub">{{ number_format($totals['ops']) }} OPs shown</div></div>
+    <div class="kpi-card"><div class="kpi-label">Showing</div><div class="kpi-value">{{ number_format($totals['showings']) }}</div><div class="pc-sub">{{ number_format($totals['ops']) }} plots shown</div></div>
     <div class="kpi-card"><div class="kpi-label">Old register</div><div class="kpi-value">{{ number_format($totals['old']) }}</div><div class="pc-sub">from the old book</div></div>
     <div class="kpi-card"><div class="kpi-label">Ground checks</div><div class="kpi-value">{{ number_format($totals['checks']) }}</div></div>
     <div class="kpi-card"><div class="kpi-label">Discrepancies</div><div class="kpi-value" style="color:#b91c1c;">{{ number_format($totals['discrepancies']) }}</div></div>
@@ -1140,8 +1148,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     </select>
                 @endif
                 <select name="reason" style="{{ $field }}">
-                    <option value="">All showings</option>
-                    <option value="first" @selected(request('reason') === 'first')>1st showings</option>
+                    <option value="">All showing</option>
+                    <option value="first" @selected(request('reason') === 'first')>First showing</option>
                     @foreach (Showing::REASONS as $x)<option value="{{ $x }}" @selected(request('reason') === $x)>{{ $x }}</option>@endforeach
                 </select>
             @endif
@@ -1254,12 +1262,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="17" style="text-align:center;padding:22px;color:var(--gray-500);">{{ $tab === 'checks' ? 'No ground checks' : 'No showings' }} {{ request()->hasAny(['q', 'result', 'reason', 'source', 'type', 'from', 'to']) ? 'match the filter' : 'recorded yet' }}.</td></tr>
+                    <tr><td colspan="17" style="text-align:center;padding:22px;color:var(--gray-500);">{{ $tab === 'checks' ? 'No ground checks' : 'No plot showing' }} {{ request()->hasAny(['q', 'result', 'reason', 'source', 'type', 'from', 'to']) ? 'matches the filter' : 'recorded yet' }}.</td></tr>
                 @endforelse
             </tbody>
         </table>
     </div>
-    <div class="table-footer"><span>{{ number_format($rows->total()) }} {{ $tab === 'checks' ? 'ground checks' : 'showings' }}</span><div class="pagination">{{ $rows->links() }}</div></div>
+    <div class="table-footer"><span>{{ number_format($rows->total()) }} {{ $tab === 'checks' ? 'ground checks' : 'plot showing records' }}</span><div class="pagination">{{ $rows->links() }}</div></div>
 </div>
 </div>{{-- #pcMain --}}
 

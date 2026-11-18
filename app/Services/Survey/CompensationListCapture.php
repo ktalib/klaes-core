@@ -2,11 +2,14 @@
 
 namespace App\Services\Survey;
 
+use App\Models\Survey\SurveyBeneficiary;
 use App\Models\Survey\SurveyCoFile;
+use App\Models\Survey\SurveyFarmer;
 use App\Models\Survey\SurveyCompCase;
 use App\Models\Survey\SurveyProject;
 use App\Models\Survey\SurveyProjectSurveyor;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Manual capture of a paper compensation / resettlement allocation list (user,
@@ -30,7 +33,7 @@ class CompensationListCapture
     ];
 
     /** Fields of one list row, in grid order. */
-    public const ROW_FIELDS = ['fn', 'name', 'area', 'creatable', 'govt50', 'farmer50', 'plot', 'op', 'sign', 'remarks'];
+    public const ROW_FIELDS = ['fn', 'name', 'area', 'creatable', 'govt50', 'farmer50', 'plot', 'op', 'sign', 'remarks', 'farmer_id', 'farm_id'];
 
     /**
      * $d is the validated form (see CompensationCaptureController::rules()); $rows
@@ -115,19 +118,30 @@ class CompensationListCapture
                 'survey_project_surveyor_id' => $allocation?->id,
                 'portion_no'                 => $portion,
                 'portion_size_ha'            => $area > 0 ? $area : null,
+                // The paper's Section No., when it is a number (user, 2026-11-18).
+                'section_no'                 => ctype_digit((string) self::tidy($d['section'] ?? null)) ? (int) $d['section'] : null,
             ] + $address);
 
-            // Farmers: each distinct real name once (ABSENT and the like stay lines only).
+            // Farmers: each distinct real name once, or once per Farm ID when the paper gives one
+            // (ABSENT and the like stay lines only).
             $farmers = [];
-            foreach ($rows as $r) {
+            foreach ($rows as $i => $r) {
                 $n = $r['name'] ?? null;
                 if (CompensationListReader::isPlaceholderName($n)) continue;
                 $k = preg_replace('/[^A-Z]/', '', strtoupper((string) $n));
-                if ($k !== '' && ! isset($farmers[$k])) $farmers[$k] = $n;
+                if ($k === '') continue;
+                $k .= '|' . mb_strtoupper($r['farm_id'] ?? '');
+                $farmers[$k] ??= [
+                    'name'      => $n,
+                    'farmer_id' => $this->farmerIdFor($r['farmer_id'] ?? null, (string) $n, $i + 1),
+                    'farm_id'   => $this->farmIdFor($r['farm_id'] ?? null, $i + 1),
+                    'farm_no'   => ctype_digit((string) ($r['fn'] ?? '')) ? (int) $r['fn'] : null,
+                ];
             }
             foreach (array_chunk(array_values($farmers), 200) as $chunk) {
-                $db->table('survey_beneficiaries')->insert(array_map(fn ($n) => $stamp + [
-                    'survey_comp_case_id' => $case->id, 'full_name' => $n, 'status' => 'Pending', 'addr_state' => 'Kano',
+                $db->table('survey_beneficiaries')->insert(array_map(fn ($f) => $stamp + [
+                    'survey_comp_case_id' => $case->id, 'full_name' => $f['name'], 'status' => 'Pending', 'addr_state' => 'Kano',
+                    'survey_farmer_id' => $f['farmer_id'], 'farm_id_no' => $f['farm_id'], 'farm_no' => $f['farm_no'],
                 ], $chunk));
             }
 
@@ -155,6 +169,39 @@ class CompensationListCapture
 
             return $case;
         });
+    }
+
+    /**
+     * The paper's Farmer ID (user, 2026-11-18): one already on record is that farmer, and must carry the same name;
+     * a KLAES number (FMR-...) that is not on record is refused; any other number is a new farmer under it.
+     */
+    private function farmerIdFor(?string $id, string $name, int $row): ?int
+    {
+        if (($id = self::tidy($id)) === null) return null;
+        $letters = fn ($v) => preg_replace('/[^A-Z]/', '', strtoupper((string) $v));
+
+        if ($farmer = SurveyFarmer::where('farmer_id_no', $id)->first()) {
+            if ($letters($farmer->full_name) !== $letters($name)) {
+                throw ValidationException::withMessages(['rows' => "Row {$row}: Farmer ID {$id} is {$farmer->full_name}, not {$name}."]);
+            }
+            return $farmer->id;
+        }
+        if (preg_match('/^FMR-\d/i', $id)) {
+            throw ValidationException::withMessages(['rows' => "Row {$row}: Farmer ID {$id} is not on record."]);
+        }
+
+        return SurveyFarmer::create(['farmer_id_no' => $id, 'full_name' => $name])->id;
+    }
+
+    /** The paper's Farm ID, kept as written; a KLAES number (FRM-...) must already be on record. */
+    private function farmIdFor(?string $id, int $row): ?string
+    {
+        if (($id = self::tidy($id)) === null) return null;
+        if (preg_match('/^FRM-\d/i', $id) && ! SurveyBeneficiary::where('farm_id_no', $id)->exists()) {
+            throw ValidationException::withMessages(['rows' => "Row {$row}: Farm ID {$id} is not on record."]);
+        }
+
+        return $id;
     }
 
     /** Collapse whitespace; values keep the case they were typed in (names, plot and file numbers alike). */

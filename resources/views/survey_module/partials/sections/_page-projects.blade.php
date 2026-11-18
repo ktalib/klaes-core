@@ -1,6 +1,8 @@
 @php
     $svItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
     $ha = fn ($v) => $v === null ? '—' : rtrim(rtrim(number_format((float) $v, 4), '0'), '.');
+    // Capture New Farm is for new projects only (user, 2026-11-18).
+    $newProjectIds = \App\Models\Survey\SurveyProject::whereIn('id', collect($projects->items())->pluck('id'))->newInKlaes()->pluck('id')->flip();
 @endphp
 
 @include('survey_module.partials._flash')
@@ -148,9 +150,11 @@
                                      :style="'top:' + top + 'px; left:' + left + 'px'"
                                      class="fixed z-50 w-56 rounded-lg border border-gray-200 bg-white shadow-lg py-1">
                                     {{-- Actions: capture a new farm or capture an existing paper record. --}}
+                                    @if (isset($newProjectIds[$p->id]))
                                     <a href="{{ route('survey-module.compensation.cases.register', ['project' => $p->id]) }}" class="{{ $svItem }}">
                                         <i data-lucide="user-plus" class="w-4 h-4 text-gray-500"></i> Capture New Farm
                                     </a>
+                                    @endif
                                     <a href="{{ route('survey-module.compensation.capture-list', ['project' => $p->id]) }}" class="{{ $svItem }}">
                                         <i data-lucide="clipboard-list" class="w-4 h-4 text-gray-500"></i> Capture Existing Farm Record
                                     </a>

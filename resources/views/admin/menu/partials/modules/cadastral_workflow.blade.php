@@ -286,34 +286,13 @@
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-verification">
           {!! $cadLink('Logs', route('cadastral-dept.cases.index', ['workflow' => 'verification']), 'scroll-text', request()->routeIs('cadastral-dept.cases.index') && request('workflow') === 'verification') !!}
 
-          {!! $cadGroup('cadastral-file-status', 'File Status', 'file-search', true) !!}
-          <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-file-status">
-            {{-- Search every list for one file (user, 2026-10-31), as Survey > File Status. --}}
-            {!! $cadLink('Search', route('cadastral-dept.file-status'), 'search', request()->routeIs('cadastral-dept.file-status')) !!}
-            {!! str_replace('<a ', '<a data-tab-card="cadastral-rofo" ', $cadLink('RofO', route('land-rofos.index', ['url' => 'cadastral']), 'file-check', request()->routeIs('land-rofos.index') && request('url') === 'cadastral')) !!}
-            {!! $cadLink('CofO', route('propertycard.cofo', ['url' => 'cadastral']), 'award', request()->routeIs('propertycard.cofo') && request('url') === 'cadastral') !!}
-            {!! $cadLink('Decommissioned Files', route('file-decommissioning.decommissioned', ['url' => 'cadastral']), 'archive', request()->routeIs('file-decommissioning.decommissioned') && request('url') === 'cadastral') !!}
-            {!! $cadLink('Duplicate Files', route('file-search-db.index', ['url' => 'cadastral']), 'copy', request()->routeIs('file-search-db.index') && request('url') === 'cadastral') !!}
-
-            {!! $cadGroup('cadastral-regrant-files', 'Regrant Files', 'refresh-cw', true) !!}
-            <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-regrant-files">
-              {!! $cadLink('Regrant Register', route('regrant.index', ['tab' => 'register', 'url' => 'cadastral']), 'list', request()->routeIs('regrant.index') && request('url') === 'cadastral' && request('tab') !== 'due') !!}
-              {!! $cadLink('To be Regranted', route('regrant.index', ['tab' => 'due', 'url' => 'cadastral']), 'alarm-clock', request()->routeIs('regrant.index') && request('url') === 'cadastral' && request('tab') === 'due') !!}
-            </div>
-
-            {!! $cadLink('Title Status Update', route('title-status.index') . '?url=cadastral', 'badge-check', request()->routeIs('title-status.index') && request('url') === 'cadastral') !!}
-            {!! $cadLink('DCIV Management', route('dciv-generation.index', ['url' => 'cadastral']), 'folder-kanban', request()->routeIs('dciv-generation.index') && request('url') === 'cadastral') !!}
-
-            {!! $cadGroup('cadastral-deeds-encumbrance', 'Encumbrance', 'shield', true) !!}
-            <div class="pl-3 mt-1 mb-1 space-y-0.5 hidden" data-content="cadastral-deeds-encumbrance">
-              {!! $cadLink('Caveat', route('caveat.index') . '?url=cadastral', 'shield-alert', request()->routeIs('caveat.index') && request('url') === 'cadastral') !!}
-              {!! $cadLink('Mortgage', route('mortgages.index') . '?url=cadastral', 'landmark', request()->routeIs('mortgages.index') && request('url') === 'cadastral') !!}
-              {{-- Shown again (user, 2026-10-16: the sidebar doc lists them). Lien has no page yet,
-                   the same placeholder as in the Deeds menu. --}}
-              {!! $cadLink('Surrender & Release', route('surrender-release.index', ['url' => 'cadastral']), 'key-round', request()->routeIs('surrender-release.*') && request('url') === 'cadastral') !!}
-              {!! $cadLink('Lien', '#', 'lock', false) !!}
-            </div>
-          </div>
+          {{-- File Status: one entry (user, 2026-11-17: "the same style we used for survey"). It opens a card of the
+               lists (tab_cards: cadastral-file-status) and the Search page; each list is a tab on the page
+               (cadastral_dept/partials/_file_status_tabs). ?url=cadastral lights it. --}}
+          @php
+            $cadFsOn = request()->routeIs('cadastral-dept.file-status') || request('url') === 'cadastral' && request()->routeIs('land-rofos.index', 'propertycard.cofo', 'file-decommissioning.decommissioned', 'file-search-db.index', 'regrant.index', 'title-status.index', 'dciv-generation.index', 'caveat.index', 'mortgages.index', 'surrender-release.*', 'st-file-status.index');
+          @endphp
+          {!! str_replace('<a ', '<a data-tab-card="cadastral-file-status" ', $cadLink('File Status', route('cadastral-dept.file-status'), 'file-search', $cadFsOn)) !!}
         </div>
       @endif
 

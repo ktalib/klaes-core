@@ -39,7 +39,7 @@
         <table>
             <thead>
                 <tr><th>S/N</th><th>OP No.</th><th>CO File / Project</th><th>Case</th><th>Beneficiary</th><th>Scheme</th><th>Plot / Cash</th>
-                    <th>OP Status</th><th>Verification</th><th>Showings</th><th></th></tr>
+                    <th>OP Status</th><th>Verification</th><th>Showing</th><th></th></tr>
             </thead>
             <tbody>
                 @forelse ($ops as $o)
@@ -79,7 +79,7 @@
                                     @if (in_array($vs, [OP::V_PENDING, OP::V_VERIFIED], true))
                                         <button type="button" class="{{ $svItem }}" @click="open = false; v = { open: true, url: @js($url), action: 'return', ref: @js($ref) }"><i data-lucide="undo-2" class="w-4 h-4 text-gray-500"></i> Return for correction</button>
                                     @endif
-                                    <a href="{{ route('survey-module.compensation.op-verification.showings', $o) }}" class="{{ $svItem }}"><i data-lucide="footprints" class="w-4 h-4 text-gray-500"></i> Showing History</a>
+                                    <a href="{{ route('survey-module.compensation.op-verification.showings', $o) }}" class="{{ $svItem }}"><i data-lucide="footprints" class="w-4 h-4 text-gray-500"></i> Plot Showing History</a>
                                     <a href="{{ route('survey-module.compensation.op', ['q' => $o->op_number]) }}" class="{{ $svItem }}"><i data-lucide="file-signature" class="w-4 h-4 text-gray-500"></i> Open in OP Allocation</a>
                                     @if ($vs === OP::V_SENT)<div class="px-3 py-2 text-xs text-gray-500">Sent {{ optional($o->sent_to_deeds_at)->format('d M Y') }} · locked</div>@endif
                                 </div>

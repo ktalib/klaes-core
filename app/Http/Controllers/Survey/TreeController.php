@@ -9,6 +9,7 @@ use App\Models\Survey\SurveyProject;
 use App\Models\Survey\SurveyTreeType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -320,5 +321,52 @@ class TreeController extends Controller
                 'rate' => $t->default_unit_price, 'per_ha' => $t->price_per_ha, 'cost_per_ha' => $t->cost_per_ha, 'cases' => (int) $t->cases_using,
                 'lines' => (int) $t->lines_count, 'valued' => (float) $t->total_valued, 'status' => $t->status,
             ]);
+    }
+
+    /**
+     * Open Gazette (user, 2026-11-18): the gazette each tab's rates were taken from, one per tab, kept in
+     * storage/app/survey_schedule/gazette as <tab>.<ext>. A replaced one is moved to replaced/, dated, never deleted.
+     */
+    public const GAZETTE_DIR = 'app/survey_schedule/gazette';   // the local disk's root is storage/
+
+    public static function gazettePath(string $tab): ?string
+    {
+        foreach (['pdf', 'jpg', 'png'] as $ext) {
+            $p = self::GAZETTE_DIR . "/{$tab}.{$ext}";
+            if (Storage::disk('local')->exists($p)) return $p;
+        }
+
+        return null;
+    }
+
+    public function gazette(string $tab)
+    {
+        abort_unless(array_key_exists($tab, self::TABS), 404);
+        if (! $path = self::gazettePath($tab)) {
+            return redirect()->to(url()->previous(route('survey-module.compensation.trees', ['tab' => $tab])))
+                ->with('error', 'The ' . self::TABS[$tab] . ' gazette has not been uploaded yet. Use Upload Gazette.');
+        }
+
+        return response()->file(Storage::disk('local')->path($path));
+    }
+
+    public function storeGazette(Request $r, string $tab)
+    {
+        abort_unless(array_key_exists($tab, self::TABS), 404);
+        $r->validate(['gazette' => 'required|file|mimes:pdf,jpg,jpeg,png|max:51200'], [
+            'gazette.required' => 'Choose the gazette file.',
+            'gazette.mimes'    => 'The gazette must be a PDF or an image (JPG or PNG).',
+        ]);
+
+        $disk = Storage::disk('local');
+        if ($old = self::gazettePath($tab)) {
+            $disk->move($old, self::GAZETTE_DIR . '/replaced/' . $tab . '_' . now()->format('Ymd_His') . '.' . pathinfo($old, PATHINFO_EXTENSION));
+        }
+        $ext = strtolower($r->file('gazette')->getClientOriginalExtension());
+        $r->file('gazette')->storeAs(self::GAZETTE_DIR, $tab . '.' . ($ext === 'jpeg' ? 'jpg' : $ext), 'local');
+
+        // Back to whichever page showed the catalogue: Compensation Mgt or Configurable Entries > Farm Features.
+        return redirect()->to(url()->previous(route('survey-module.compensation.trees', ['tab' => $tab])))
+            ->with('success', self::TABS[$tab] . ' gazette uploaded. Open Gazette shows it.');
     }
 }

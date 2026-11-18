@@ -76,7 +76,7 @@
                         <td>{{ $p->location ?: '—' }}</td>
                         <td>{{ $p->drawn_by }}</td>
                         <td style="white-space:nowrap;">{{ optional($p->created_at)->format('d/m/Y') }}</td>
-                        <td style="white-space:nowrap;">{{ $p->stage_no }} · {{ $p->stage_label }}<div class="ks-help" style="margin:0;">{{ $p->stage_status }}</div></td>
+                        <td style="white-space:nowrap;">{{ $p->step_no }} · {{ $p->stage_label }}<div class="ks-help" style="margin:0;">{{ $p->stage_status }}</div></td>
                         <td style="white-space:nowrap;"><a href="{{ route('surveyor-portal.survey-plans.show', $p->id) }}" style="color:var(--ks-blue);font-weight:600;">Open</a></td>
                     </tr>
                 @empty

@@ -10,7 +10,7 @@
   $groupColors = [
       'RofO' => ['#be123c', '#fff1f2'], 'CofO' => ['#b45309', '#fffbeb'], 'Decommissioned' => ['#475569', '#f1f5f9'],
       'Duplicates' => ['#6d28d9', '#f5f3ff'], 'Regrant Files' => ['#0f766e', '#f0fdfa'], 'Title Status' => ['#047857', '#ecfdf5'],
-      'DCIV' => ['#1d4ed8', '#eff6ff'], 'Encumbrance' => ['#c2410c', '#fff7ed'],
+      'DCIV' => ['#1d4ed8', '#eff6ff'], 'ST Files' => ['#7e22ce', '#faf5ff'], 'Encumbrance' => ['#c2410c', '#fff7ed'],
   ];
   $foundCount = collect($sections)->where('found', true)->count();
 @endphp
@@ -59,7 +59,7 @@
 @if ($q === '')
     <div style="text-align:center;padding:40px 16px;color:var(--gray-500);">
         <i class="fas fa-magnifying-glass" style="font-size:28px;display:block;margin-bottom:10px;opacity:.4;"></i>
-        Search a file to see where it appears: RofO, CofO, Decommissioned, Duplicates, Regrant Files, Title Status, DCIV and Encumbrance.
+        Search a file to see where it appears: RofO, CofO, Decommissioned, Duplicates, Regrant Files, Title Status, DCIV, ST Files and Encumbrance.
         <div style="margin-top:6px;font-size:13px;">Or open any list from the tabs above.</div>
     </div>
 @elseif (! $file)

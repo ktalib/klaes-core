@@ -454,10 +454,9 @@
                                                 <div>
                                                     <label class="block text-xs font-bold text-slate-600 mb-1 uppercase">Year</label>
                                                     {{-- The serial series is per year, so a manual serial picks its year too:
-                                                         DCIV-2025-400 and DCIV-2026-400 are different numbers issued by
-                                                         different counters. Auto is always the current year, the only one with a
-                                                         counter; earlier years are manual entry from dciv_grouping and never get
-                                                         one (user, 2026-11-16), so only an unset current year is flagged. --}}
+                                                         DCIV-2025-400 and DCIV-2026-400 are different numbers. Manual includes
+                                                         available years from dciv_grouping, including the current year; auto
+                                                         continues to use the current year's counter. Uninitialized years are flagged. --}}
                                                     <template x-if="serialMode === 'manual' && !editMode">
                                                         <select x-model="formData.year" @change="onYearPicked()"
                                                             class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all hover:border-slate-400 shadow-sm">

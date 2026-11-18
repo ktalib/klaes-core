@@ -1068,8 +1068,16 @@
             }
         }
 
+        // A Land Block opened for editing already shows its own files, one per tab
+        // (create_indexing init(), block_files). The main record's title and full plot
+        // list must not overwrite file 1 (user, 2026-11-18).
+        const editing = window.editingRecord;
+        const isLoadedBlock = !!(editing && editing.indexing_type === 'Block'
+            && Array.isArray(editing.block_files) && editing.block_files.length
+            && String(editing.id) === String(record.id));
+
         const fileTitleInput = document.getElementById('file-title');
-        if (fileTitleInput) {
+        if (fileTitleInput && !isLoadedBlock) {
             setAutoFilledValue(fileTitleInput, record.file_title ?? '', { lock: false });
             applyAutofillLock([fileTitleInput.id], false);
         }
@@ -1156,12 +1164,14 @@
         if (record.land_use_type || record.landuse) {
             populateLandUseFromRecord(record.land_use_type ?? record.landuse, 0);
         }
+        if (!isLoadedBlock) {
         setAutoFilledValue('plot-number-0', record.plot_number ?? '', { lock: false });
         setAutoFilledValue('tp-number-0', record.tp_no ?? record.tp_number ?? '', { lock: false });
         setAutoFilledValue('lpkn-no-0', record.lpkn_no ?? '', { lock: false });
         setAutoFilledValue('location-0', record.location ?? '', { lock: false });
         if (typeof record.plot_size !== 'undefined') {
             setAutoFilledValue('plot-size-0', record.plot_size ?? '', { lock: false });
+        }
         }
 
         // Trigger input events for property details to ensure location auto-generation and Alpine sync

@@ -53,7 +53,7 @@ class FarmIds
 
     public function nextFarmerIdPreview(): string
     {
-        $row = $this->db()->selectOne('SELECT MAX(farmer_id_no) AS last_no FROM survey_farmers');
+        $row = $this->db()->selectOne('SELECT MAX(farmer_id_no) AS last_no FROM survey_farmers WHERE farmer_id_no LIKE ?', ['FMR-[0-9]%']);
         $n = (int) substr((string) ($row->last_no ?? 'FMR-0'), 4) + 1;
 
         return sprintf('FMR-%06d', $n);
@@ -61,7 +61,7 @@ class FarmIds
 
     public function nextFarmIdPreview(): string
     {
-        $row = $this->db()->selectOne('SELECT MAX(farm_id_no) AS last_no FROM survey_beneficiaries');
+        $row = $this->db()->selectOne('SELECT MAX(farm_id_no) AS last_no FROM survey_beneficiaries WHERE farm_id_no LIKE ?', ['FRM-[0-9]%']);
         $n = (int) substr((string) ($row->last_no ?? 'FRM-0'), 4) + 1;
 
         return sprintf('FRM-%06d', $n);
@@ -93,7 +93,7 @@ class FarmIds
             return $same;
         }
 
-        $last = $this->db()->selectOne('SELECT MAX(farmer_id_no) AS last_no FROM survey_farmers WITH (UPDLOCK, HOLDLOCK)');
+        $last = $this->db()->selectOne('SELECT MAX(farmer_id_no) AS last_no FROM survey_farmers WITH (UPDLOCK, HOLDLOCK) WHERE farmer_id_no LIKE ?', ['FMR-[0-9]%']);
         $n = (int) substr((string) ($last->last_no ?? 'FMR-0'), 4) + 1;
 
         return SurveyFarmer::create([
@@ -116,7 +116,7 @@ class FarmIds
             return $wanted;
         }
 
-        $last = $this->db()->selectOne('SELECT MAX(farm_id_no) AS last_no FROM survey_beneficiaries WITH (UPDLOCK, HOLDLOCK)');
+        $last = $this->db()->selectOne('SELECT MAX(farm_id_no) AS last_no FROM survey_beneficiaries WITH (UPDLOCK, HOLDLOCK) WHERE farm_id_no LIKE ?', ['FRM-[0-9]%']);
 
         return sprintf('FRM-%06d', (int) substr((string) ($last->last_no ?? 'FRM-0'), 4) + 1);
     }

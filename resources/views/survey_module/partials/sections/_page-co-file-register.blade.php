@@ -28,19 +28,12 @@
         .survey-proto .co-modes button { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border:0; border-radius:8px; background:none; font-weight:600; font-size:14px; color:var(--gray-600,#4b5563); cursor:pointer; }
         .survey-proto .co-modes button.on { background:#fff; color:var(--primary); box-shadow:0 1px 3px rgba(0,0,0,.12); }
     </style>
-    {{-- Each form shows only its own mode (user, 2026-10-30): the two lists in the sidebar each open their own form. --}}
-    <nav class="co-modes" aria-label="CO file mode">
-        @if ($capture)
-            {{-- The Old CO Register is a collapsible section inside this form (user, 2026-11-03), no longer a switch here. --}}
-            <a href="{{ route('survey-module.compensation.co-files.create', ['mode' => SurveyCoFile::SOURCE_CAPTURED]) }}" class="on" aria-current="page">
-                <i class="fas fa-keyboard"></i> Capture CO File
-            </a>
-        @else
-            <a href="{{ route('survey-module.compensation.co-files.create') }}" class="on" aria-current="page">
-                <i class="fas fa-plus"></i> Commission CO File
-            </a>
-        @endif
-    </nav>
+    {{-- A Back button, not a button opening this same form (user, 2026-11-18): back to the list the form belongs to. --}}
+    <div style="margin-bottom:14px;">
+        <a href="{{ $capture ? route('survey-module.compensation.co-files') : route('survey-module.compensation.co-files.commissioned') }}" class="btn btn-outline btn-sm">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
 @endif
 
 <form method="POST"
@@ -196,7 +189,7 @@
             </div>
 
             {{-- File / Job Title and Status share a row (user, 2026-10-26) --}}
-            <div class="form-grid cols-3">
+            <div class="form-grid cols-3" style="margin-top:8px;">
                 <div class="form-group span-2">
                     <label>File / Job Title <span class="required">*</span></label>
                     <input type="text" name="title" id="coTitle" value="{{ old('title', $coFile->title) }}" maxlength="255"

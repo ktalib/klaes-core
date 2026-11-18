@@ -91,7 +91,7 @@
             </tbody>
         </table>
     </div>
-    <div class="table-footer"><span>{{ number_format($rows->total()) }} plots · showings are recorded with the Plot Confirmation app</span><div class="pagination">{{ $rows->links() }}</div></div>
+    <div class="table-footer"><span>{{ number_format($rows->total()) }} plots · plot showing is recorded with the Plot Confirmation app</span><div class="pagination">{{ $rows->links() }}</div></div>
 </div>
 
 <template x-if="view">
@@ -117,8 +117,8 @@
                     <tbody><template x-for="o in view.ops" :key="o.key"><tr><td x-text="o.serial || '—'"></td><td x-text="o.allottee || '—'"></td><td x-text="o.type || '—'"></td><td x-text="o.file || '—'"></td></tr></template></tbody></table>
             </template>
 
-            <h4 style="font-size:14px;font-weight:700;margin:14px 0 8px;">Showings to the allottee</h4>
-            <template x-if="!view.showings.length"><p class="lr-sub">Not shown yet.</p></template>
+            <h4 style="font-size:14px;font-weight:700;margin:14px 0 8px;">Plot Showing to the allottee</h4>
+            <template x-if="!view.showings.length"><p class="lr-sub">Plot not shown yet.</p></template>
             <template x-if="view.showings.length">
                 <table class="lr-t" data-column-picker="off"><thead><tr><th>Showing</th><th>Date</th><th>Surveyor</th><th>Reason</th><th>Allottee there</th></tr></thead>
                     <tbody><template x-for="(s, i) in view.showings" :key="i"><tr><td x-text="'#' + s.no"></td><td x-text="s.on + (s.at ? ' ' + s.at : '')"></td><td x-text="s.surveyor"></td><td x-text="s.reason || '—'"></td><td x-text="s.present === null ? '—' : (s.present ? 'Yes' : 'No')"></td></tr></template></tbody></table>

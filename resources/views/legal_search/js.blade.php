@@ -5151,6 +5151,15 @@ const executeSearchAjax = (filters, searchData) => {
       const isRecert = type.includes('recertification');
 
       if (isRecert) {
+        // A KANGIS file recertified against several land files: each recertification LINK
+        // row belongs to its own land file, as the server tagged it (MLKN 3010 ->
+        // IND-2018-1, IND-RC-1982-33, IND-2018-3, IND-2018-2; user, 2026-11-17). Folding them
+        // all into the C of O owner below left one row and hid the other land files.
+        // Mirrors LegalSearchService::tagRowsWithLifecycleFileNo().
+        if (String(r?.source_table || '') === 'Related Fileno' && r?.lifecycle_file_no) {
+          const own = normalizeLifecycleFileNo(r.lifecycle_file_no);
+          if (own && !isKangisFileNo(own)) return own;
+        }
         const kangisKey = extractKangisLifecycleKey(r);
         if (kangisKey && cofoOwnerByKangis[kangisKey]) {
           return cofoOwnerByKangis[kangisKey];

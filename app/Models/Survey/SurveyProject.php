@@ -47,6 +47,21 @@ class SurveyProject extends SurveyModel
         return $this->hasMany(SurveyProjectTree::class, 'survey_project_id')->orderBy('sort_order')->orderBy('id');
     }
 
+    /**
+     * New projects only, for Capture New Farm (user, 2026-11-18): an existing project (imported, or holding a land
+     * captured from paper) already has its sections and lands, so its records go in through Capture Existing Farm Record.
+     */
+    public function scopeNewInKlaes($q)
+    {
+        return $q->whereNull($this->qualifyColumn('import_ref'))
+            ->whereDoesntHave('cases', fn ($c) => $c->where(fn ($w) => $w->whereNotNull('import_ref')->orWhere('captured_from_paper', true)));
+    }
+
+    public function isNewInKlaes(): bool
+    {
+        return static::whereKey($this->getKey())->newInKlaes()->exists();
+    }
+
     public function isMonetary(): bool
     {
         return $this->scheme_type === self::SCHEME_MONETARY;

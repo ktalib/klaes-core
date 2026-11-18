@@ -1,0 +1,3 @@
+id,customer_type,status,file_number,customer_name,email,phone,property_address,residential_address,notes,customer_code,created_by,updated_by,created_at,updated_at,deleted_at,entity_id,test_control,account_no,reason_retired,physical_address,retired_by,title_status,title_status_type,title_status_remark,is_decommissioned,decommissioned_at,decommissioned_by,decommissioning_reason,successor_file_no
+195852,Individual,Active,"KNML 6566_1","RUQAYYA BAWA AHMAD",,,,,,CUST-6AFD76B2CB000,50521,50521,"2026-11-18 10:58:10.950","2026-11-18 10:58:10.950",,195700,PRO1.2,,,,,0,,,0,,,,
+195853,Individual,Active,"KNML 6566_2","RUQAYYA BAWA AHMAD",,,,,,CUST-6AFD76B77A3AC,50521,50521,"2026-11-18 10:58:15.570","2026-11-18 10:58:15.570",,195701,PRO1.2,,,,,0,,,0,,,,

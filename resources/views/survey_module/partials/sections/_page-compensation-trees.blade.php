@@ -14,6 +14,9 @@
     $statuses   = TreeController::STATUSES;
     $svItem     = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
     $rate       = fn ($v) => $v === null ? null : number_format((float) $v, 2);
+    // The list links come back to the page showing this partial: Compensation Mgt, or the
+    // Configurable Entries Farm Features tab (2026-11-18), which passes its own route.
+    $treesRoute = $treesRoute ?? 'survey-module.compensation.trees';
 @endphp
 
 @include('survey_module.partials._flash')
@@ -92,12 +95,50 @@
 
 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;" role="tablist">
     @foreach (TreeController::TABS as $k => $label)
-        <a href="{{ route('survey-module.compensation.trees', array_filter(['tab' => $k, 'case' => request('case')])) }}" role="tab" aria-selected="{{ $tab === $k ? 'true' : 'false' }}"
+        <a href="{{ route($treesRoute, array_filter(['tab' => $k, 'case' => request('case')])) }}" role="tab" aria-selected="{{ $tab === $k ? 'true' : 'false' }}"
            class="btn {{ $tab === $k ? 'btn-primary' : 'btn-outline' }} btn-sm">
             <i class="fas {{ $k === 'cash' ? 'fa-seedling' : 'fa-tree' }}"></i> {{ $label }}
         </a>
     @endforeach
+    {{-- Open Gazette (user, 2026-11-18): the gazette this tab's rates come from, one for Economic Trees and one for Cash Crops. --}}
+    @php $gazette = TreeController::gazettePath($tab); @endphp
+    <span style="flex:1;"></span>
+    @if ($gazette)
+        <a href="{{ route('survey-module.compensation.trees.gazette', $tab) }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">
+            <i class="fas fa-book-open"></i> Open Gazette
+        </a>
+    @else
+        <button type="button" class="btn btn-outline btn-sm" disabled title="Not uploaded yet">
+            <i class="fas fa-book-open"></i> Open Gazette
+        </button>
+    @endif
+    {{-- Upload / Replace Gazette hidden for now (user, 2026-11-18); the gazette file is put in place on the server. --}}
+    @if (false)
+    <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('gzForm').classList.add('open')">
+        <i class="fas fa-upload"></i> {{ $gazette ? 'Replace Gazette' : 'Upload Gazette' }}
+    </button>
+    @endif
 </div>
+
+@if (false)
+<form method="POST" action="{{ route('survey-module.compensation.trees.gazette.store', $tab) }}" enctype="multipart/form-data"
+      id="gzForm" class="farmer-entry-form {{ $errors->has('gazette') ? 'open' : '' }}"
+      data-sv-modal="{{ ($gazette ? 'Replace' : 'Upload') . ' Gazette — ' . TreeController::TABS[$tab] }}" data-sv-modal-size="md">
+    @csrf
+    @if ($errors->has('gazette'))
+        <div class="comp-type-note" style="margin-bottom:14px;border-color:#fecaca;background:#fef2f2;color:#991b1b;">{{ $errors->first('gazette') }}</div>
+    @endif
+    <div class="form-group">
+        <label>Gazette file (PDF, JPG or PNG) <span class="required">*</span></label>
+        <input type="file" name="gazette" accept=".pdf,.jpg,.jpeg,.png" required />
+        <p class="helper-text">The gazette the {{ strtolower(TreeController::TABS[$tab]) }} rates were taken from.@if ($gazette) The current one is kept aside, not deleted.@endif</p>
+    </div>
+    <div class="form-actions">
+        <div class="left"><button type="button" class="btn btn-secondary" onclick="document.getElementById('gzForm').classList.remove('open')"><i class="fas fa-times"></i> Close</button></div>
+        <div class="right"><button class="btn btn-success" type="submit"><i class="fas fa-check"></i> Upload</button></div>
+    </div>
+</form>
+@endif
 
 <div class="kpi-grid">
     <div class="kpi-card">
@@ -111,7 +152,7 @@
     <div class="kpi-card">
         <div class="kpi-label">No Rate Yet</div>
         <div class="kpi-value">
-            <a href="{{ route('survey-module.compensation.trees', ['tab' => $tab, 'rate' => 'unset']) }}" style="color:inherit;">{{ number_format($stats['unrated']) }}</a>
+            <a href="{{ route($treesRoute, ['tab' => $tab, 'rate' => 'unset']) }}" style="color:inherit;">{{ number_format($stats['unrated']) }}</a>
         </div>
     </div>
     <div class="kpi-card">
@@ -156,7 +197,7 @@
         </select>
         <button class="btn btn-secondary" type="submit"><i class="fas fa-filter"></i> Filter</button>
         @if (request()->hasAny(['q','category','maturity','status','rate']))
-            <a class="btn btn-outline btn-sm" href="{{ route('survey-module.compensation.trees', array_filter(['tab' => $tab, 'case' => request('case')])) }}">Clear</a>
+            <a class="btn btn-outline btn-sm" href="{{ route($treesRoute, array_filter(['tab' => $tab, 'case' => request('case')])) }}">Clear</a>
         @endif
     </div>
 </form>
@@ -430,7 +471,7 @@
             <button class="btn btn-secondary btn-sm" type="submit"><i class="fas fa-search"></i> Load</button>
             @if ($selectedCase)
                 <a class="btn btn-outline btn-sm"
-                   href="{{ route('survey-module.compensation.trees', request()->except('case')) }}">Clear</a>
+                   href="{{ route($treesRoute, request()->except('case')) }}">Clear</a>
             @endif
         </div>
     </form>

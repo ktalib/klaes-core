@@ -567,7 +567,8 @@ class MasterJsiController extends Controller
 
     /** The role each approval stage needs. Super Admin may act at either. */
     public const STAGE_ROLES = [
-        'director' => 'PP Director',
+        // PP Director was split into four modules (2026-11-17); this stage is the Master JSI one.
+        'director' => 'PP Director - Master JSI Approval',
         'ps'       => 'HC/PS View',
     ];
 

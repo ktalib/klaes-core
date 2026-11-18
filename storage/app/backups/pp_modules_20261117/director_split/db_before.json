@@ -1,0 +1,225 @@
+{
+    "taken_at": "2026-11-17 17:22:00",
+    "user_role": {
+        "id": "10024",
+        "name": "PP Director",
+        "guard_name": "web",
+        "description": "Physical Planning - Director level access and approvals",
+        "department_id": "9",
+        "level": "Highest",
+        "user_type": "Management",
+        "is_active": "1",
+        "created_at": "2025-09-21 07:00:45.4466667",
+        "updated_at": "2025-09-21 07:00:45.4466667"
+    },
+    "users": [
+        {
+            "id": "10013",
+            "assign_role": "Blind Scanning,Document Page Types,Scanning,ST One Stop Shop,PP Director,New ST FileNo,ST - Applications,ST - Approvals (Other Departments),ST - Bills & Payments,ST - Certificate,ST - Director's Approval,ST - Field Data Integration,ST - GIS,ST - Overview,ST - Reports,ST - ST Memo,ST - Sectional Titling BaseMap,ST - Survey,ST - e-Registry,ST \u2013 Final Conveyance"
+        },
+        {
+            "id": "40078",
+            "assign_role": "Dashboard,CRM - Person,CRM - Corporate,CRM - Customer Manager,Log a File,File Tracker\/Tracking,File Digital Library - Doc-WARE,Allocation,Compensation\/Resettlement,Recertification - Application,Recertification - Bills & Payments,Recertification - Migrate Data,Recertification - Verification Sheet,GIS - Data Capture,Recertification - Vetting Sheet,Recertification - EDMS,Recertification - Certification,Recertification - DG's List,Recertification - Governors List,Conversion\/Regularization,Land Property Enumeration - Data Repository,Land Property Enumeration - Migrate Data,Letter of Administration\/Grant\/Offer Letter,Occupancy Permit (OP),Site Plan\/Parcel Plan,Right of Occupancy,Certificate of Occupancy,Billing,Generate Receipt,Land Use Charge (LUC),Bill Balance,Deeds - Encumbrance,Deeds - Official (for filing purpose),Deeds - On-Premise (Pay-Per-Search),Deeds - Legal Search Reports,Lands - Generate New FileNo (MLSFileNo),Lands - Capture an Existing File,Lands - File Decommissioning,Survey - Records,Survey - AI Digital Assistant,Survey - GIS,Survey - Approvals,Survey - E-Registry,Survey Reports,Cad - Records,Cad - AI Digital Assistant,Cad - GIS,Cad - Approvals,Cad - E-Registry,Cadastral Reports,GIS - Records,GIS - AI Digital Assistant,GIS - GIS,GIS - Approvals,GIS - e-Registry,GIS Reports,ST - Overview,ST - Applications,ST - Field Data Integration,ST - Bills & Payments,ST - Approvals (Other Departments),ST - ST Memo,ST - Director's Approval,ST - Certificate,ST - e-Registry,ST - GIS,ST - Survey,ST - Sectional Titling BaseMap,ST - Reports,SLTR - Overview,SLTR - Payments,SLTR - Approvals,SLTR - Certificate,SLTR - e-Registry,SLTR - GIS,SLTR - Map,SLTR - Survey,SLTR - Reports,Legacy System,Activity Logs,User Account,Departments,User Roles,System Settings,ST \u2013 Final Conveyance,Indexing,Print File Labels,Print Sign In & Out Sheet,Blind Scanning,Scanning,Document Page Types,PT Quality Control,EDMS Update,Bills & Payments,PP Director,PP Reports,New ST FileNo,Deeds \u2013 Property Records,Lands \u2013 Manage MLSFileNo,Activity Monitoring,File History View,File Search \u2013 Scans,Folder Watcher,Resettlement\/Compensation,File Search \u2013 Table,Manual Attendance,Payroll,Attendance Tracking,Deeds - Consent,Letter of Grant (RofO),Generate New FileNo (DCIVFileNo),Generate New FileNo (GKNFileNo),Match Existing FileNo (MLSFileNo),Shadow File Commissioning,New Applications (Existing OP),Generate New FileNo (MLSFileNo),Land One Stop Shop,Land to Cad\/Survey,Other Applications-Land,Land,File Search,Caveat,KANGIS - File Digital Library,Kangis-Indexing,Recertification,KANGIS - Digital Archive,Admin,DG,DGIS,Director GIS Recommendation,DG Approval,PRA,Valuation,Deeds Registration,Other Applications,SLTR - Digital Archive,Deeds - Surrender,Cad - Digital Archive,Cad - Surveyors,DCIV - Digital Archive,Parcel\/Title Management-Deeds,Duplex Parcel Update-Deeds,OP Verification,File Movement (Department),GIS - Title Deed Plan,HC\/PS View,Allocation List,Parcel\/Title Management-Land,Land Registration,Duplex Parcel Update-Land,Parcel Update-New,PRS,Transaction Token Control,SLTR - Indexing,SLTR - CofO Front Page,SLTR - CofO,Special Assignment - Land Records,Special Assignment - Field Data,Special Assignment - Bills & Payments,Special Assignment - Notice,Special Assignment - Other Departments,Special Assignment - Certificate,Special Assignment - Report,Survey - Beacon Register,Survey - Compensation Check,Survey - DSG,Survey - Examination,Survey - SG,Survey - Compensation,Survey - Public Survey,Survey - GKN,Survey - Examination\/Verification,Cad - Registry,Cad - D Cad,Cad - DD Cad,Cad - Information,Cad - Report,Cad - P&D,Cad - Drawing & Charting,Cad - Verification,Cad - Central Admin,PP - Title Status Update,Conversion Applications,ST One Stop Shop,SLTR Applications,Parcel\/Title Management,PP - Digital Archive"
+        },
+        {
+            "id": "40080",
+            "assign_role": "Bills & Payments,Land,PP Director,PP Reports,Shadow File Commissioning,PP - Title Status Update,Conversion Applications,ST One Stop Shop,SLTR Applications,Parcel\/Title Management,PP - Digital Archive"
+        },
+        {
+            "id": "80609",
+            "assign_role": "Dashboard,CRM - Person,CRM - Corporate,CRM - Customer Manager,Log a File,File Tracker\/Tracking,File Digital Library - Doc-WARE,Allocation,Compensation\/Resettlement,Recertification - Application,Recertification - Bills & Payments,Recertification - Migrate Data,Recertification - Verification Sheet,GIS - Data Capture,Recertification - Vetting Sheet,Recertification - EDMS,Recertification - Certification,Recertification - DG's List,Recertification - Governors List,Conversion\/Regularization,Land Property Enumeration - Data Repository,Land Property Enumeration - Migrate Data,Letter of Administration\/Grant\/Offer Letter,Occupancy Permit (OP),Site Plan\/Parcel Plan,Right of Occupancy,Certificate of Occupancy,Billing,Generate Receipt,Land Use Charge (LUC),Bill Balance,Deeds - Encumbrance,Deeds - Official (for filing purpose),Deeds - On-Premise (Pay-Per-Search),Deeds - Legal Search Reports,Lands - Generate New FileNo (MLSFileNo),Lands - Capture an Existing File,Lands - File Decommissioning,Survey - Records,Survey - AI Digital Assistant,Survey - GIS,Survey - Approvals,Survey - E-Registry,Survey Reports,Cad - Records,Cad - AI Digital Assistant,Cad - GIS,Cad - Approvals,Cad - E-Registry,Cadastral Reports,GIS - Records,GIS - AI Digital Assistant,GIS - GIS,GIS - Approvals,GIS - e-Registry,GIS Reports,ST - Overview,ST - Applications,ST - Field Data Integration,ST - Bills & Payments,ST - Approvals (Other Departments),ST - ST Memo,ST - Director's Approval,ST - Certificate,ST - e-Registry,ST - GIS,ST - Survey,ST - Sectional Titling BaseMap,ST - Reports,SLTR - Overview,SLTR - Payments,SLTR - Approvals,SLTR - Certificate,SLTR - e-Registry,SLTR - GIS,SLTR - Map,SLTR - Survey,SLTR - Reports,Legacy System,Activity Logs,User Account,Departments,User Roles,System Settings,ST \u2013 Final Conveyance,Indexing,Print File Labels,Print Sign In & Out Sheet,Blind Scanning,Scanning,Document Page Types,PT Quality Control,EDMS Update,Bills & Payments,PP Director,PP Reports,New ST FileNo,Deeds \u2013 Property Records,Lands \u2013 Manage MLSFileNo,Activity Monitoring,File History View,File Search \u2013 Scans,Folder Watcher,Resettlement\/Compensation,File Search \u2013 Table,Manual Attendance,Payroll,Attendance Tracking,Deeds - Consent,Letter of Grant (RofO),Generate New FileNo (DCIVFileNo),Generate New FileNo (GKNFileNo),Match Existing FileNo (MLSFileNo),Shadow File Commissioning,New Applications (Existing OP),Generate New FileNo (MLSFileNo),Land One Stop Shop,Land to Cad\/Survey,Other Applications-Land,Land,File Search,Caveat,KANGIS - File Digital Library,Kangis-Indexing,Recertification,KANGIS - Digital Archive,Admin,DG,DGIS,Director GIS Recommendation,DG Approval,PRA,Valuation,Deeds Registration,Other Applications,SLTR - Digital Archive,Deeds - Surrender,Indexing Activity Log,PP - Title Status Update,Conversion Applications,ST One Stop Shop,SLTR Applications,PP - Digital Archive"
+        },
+        {
+            "id": "80739",
+            "assign_role": "Dashboard,CRM - Person,CRM - Corporate,CRM - Customer Manager,Log a File,File Tracker\/Tracking,File Digital Library - Doc-WARE,Allocation,Compensation\/Resettlement,Recertification - Application,Recertification - Bills & Payments,Recertification - Migrate Data,Recertification - Verification Sheet,GIS - Data Capture,Recertification - Vetting Sheet,Recertification - EDMS,Recertification - Certification,Recertification - DG's List,Recertification - Governors List,Conversion\/Regularization,Land Property Enumeration - Data Repository,Land Property Enumeration - Migrate Data,Letter of Administration\/Grant\/Offer Letter,Occupancy Permit (OP),Site Plan\/Parcel Plan,Right of Occupancy,Certificate of Occupancy,Billing,Generate Receipt,Land Use Charge (LUC),Bill Balance,Deeds - Property Records Assistant (Legacy Records),Deeds - Instrument Capture (New Records),Deeds - Instrument Registration (New Registration),Deeds - Instrument Registration Reports,Deeds - Encumbrance,Deeds - Official (for filing purpose),Deeds - On-Premise (Pay-Per-Search),Deeds - Legal Search Reports,Lands - Generate New FileNo (MLSFileNo),Lands - Capture an Existing File,Lands - File Decommissioning,Survey - Records,Survey - AI Digital Assistant,Survey - GIS,Survey - Approvals,Survey - E-Registry,Survey Reports,Cad - Records,Cad - AI Digital Assistant,Cad - GIS,Cad - Approvals,Cad - E-Registry,Cadastral Reports,GIS - Records,GIS - AI Digital Assistant,GIS - GIS,GIS - Approvals,GIS - e-Registry,GIS Reports,ST - Overview,ST - Applications,ST - Field Data Integration,ST - Bills & Payments,ST - Approvals (Other Departments),ST - ST Memo,ST - Director's Approval,ST - Certificate,ST - e-Registry,ST - GIS,ST - Survey,ST - Sectional Titling BaseMap,ST - Reports,SLTR - Overview,SLTR - Application,SLTR - Claimants,SLTR - Legacy Data,SLTR - Field Data,SLTR - Payments,SLTR - Approvals,SLTR - Planning Recommendation,SLTR - Director SLTR,SLTR - Other Departments,SLTR - Memo,SLTR - Certificate,SLTR - e-Registry,SLTR - GIS,SLTR - Map,SLTR - Survey,SLTR - Reports,Legacy System,Activity Logs,User Account,Departments,User Roles,System Settings,ST \u2013 Final Conveyance,Indexing,Print File Labels,Print Sign In & Out Sheet,Blind Scanning,Scanning,Document Page Types,PT Quality Control,EDMS Update,Bills & Payments,PP Director,PP Reports,New ST FileNo,Deeds \u2013 Property Records,Lands \u2013 Manage MLSFileNo,Deeds \u2013 Property Index Cards Assistant (Legacy Records),AI PRA (File Transactions),Activity Monitoring,File History View,File Search \u2013 Scans,Folder Watcher,Resettlement\/Compensation,File Search \u2013 Table,Manual Attendance,Payroll,Attendance Tracking,PP - Title Status Update,ST One Stop Shop,SLTR Applications,PP - Digital Archive"
+        },
+        {
+            "id": "90996",
+            "assign_role": "Virtual Folder System,Activity Monitoring,Blind Scanning,Document Page Types,EDMS Update,Indexing,PT Quality Control,Print File Labels,Print Sign In & Out Sheet,Scanning,CRM - Corporate,CRM - Person,Dashboard,File Digital Library - Doc-WARE,File Tracker\/Tracking,GIS - Title Deed Plan,Log a File,Billing,Generate Receipt,File Movement (Department),CRM - Customer Manager,Cad - AD Cad,Cad - AI Digital Assistant,Cad - Approvals,Cad - Central Admin,Cad - D Cad,Cad - DD Cad,Cad - Digital Archive,Cad - Drawing & Charting,Cad - E-Registry,Cad - GIS,Cad - Information,Cad - P&D,Cad - Records,Cad - Registry,Cad - Report,Cad - Surveyors,Cad - Verification,Cadastral Reports,DCIV - Digital Archive,Generate New FileNo (DCIVFileNo),Bill Balance,Caveat,Deeds - Consent,Deeds - Encumbrance,Deeds - Legal Search Reports,Deeds - Official (for filing purpose),Deeds - On-Premise (Pay-Per-Search),Deeds - Surrender,Deeds Registration,Deeds \u2013 Property Records,Duplex Parcel Update-Deeds,OP Verification,Other Applications,PRA,Parcel\/Title Management-Deeds,Transaction Token Control,Valuation,Certificate of Occupancy,GIS - AI Digital Assistant,GIS - Approvals,GIS - Data Capture,GIS - GIS,GIS - Records,GIS - e-Registry,GIS Reports,Land Property Enumeration - Data Repository,Land Property Enumeration - Migrate Data,Recertification - Vetting Sheet,Occupancy Permit (OP),Activity Logs,Attendance Tracking,Departments,Folder Watcher,HC\/PS View,Legacy System,Manual Attendance,Payroll,Recertification - Migrate Data,System Settings,User Account,User Roles,Admin,DG,DG Approval,DGIS,Director GIS Recommendation,KANGIS - Digital Archive,KANGIS - File Digital Library,Kangis-Indexing,Recertification,Recertification - Application,Recertification - Bills & Payments,Recertification - Certification,Recertification - DG's List,Recertification - EDMS,Recertification - Governors List,Allocation,Allocation List,Conversion\/Regularization,Duplex Parcel Update-Land,File History View,File Search,File Search \u2013 Scans,File Search \u2013 Table,Generate New FileNo (GKNFileNo),Generate New FileNo (MLSFileNo),Indexing Activity Log,Land One Stop Shop,Land Registration,Land Use Charge (LUC),Land to Cad\/Survey,Lands - Capture an Existing File,Lands - File Decommissioning,Lands - Generate New FileNo (MLSFileNo),Lands \u2013 Manage MLSFileNo,Letter of Administration\/Grant\/Offer Letter,Letter of Grant (RofO),Match Existing FileNo (MLSFileNo),Match OP,New Applications (Existing OP),Other Applications-Land,Parcel Update-New,Parcel\/Title Management-Land,Recertification - Verification Sheet,Right of Occupancy,PRS,Bills & Payments,Land,PP Director,PP Reports,Shadow File Commissioning,SLTR - Approvals,SLTR - Certificate,SLTR - CofO,SLTR - CofO Front Page,SLTR - Digital Archive,SLTR - GIS,SLTR - Indexing,SLTR - Map,SLTR - Overview,SLTR - Payments,SLTR - Reports,SLTR - Survey,SLTR - e-Registry,New ST FileNo,ST - Applications,ST - Approvals (Other Departments),ST - Bills & Payments,ST - Certificate,ST - Director's Approval,ST - Field Data Integration,ST - GIS,ST - Overview,ST - Reports,ST - ST Memo,ST - Sectional Titling BaseMap,ST - Survey,ST - e-Registry,ST \u2013 Final Conveyance,Special Assignment - Bills & Payments,Special Assignment - Certificate,Special Assignment - Field Data,Special Assignment - Land Records,Special Assignment - Notice,Special Assignment - Other Departments,Special Assignment - Report,Compensation\/Resettlement,Resettlement\/Compensation,Site Plan\/Parcel Plan,Survey - AI Digital Assistant,Survey - Approvals,Survey - Beacon Register,Survey - Compensation,Survey - Compensation Check,Survey - DSG,Survey - E-Registry,Survey - Examination,Survey - Examination\/Verification,Survey - GIS,Survey - GKN,Survey - Public Survey,Survey - Records,Survey - SG,Survey Reports,PP - Title Status Update,Conversion Applications,ST One Stop Shop,SLTR Applications,Parcel\/Title Management,PP - Digital Archive"
+        },
+        {
+            "id": "101564",
+            "assign_role": "Virtual Folder System,Billing,Generate Receipt,File Movement (Department),CRM - Customer Manager,Cad - AD Cad,Cad - AI Digital Assistant,Cad - Approvals,Cad - Central Admin,Cad - D Cad,Cad - DD Cad,Cad - Digital Archive,Cad - Drawing & Charting,Cad - E-Registry,Cad - GIS,Cad - Information,Cad - P&D,Cad - Records,Cad - Registry,Cad - Report,Cad - Surveyors,Cad - Verification,Cadastral Reports,DCIV - Digital Archive,Generate New FileNo (DCIVFileNo),Bill Balance,Caveat,Deeds - Consent,Deeds - Encumbrance,Deeds - Legal Search Reports,Deeds - Official (for filing purpose),Deeds - On-Premise (Pay-Per-Search),Deeds - Surrender,Deeds Registration,Deeds \u2013 Property Records,Duplex Parcel Update-Deeds,OP Verification,Other Applications,PRA,Parcel\/Title Management-Deeds,Transaction Token Control,Valuation,Certificate of Occupancy,GIS - AI Digital Assistant,GIS - Approvals,GIS - Data Capture,GIS - GIS,GIS - Records,GIS - e-Registry,GIS Reports,Land Property Enumeration - Data Repository,Land Property Enumeration - Migrate Data,Recertification - Vetting Sheet,Occupancy Permit (OP),Activity Logs,Attendance Tracking,Departments,Folder Watcher,HC\/PS View,Legacy System,Manual Attendance,Payroll,Recertification - Migrate Data,System Settings,User Account,User Roles,Admin,DG,DG Approval,DGIS,Director GIS Recommendation,KANGIS - Digital Archive,KANGIS - File Digital Library,Kangis-Indexing,Recertification,Recertification - Application,Recertification - Bills & Payments,Recertification - Certification,Recertification - DG's List,Recertification - EDMS,Recertification - Governors List,Activity Monitoring,Allocation,Allocation List,Blind Scanning,Conversion\/Regularization,Document Page Types,Duplex Parcel Update-Land,EDMS Update,File History View,File Search,File Search \u2013 Scans,File Search \u2013 Table,Generate New FileNo (GKNFileNo),Generate New FileNo (MLSFileNo),Indexing,Indexing Activity Log,Land One Stop Shop,Land Registration,Land Use Charge (LUC),Land to Cad\/Survey,Lands - Capture an Existing File,Lands - File Decommissioning,Lands - Generate New FileNo (MLSFileNo),Lands \u2013 Manage MLSFileNo,Letter of Administration\/Grant\/Offer Letter,Letter of Grant (RofO),Match Existing FileNo (MLSFileNo),Match OP,New Applications (Existing OP),Other Applications-Land,PT Quality Control,Parcel Update-New,Parcel\/Title Management-Land,Print File Labels,Print Sign In & Out Sheet,Recertification - Verification Sheet,Right of Occupancy,Scanning,CRM - Corporate,CRM - Person,Dashboard,File Digital Library - Doc-WARE,File Tracker\/Tracking,GIS - Title Deed Plan,Log a File,PRS,Bills & Payments,Land,PP Director,PP Reports,Shadow File Commissioning,SLTR - Approvals,SLTR - Certificate,SLTR - CofO,SLTR - CofO Front Page,SLTR - Digital Archive,SLTR - GIS,SLTR - Indexing,SLTR - Map,SLTR - Overview,SLTR - Payments,SLTR - Reports,SLTR - Survey,SLTR - e-Registry,New ST FileNo,ST - Applications,ST - Approvals (Other Departments),ST - Bills & Payments,ST - Certificate,ST - Director's Approval,ST - Field Data Integration,ST - GIS,ST - Overview,ST - Reports,ST - ST Memo,ST - Sectional Titling BaseMap,ST - Survey,ST - e-Registry,ST \u2013 Final Conveyance,Special Assignment - Bills & Payments,Special Assignment - Certificate,Special Assignment - Field Data,Special Assignment - Land Records,Special Assignment - Notice,Special Assignment - Other Departments,Special Assignment - Report,Compensation\/Resettlement,Resettlement\/Compensation,Site Plan\/Parcel Plan,Survey - AI Digital Assistant,Survey - Approvals,Survey - Beacon Register,Survey - Compensation,Survey - Compensation Check,Survey - DSG,Survey - E-Registry,Survey - Examination,Survey - GIS,Survey - Public Survey,Survey - Records,Survey - SG,Survey Reports,PP - Title Status Update,Conversion Applications,ST One Stop Shop,SLTR Applications,Parcel\/Title Management,PP - Digital Archive"
+        },
+        {
+            "id": "101565",
+            "assign_role": "Virtual Folder System,Billing,Generate Receipt,File Movement (Department),CRM - Customer Manager,Cad - AD Cad,Cad - AI Digital Assistant,Cad - Approvals,Cad - Central Admin,Cad - D Cad,Cad - DD Cad,Cad - Digital Archive,Cad - Drawing & Charting,Cad - E-Registry,Cad - GIS,Cad - Information,Cad - P&D,Cad - Records,Cad - Registry,Cad - Report,Cad - Surveyors,Cad - Verification,Cadastral Reports,DCIV - Digital Archive,Generate New FileNo (DCIVFileNo),Bill Balance,Caveat,Deeds - Consent,Deeds - Encumbrance,Deeds - Legal Search Reports,Deeds - Official (for filing purpose),Deeds - On-Premise (Pay-Per-Search),Deeds - Surrender,Deeds Registration,Deeds \u2013 Property Records,Duplex Parcel Update-Deeds,OP Verification,Other Applications,PRA,Parcel\/Title Management-Deeds,Transaction Token Control,Valuation,Certificate of Occupancy,GIS - AI Digital Assistant,GIS - Approvals,GIS - Data Capture,GIS - GIS,GIS - Records,GIS - e-Registry,GIS Reports,Land Property Enumeration - Data Repository,Land Property Enumeration - Migrate Data,Recertification - Vetting Sheet,Occupancy Permit (OP),Activity Logs,Attendance Tracking,Departments,Folder Watcher,HC\/PS View,Legacy System,Manual Attendance,Payroll,Recertification - Migrate Data,System Settings,User Account,User Roles,Admin,DG,DG Approval,DGIS,Director GIS Recommendation,KANGIS - Digital Archive,KANGIS - File Digital Library,Kangis-Indexing,Recertification,Recertification - Application,Recertification - Bills & Payments,Recertification - Certification,Recertification - DG's List,Recertification - EDMS,Recertification - Governors List,Activity Monitoring,Allocation,Allocation List,Blind Scanning,Conversion\/Regularization,Document Page Types,Duplex Parcel Update-Land,EDMS Update,File History View,File Search,File Search \u2013 Scans,File Search \u2013 Table,Generate New FileNo (GKNFileNo),Generate New FileNo (MLSFileNo),Indexing,Indexing Activity Log,Land One Stop Shop,Land Registration,Land Use Charge (LUC),Land to Cad\/Survey,Lands - Capture an Existing File,Lands - File Decommissioning,Lands - Generate New FileNo (MLSFileNo),Lands \u2013 Manage MLSFileNo,Letter of Administration\/Grant\/Offer Letter,Letter of Grant (RofO),Match Existing FileNo (MLSFileNo),Match OP,New Applications (Existing OP),Other Applications-Land,PT Quality Control,Parcel Update-New,Parcel\/Title Management-Land,Print File Labels,Print Sign In & Out Sheet,Recertification - Verification Sheet,Right of Occupancy,Scanning,CRM - Corporate,CRM - Person,Dashboard,File Digital Library - Doc-WARE,File Tracker\/Tracking,GIS - Title Deed Plan,Log a File,PRS,Bills & Payments,Land,PP Director,PP Reports,Shadow File Commissioning,SLTR - Approvals,SLTR - Certificate,SLTR - CofO,SLTR - CofO Front Page,SLTR - Digital Archive,SLTR - GIS,SLTR - Indexing,SLTR - Map,SLTR - Overview,SLTR - Payments,SLTR - Reports,SLTR - Survey,SLTR - e-Registry,New ST FileNo,ST - Applications,ST - Approvals (Other Departments),ST - Bills & Payments,ST - Certificate,ST - Director's Approval,ST - Field Data Integration,ST - GIS,ST - Overview,ST - Reports,ST - ST Memo,ST - Sectional Titling BaseMap,ST - Survey,ST - e-Registry,ST \u2013 Final Conveyance,Special Assignment - Bills & Payments,Special Assignment - Certificate,Special Assignment - Field Data,Special Assignment - Land Records,Special Assignment - Notice,Special Assignment - Other Departments,Special Assignment - Report,Compensation\/Resettlement,Resettlement\/Compensation,Site Plan\/Parcel Plan,Survey - AI Digital Assistant,Survey - Approvals,Survey - Beacon Register,Survey - Compensation,Survey - Compensation Check,Survey - DSG,Survey - E-Registry,Survey - Examination,Survey - GIS,Survey - Public Survey,Survey - Records,Survey - SG,Survey Reports,PP - Title Status Update,Conversion Applications,ST One Stop Shop,SLTR Applications,Parcel\/Title Management,PP - Digital Archive"
+        },
+        {
+            "id": "101566",
+            "assign_role": "Virtual Folder System,Billing,Generate Receipt,File Movement (Department),CRM - Customer Manager,Cad - AD Cad,Cad - AI Digital Assistant,Cad - Approvals,Cad - Central Admin,Cad - D Cad,Cad - DD Cad,Cad - Digital Archive,Cad - Drawing & Charting,Cad - E-Registry,Cad - GIS,Cad - Information,Cad - P&D,Cad - Records,Cad - Registry,Cad - Report,Cad - Surveyors,Cad - Verification,Cadastral Reports,DCIV - Digital Archive,Generate New FileNo (DCIVFileNo),Bill Balance,Caveat,Deeds - Consent,Deeds - Encumbrance,Deeds - Legal Search Reports,Deeds - Official (for filing purpose),Deeds - On-Premise (Pay-Per-Search),Deeds - Surrender,Deeds Registration,Deeds \u2013 Property Records,Duplex Parcel Update-Deeds,OP Verification,Other Applications,PRA,Parcel\/Title Management-Deeds,Transaction Token Control,Valuation,Certificate of Occupancy,GIS - AI Digital Assistant,GIS - Approvals,GIS - Data Capture,GIS - GIS,GIS - Records,GIS - e-Registry,GIS Reports,Land Property Enumeration - Data Repository,Land Property Enumeration - Migrate Data,Recertification - Vetting Sheet,Occupancy Permit (OP),Activity Logs,Attendance Tracking,Departments,Folder Watcher,HC\/PS View,Legacy System,Manual Attendance,Payroll,Recertification - Migrate Data,System Settings,User Account,User Roles,Admin,DG,DG Approval,DGIS,Director GIS Recommendation,KANGIS - Digital Archive,KANGIS - File Digital Library,Kangis-Indexing,Recertification,Recertification - Application,Recertification - Bills & Payments,Recertification - Certification,Recertification - DG's List,Recertification - EDMS,Recertification - Governors List,Activity Monitoring,Allocation,Allocation List,Blind Scanning,Conversion\/Regularization,Document Page Types,Duplex Parcel Update-Land,EDMS Update,File History View,File Search,File Search \u2013 Scans,File Search \u2013 Table,Generate New FileNo (GKNFileNo),Generate New FileNo (MLSFileNo),Indexing,Indexing Activity Log,Land One Stop Shop,Land Registration,Land Use Charge (LUC),Land to Cad\/Survey,Lands - Capture an Existing File,Lands - File Decommissioning,Lands - Generate New FileNo (MLSFileNo),Lands \u2013 Manage MLSFileNo,Letter of Administration\/Grant\/Offer Letter,Letter of Grant (RofO),Match Existing FileNo (MLSFileNo),Match OP,New Applications (Existing OP),Other Applications-Land,PT Quality Control,Parcel Update-New,Parcel\/Title Management-Land,Print File Labels,Print Sign In & Out Sheet,Recertification - Verification Sheet,Right of Occupancy,Scanning,CRM - Corporate,CRM - Person,Dashboard,File Digital Library - Doc-WARE,File Tracker\/Tracking,GIS - Title Deed Plan,Log a File,PRS,Bills & Payments,Land,PP Director,PP Reports,Shadow File Commissioning,SLTR - Approvals,SLTR - Certificate,SLTR - CofO,SLTR - CofO Front Page,SLTR - Digital Archive,SLTR - GIS,SLTR - Indexing,SLTR - Map,SLTR - Overview,SLTR - Payments,SLTR - Reports,SLTR - Survey,SLTR - e-Registry,New ST FileNo,ST - Applications,ST - Approvals (Other Departments),ST - Bills & Payments,ST - Certificate,ST - Director's Approval,ST - Field Data Integration,ST - GIS,ST - Overview,ST - Reports,ST - ST Memo,ST - Sectional Titling BaseMap,ST - Survey,ST - e-Registry,ST \u2013 Final Conveyance,Special Assignment - Bills & Payments,Special Assignment - Certificate,Special Assignment - Field Data,Special Assignment - Land Records,Special Assignment - Notice,Special Assignment - Other Departments,Special Assignment - Report,Compensation\/Resettlement,Resettlement\/Compensation,Site Plan\/Parcel Plan,Survey - AI Digital Assistant,Survey - Approvals,Survey - Beacon Register,Survey - Compensation Check,Survey - DSG,Survey - E-Registry,Survey - Examination,Survey - GIS,Survey - Records,Survey - SG,Survey Reports,PP - Title Status Update,Conversion Applications,ST One Stop Shop,SLTR Applications,Parcel\/Title Management,PP - Digital Archive"
+        },
+        {
+            "id": "101600",
+            "assign_role": "Dashboard,CRM - Person,CRM - Corporate,CRM - Customer Manager,Log a File,File Tracker\/Tracking,File Digital Library - Doc-WARE,Allocation,Compensation\/Resettlement,Recertification - Application,Recertification - Bills & Payments,Recertification - Migrate Data,Recertification - Verification Sheet,GIS - Data Capture,Recertification - Vetting Sheet,Recertification - EDMS,Recertification - Certification,Recertification - DG's List,Recertification - Governors List,Conversion\/Regularization,Land Property Enumeration - Data Repository,Land Property Enumeration - Migrate Data,Letter of Administration\/Grant\/Offer Letter,Occupancy Permit (OP),Site Plan\/Parcel Plan,Right of Occupancy,Certificate of Occupancy,Billing,Generate Receipt,Land Use Charge (LUC),Bill Balance,Deeds - Encumbrance,Deeds - Official (for filing purpose),Deeds - On-Premise (Pay-Per-Search),Deeds - Legal Search Reports,Lands - Generate New FileNo (MLSFileNo),Lands - Capture an Existing File,Lands - File Decommissioning,Survey - Records,Survey - AI Digital Assistant,Survey - GIS,Survey - Approvals,Survey - E-Registry,Survey Reports,Cad - Records,Cad - AI Digital Assistant,Cad - GIS,Cad - Approvals,Cad - E-Registry,Cadastral Reports,GIS - Records,GIS - AI Digital Assistant,GIS - GIS,GIS - Approvals,GIS - e-Registry,GIS Reports,ST - Overview,ST - Applications,ST - Field Data Integration,ST - Bills & Payments,ST - Approvals (Other Departments),ST - ST Memo,ST - Director's Approval,ST - Certificate,ST - e-Registry,ST - GIS,ST - Survey,ST - Sectional Titling BaseMap,ST - Reports,SLTR - Overview,SLTR - Payments,SLTR - Approvals,SLTR - Certificate,SLTR - e-Registry,SLTR - GIS,SLTR - Map,SLTR - Survey,SLTR - Reports,Legacy System,Activity Logs,User Account,Departments,User Roles,System Settings,ST \u2013 Final Conveyance,Indexing,Print File Labels,Print Sign In & Out Sheet,Blind Scanning,Scanning,Document Page Types,PT Quality Control,EDMS Update,Bills & Payments,PP Director,PP Reports,New ST FileNo,Deeds \u2013 Property Records,Lands \u2013 Manage MLSFileNo,Activity Monitoring,File History View,File Search \u2013 Scans,Folder Watcher,Resettlement\/Compensation,File Search \u2013 Table,Manual Attendance,Payroll,Attendance Tracking,Deeds - Consent,Letter of Grant (RofO),Generate New FileNo (DCIVFileNo),Generate New FileNo (GKNFileNo),Match Existing FileNo (MLSFileNo),Shadow File Commissioning,New Applications (Existing OP),Generate New FileNo (MLSFileNo),Land One Stop Shop,Land to Cad\/Survey,Other Applications-Land,Land,File Search,Caveat,KANGIS - File Digital Library,Kangis-Indexing,Recertification,KANGIS - Digital Archive,Admin,DG,DGIS,Director GIS Recommendation,DG Approval,PRA,Valuation,Deeds Registration,Other Applications,SLTR - Digital Archive,Deeds - Surrender,Indexing Activity Log,PP - Title Status Update,Conversion Applications,ST One Stop Shop,SLTR Applications,PP - Digital Archive"
+        },
+        {
+            "id": "101629",
+            "assign_role": "Dashboard,CRM - Person,CRM - Corporate,CRM - Customer Manager,Log a File,File Tracker\/Tracking,File Digital Library - Doc-WARE,Allocation,Compensation\/Resettlement,Recertification - Application,Recertification - Bills & Payments,Recertification - Migrate Data,Recertification - Verification Sheet,GIS - Data Capture,Recertification - Vetting Sheet,Recertification - EDMS,Recertification - Certification,Recertification - DG's List,Recertification - Governors List,Conversion\/Regularization,Land Property Enumeration - Data Repository,Land Property Enumeration - Migrate Data,Letter of Administration\/Grant\/Offer Letter,Occupancy Permit (OP),Site Plan\/Parcel Plan,Right of Occupancy,Certificate of Occupancy,Billing,Generate Receipt,Land Use Charge (LUC),Bill Balance,Deeds - Encumbrance,Deeds - Official (for filing purpose),Deeds - On-Premise (Pay-Per-Search),Deeds - Legal Search Reports,Lands - Generate New FileNo (MLSFileNo),Lands - Capture an Existing File,Lands - File Decommissioning,Survey - Records,Survey - AI Digital Assistant,Survey - GIS,Survey - Approvals,Survey - E-Registry,Survey Reports,Cad - Records,Cad - AI Digital Assistant,Cad - GIS,Cad - Approvals,Cad - E-Registry,Cadastral Reports,GIS - Records,GIS - AI Digital Assistant,GIS - GIS,GIS - Approvals,GIS - e-Registry,GIS Reports,ST - Overview,ST - Applications,ST - Field Data Integration,ST - Bills & Payments,ST - Approvals (Other Departments),ST - ST Memo,ST - Director's Approval,ST - Certificate,ST - e-Registry,ST - GIS,ST - Survey,ST - Sectional Titling BaseMap,ST - Reports,SLTR - Overview,SLTR - Payments,SLTR - Approvals,SLTR - Certificate,SLTR - e-Registry,SLTR - GIS,SLTR - Map,SLTR - Survey,SLTR - Reports,Legacy System,Activity Logs,User Account,Departments,User Roles,System Settings,ST \u2013 Final Conveyance,Indexing,Print File Labels,Print Sign In & Out Sheet,Blind Scanning,Scanning,Document Page Types,PT Quality Control,EDMS Update,Bills & Payments,PP Director,PP Reports,New ST FileNo,Deeds \u2013 Property Records,Lands \u2013 Manage MLSFileNo,Activity Monitoring,File History View,File Search \u2013 Scans,Folder Watcher,Resettlement\/Compensation,File Search \u2013 Table,Manual Attendance,Payroll,Attendance Tracking,Deeds - Consent,Letter of Grant (RofO),Generate New FileNo (DCIVFileNo),Generate New FileNo (GKNFileNo),Match Existing FileNo (MLSFileNo),Shadow File Commissioning,New Applications (Existing OP),Generate New FileNo (MLSFileNo),Land One Stop Shop,Land to Cad\/Survey,Other Applications-Land,Land,File Search,Caveat,KANGIS - File Digital Library,Kangis-Indexing,Recertification,KANGIS - Digital Archive,Admin,DG,DGIS,Director GIS Recommendation,DG Approval,PRA,Valuation,Deeds Registration,Other Applications,SLTR - Digital Archive,Deeds - Surrender,Indexing Activity Log,DCIV - Digital Archive,HC\/PS View,PRS,Transaction Token Control,PP - Title Status Update,Conversion Applications,ST One Stop Shop,SLTR Applications,PP - Digital Archive"
+        },
+        {
+            "id": "101630",
+            "assign_role": "Dashboard,CRM - Person,CRM - Corporate,CRM - Customer Manager,Log a File,File Tracker\/Tracking,File Digital Library - Doc-WARE,Allocation,Compensation\/Resettlement,Recertification - Application,Recertification - Bills & Payments,Recertification - Migrate Data,Recertification - Verification Sheet,GIS - Data Capture,Recertification - Vetting Sheet,Recertification - EDMS,Recertification - Certification,Recertification - DG's List,Recertification - Governors List,Conversion\/Regularization,Land Property Enumeration - Data Repository,Land Property Enumeration - Migrate Data,Letter of Administration\/Grant\/Offer Letter,Occupancy Permit (OP),Site Plan\/Parcel Plan,Right of Occupancy,Certificate of Occupancy,Billing,Generate Receipt,Land Use Charge (LUC),Bill Balance,Deeds - Encumbrance,Deeds - Official (for filing purpose),Deeds - On-Premise (Pay-Per-Search),Deeds - Legal Search Reports,Lands - Generate New FileNo (MLSFileNo),Lands - Capture an Existing File,Lands - File Decommissioning,Survey - Records,Survey - AI Digital Assistant,Survey - GIS,Survey - Approvals,Survey - E-Registry,Survey Reports,Cad - Records,Cad - AI Digital Assistant,Cad - GIS,Cad - Approvals,Cad - E-Registry,Cadastral Reports,GIS - Records,GIS - AI Digital Assistant,GIS - GIS,GIS - Approvals,GIS - e-Registry,GIS Reports,ST - Overview,ST - Applications,ST - Field Data Integration,ST - Bills & Payments,ST - Approvals (Other Departments),ST - ST Memo,ST - Director's Approval,ST - Certificate,ST - e-Registry,ST - GIS,ST - Survey,ST - Sectional Titling BaseMap,ST - Reports,SLTR - Overview,SLTR - Payments,SLTR - Approvals,SLTR - Certificate,SLTR - e-Registry,SLTR - GIS,SLTR - Map,SLTR - Survey,SLTR - Reports,Legacy System,Activity Logs,User Account,Departments,User Roles,System Settings,ST \u2013 Final Conveyance,Indexing,Print File Labels,Print Sign In & Out Sheet,Blind Scanning,Scanning,Document Page Types,PT Quality Control,EDMS Update,Bills & Payments,PP Director,PP Reports,New ST FileNo,Deeds \u2013 Property Records,Lands \u2013 Manage MLSFileNo,Activity Monitoring,File History View,File Search \u2013 Scans,Folder Watcher,Resettlement\/Compensation,File Search \u2013 Table,Manual Attendance,Payroll,Attendance Tracking,Deeds - Consent,Letter of Grant (RofO),Generate New FileNo (DCIVFileNo),Generate New FileNo (GKNFileNo),Match Existing FileNo (MLSFileNo),Shadow File Commissioning,New Applications (Existing OP),Generate New FileNo (MLSFileNo),Land One Stop Shop,Land to Cad\/Survey,Other Applications-Land,Land,File Search,Caveat,KANGIS - File Digital Library,Kangis-Indexing,Recertification,KANGIS - Digital Archive,Admin,DG,DGIS,Director GIS Recommendation,DG Approval,PRA,Valuation,Deeds Registration,Other Applications,SLTR - Digital Archive,Deeds - Surrender,Indexing Activity Log,DCIV - Digital Archive,HC\/PS View,PRS,Transaction Token Control,PP - Title Status Update,Conversion Applications,ST One Stop Shop,SLTR Applications,PP - Digital Archive"
+        },
+        {
+            "id": "101696",
+            "assign_role": "Virtual Folder System,Billing,Generate Receipt,File Movement (Department),CRM - Customer Manager,Cad - AD Cad,Cad - AI Digital Assistant,Cad - Approvals,Cad - Central Admin,Cad - D Cad,Cad - DD Cad,Cad - Digital Archive,Cad - Drawing & Charting,Cad - E-Registry,Cad - GIS,Cad - Information,Cad - P&D,Cad - Records,Cad - Registry,Cad - Report,Cad - Surveyors,Cad - Verification,Cadastral Reports,DCIV - Digital Archive,Generate New FileNo (DCIVFileNo),Bill Balance,Caveat,Deeds - Consent,Deeds - Encumbrance,Deeds - Legal Search Reports,Deeds - Official (for filing purpose),Deeds - On-Premise (Pay-Per-Search),Deeds - Surrender,Deeds Registration,Deeds \u2013 Property Records,Duplex Parcel Update-Deeds,OP Verification,Other Applications,PRA,Parcel\/Title Management-Deeds,Transaction Token Control,Valuation,Certificate of Occupancy,GIS - AI Digital Assistant,GIS - Approvals,GIS - Data Capture,GIS - GIS,GIS - Records,GIS - e-Registry,GIS Reports,Land Property Enumeration - Data Repository,Land Property Enumeration - Migrate Data,Recertification - Vetting Sheet,Occupancy Permit (OP),Activity Logs,Attendance Tracking,Departments,Folder Watcher,HC\/PS View,Legacy System,Manual Attendance,Payroll,Recertification - Migrate Data,System Settings,User Account,User Roles,Admin,DG,DG Approval,DGIS,Director GIS Recommendation,KANGIS - Digital Archive,KANGIS - File Digital Library,Kangis-Indexing,Recertification,Recertification - Application,Recertification - Bills & Payments,Recertification - Certification,Recertification - DG's List,Recertification - EDMS,Recertification - Governors List,Activity Monitoring,Allocation,Allocation List,Blind Scanning,Conversion\/Regularization,Document Page Types,Duplex Parcel Update-Land,EDMS Update,File History View,File Search,File Search \u2013 Scans,File Search \u2013 Table,Generate New FileNo (GKNFileNo),Generate New FileNo (MLSFileNo),Indexing,Indexing Activity Log,Land One Stop Shop,Land Registration,Land Use Charge (LUC),Land to Cad\/Survey,Lands - Capture an Existing File,Lands - File Decommissioning,Lands - Generate New FileNo (MLSFileNo),Lands \u2013 Manage MLSFileNo,Letter of Administration\/Grant\/Offer Letter,Letter of Grant (RofO),Match Existing FileNo (MLSFileNo),Match OP,New Applications (Existing OP),Other Applications-Land,PT Quality Control,Parcel Update-New,Parcel\/Title Management-Land,Print File Labels,Print Sign In & Out Sheet,Recertification - Verification Sheet,Right of Occupancy,Scanning,CRM - Corporate,CRM - Person,Dashboard,File Digital Library - Doc-WARE,File Tracker\/Tracking,GIS - Title Deed Plan,Log a File,PRS,Bills & Payments,Land,PP Director,PP Reports,Shadow File Commissioning,SLTR - Approvals,SLTR - Certificate,SLTR - CofO,SLTR - CofO Front Page,SLTR - Digital Archive,SLTR - GIS,SLTR - Indexing,SLTR - Map,SLTR - Overview,SLTR - Payments,SLTR - Reports,SLTR - Survey,SLTR - e-Registry,New ST FileNo,ST - Applications,ST - Approvals (Other Departments),ST - Bills & Payments,ST - Certificate,ST - Director's Approval,ST - Field Data Integration,ST - GIS,ST - Overview,ST - Reports,ST - ST Memo,ST - Sectional Titling BaseMap,ST - Survey,ST - e-Registry,ST \u2013 Final Conveyance,Special Assignment - Bills & Payments,Special Assignment - Certificate,Special Assignment - Field Data,Special Assignment - Land Records,Special Assignment - Notice,Special Assignment - Other Departments,Special Assignment - Report,Compensation\/Resettlement,Resettlement\/Compensation,Site Plan\/Parcel Plan,Survey - AI Digital Assistant,Survey - Approvals,Survey - Beacon Register,Survey - Compensation Check,Survey - DSG,Survey - E-Registry,Survey - Examination,Survey - GIS,Survey - Records,Survey - SG,Survey Reports,PP - Title Status Update,Conversion Applications,ST One Stop Shop,SLTR Applications,Parcel\/Title Management,PP - Digital Archive"
+        }
+    ],
+    "module_permissions": [
+        {
+            "id": "5671",
+            "user_id": "10013",
+            "module_name": "pp director",
+            "can_view": "1",
+            "can_create": "1",
+            "can_edit": "1",
+            "can_delete": "0",
+            "can_print": "1",
+            "can_export": "1",
+            "created_at": "2026-11-17 17:13:32.007",
+            "updated_at": "2026-11-17 17:13:32.007",
+            "can_approve": "0"
+        },
+        {
+            "id": "554",
+            "user_id": "40078",
+            "module_name": "pp director",
+            "can_view": "1",
+            "can_create": "1",
+            "can_edit": "1",
+            "can_delete": "0",
+            "can_print": "1",
+            "can_export": "1",
+            "created_at": "2026-09-26 23:18:44.347",
+            "updated_at": "2026-09-28 10:54:38.417",
+            "can_approve": "0"
+        },
+        {
+            "id": "4433",
+            "user_id": "40080",
+            "module_name": "pp director",
+            "can_view": "1",
+            "can_create": "1",
+            "can_edit": "1",
+            "can_delete": "0",
+            "can_print": "1",
+            "can_export": "1",
+            "created_at": "2026-11-04 11:44:49.713",
+            "updated_at": "2026-11-04 11:44:49.713",
+            "can_approve": "0"
+        },
+        {
+            "id": "1484",
+            "user_id": "80609",
+            "module_name": "pp director",
+            "can_view": "1",
+            "can_create": "1",
+            "can_edit": "1",
+            "can_delete": "0",
+            "can_print": "1",
+            "can_export": "1",
+            "created_at": "2026-09-26 23:18:44.347",
+            "updated_at": "2026-09-28 10:54:38.417",
+            "can_approve": "0"
+        },
+        {
+            "id": "1899",
+            "user_id": "80739",
+            "module_name": "pp director",
+            "can_view": "1",
+            "can_create": "1",
+            "can_edit": "1",
+            "can_delete": "0",
+            "can_print": "1",
+            "can_export": "1",
+            "created_at": "2026-09-26 23:18:44.347",
+            "updated_at": "2026-09-28 10:54:38.417",
+            "can_approve": "0"
+        },
+        {
+            "id": "5363",
+            "user_id": "90996",
+            "module_name": "pp director",
+            "can_view": "1",
+            "can_create": "1",
+            "can_edit": "1",
+            "can_delete": "0",
+            "can_print": "1",
+            "can_export": "1",
+            "created_at": "2026-11-17 11:37:05.483",
+            "updated_at": "2026-11-17 11:37:05.483",
+            "can_approve": "0"
+        },
+        {
+            "id": "4744",
+            "user_id": "101564",
+            "module_name": "pp director",
+            "can_view": "1",
+            "can_create": "0",
+            "can_edit": "0",
+            "can_delete": "0",
+            "can_print": "0",
+            "can_export": "0",
+            "created_at": "2026-11-06 15:38:57.797",
+            "updated_at": "2026-11-06 15:38:57.797",
+            "can_approve": "0"
+        },
+        {
+            "id": "4343",
+            "user_id": "101565",
+            "module_name": "pp director",
+            "can_view": "1",
+            "can_create": "0",
+            "can_edit": "0",
+            "can_delete": "0",
+            "can_print": "0",
+            "can_export": "0",
+            "created_at": "2026-11-03 12:32:59.140",
+            "updated_at": "2026-11-03 12:32:59.140",
+            "can_approve": "0"
+        },
+        {
+            "id": "2763",
+            "user_id": "101600",
+            "module_name": "pp director",
+            "can_view": "1",
+            "can_create": "1",
+            "can_edit": "1",
+            "can_delete": "0",
+            "can_print": "1",
+            "can_export": "1",
+            "created_at": "2026-09-26 23:18:44.347",
+            "updated_at": "2026-09-28 10:54:38.417",
+            "can_approve": "0"
+        },
+        {
+            "id": "2978",
+            "user_id": "101629",
+            "module_name": "pp director",
+            "can_view": "1",
+            "can_create": "1",
+            "can_edit": "1",
+            "can_delete": "0",
+            "can_print": "1",
+            "can_export": "1",
+            "created_at": "2026-09-26 23:18:44.347",
+            "updated_at": "2026-09-28 10:54:38.417",
+            "can_approve": "0"
+        },
+        {
+            "id": "3130",
+            "user_id": "101630",
+            "module_name": "pp director",
+            "can_view": "1",
+            "can_create": "1",
+            "can_edit": "1",
+            "can_delete": "0",
+            "can_print": "1",
+            "can_export": "1",
+            "created_at": "2026-09-26 23:18:44.347",
+            "updated_at": "2026-09-28 10:54:38.417",
+            "can_approve": "0"
+        }
+    ]
+}

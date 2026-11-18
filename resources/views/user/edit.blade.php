@@ -12,6 +12,9 @@
             </div>
 
             {{ Form::model($user, ['route' => ['users.update', $user->id], 'method' => 'PUT', 'enctype' => 'multipart/form-data']) }}
+            {{-- The users list as it was when this card opened (search, tab, department, page), so
+                 Save returns there instead of the unfiltered list (user, 2026-11-17). --}}
+            <input type="hidden" name="return_to" value="{{ old('return_to', request()->headers->get('referer')) }}">
 
             @php
                 $workStationOptions = collect($workStations ?? [])

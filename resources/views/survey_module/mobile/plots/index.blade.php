@@ -20,12 +20,12 @@
     </div>
 
     <div class="stats">
-        <div class="card"><b>{{ $stats['showings_today'] }}</b><span>Plot Showings today · {{ $stats['showings_month'] }} this month</span></div>
+        <div class="card"><b>{{ $stats['showings_today'] }}</b><span>Plot Showing today · {{ $stats['showings_month'] }} this month</span></div>
         <div class="card"><b>{{ $stats['checks_today'] }}</b><span>Ground checks today · {{ $stats['checks_month'] }} this month{{ $stats['discrepancies'] ? ', ' . $stats['discrepancies'] . ' with a discrepancy' : '' }}</span></div>
     </div>
 
     <div class="card card-pad" style="margin-bottom:12px;">
-        <strong>My latest Plot Showings</strong>
+        <strong>My latest Plot Showing</strong>
         @forelse ($showings as $s)
             <a class="item" href="{{ route('survey-module.mobile.plots.op', $s->op_key) }}">
                 {{-- TP No. and plot first, as the web (user, 2026-11-09); the OP serial last. --}}
