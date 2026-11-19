@@ -99,12 +99,41 @@ class ChangeReportController extends Controller
         $rec = $a ? app(\App\Services\Survey\ReportRecords::class)->summary($a) : null;
         $g = $x['group'];
         if (! $g || ($rec && $rec['beacons'] > 0)) {
-            return ['anchor' => $a, 'rec' => $rec, 'links' => []];
+            return $this->withPlan($x, $a, ['anchor' => $a, 'rec' => $rec, 'links' => []]);
         }
         $reg = PrivateRegisterLines::summary($g);
         $keep = ['beacons' => $reg['beacons'], 'in_register' => $reg['in_register'], 'flagged' => $reg['flagged'], 'points' => $reg['points']];
 
-        return ['anchor' => $a, 'rec' => $rec ? $keep + $rec : $reg, 'links' => PrivateRegisterLines::links($g)];
+        return $this->withPlan($x, $a, ['anchor' => $a, 'rec' => $rec ? $keep + $rec : $reg, 'links' => PrivateRegisterLines::links($g)]);
+    }
+
+    /**
+     * Computation & Field Observations from the survey plan's traverse (user, 2026-11-18) where the report has no
+     * readings of its own. Readings open the plan's Plotted Beacons tab; the row's other columns stay the report's.
+     */
+    private function withPlan(array $x, ?array $a, array $out): array
+    {
+        if (($out['rec']['readings'] ?? 0) > 0) return $out;
+
+        $beacons = $a ? SurveyItsCoordinate::query()->tap(fn ($q) => SurveyItsAnchors::scope($q, $a))->pluck('beacon_id')->all() : [];
+        $beacons = array_merge($beacons, preg_split('/\s+/', (string) ($x['group']['numbers'] ?? ''), -1, PREG_SPLIT_NO_EMPTY));
+        $finder = app(\App\Services\Survey\SurveyPlanForReport::class);
+        $plan = $finder->find($x['file_number'], $beacons, $x['plan_no'], $x['plot_no']);
+        if (! $plan) return $out;
+
+        $obs = $finder->observations($plan);
+        if (! $obs['readings']) return $out;
+
+        $out['rec'] = array_merge($out['rec'] ?? PrivateRegisterLines::summary(['beacons' => 0, 'points' => 0]), $obs);
+        $out['links']['observations'] = route('survey-module.survey-plans.show', ['plan' => $plan->id, 'tab' => 'beacons']);
+        $out['plan'] = $plan;
+        // The Readings pop-up (user, 2026-11-19): the traverse line by line, and where it came from.
+        $out['readings'] = [
+            'lines'  => app(\App\Services\Survey\PlanTraverseSheet::class)->lines($plan),
+            'source' => 'Survey plan ' . ($plan->upload_ref ?: '#' . $plan->id),
+        ];
+
+        return $out;
     }
 
     public function create(Request $r)

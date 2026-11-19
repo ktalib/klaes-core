@@ -84,7 +84,7 @@
                         <td>@if ($r && $recordMode)<a href="{{ route($recordMode[1], 'private-' . $r->id) }}" title="Open {{ $recordMode[0] }}"><strong>{{ $r->report_ref }}</strong></a>@else<strong>{{ $r?->report_ref ?: '—' }}</strong>@endif</td>
                         <td>{{ $r?->registerFile?->register_ref ?: '—' }}</td>
                         <td style="font-family:monospace;">{{ $x['file_number'] ?: '—' }}</td>
-                        <td>{{ $x['plan_no'] ?: '—' }}</td>
+                        <td>{{ $x['plan_no'] ?: (($x['plan'] ?? null)?->tp_no ?: '—') }}</td>
                         <td>{{ $x['surveyor'] ?: '—' }}</td>
                         <td>{{ $x['plot_no'] ?: '—' }}</td>
                         <td>{{ $x['district'] ?: '—' }}</td>
@@ -92,7 +92,7 @@
                         <td>{{ $x['location'] ?: '—' }}</td>
                         <td style="white-space:nowrap;">{{ optional($x['date'])->format('d M Y') ?: '—' }}</td>
                         @if ($showStatus)<td>{!! $r ? $chip($r->status, $r->isIssued() ? 'green' : 'gray') : $chip('Awaiting report', 'yellow') !!}</td>@endif
-                        @include('survey_module.partials.sections._report_sections', ['part' => 'cells', 'rec' => $x['rec'], 'a' => $x['anchor'], 'links' => $x['links']])
+                        @include('survey_module.partials.sections._report_sections', ['part' => 'cells', 'rec' => $x['rec'], 'a' => $x['anchor'], 'links' => $x['links'], 'readings' => $x['readings'] ?? null, 'fileNo' => $x['file_number'], 'plotNo' => $x['plot_no']])
                         <td>
                             <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
                                 <button type="button" x-ref="btn" title="Actions" aria-label="Actions"

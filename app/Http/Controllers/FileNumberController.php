@@ -2495,6 +2495,18 @@ class FileNumberController extends Controller
             try {
                 foreach ($targets as $target) {
                     $this->applyFileNumberEdit($request, $target, (int) $target->id === (int) $record->id);
+                    // The file's cadastral cases keep their own copy of title / plot / district / LGA (2026-11-19).
+                    app(\App\Services\CadastralDept\CadastralCaseSync::class)->sync(
+                        [$target->mlsfNo ?? null, $target->kangisFileNo ?? null, $target->NewKANGISFileNo ?? null],
+                        $request->only(['plot_no', 'district', 'lga']) + ['file_title' => $request->input('file_name')]
+                    );
+                    // A corrected TP No. reaches the OP / ToT, indexing, MLS and OSS records too (2026-11-19).
+                    if (trim((string) $request->input('tp_no')) !== '') {
+                        app(\App\Services\FileTpSync::class)->apply(
+                            [$target->mlsfNo ?? null, $target->kangisFileNo ?? null, $target->NewKANGISFileNo ?? null],
+                            $request->input('tp_no')
+                        );
+                    }
                 }
 
                 $connection->commit();
@@ -3415,19 +3427,9 @@ class FileNumberController extends Controller
                 }
 
                 if (!empty($mlsUpdateData)) {
-                    // Matched the way the delete cascade matches: on the file number OR
-                    // the tracking id. A row reachable only by tracking_id was previously
-                    // updated by neither path.
-                    $trackingId = trim((string) ($record->tracking_id ?? ''));
-
                     DB::connection('sqlsrv')
                         ->table('mls_file_no')
-                        ->where(function ($q) use ($record, $trackingId) {
-                            $q->where('full_file_number', $record->mlsfNo);
-                            if ($trackingId !== '') {
-                                $q->orWhere('tracking_id', $trackingId);
-                            }
-                        })
+                        ->where('full_file_number', $record->mlsfNo)
                         ->update($mlsUpdateData);
                 }
 

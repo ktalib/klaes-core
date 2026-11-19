@@ -298,7 +298,7 @@ window.addEventListener('load', function () {
       minimumInputLength: 0,
       ajax: { url: SEARCH, dataType: 'json', delay: 200, data: p => ({ q: p.term || '' }),
         processResults: res => ({ results: (res.data || []).map(b => ({ id: b.beacon_no, text: b.beacon_no, x: b.x, y: b.y, source: b.source,
-          note: b.source === 'extant' ? 'Extant Beacons list' : (b.x ? 'Beacon Register' : 'captured') })).concat([{ id: OTHER, text: 'Other (specify)' }]) }) },
+          note: b.source === 'extant' ? 'Extant Beacons list' : b.source === 'plan' ? 'Survey plan' : (b.x ? 'Beacon Register' : 'captured') })).concat([{ id: OTHER, text: 'Other (specify)' }]) }) },
     // select2 4.1 does not always put the cursor in its search box (inside a pop-up): put it there.
     }).on('select2:open', () => setTimeout(() => { const f = document.querySelector('.select2-container--open .select2-search__field'); if (f) f.focus(); }, 0))
       .on('select2:select', e => { const d = e.params.data || {}; tr._pick = d; tr._src = d.id === OTHER ? 'typed' : (d.source || ''); })
@@ -547,7 +547,7 @@ window.addEventListener('load', function () {
       minimumInputLength: 0,
       ajax: { url: SEARCH, dataType: 'json', delay: 200, data: p => ({ q: p.term || '' }),
         processResults: res => ({ results: (res.data || []).filter(b => { const ex = exclude && exclude(); return !ex || key(b.beacon_no) !== key(ex); }).map(b => ({ id: b.beacon_no, text: b.beacon_no, x: b.x, y: b.y,
-          note: b.source === 'extant' ? 'Extant Beacons list' : (b.x ? 'Beacon Register' : 'captured') })).concat([{ id: OTHER, text: 'Other (specify)' }]) }) },
+          note: b.source === 'extant' ? 'Extant Beacons list' : b.source === 'plan' ? 'Survey plan' : (b.x ? 'Beacon Register' : 'captured') })).concat([{ id: OTHER, text: 'Other (specify)' }]) }) },
     }).on('select2:open', () => setTimeout(() => { const f = document.querySelector('.select2-container--open .select2-search__field'); if (f) f.focus(); }, 0))
       .on('select2:select', e => { sel._pick = e.params.data || null; })
       .on('select2:select select2:clear', () => setTimeout(() => {

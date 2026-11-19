@@ -460,6 +460,15 @@ document.addEventListener('DOMContentLoaded', function() {
         return { valid: true, raw, values: [] };
     }
 
+    // The extension's measurement (see syncExtensionVisibility).
+    const EXTENSION_MEASUREMENT_CONFIG = {
+        inputId: 'extensionMeasurementInput',
+        lengthId: 'extensionSiteLength',
+        widthId: 'extensionSiteWidth',
+        areaId: 'extensionSiteArea',
+        label: 'Extension site measurement',
+    };
+
     function syncAllSiteMeasurementFields(options = {}) {
         const configs = [
             {
@@ -469,6 +478,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 areaId: 'existingSiteArea',
                 label: 'Existing site measurement',
             },
+            EXTENSION_MEASUREMENT_CONFIG,
             {
                 inputId: 'recommendedMeasurementInput',
                 lengthId: 'recommendedSiteLength',
@@ -499,6 +509,31 @@ document.addEventListener('DOMContentLoaded', function() {
             .filter(value => value !== '');
 
         inputField.value = parts.join(' x ');
+    }
+
+    // Extension (copied from Conversion JSI, user 2026-11-19): Yes shows the extension's
+    // measurement and area (both required); No hides, disables and clears them, so nothing is sent.
+    function syncExtensionVisibility() {
+        const selected = document.querySelector('input[name="has_extension"]:checked');
+        const wrapper = document.getElementById('extensionMeasurementWrapper');
+        if (!wrapper) {
+            return;
+        }
+        const isYes = !!selected && selected.value === '1';
+        wrapper.classList.toggle('hidden', !isYes);
+        ['extensionMeasurementInput', 'extensionSiteLength', 'extensionSiteWidth', 'extensionSiteArea'].forEach(id => {
+            const field = document.getElementById(id);
+            if (!field) {
+                return;
+            }
+            field.disabled = !isYes;
+            if (id === 'extensionMeasurementInput' || id === 'extensionSiteArea') {
+                field.required = isYes;
+            }
+            if (!isYes) {
+                field.value = '';
+            }
+        });
     }
 
     function isExistingStructureMetaDescription(description) {
@@ -725,8 +760,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const roadCategoryOption = roadCategoryField ? String(roadCategoryField.value || '').trim() : '';
         const observedRoadCategory = roadCategoryOtherField ? String(roadCategoryOtherField.value || '').trim() : '';
         const roadCategory = observedRoadCategory || roadCategoryOption;
-        const existingReservation = existingReservationField ? String(existingReservationField.value || '').trim() : '';
-        const recommendedReservation = recommendedReservationField ? String(recommendedReservationField.value || '').trim() : '';
+        const existingReservation = existingReservationField ? normalizeSpecifiedText(existingReservationField.value) : '';
+        const recommendedReservationOption = recommendedReservationField ? String(recommendedReservationField.value || '').trim() : '';
+        const recommendedReservation = getSpecifiedSelectValue('conversionRecommendedReservation');
         const recommendedCommentStatus = recommendedCommentStatusField ? String(recommendedCommentStatusField.value || '').trim() : '';
         const howManyMeters = howManyMetersField ? String(howManyMetersField.value || '').trim() : '';
 
@@ -739,6 +775,7 @@ document.addEventListener('DOMContentLoaded', function() {
             right_of_way: existingReservation,
             right_of_way_other: recommendedReservation,
             recommended_reservation: recommendedReservation,
+            recommended_reservation_option: recommendedReservationOption,
             recommended_comment_status: recommendedCommentStatus,
             how_many_meters: howManyMeters
         };
@@ -757,6 +794,7 @@ document.addEventListener('DOMContentLoaded', function() {
             right_of_way: payload.right_of_way || '',
             right_of_way_other: payload.right_of_way_other || '',
             recommended_reservation: payload.recommended_reservation || '',
+            recommended_reservation_option: payload.recommended_reservation_option || '',
             recommended_comment_status: payload.recommended_comment_status || '',
             how_many_meters: payload.how_many_meters || ''
         };
@@ -806,6 +844,108 @@ document.addEventListener('DOMContentLoaded', function() {
     function isPurposeOtherOption(value) {
         const normalized = String(value || '').trim().toUpperCase();
         return normalized === 'OTHER' || normalized === 'OTHERS';
+    }
+
+    // Copied from the Conversion JSI (user, 2026-11-19): picking "Other" opens a required
+    // "Specify" box and the typed text is what gets saved.
+    const JSI_SPECIFY_FIELDS = {
+        conversionRecommendedReservation: { wrapperId: 'conversionRecommendedReservationOtherWrapper', inputId: 'conversionRecommendedReservationOther', label: 'recommended reservation' }
+    };
+
+    function normalizeSpecifiedText(value) {
+        return String(value || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function ensureSelectOtherOption(select) {
+        if (!select) {
+            return null;
+        }
+
+        const existing = Array.from(select.options || []).find(option => isPurposeOtherOption(option.value));
+        if (existing) {
+            return existing;
+        }
+
+        const otherOption = new Option('Other', 'Other');
+        select.add(otherOption);
+        return otherOption;
+    }
+
+    function syncSpecifyField(selectId) {
+        const config = JSI_SPECIFY_FIELDS[selectId];
+        const select = document.getElementById(selectId);
+        const wrapper = config ? document.getElementById(config.wrapperId) : null;
+        const input = config ? document.getElementById(config.inputId) : null;
+        if (!select || !wrapper || !input) {
+            return;
+        }
+
+        const showSpecify = isPurposeOtherOption(select.value);
+        wrapper.classList.toggle('hidden', !showSpecify);
+        input.disabled = !showSpecify;
+        if (!showSpecify) {
+            input.value = '';
+        }
+    }
+
+    function syncAllSpecifyFields() {
+        Object.keys(JSI_SPECIFY_FIELDS).forEach(selectId => {
+            ensureSelectOtherOption(document.getElementById(selectId));
+            syncSpecifyField(selectId);
+        });
+    }
+
+    // Value to save: the typed text when "Other" is picked, otherwise the picked option.
+    function getSpecifiedSelectValue(selectId) {
+        const config = JSI_SPECIFY_FIELDS[selectId];
+        const select = document.getElementById(selectId);
+        if (!select) {
+            return '';
+        }
+
+        const selected = String(select.value || '').trim();
+        if (!isPurposeOtherOption(selected)) {
+            return selected;
+        }
+
+        const input = config ? document.getElementById(config.inputId) : null;
+        return input ? normalizeSpecifiedText(input.value) : '';
+    }
+
+    // Show a saved value: pick the matching option, or "Other" with the saved text in the Specify box.
+    function applySpecifiedSelectValue(selectId, rawValue) {
+        const config = JSI_SPECIFY_FIELDS[selectId];
+        const select = document.getElementById(selectId);
+        if (!select) {
+            return;
+        }
+
+        const otherOption = ensureSelectOtherOption(select);
+        const input = config ? document.getElementById(config.inputId) : null;
+        const value = String(rawValue || '').trim();
+        const key = value.toLowerCase();
+
+        let typedText = '';
+        if (value === '') {
+            select.value = '';
+        } else if (isPurposeOtherOption(value)) {
+            select.value = otherOption.value;
+        } else {
+            const match = Array.from(select.options || []).find(option =>
+                option.value !== '' && String(option.value).trim().toLowerCase() === key
+            );
+            if (match) {
+                select.value = match.value;
+            } else {
+                select.value = otherOption.value;
+                typedText = value;
+            }
+        }
+
+        syncSpecifyField(selectId);
+        if (input && isPurposeOtherOption(select.value)) {
+            input.value = typedText;
+        }
     }
 
     function hasSelectOption(select, value) {
@@ -1185,9 +1325,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (recommendedReservationField) {
-            recommendedReservationField.value = detail.recommended_reservation
+            applySpecifiedSelectValue('conversionRecommendedReservation', detail.recommended_reservation
                 ? String(detail.recommended_reservation)
-                : (detail.right_of_way_other ? String(detail.right_of_way_other) : '');
+                : (detail.right_of_way_other ? String(detail.right_of_way_other) : ''));
         }
 
         if (recommendedCommentStatusField) {
@@ -1260,17 +1400,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (existingReservationField) {
-            const matchedExisting = Array.from(existingReservationField.options || []).find(option =>
-                String(option.value || '').trim().toLowerCase() === existingReservation.toLowerCase()
-            );
-            existingReservationField.value = matchedExisting ? matchedExisting.value : '';
+            existingReservationField.value = existingReservation;
         }
 
         if (recommendedReservationField) {
-            const matchedRecommended = Array.from(recommendedReservationField.options || []).find(option =>
-                String(option.value || '').trim().toLowerCase() === recommendedReservation.toLowerCase()
-            );
-            recommendedReservationField.value = matchedRecommended ? matchedRecommended.value : '';
+            applySpecifiedSelectValue('conversionRecommendedReservation', recommendedReservation);
         }
 
         if (recommendedCommentStatusField) {
@@ -2653,6 +2787,18 @@ document.addEventListener('DOMContentLoaded', function() {
             requireRadio('accessibility', 'Accessibility');
             requireRadio('adequate_size_requirement', 'Adequate size requirement');
             requireRadio('land_traversing_utility', 'Land traversing utility');
+            requireRadio('has_extension', 'Extension (Yes or No)');
+
+            if (document.querySelector('input[name="has_extension"]:checked')?.value === '1') {
+                const extensionInput = document.getElementById('extensionMeasurementInput');
+                const extensionArea = document.getElementById('extensionSiteArea');
+                if (extensionInput && extensionInput.value.trim() === '') {
+                    pushError(extensionInput, 'Extension site measurement is required when there is an extension.');
+                }
+                if (extensionArea && extensionArea.value.trim() === '') {
+                    pushError(extensionArea, 'Extension area covered is required when there is an extension.');
+                }
+            }
 
             const numericField = (id, label) => {
                 const field = document.getElementById(id);
@@ -2668,6 +2814,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
 
             numericField('existingSiteArea', 'Existing area covered');
+            numericField('extensionSiteArea', 'Extension area covered');
             numericField('recommendedSiteArea', 'Recommended area covered');
 
             const siteMeasurementSync = syncAllSiteMeasurementFields({ autoFillArea: false });
@@ -2703,6 +2850,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (recommendedReservationField && recommendedReservationField.value.trim() === '') {
                     pushError(recommendedReservationField, 'Recommended reservation is required when reservation is Yes.');
+                }
+
+                if (recommendedReservationField && isPurposeOtherOption(recommendedReservationField.value)
+                    && getSpecifiedSelectValue('conversionRecommendedReservation') === '') {
+                    pushError(document.getElementById('conversionRecommendedReservationOther'), 'Please specify the recommended reservation.');
                 }
 
                 if (recommendedReservationField && ['Recommended', 'Comment', 'Recommended Comment'].includes(String(recommendedReservationField.value || '').trim())) {
@@ -2886,6 +3038,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Reset form and clear previous data before loading new data
         if (jointInspectionForm && options.preserveValues !== true) {
             jointInspectionForm.reset();
+            syncAllSpecifyFields();
             resetFieldValidationState();
             unlockPrefilledFields();
             enforcePageStepOneLocks();
@@ -2972,6 +3125,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (jointInspectionForm && options.preserveValues !== true) {
             jointInspectionForm.reset();
+            syncAllSpecifyFields();
             resetFieldValidationState();
             unlockPrefilledFields();
         }
@@ -3533,9 +3687,12 @@ document.addEventListener('DOMContentLoaded', function() {
         applyRadioValue('accessibility', report.accessibility);
         applyRadioValue('adequate_size_requirement', report.adequate_size_requirement);
         applyRadioValue('land_traversing_utility', report.land_traversing_utility);
+        applyRadioValue('has_extension', report.has_extension);
+        syncExtensionVisibility();
 
         const numericFieldMappings = [
             { id: 'existingSiteArea', key: 'existing_site_area' },
+            { id: 'extensionSiteArea', key: 'extension_site_area' },
             { id: 'recommendedSiteArea', key: 'recommended_site_area' },
         ];
 
@@ -3553,6 +3710,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         populateSiteMeasurementInput('existingMeasurementInput', report.existing_site_length, report.existing_site_width);
+        populateSiteMeasurementInput('extensionMeasurementInput', report.extension_site_length, report.extension_site_width);
         populateSiteMeasurementInput('recommendedMeasurementInput', report.recommended_site_length, report.recommended_site_width);
         syncAllSiteMeasurementFields({ autoFillArea: false });
 
@@ -3820,6 +3978,14 @@ document.addEventListener('DOMContentLoaded', function() {
         recommendedCommentStatusSelect.addEventListener('change', syncRightOfWayOtherVisibility);
     }
 
+    Object.keys(JSI_SPECIFY_FIELDS).forEach(selectId => {
+        const specifySelect = document.getElementById(selectId);
+        if (specifySelect) {
+            specifySelect.addEventListener('change', () => syncSpecifyField(selectId));
+        }
+    });
+    syncAllSpecifyFields();
+
     const nonConversionReservationSelect = document.getElementById('jointInspectionRoadReservation');
     if (nonConversionReservationSelect) {
         nonConversionReservationSelect.addEventListener('change', syncNonConversionReservationOtherVisibility);
@@ -3828,6 +3994,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const existingStructureAmountInput = document.getElementById('existingStructureAmount');
     if (existingStructureAmountInput) {
         existingStructureAmountInput.addEventListener('input', syncExistingStructureAmountRaw);
+    }
+
+    document.querySelectorAll('input[name="has_extension"]').forEach(radio => {
+        radio.addEventListener('change', syncExtensionVisibility);
+    });
+    // Two dimensions (e.g. 20x30) fill an empty extension area; a form reset hides the block again.
+    document.getElementById('extensionMeasurementInput')?.addEventListener('blur', () => syncSiteMeasurementField(EXTENSION_MEASUREMENT_CONFIG));
+    if (jointInspectionForm) {
+        jointInspectionForm.addEventListener('reset', () => setTimeout(syncExtensionVisibility, 0));
     }
 
     syncExistingStructureDimensionsVisibility();

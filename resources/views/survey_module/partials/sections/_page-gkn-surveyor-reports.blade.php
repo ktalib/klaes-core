@@ -94,7 +94,7 @@
                         <td>{{ $x['surveyor'] ?: '—' }}</td>
                         <td style="white-space:nowrap;">@if ($r){{ optional($r->commenced_on)->format('d M Y') ?: '—' }} – {{ optional($r->completed_on)->format('d M Y') ?: '—' }}@else — @endif</td>
                         <td>{!! $r ? $chip($r->status, $r->isSubmitted() ? 'green' : 'gray') : $chip('Awaiting report', 'yellow') !!}</td>
-                        @include('survey_module.partials.sections._report_sections', ['part' => 'cells', 'rec' => $x['rec'], 'a' => $a])
+                        @include('survey_module.partials.sections._report_sections', ['part' => 'cells', 'rec' => $x['rec'], 'a' => $a, 'fileNo' => $x['file_number'], 'plotNo' => $x['plot_no']])
                         <td>
                             <div class="inline-block text-left" x-data="{ open: false, top: 0, left: 0 }" @keydown.escape.window="open = false">
                                 <button type="button" x-ref="btn" title="Actions" aria-label="Actions"

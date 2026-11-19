@@ -29,7 +29,7 @@
       <div>
         <div class="flex items-center gap-2">{!! $def->wfChip($case->workflow) !!} {!! $def->statusChip($case->status) !!}</div>
         <div class="text-2xl font-black text-gray-800 font-mono mt-2">{{ $case->file_number }}</div>
-        <div class="text-sm text-gray-600">{{ $case->file_title }}</div>
+        <div class="text-sm text-gray-600 uppercase">{{ $case->file_title }}</div>
         @php $cdDel = $case->masterDeleteJs(route('cadastral-dept.cases.index')); @endphp
         @if ($cdDel)
           <button type="button" onclick="{{ $cdDel }}"
@@ -107,6 +107,12 @@
           </div>
         @endif
       </div>
+      {{-- The file's OPs between the title and the details (user, 2026-11-19); the same panel as the FMC page. --}}
+      @if (!empty($opDetails))
+        <div class="flex-1" style="min-width:280px;max-width:720px;">
+          @include('cadastral_dept.fmc._op_details', ['cdOpGrid' => true])
+        </div>
+      @endif
       <dl class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
         <dt class="text-gray-500">File type</dt><dd>{{ $case->fileTypeLabel() }}</dd>
         @php
@@ -123,10 +129,10 @@
           <dt class="text-gray-500">Resettlement / Direct</dt><dd>{{ $def->subTypes($wf['asks_allocation_route'])[$case->allocation_route ?? ''] ?? 'Not set' }}</dd>
         @endif
         <dt class="text-gray-500">Came from</dt><dd>{{ $case->fileSourceLabel() }}</dd>
-        <dt class="text-gray-500">Plot No.</dt><dd>{{ $case->plot_no ?? null ?: '—' }}</dd>
-        <dt class="text-gray-500">District</dt><dd>{{ $case->district ?? null ?: '—' }}</dd>
-        <dt class="text-gray-500">LGA</dt><dd>{{ $case->lga ?? null ?: '—' }}</dd>
-        <dt class="text-gray-500">Location</dt><dd>{{ $case->location ?: '—' }}</dd>
+        <dt class="text-gray-500">Plot No.</dt><dd class="uppercase">{{ $case->plot_no ?? null ?: '—' }}</dd>
+        <dt class="text-gray-500">District</dt><dd class="uppercase">{{ $case->district ?? null ?: '—' }}</dd>
+        <dt class="text-gray-500">LGA</dt><dd class="uppercase">{{ $case->lga ?? null ?: '—' }}</dd>
+        <dt class="text-gray-500">Location</dt><dd class="uppercase">{{ $case->location ?: '—' }}</dd>
         @if ($fmc)
           <dt class="text-gray-500">FMC</dt>
           {{-- The card opens for the FMC roles only (config fmc_roles, 2026-10-26); others see its number. --}}

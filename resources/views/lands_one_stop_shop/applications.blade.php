@@ -1755,6 +1755,7 @@
 <script src="{{ asset('js/instruments-capture.js') }}?v={{ time() }}"></script>
 
 @include('components.commissioning-registry-move')
+@include('components.commission-kind-choice', ['here' => 'oss', 'openHere' => 'openCommissionModalForOP'])
 <script>
     // This list is server-rendered and paginated, so a full reload is the refresh.
     window.reloadAfterRegistryMove = function () { window.location.reload(); };
@@ -1764,8 +1765,9 @@
         // ── File Number Commissioning button ──
         const commissioningBtn = document.getElementById('btn-file-commissioning');
         if (commissioningBtn) {
+            // Asks "Commission Land File" or "Commission OSS File" first (user, 2026-11-19).
             commissioningBtn.addEventListener('click', function () {
-                openCommissionModalForOP();
+                window.askCommissionKind();
             });
         }
 

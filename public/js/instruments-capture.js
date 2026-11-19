@@ -312,23 +312,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (elements.regSerialInput) {
         elements.regSerialInput.addEventListener('input', updateRegistrationParticulars);
-        elements.regSerialInput.addEventListener('input', _scheduleOpCandidateCheck);
         elements.regSerialInput.addEventListener('blur', _scheduleOpCandidateCheck);
     }
     if (elements.regVolumeInput) {
         elements.regVolumeInput.addEventListener('input', updateRegistrationParticulars);
-        elements.regVolumeInput.addEventListener('input', _scheduleOpCandidateCheck);
         elements.regVolumeInput.addEventListener('blur', _scheduleOpCandidateCheck);
     }
     if (elements.regPageInput) {
-        elements.regPageInput.addEventListener('input', _scheduleOpCandidateCheck);
         elements.regPageInput.addEventListener('blur', _scheduleOpCandidateCheck);
     }
-    // Plot number and Allottee help disambiguate when serial+page+vol collide.
+    // The existing-OP check runs when the officer leaves a field, not while
+    // typing: on every keystroke pause it re-checked a half-typed value and
+    // the "OP Does Not Exist" card kept coming back.
     ['plotNumber', 'secondPartyName', 'tp_no'].forEach((id) => {
         const el = document.getElementById(id);
         if (el) {
-            el.addEventListener('input', _scheduleOpCandidateCheck);
             el.addEventListener('blur', _scheduleOpCandidateCheck);
         }
     });
@@ -336,10 +334,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (elements.opSerialNumberInput) {
         elements.opSerialNumberInput.addEventListener('blur', lookupOpSerialNumberAndAutofill);
         elements.opSerialNumberInput.addEventListener('change', lookupOpSerialNumberAndAutofill);
-        // The exact existing-OP check uses the OP serial together with the
-        // allottee and registration particulars. Trigger it here too, so it
-        // still runs when the serial is the final value the officer enters.
-        elements.opSerialNumberInput.addEventListener('input', _scheduleOpCandidateCheck);
+        // First entry: check the OP serial on its own. The exact existing-OP
+        // check (serial + allottee + reg particulars) runs here too, so it
+        // still fires when the serial is the final value the officer enters.
+        elements.opSerialNumberInput.addEventListener('blur', checkOpSerialFirstEntry);
         elements.opSerialNumberInput.addEventListener('blur', _scheduleOpCandidateCheck);
 
         // As-you-type search + Enter-to-search only on the MLS File Number Generator
@@ -5154,6 +5152,13 @@ document.addEventListener('DOMContentLoaded', function () {
        ══════════════════════════════════════════════════════════════════════════ */
     const OPCF_LOOKUP_URL = '/lands-one-stop-shop/applications/op-resettlement/op-commissioned-file';
     const OPCF_SAVE_URL = '/lands-one-stop-shop/applications/op-resettlement/op-capture-commissioned';
+    // The Transfer of Title that follows when the OP's allottee is not the file's holder (user, 2026-11-19).
+    const OPCF_TOT_URL = '/lands-one-stop-shop/applications/save-ffr-change-of-name';
+    // Names compared as the server does loosely: case, spacing and punctuation ignored.
+    const opcfSameName = (a, b) => {
+        const n = v => (v || '').toString().toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+        return n(a) !== '' && n(a) === n(b);
+    };
     // 2026 commissionings only (user, 2026-11-05); the server enforces it, see
     // OpResettlementApplicationController::COMMISSIONED_OP_YEAR.
     const OPCF_YEAR = 2026;
@@ -5305,6 +5310,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 seed('plotNumber', d.plot_no);
                 seed('propertyDescription', d.location);
                 seed('lga', d.lga);
+                seed('tp_no', d.tp_no);
             })
             .catch(err => {
                 console.error('Commissioned file lookup failed', err);
@@ -5364,6 +5370,8 @@ document.addEventListener('DOMContentLoaded', function () {
             lga: val('lga'),
             location: val('propertyDescription'),
             plot_no: val('plotNumber'),
+            // The dialog's TP No. box (user, 2026-11-19: it was never sent).
+            tp_no: val('tp_no') || val('tp_no_other'),
             serial_no: val('serial_no'),
             page_no: val('reg_page_no') || val('reg_page_no_display'),
             volume_no: val('volume_no'),
@@ -5371,23 +5379,39 @@ document.addEventListener('DOMContentLoaded', function () {
             deeds_time: val('registrationTime'),
         };
 
+        // The OP went to someone other than the file's holder: the plot changed hands, so offer the
+        // Transfer of Title (allottee -> holder) in the same step (user, 2026-11-19: RES-2026-1604).
+        const holder = (opcfFile.file_name || '').toString().trim();
+        const changedHands = holder !== '' && holder !== '—' && !opcfSameName(allottee, holder);
+        const esc = v => (v || '').toString().replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const totNote = changedHands
+            ? `<div class="mt-3 text-left text-xs bg-amber-50 border border-amber-300 rounded-lg p-3 space-y-2">
+                 <div class="font-semibold text-amber-800">The OP holder is not the file's holder.</div>
+                 <div>OP allottee: <b>${esc(allottee)}</b> &middot; File title: <b>${esc(holder)}</b></div>
+                 <label class="flex items-start gap-2"><input type="checkbox" id="opcfAlsoTot" checked style="margin-top:2px;">
+                   <span>Also create the Transfer of Title: <b>${esc(allottee)}</b> &rarr; <b>${esc(holder)}</b></span></label>
+               </div>`
+            : `<p class="mt-2 text-left text-xs text-gray-500">No Transfer of Title is created — the
+                   holder is not changing.</p>`;
+
         Swal.fire({
-            icon: 'question',
+            icon: changedHands ? 'warning' : 'question',
             title: 'Capture OP and Match?',
-            html: `This writes one PRA row — the Occupancy Permit for <b>${opcfFile.file_no}</b>.
+            html: `This writes the Occupancy Permit for <b>${esc(opcfFile.file_no)}</b>.
                    <div class="mt-3 text-left text-xs bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
-                     <div><b>OP:</b> Kano State Government &rarr; <span class="text-emerald-700 font-semibold">${allottee}</span></div>
-                     <div><b>File No:</b> ${opcfFile.file_no} <span class="text-gray-400">(system ${systemFileno || 'TEMP'})</span></div>
-                     <div><b>Prop ID:</b> ${opcfFile.prop_id || 'will be allocated'}</div>
+                     <div><b>OP:</b> Kano State Government &rarr; <span class="text-emerald-700 font-semibold">${esc(allottee)}</span></div>
+                     <div><b>File No:</b> ${esc(opcfFile.file_no)} <span class="text-gray-400">(system ${esc(systemFileno || 'TEMP')})</span></div>
+                     <div><b>Prop ID:</b> ${esc(opcfFile.prop_id || 'will be allocated')}</div>
                    </div>
-                   <p class="mt-2 text-left text-xs text-gray-500">No Transfer of Title is created — the
-                   holder is not changing.</p>`,
+                   ${totNote}`,
             showCancelButton: true,
             confirmButtonText: 'Yes, Capture',
             cancelButtonText: 'Cancel',
             confirmButtonColor: '#2563eb',
+            preConfirm: () => ({ alsoTot: changedHands && !!document.getElementById('opcfAlsoTot')?.checked }),
         }).then(result => {
             if (!result.isConfirmed) return;
+            const alsoTot = !!(result.value && result.value.alsoTot);
 
             const csrf = document.querySelector('input[name="_token"]')?.value
                 || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -5411,8 +5435,31 @@ document.addEventListener('DOMContentLoaded', function () {
                     window._opCaptureSubmitted = true;
                     window.opCommissionedFileMode = false;
                     if (typeof closeRegistrationDialog === 'function') closeRegistrationDialog();
-                    Swal.fire({ icon: 'success', title: 'Occupancy Permit created', text: d.message })
-                        .then(() => window.location.reload());
+                    const done = (icon, title, text) => Swal.fire({ icon, title, text }).then(() => window.location.reload());
+                    if (!alsoTot) {
+                        done('success', 'Occupancy Permit created', d.message);
+                        return;
+                    }
+                    // Then the Transfer of Title, through the same save the Change of Name flow uses.
+                    fetch(OPCF_TOT_URL, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+                        body: JSON.stringify({
+                            source_file_no: opcfFile.file_no,
+                            party_1: allottee,
+                            party_2: holder,
+                            op_serial_number: payload.op_serial_number,
+                        }),
+                    })
+                        .then(r => r.json().then(t => ({ ok: r.ok, t })).catch(() => ({ ok: r.ok, t: {} })))
+                        .then(({ ok: totOk, t }) => totOk && t.success
+                            ? done('success', 'OP and Transfer of Title created',
+                                'Occupancy Permit for ' + allottee + ', then Transfer of Title ' + allottee + ' → ' + holder + '.')
+                            : done('warning', 'OP created; Transfer of Title not created',
+                                (t.message || 'Unknown error.') + ' Add the Transfer of Title from the OSS screen.'))
+                        .catch(() => done('warning', 'OP created; Transfer of Title not created',
+                            'The request failed. Add the Transfer of Title from the OSS screen.'));
                 })
                 .catch(err => {
                     console.error('Commissioned-file capture failed', err);
@@ -7565,6 +7612,8 @@ document.addEventListener('DOMContentLoaded', function () {
             skipRegDateTimeFill = false
         } = options;
 
+        resetOpCandidatePrompts();
+
         if (hideDialog && elements.registrationDialog) {
             elements.registrationDialog.classList.add('hidden');
         } else if (elements.registrationDialog) {
@@ -8511,6 +8560,63 @@ document.addEventListener('DOMContentLoaded', function () {
     let _opCandidateDismissedKey = null;
     let _opCandidateCheckTimer = null;
     let _opCandidateCheckInFlight = false;
+    // The "OP Does Not Exist" card shows at most twice per OP entry: once
+    // after the OP serial (first entry) and once when the last of the five
+    // fields is filled. Later edits still re-check silently, so an exact
+    // existing-OP match is never missed. Reset with the form.
+    let _opSerialStageShown = false;
+    let _opSerialStageCheckedFor = null;
+    let _opFinalStageShown = false;
+
+    function resetOpCandidatePrompts() {
+        _opCandidateDismissedKey = null;
+        _opSerialStageShown = false;
+        _opSerialStageCheckedFor = null;
+        _opFinalStageShown = false;
+    }
+
+    function _showOpDoesNotExist() {
+        return Swal.fire({
+            icon: 'info',
+            title: 'OP Does Not Exist',
+            html: `<p style="font-size:13px;color:#475569;">The system will create a <strong>new OP</strong> based on the details you provide when you submit.</p>`,
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#2563eb',
+        });
+    }
+
+    async function checkOpSerialFirstEntry() {
+        if (currentInstrumentType !== 'occupancy-permit') return;
+        // The Generator page lists serial matches itself.
+        if (isMlsFileNumberGeneratorPage) return;
+        if (duplicateCheckState.isUpdateMode || window.editRecordData) return;
+        if (opLookupMatchedRecord || _opSerialStageShown || _opFinalStageShown) return;
+
+        const fields = _readOpCandidateFields();
+        const serial = fields.op_serial_number.toUpperCase();
+        if (!serial || serial === _opSerialStageCheckedFor) return;
+        // Everything already filled: the final check covers it.
+        if (fields.serial_no && fields.page_no && fields.volume_no && fields.party_2_name) return;
+
+        _opSerialStageCheckedFor = serial;
+        try {
+            const params = new URLSearchParams({ op_serial_number: serial });
+            const resp = await fetch(`/api/instruments/op-candidates-check?${params.toString()}`, {
+                headers: { 'Accept': 'application/json' }
+            });
+            const payload = await resp.json();
+            if (!resp.ok || !payload?.success) return;
+
+            // A serial on record is not a match on its own (serials repeat);
+            // the final check confirms it once the other fields are in.
+            if (!payload.count && !_opSerialStageShown && !_opFinalStageShown) {
+                _opSerialStageShown = true;
+                await _showOpDoesNotExist();
+            }
+        } catch (err) {
+            console.warn('OP serial check failed:', err);
+        }
+    }
 
     function _buildOpCandidateKey(fields) {
         return [
@@ -8560,16 +8666,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (!payload.count || !Array.isArray(payload.candidates) || payload.candidates.length === 0) {
                 // No existing OP matches these 5 fields exactly — confirm to the
-                // user that a fresh OP will be created. One-shot per field combo
-                // (dismissal key suppresses re-prompts while still editing).
-                await Swal.fire({
-                    icon: 'info',
-                    title: 'OP Does Not Exist',
-                    html: `<p style="font-size:13px;color:#475569;">The system will create a <strong>new OP</strong> based on the details you provide when you submit.</p>`,
-                    confirmButtonText: 'OK',
-                    confirmButtonColor: '#2563eb',
-                });
+                // user that a fresh OP will be created, once (the last-entry
+                // card). Later edits re-check without showing it again.
                 _opCandidateDismissedKey = key;
+                if (!_opFinalStageShown) {
+                    _opFinalStageShown = true;
+                    await _showOpDoesNotExist();
+                }
                 return;
             }
 

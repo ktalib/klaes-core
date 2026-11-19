@@ -69,6 +69,8 @@ window.secretariatFileLog = function (config) {
         sender_person: '', sender_name: '', sender_rank: '', sender_rank_other: '',
         from_department: '', send_to_office: '', reference: '', from_office: '', notes: '',
         indexQ: '', indexOpen: false, related_file_number: '',
+        // Related files that move with it (user, 2026-11-19).
+        related: [], relatedLoading: false, relatedPicked: [],
         receiving_officer_id: '', request_purpose_id: '', officerFilter: '', officerOpen: false,
         officer_other: '', purpose_other: '', from_other: '', timeline_days: '',
         unit_id: '', unit_other: '', file_unit: '',
@@ -76,7 +78,9 @@ window.secretariatFileLog = function (config) {
     // The Department / In-Unit card on a row's Send or Receive button.
     const blankMovement = () => ({ in_unit: false, to_department: '', unit_id: '', unit_other: '' });
     const blankSend = () => ({ row: null, to_office: '', receiving_officer_id: '', request_purpose_id: '', officerFilter: '', officerOpen: false,
-        officer_other: '', purpose_other: '', notes: '', unit_id: '', unit_other: '', in_unit: false, to_department: '' });
+        officer_other: '', purpose_other: '', notes: '', unit_id: '', unit_other: '', in_unit: false, to_department: '',
+        // Related files that can go along (user, 2026-11-19): loaded when the send form opens.
+        related: [], relatedLoading: false, relatedPicked: [] });
     // A listed choice, or "Other" with its specify box filled in (as on Quick Search).
     const chosen = (value, other) => value === 'other' ? String(other || '').trim() !== '' : !!value;
     const listed = (value) => (value && value !== 'other') ? value : null;
@@ -1766,6 +1770,7 @@ window.secretariatFileLog = function (config) {
                 }
                 this.notify(data.action === 'already_here' ? 'info' : 'success', data.message);
                 if (onDone) onDone(data);
+                if (data.group_waiting && data.group_waiting.length) await this.receiveGroup(data.group_waiting);
                 await this.loadLists();
                 if (this.profile.open) {
                     if (!this.profile.data || !this.profile.data.tracker) {
@@ -1834,12 +1839,42 @@ window.secretariatFileLog = function (config) {
             this.manual.indexQ = f.file_number;
             this.manual.indexOpen = false;
             this.loadManualUnit(f.file_number);
+            this.loadManualRelated(f.file_number);
+        },
+
+        // Log a file manually: the file's related files. Receiving logs the ticked ones in here too;
+        // sending sends them along (held here or untracked only).
+        async loadManualRelated(fileNumber) {
+            const m = this.manual;
+            m.related = []; m.relatedPicked = [];
+            if (!fileNumber) return;
+            m.relatedLoading = true;
+            try {
+                const data = await this.request(this.urls.related + '?' + new URLSearchParams({ office: this.office, file_number: fileNumber }));
+                if (this.manual.file_number === fileNumber) this.manual.related = data.files || [];
+            } catch (e) {
+                this.manual.related = [];
+            } finally {
+                this.manual.relatedLoading = false;
+            }
+        },
+        manualRelatedOk(f) {
+            return this.mode === 'out' ? f.can_move : !f.held_here;
+        },
+        manualRelatedNote(f) {
+            if (this.mode === 'out') return f.note;
+            return f.held_here ? 'Already held at your office.' : (f.tracker_id ? 'Now: ' + f.note + ' Ticked: logged in here with this file.' : 'No tracker yet: one is created here.');
+        },
+        toggleAllManualRelated(on) {
+            this.manual.relatedPicked = on ? this.manual.related.filter(f => this.manualRelatedOk(f)).map(f => f.file_number) : [];
         },
 
         manualTypeChanged() {
             this.manual.file_number = '';
             this.manual.file_unit = '';
             this.manual.related_file_number = '';
+            this.manual.related = [];
+            this.manual.relatedPicked = [];
             this.manual.indexQ = '';
             this.manual.indexOpen = false;
             // An indexed file's title comes from its record, never typed.
@@ -1870,6 +1905,7 @@ window.secretariatFileLog = function (config) {
                 callback: (data) => {
                     this.manual.file_number = data.fileNumber || '';
                     if (!this.manual.file_title && data.file_title) this.manual.file_title = data.file_title;
+                    this.loadManualRelated(this.manual.file_number);
                 },
             });
         },
@@ -1961,6 +1997,7 @@ window.secretariatFileLog = function (config) {
                 from_office: this.senderIsExternal() ? null : listed(m.from_office),
                 notes: m.notes,
                 received_via: 'manual',
+                related: m.entry_type === 'non_file' ? [] : m.relatedPicked.filter(n => m.related.some(f => f.file_number === n && this.manualRelatedOk(f))),
             }, (data) => {
                 // In Send mode the file is logged at this office first, then the
                 // send form opens so it can go straight on to the next office.
@@ -2027,6 +2064,58 @@ window.secretariatFileLog = function (config) {
             const d = this.profile.data;
             if (!d || !d.tracker) return;
             this.send = { ...blankSend(), row: { id: d.tracker.id, file_number: d.file.file_number, file_title: d.file.file_title }, ...(unit ? { in_unit: true, ...unit } : {}) };
+            this.loadRelated(d.file.file_number);
+        },
+
+        // Related files of the file being sent: held here or untracked ones can be ticked; the rest show where they are.
+        async loadRelated(fileNumber) {
+            if (!fileNumber) return;
+            this.send.relatedLoading = true;
+            try {
+                const data = await this.request(this.urls.related + '?' + new URLSearchParams({ office: this.office, file_number: fileNumber }));
+                if (this.send.row && this.send.row.file_number === fileNumber) this.send.related = data.files || [];
+            } catch (e) {
+                this.send.related = [];
+            } finally {
+                this.send.relatedLoading = false;
+                this.$nextTick(() => window.lucide && window.lucide.createIcons());
+            }
+        },
+        relatedMovable() {
+            return this.send.related.filter(f => f.can_move);
+        },
+        toggleAllRelated(on) {
+            this.send.relatedPicked = on ? this.relatedMovable().map(f => f.file_number) : [];
+        },
+
+        // A file that came with related files in one movement: offer to receive the others still waiting here.
+        async receiveGroup(waiting) {
+            if (!waiting || !waiting.length) return;
+            const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const rows = waiting.map((w, i) => '<label style="display:flex;gap:8px;align-items:flex-start;text-align:left;padding:6px 0;border-bottom:1px solid #f1f5f9;">'
+                + '<input type="checkbox" class="grp-pick" data-i="' + i + '" checked style="margin-top:3px;">'
+                + '<span><strong>' + esc(w.file_number || '') + '</strong>' + (w.file_title ? ' — ' + esc(w.file_title) : '')
+                + '<br><small style="color:#64748b;">' + esc(w.tracking_id || '') + '</small></span></label>').join('');
+            const ask = await Swal.fire({
+                title: 'Came in the same movement',
+                html: '<p style="font-size:14px;margin-bottom:8px;">This file was sent together with ' + waiting.length + ' related file' + (waiting.length > 1 ? 's' : '')
+                    + '. Receive ' + (waiting.length > 1 ? 'them' : 'it') + ' too? Untick any that did not arrive.</p>' + rows,
+                showCancelButton: true, confirmButtonText: 'Receive ticked files', cancelButtonText: 'Not now',
+                preConfirm: () => Array.from(Swal.getPopup().querySelectorAll('.grp-pick:checked')).map(el => waiting[+el.dataset.i]),
+            });
+            if (!ask.isConfirmed || !ask.value.length) return;
+            let done = 0;
+            for (const w of ask.value) {
+                try {
+                    await this.request(this.urls.receive, { method: 'POST', body: JSON.stringify({ office: this.office, entry_type: 'file', tracker_id: w.tracker_id, file_number: w.file_number }) });
+                    done++;
+                } catch (e) {
+                    this.notify('error', (w.file_number || '') + ': ' + e.message);
+                }
+            }
+            if (done) this.notify('success', done + ' related file' + (done > 1 ? 's' : '') + ' received.');
+            await this.loadLists();
+            await this.reloadProfile();
         },
 
         sendValid() {
@@ -2052,6 +2141,7 @@ window.secretariatFileLog = function (config) {
                         receiving_officer_other: typed(this.send.receiving_officer_id, this.send.officer_other),
                         notes: this.send.notes,
                         ...this.unitFields(this.send),
+                        related: this.send.relatedPicked,
                     }),
                 });
                 this.notify('success', data.message);

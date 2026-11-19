@@ -70,7 +70,7 @@ window.addEventListener('load', function () {
   wrap.dataset.ready = '1';
   var body = document.getElementById('rbRows'), url = wrap.dataset.search;
   var $ = window.jQuery && window.jQuery.fn && window.jQuery.fn.select2 ? window.jQuery : null;
-  var SRC = { captured: 'From the Beacon Register', extant: 'From the Extant Beacons list', typed: 'Typed (not listed)' };
+  var SRC = { captured: 'From the Beacon Register', extant: 'From the Extant Beacons list', typed: '' };   // no "Typed" label (user, 2026-11-18)
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var ROW = body.querySelector('.rb-row').outerHTML;   // template for "+ Add beacon"
 
@@ -121,7 +121,7 @@ window.addEventListener('load', function () {
         insertTag: function (data, tag) { data.push(tag); },
         templateResult: function (d) {
           if (d.loading || !d.id) return d.text;
-          var hint = d.newTag ? 'Not listed: use as typed' : d.src === 'captured' ? (d.x && d.y ? 'Register · X ' + d.x + ', Y ' + d.y : 'Register') : 'Extant list';
+          var hint = d.newTag ? 'Not listed: use as typed' : d.src === 'captured' ? (d.x && d.y ? 'Register · X ' + d.x + ', Y ' + d.y : 'Register') : d.src === 'plan' ? 'Survey plan · X ' + d.x + ', Y ' + d.y : 'Extant list';
           return $('<span class="rb-opt"><span>' + esc(d.text) + '</span><small>' + esc(hint) + '</small></span>');
         },
         language: {

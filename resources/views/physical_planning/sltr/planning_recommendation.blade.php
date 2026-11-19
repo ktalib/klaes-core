@@ -331,17 +331,24 @@ $(document).ready(function() {
                 }
             },
             {
-                // 9 – Existing Site Measurement
+                // 9 – Existing Site Measurement (+ the extension's area on a second line when there is one)
                 data: 'existing_site_area',
-                render: function(data) {
+                render: function(data, type, row) {
+                    var extensionLine = '';
+                    if (row && row.has_extension === true) {
+                        var extensionArea = parseFloat(row.extension_site_area);
+                        extensionLine = '<br><span class="text-[10px] font-semibold text-purple-700">Ext: '
+                            + (Number.isFinite(extensionArea) ? extensionArea.toLocaleString(undefined, {maximumFractionDigits: 2}) + ' m²' : 'Yes')
+                            + '</span>';
+                    }
                     if (data === null || data === undefined || data === '' || data === 'N/A') {
-                        return '<span class="text-[10px] text-slate-400">N/A</span>';
+                        return '<span class="text-[10px] text-slate-400">N/A</span>' + extensionLine;
                     }
                     var value = parseFloat(data);
                     if (!Number.isFinite(value)) {
-                        return '<span class="text-[10px] text-slate-400">N/A</span>';
+                        return '<span class="text-[10px] text-slate-400">N/A</span>' + extensionLine;
                     }
-                    return '<span class="text-[10px] font-semibold text-slate-700">' + value.toLocaleString(undefined, {maximumFractionDigits: 2}) + ' m²</span>';
+                    return '<span class="text-[10px] font-semibold text-slate-700">' + value.toLocaleString(undefined, {maximumFractionDigits: 2}) + ' m²</span>' + extensionLine;
                 }
             },
             {

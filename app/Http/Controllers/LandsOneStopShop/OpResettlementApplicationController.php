@@ -509,16 +509,25 @@ class OpResettlementApplicationController extends Controller
                        captured_op.party_1, COALESCE(NULLIF(captured_op.party_2, ''), moved_mfn.file_name) as party_2,
                        captured_op.regNo, captured_op.op_type, captured_op.op_serial_number,
                        captured_op.property_description,
-                       COALESCE(NULLIF(moved_mfn.location, ''), captured_op.location) as location,
+                       COALESCE(NULLIF(moved_mfn.location, ''), NULLIF(moved_fn.location, ''), captured_op.location) as location,
                        CAST(moved_mfn.created_by AS nvarchar(100)) as created_by, moved_mfn.created_at,
-                       COALESCE(NULLIF(moved_mfn.plot_no, ''), captured_op.plot_no) as plot_no,
-                       COALESCE(NULLIF(moved_mfn.tp_no, ''), captured_op.tp_no) as tp_no,
-                       COALESCE(NULLIF(moved_mfn.lga, ''), captured_op.lgsaOrCity) as lgsaOrCity,
+                       COALESCE(NULLIF(moved_mfn.plot_no, ''), NULLIF(moved_fn.plot_no, ''), captured_op.plot_no) as plot_no,
+                       COALESCE(NULLIF(moved_mfn.tp_no, ''), NULLIF(moved_fn.tp_no, ''), captured_op.tp_no) as tp_no,
+                       COALESCE(NULLIF(moved_mfn.lga, ''), NULLIF(moved_fn.lga, ''), captured_op.lgsaOrCity) as lgsaOrCity,
                        moved_mfn.land_use, 'MLS_REGISTRY_MOVE' as system_source,
                        moved_mfn.created_at as commissioned_sort_at,
                        CAST(NULL AS varchar(10)) as deleted_record_type,
                        ROW_NUMBER() OVER (PARTITION BY moved_mfn.full_file_number ORDER BY moved_mfn.id DESC) as rn
                 FROM mls_file_no moved_mfn
+                -- The details typed on Land FC before the move live on its fileNumber row; the
+                -- moved row's own columns are often blank (user, 2026-11-19: TP No. and LGA missing).
+                OUTER APPLY (
+                    SELECT TOP 1 fnm.tp_no, fnm.lga, fnm.plot_no, fnm.location
+                    FROM fileNumber fnm
+                    WHERE fnm.tracking_id = moved_mfn.tracking_id
+                      AND (fnm.is_deleted IS NULL OR fnm.is_deleted = 0)
+                    ORDER BY fnm.id DESC
+                ) moved_fn
                 OUTER APPLY (
                     SELECT TOP 1 cap.prop_id, cap.temp_fileno, cap.instrument_type,
                            cap.Grantor, cap.Grantee, cap.party_1, cap.party_2, cap.regNo,
@@ -1892,6 +1901,8 @@ class OpResettlementApplicationController extends Controller
             'lga' => 'nullable|string|max:150',
             'location' => 'nullable|string|max:1000',
             'plot_no' => 'nullable|string|max:100',
+            // The dialog's TP No. was never sent or kept (user, 2026-11-19: RES-2026-1604 lost its TP).
+            'tp_no' => 'nullable|string|max:100',
             'serial_no' => 'nullable|string|max:50',
             'page_no' => 'nullable|string|max:50',
             'volume_no' => 'nullable|string|max:50',
@@ -1965,7 +1976,7 @@ class OpResettlementApplicationController extends Controller
         $landUse = ($validated['land_use'] ?? null) ?: ($placeholder->land_use ?? $mfn->land_use ?? null);
         $plotNo = ($validated['plot_no'] ?? null) ?: ($placeholder->plot_no ?? null);
         $lga = ($validated['lga'] ?? null) ?: ($placeholder->lgsaOrCity ?? null);
-        $tpNo = $placeholder->tp_no ?? null;
+        $tpNo = trim((string) ($validated['tp_no'] ?? '')) ?: ($placeholder->tp_no ?? null);
         $now = now();
 
         $row = [
@@ -2047,6 +2058,15 @@ class OpResettlementApplicationController extends Controller
                 'file_no' => $fileNo,
                 'error' => $e->getMessage(),
             ]);
+        }
+
+        // The TP typed here also reaches Land FC, indexing, the MLS record and the OSS application (2026-11-19).
+        if (trim((string) $tpNo) !== '') {
+            try {
+                app(\App\Services\FileTpSync::class)->apply([$fileNo], $tpNo);
+            } catch (\Throwable $e) {
+                Log::channel('op_batch')->warning('Could not copy the captured TP No. to the file records', ['file_no' => $fileNo, 'error' => $e->getMessage()]);
+            }
         }
 
         return response()->json([
@@ -4337,6 +4357,10 @@ class OpResettlementApplicationController extends Controller
                     if ($wasSubmitted('plot_number') && Schema::connection('sqlsrv')->hasColumn('file_indexings', 'plot_no')) {
                         $indexingUpdates['plot_no'] = ($validated['plot_number'] ?? null) ?: null;
                     }
+                    // The indexing column is plot_number; plot_no does not exist there, so the plot was never saved (2026-11-19).
+                    if ($wasSubmitted('plot_number') && Schema::connection('sqlsrv')->hasColumn('file_indexings', 'plot_number')) {
+                        $indexingUpdates['plot_number'] = ($validated['plot_number'] ?? null) ?: null;
+                    }
                     if ($wasSubmitted('tp_number') && Schema::connection('sqlsrv')->hasColumn('file_indexings', 'tp_no')) {
                         $indexingUpdates['tp_no'] = ($validated['tp_number'] ?? null) ?: null;
                     }
@@ -4370,6 +4394,20 @@ class OpResettlementApplicationController extends Controller
                                 $q->orWhere('full_file_number', $fileNo);
                             }
                         })->update($nonBlankUpdates($indexingUpdates));
+                    }
+                }
+
+                // The file's cadastral cases keep their own copy of these details (2026-11-19). Not the
+                // title: on an OP row the name here is the OP grantee, not the file's title.
+                if (!empty($fileNo)) {
+                    app(\App\Services\CadastralDept\CadastralCaseSync::class)->sync($fileNo, [
+                        'plot_no' => $wasSubmitted('plot_number') ? $validated['plot_number'] : null,
+                        'district' => $wasSubmitted('district') ? $validated['district'] : null,
+                        'lga' => $wasSubmitted('lga') ? $validated['lga'] : null,
+                    ]);
+                    // A corrected TP No. reaches the MLS record and the rest too (2026-11-19).
+                    if ($wasSubmitted('tp_number')) {
+                        app(\App\Services\FileTpSync::class)->apply([$fileNo], $validated['tp_number']);
                     }
                 }
 

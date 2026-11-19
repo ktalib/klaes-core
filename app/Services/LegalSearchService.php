@@ -631,7 +631,23 @@ class LegalSearchService
                     ->select('file_title', 'district', 'lga', 'land_use_type', 'plot_number', 'plot_size', 'tp_no', 'related_fileno', 'file_number', 'location', 'has_temp_file', 'temp_file_no', 'latitude', 'longitude', 'ground_rent_amount', 'ground_rent_receipt_date', 'term')
                     ->get();
 
-                $fileIndexingData = $this->pickBestIndexingRow($fileIndexingDataList, $primaryCandidates);
+                // The searched file's own record first: $all[0] can be another file's row
+                // (MLKN 3010's C of O on IND-2018-2), and among two exact matches the
+                // database order decided which title showed.
+                $ownNos = array_filter([$searchedFileNo, $fileNo]);
+                $ownRows = $fileIndexingDataList->filter(function ($row) use ($ownNos) {
+                    foreach ($ownNos as $no) {
+                        if (strcasecmp((string) ($row->file_number ?? ''), (string) $no) === 0
+                            || strcasecmp((string) ($row->temp_file_no ?? ''), (string) $no) === 0) {
+                            return true;
+                        }
+                    }
+                    return false;
+                })->values();
+                $fileIndexingData = $this->pickBestIndexingRow(
+                    $ownRows->isNotEmpty() ? $ownRows : $fileIndexingDataList,
+                    $primaryCandidates
+                );
             }
         }
 
@@ -779,7 +795,8 @@ class LegalSearchService
         // A neutral "Related File" link row is redundant when the related file number already
         // displays with real transactions of its own; keep it (with a blank type) only when the
         // related file has no transactions at all.
-        $all = $this->suppressRedundantRelatedFileRows($all);
+        $linkOnlyFiles = [];
+        $all = $this->suppressRedundantRelatedFileRows($all, $linkOnlyFiles);
 
         // An "-RC-" file's recertification now reads off its own commissioning row
         // ("File Commissioning & Recertification"), so its separate recert line is folded
@@ -789,6 +806,16 @@ class LegalSearchService
         $all = $this->tagRowsWithLifecycleFileNo(
             $all,
             $this->resolveAliasHintOwners($all, $this->aliasHintsFromDisplay($fileNumberDisplay))
+        );
+
+        // One KANGIS file recertified against several land files: keep only the searched
+        // file's own recertification; an older sibling with its own history shows in full.
+        [$all, $kangisSiblings] = $this->keepOwnKangisRecertification(
+            $conn,
+            $all,
+            $fileNo,
+            $searchedFileNo,
+            !empty($params['_without_older_siblings'])
         );
 
         // Build lifecycle metadata for every distinct lifecycle file surfaced in the
@@ -801,6 +828,16 @@ class LegalSearchService
             if ($fno && $fno !== '') {
                 $lifecycleFiles[$fno] = true;
             }
+        }
+        // A file whose bare link row was dropped still gets its block (File Commissioning row),
+        // unless it is a same-KANGIS sibling left out above.
+        foreach ($kangisSiblings as $files) {
+            foreach ($files as $f) {
+                unset($linkOnlyFiles[$this->normalizeLifecycleFileNo($f)]);
+            }
+        }
+        foreach ($linkOnlyFiles as $fno) {
+            $lifecycleFiles[$fno] = true;
         }
         // Always include the searched file (and its main/base number for temp searches).
         $normSearched = $this->normalizeLifecycleFileNo($fileNo);
@@ -849,6 +886,11 @@ class LegalSearchService
             // of the term derived from land use, and the Residual Term derives from it.
             'file_term' => trim((string) ($fileIndexingData->term ?? '')) ?: null,
             'file_related_fileno' => $fileIndexingData->related_fileno ?? null,
+            // Other land files recertified from the same KANGIS file, not shown as blocks:
+            // [KANGIS number => [land file numbers]].
+            'kangis_siblings' => $kangisSiblings,
+            // Files shown only by their File Commissioning row (bare link row dropped).
+            'link_only_files' => array_values($linkOnlyFiles),
             'file_index_number' => $fileIndexingData->file_number ?? null,
             // Whether the searched file has its own file_indexings row. Drives whether
             // the synthetic "File Commissioning" row is shown in the timeline â an
@@ -2735,6 +2777,8 @@ class LegalSearchService
             'file_ground_rent_date' => null,
             'file_term' => null,
             'file_related_fileno' => null,
+            'kangis_siblings' => [],
+            'link_only_files' => [],
             'file_index_number' => null,
             'file_history_count' => 0,
             'cofo_count' => 0,
@@ -6155,6 +6199,13 @@ class LegalSearchService
                 if (in_array($rowPropId, $allowedPropIds, true)) {
                     return true;
                 }
+                // Link rows: search() has already kept only the file's own. They carry no
+                // prop_id, or (a recertification) the KANGIS file's; dropping them lost
+                // MLKN 1764's First and RES-2015-889's Second KANGIS Recertification (2026-11-19).
+                if (($row['source_table'] ?? '') === 'Related Fileno'
+                    && ($rowPropId === '' || stripos((string) ($row['transaction_type'] ?? ''), 'Recertification') !== false)) {
+                    return true;
+                }
                 if (!empty($timelineOrderKeys)) {
                     $label = (string) ($row['source_table'] ?? '');
                     $db = $labelToDb[$label] ?? $label;
@@ -7051,7 +7102,8 @@ class LegalSearchService
             $rows,
             $commissioningFileNo,
             $fileNo,
-            $this->resolveAliasHintOwners($rows, $this->aliasHintsFromDisplay($fileNumberDisplay ?? null))
+            $this->resolveAliasHintOwners($rows, $this->aliasHintsFromDisplay($fileNumberDisplay ?? null)),
+            $results['link_only_files'] ?? []
         );
 
         // Renumber serial numbers so the first commissioning row is #1.
@@ -7773,6 +7825,13 @@ class LegalSearchService
         // pinned to the KANGIS-format endpoint (see fetchRelatedRecertificationRows), while its
         // 'parent_file_number' carries the linked MLS/land-format endpoint, so either search
         // direction can be resolved from it.
+        // A row on the searched number itself wins: one KANGIS file can be recertified to
+        // several land files, and the first row found may belong to another of them
+        // (MLKN 1764 read "(IND-2018-1)" off MLKN 3010's row, 2026-11-19). The first
+        // KANGIS row of any kind stays the fallback.
+        $flat = fn ($v): string => strtoupper(preg_replace('/\s+/', '', (string) $v));
+        $searchedKeys = array_filter([$flat($searchedFileNo), $flat($resolvedFileNo)]);
+        $fallbackMls = null;
         if ($relatedMls === null || $relatedMls === '') {
             foreach ($transactions as $tx) {
                 $src = trim((string) ($tx['source_table'] ?? ''));
@@ -7792,10 +7851,19 @@ class LegalSearchService
                         : (($otherNo !== '' && $isKangis($otherNo)) ? $otherNo : null);
                 }
 
-                if ($candidate) {
+                if (!$candidate) {
+                    continue;
+                }
+                // The other endpoint of this row is the searched file: the pairing is its own.
+                $searchedSide = $candidate === $otherNo ? $ownNo : $otherNo;
+                if (in_array($flat($searchedSide), $searchedKeys, true)) {
                     $relatedMls = $candidate;
                     break;
                 }
+                $fallbackMls ??= $candidate;
+            }
+            if (($relatedMls === null || $relatedMls === '') && $fallbackMls !== null) {
+                $relatedMls = $fallbackMls;
             }
         }
 
@@ -8799,6 +8867,138 @@ class LegalSearchService
      * file's old Ministry "KN 3686" number is a different file's line â it survives, and ranks
      * above the commissioning row (LegalSearchTimelineWeights::OLD_KN_COMMISSIONING).
      */
+    /**
+     * A KANGIS file can be recertified against several land files (MLKN 3010 → IND-2018-1,
+     * IND-2018-2, IND-2018-3, IND-RC-1982-33). Searching one of those land files used to list
+     * every sibling's "First KANGIS Recertification" row and block, so the same KANGIS
+     * recertification repeated. A land-file search now keeps only its own recertification
+     * (user, 2026-11-19), like the print report.
+     *
+     * - A sibling directly linked to the searched file (either file's related_fileno names the
+     *   other, or one was retired into the other) is a real relation and stays.
+     * - An OLDER sibling with transactions of its own is the earlier history of the plot
+     *   (IND-RC-1982-33 for IND-2018-3): its block is shown in full, its own rows included.
+     * - The other siblings are dropped and returned as [KANGIS number => [land files]] so the
+     *   page can still name them.
+     *
+     * A KANGIS search is resolved to its land file first (resolveKangisCanonical), so it gets the
+     * same view (user, 2026-11-19: "First Kangis Recertification is repeated all through").
+     *
+     * @return array{0: array, 1: array}
+     */
+    private function keepOwnKangisRecertification($conn, array $rows, string $fileNo, string $searchedFileNo, bool $withoutOlderSiblings): array
+    {
+        // A KANGIS search already rewritten to its land file ($fileNo) follows the same rule as
+        // searching that land file; one that could not be resolved is left as it is.
+        if ($fileNo === '' || in_array($this->identifyFileNumberType($fileNo), ['kangis', 'new_kangis'], true)) {
+            return [$rows, []];
+        }
+
+        $norm = fn ($v) => $this->normalizeLifecycleFileNo(str_replace('"', '', (string) $v));
+        $self = $norm($fileNo);
+        $isKangisRecert = fn (array $r): bool => ($r['source_table'] ?? '') === 'Related Fileno'
+            && stripos((string) ($r['transaction_type'] ?? ''), 'KANGIS Recertification') !== false;
+
+        // The KANGIS files the searched land file itself was recertified from.
+        $ownKangis = [];
+        foreach ($rows as $r) {
+            if ($isKangisRecert($r) && $norm($r['lifecycle_file_no'] ?? '') === $self) {
+                $ownKangis[$norm($r['fileno'] ?? '')] = true;
+            }
+        }
+        unset($ownKangis['']);
+        if (!$ownKangis) {
+            return [$rows, []];
+        }
+
+        // Other land files recertified from those same KANGIS files.
+        $siblings = [];      // normalized => as displayed
+        $byKangis = [];      // KANGIS (as displayed) => [normalized sibling => true]
+        foreach ($rows as $r) {
+            $life = $norm($r['lifecycle_file_no'] ?? '');
+            $k = $norm($r['fileno'] ?? '');
+            if ($isKangisRecert($r) && isset($ownKangis[$k]) && $life !== '' && $life !== $self) {
+                $siblings[$life] = trim((string) $r['lifecycle_file_no']);
+                $byKangis[trim((string) $r['fileno'])][$life] = true;
+            }
+        }
+        if (!$siblings) {
+            return [$rows, []];
+        }
+
+        // Directly linked to the searched file (related_fileno, or retired into it): a real
+        // relation, keep it.
+        $relatedOf = fn (string $no): array => array_map($norm, $this->resolveFileLineage($conn, $no)['previous_file_nos'] ?? []);
+        $selfRelated = $relatedOf($fileNo);
+        foreach ($siblings as $key => $no) {
+            if (in_array($key, $selfRelated, true) || in_array($self, $relatedOf($no), true)) {
+                unset($siblings[$key]);
+            }
+        }
+
+        // An older sibling with its own transactions carries the earlier history of the plot.
+        $added = [];
+        $older = [];
+        // Already shown with transactions of its own (same property): its block stays.
+        foreach ($rows as $r) {
+            $life = $norm($r['lifecycle_file_no'] ?? '');
+            if (($r['source_table'] ?? '') !== 'Related Fileno' && isset($siblings[$life])) {
+                $older[$life] = true;
+                unset($siblings[$life]);
+            }
+        }
+        if (!$withoutOlderSiblings && $siblings) {
+            $selfStart = $this->resolveLifecycleFileMeta($conn, $fileNo)['commissioning_timestamp'] ?? null;
+            $have = [];
+            foreach ($rows as $r) {
+                $have[($r['source_table'] ?? '') . '|' . ($r['id'] ?? '')] = true;
+            }
+            foreach ($siblings as $key => $no) {
+                $start = $this->resolveLifecycleFileMeta($conn, $no)['commissioning_timestamp'] ?? null;
+                if ($selfStart === null || $start === null || $start >= $selfStart) {
+                    continue;
+                }
+                $own = [];
+                foreach ($this->search(['query' => $no, '_without_older_siblings' => true])['transactions'] ?? [] as $r) {
+                    $rowNo = $norm($r['fileno'] ?? ($r['file_number'] ?? ''));
+                    $id = ($r['source_table'] ?? '') . '|' . ($r['id'] ?? '');
+                    if (($r['source_table'] ?? '') === 'Related Fileno' || $rowNo !== $key || isset($have[$id])) {
+                        continue;
+                    }
+                    $r['lifecycle_file_no'] = $no;
+                    $own[] = $r;
+                    $have[$id] = true;
+                }
+                if ($own) {
+                    $added = array_merge($added, $own);
+                    $older[$key] = true;
+                    unset($siblings[$key]);
+                }
+            }
+        }
+
+        // Drop the remaining siblings' link rows. An older sibling shown in full loses only its
+        // KANGIS recertification row, so that recertification appears once, for the searched file.
+        $rows = array_values(array_filter($rows, function (array $r) use ($siblings, $older, $norm, $isKangisRecert): bool {
+            $life = $norm($r['lifecycle_file_no'] ?? '');
+            if (($r['source_table'] ?? '') !== 'Related Fileno') {
+                return true;
+            }
+            return !isset($siblings[$life]) && !(isset($older[$life]) && $isKangisRecert($r));
+        }));
+        $rows = array_merge($rows, $added);
+
+        $named = [];
+        foreach ($byKangis as $kangis => $files) {
+            $left = array_values(array_intersect_key($siblings, $files));
+            if ($left) {
+                $named[$kangis] = $left;
+            }
+        }
+
+        return [$rows, $named];
+    }
+
     private function dropMergedRecertRows(array $rows): array
     {
         $ownNo = function (array $row): string {
@@ -9402,8 +9602,13 @@ class LegalSearchService
      * own transactions in the timeline, the bare link row adds nothing â drop it. Only when the
      * related file has NO transactions of its own does the link row remain, and then its
      * Instrument/Transaction Type displays blank instead of the "Related File" placeholder.
+     *
+     * Nor for a land file at all: every land-file block shows its own File Commissioning row,
+     * which the bare row only repeats (user, 2026-11-19). KANGIS numbers have no such row. Such a file is returned in
+     * $linkOnlyFiles so its block, and that File Commissioning row, still show. Parcel-update
+     * links carry a type (Change of Purpose, Subdivision, ...) and are never touched here.
      */
-    private function suppressRedundantRelatedFileRows(array $rows): array
+    private function suppressRedundantRelatedFileRows(array $rows, array &$linkOnlyFiles = []): array
     {
         $isNeutralLink = function (array $row): bool {
             if ((string) ($row['source_table'] ?? '') !== 'Related Fileno') {
@@ -9435,6 +9640,10 @@ class LegalSearchService
                 );
                 if ($no !== '' && isset($realNos[$no])) {
                     continue; // the related file already displays with its own transactions
+                }
+                if ($no !== '' && !$this->isKangisFormat($no)) {
+                    $linkOnlyFiles[$no] = $no;
+                    continue; // its File Commissioning row already displays
                 }
                 $row['transaction_type'] = '-'; // keep the link row, but blank the type label
             }
@@ -10722,7 +10931,7 @@ class LegalSearchService
      * @param string $searchedFileNo The original user-typed file number.
      * @return array Rows ordered by lifecycle file, then commissioning â transactions â decommissioning.
      */
-    private function groupTimelineByLifecycle(array $rows, string $primaryFileNo, string $searchedFileNo, array $aliasHints = []): array
+    private function groupTimelineByLifecycle(array $rows, string $primaryFileNo, string $searchedFileNo, array $aliasHints = [], array $linkOnlyFiles = []): array
     {
         $conn = DB::connection('sqlsrv');
         $rows = $this->tagRowsWithLifecycleFileNo($rows, $aliasHints, $primaryFileNo);
@@ -10746,6 +10955,13 @@ class LegalSearchService
         }
         if ($mainFileNo !== '' && $mainFileNo !== $normPrimary) {
             $lifecycleFiles[$mainFileNo] = true;
+        }
+        // Related files whose bare link row search() dropped: their File Commissioning row stays.
+        foreach ($linkOnlyFiles as $fno) {
+            $fno = $this->normalizeLifecycleFileNo($fno);
+            if ($fno !== '') {
+                $lifecycleFiles[$fno] = true;
+            }
         }
 
         $fileMeta = [];

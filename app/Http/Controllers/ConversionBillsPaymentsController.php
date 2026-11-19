@@ -190,13 +190,33 @@ class ConversionBillsPaymentsController extends Controller
         $validator = Validator::make($request->all(), [
             'category' => 'required|string',
             'area'     => 'required|numeric|min:0',
+            'source'        => 'nullable|string|in:' . implode(',', array_keys(PhysicalPlanningBillSources::SOURCES)),
+            'jsi_report_id' => 'nullable|integer',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
         }
 
-        $calc = $this->bettermentService->calculate($request->category, (float) $request->area);
+        // With the report, the estimate includes the existing-structure charge exactly as
+        // Generate Bill will (calculateForReport), so the two totals match.
+        $sourceKey = $request->input('source') ?: 'pp_conversion';
+        $source = PhysicalPlanningBillSources::get($sourceKey);
+        $area = (float) $request->area;
+        if ($request->filled('jsi_report_id')) {
+            $report = app(PhysicalPlanningBillSources::class)->report($sourceKey, (int) $request->jsi_report_id);
+            $billArea = $this->billAreaFor($source, $report);
+            if ($billArea === false) {
+                return $this->missingRecommendedAreaResponse();
+            }
+            $area = $billArea ?? $area;
+        }
+        $calc = $this->bettermentService->calculateForReport(
+            $request->category,
+            $area,
+            $request->filled('jsi_report_id') ? (int) $request->jsi_report_id : null,
+            $source['has_measurement_entries'] ? $source['report_table'] : null
+        );
 
         return response()->json(['success' => true, 'data' => $calc]);
     }
@@ -227,17 +247,43 @@ class ConversionBillsPaymentsController extends Controller
             return response()->json(['success' => false, 'message' => 'Inspection report not found for this bill.'], 404);
         }
 
+        $billArea = $this->billAreaFor($source, $report);
+        if ($billArea === false) {
+            return $this->missingRecommendedAreaResponse();
+        }
+
         $result = $this->bettermentService->generateBill(
             $request->jsi_report_id,
             $report->file_number ?: $request->file_number,
             $request->category,
-            (float) $request->area,
+            $billArea ?? (float) $request->area,
             $request->application_id,
             $source['billing_source'],
             $source['has_measurement_entries'] ? $source['report_table'] : null
         );
 
         return response()->json($result);
+    }
+
+    /**
+     * The area to charge, read from the report: its Recommended area for SLTR / Conversion
+     * (PP, 2026-11-19); false when that is missing; null to keep the screen's area (Master JSI).
+     */
+    private function billAreaFor(array $source, ?object $report)
+    {
+        if (($source['bill_area'] ?? 'existing') !== 'recommended' || !$report) {
+            return null;
+        }
+
+        return PhysicalPlanningBillSources::recommendedArea($report) ?? false;
+    }
+
+    private function missingRecommendedAreaResponse()
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'The Recommended Site Measurement area is missing on this JSI. Complete the JSI before raising the betterment bill.',
+        ], 422);
     }
 
     /**

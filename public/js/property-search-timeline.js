@@ -143,6 +143,7 @@
                                             <div class="flex items-center gap-2 mt-1 flex-wrap">
                                                 <span class="badge badge-outline text-xs capitalize">${this.escapeHtml(txn.transaction_type || 'Transaction')}</span>
                                                 <span class="source-tag source-tag-${txn.source_table}" style="background:${sourceColor.bg};color:${sourceColor.text};border-color:${sourceColor.border}">${this.escapeHtml(sourceLabel)}</span>
+                                                ${txn.file_number ? `<span class="text-xs font-mono font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200" title="File number">${this.escapeHtml(txn.file_number)}</span>` : ''}
                                             </div>
                                         </div>
                                     </div>

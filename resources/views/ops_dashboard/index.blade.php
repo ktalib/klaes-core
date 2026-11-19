@@ -245,13 +245,16 @@
         ->map(fn ($role) => trim($role))
         ->filter();
     $canUpdateOpFromDashboard = true;
+    // Opened from the HC/PS VIEW sidebar (?url=hc / ?url=ps): a view-only table, no Actions column.
+    $opsViewOnly = in_array(request('url'), ['hc', 'ps'], true);
 @endphp
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="{{ asset('js/property-timeline-modal.js') }}"></script>
 <script>
 $(function () {
     'use strict';
-    const canUpdateOpFromDashboard = @json($canUpdateOpFromDashboard);
+    const opsViewOnly = @json($opsViewOnly);
+    const canUpdateOpFromDashboard = @json($canUpdateOpFromDashboard) && !opsViewOnly;
     const opCaptureEditUrlTemplate = @json(url('lands-one-stop-shop/applications/op-resettlement/__ID__/capture-edit'));
 
     /* ── helpers ── */
@@ -505,7 +508,7 @@ $(function () {
                 { data: 'allottee', name: 'allottee', render: v => toTitleCase(v) },
                 { data: 'property_description', name: 'property_description', render: v => toTitleCase(v) },
                 { data: 'created_at', name: 'created_at' },
-                { data: null, name: 'actions', orderable: false, searchable: false, render: r => renderAllOpsActionCell(r) },
+                { data: null, name: 'actions', orderable: false, searchable: false, visible: !opsViewOnly, render: r => renderAllOpsActionCell(r) },
             ],
             dom: '<"flex items-center justify-between mb-3"<"flex items-center gap-2"lB>f>rtip',
             buttons: [
@@ -532,7 +535,7 @@ $(function () {
                 { data: 'grantee', name: 'grantee', render: v => toTitleCase(v) },
                 { data: 'lga', name: 'lga', render: v => toTitleCase(v) },
                 { data: 'created_at', name: 'created_at' },
-                { data: null, name: 'actions', orderable: false, searchable: false, render: r => renderAllOpsActionCell(r) },
+                { data: null, name: 'actions', orderable: false, searchable: false, visible: !opsViewOnly, render: r => renderAllOpsActionCell(r) },
             ],
             dom: '<"flex items-center justify-between mb-3"<"flex items-center gap-2"lB>f>rtip',
             buttons: [
@@ -558,7 +561,7 @@ $(function () {
                 { data: 'op_serial_number', name: 'op_serial_number', defaultContent: '—' },
                 { data: 'land_use', name: 'land_use', defaultContent: '—' },
                 { data: 'created_at', name: 'created_at' },
-                { data: null, name: 'actions', orderable: false, searchable: false, render: r => renderAllOpsActionCell(r) },
+                { data: null, name: 'actions', orderable: false, searchable: false, visible: !opsViewOnly, render: r => renderAllOpsActionCell(r) },
             ],
             dom: '<"flex items-center justify-between mb-3"<"flex items-center gap-2"lB>f>rtip',
             buttons: [
@@ -597,7 +600,7 @@ $(function () {
                 { data: 'grantor', name: 'grantor', render: v => toTitleCase(v) },
                 { data: 'grantee', name: 'grantee', render: v => toTitleCase(v) },
                 { data: 'created_at', name: 'created_at' },
-                { data: null, name: 'actions', orderable: false, searchable: false, render: r => renderAllOpsActionCell(r) },
+                { data: null, name: 'actions', orderable: false, searchable: false, visible: !opsViewOnly, render: r => renderAllOpsActionCell(r) },
             ],
             dom: '<"flex items-center justify-between mb-3"<"flex items-center gap-2"lB>f>rtip',
             buttons: [

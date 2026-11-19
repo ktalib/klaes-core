@@ -1092,6 +1092,10 @@ class SecretariatFileLogService
                 ? ($entry['receiving_department'] ?? $this->officeDepartment($entry['receiving_office_code'] ?? $entry['office_code'] ?? null))
                 : null,
             'category'    => $entry['movement_category'] ?? null,
+            // Sent together with related files (user, 2026-11-19): the movement and the other files on it.
+            'movement_group' => $entry['movement_group'] ?? null,
+            'moved_with'  => array_values(array_filter(array_map(fn ($m) => $m['file_number'] ?? null, $entry['movement_group_files'] ?? []),
+                fn ($n) => $n && strcasecmp($n, (string) $tracker->file_number) !== 0)),
             // Timeline (Days) / Expected Return Date, for the tab tables' Timeline column.
             'timeline_days'       => $tracker->timeline_days !== null ? (int) $tracker->timeline_days : null,
             'deadline'            => $tracker->deadline ? $tracker->deadline->format('Y-m-d') : null,

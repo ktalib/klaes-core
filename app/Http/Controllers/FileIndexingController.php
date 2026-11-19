@@ -1559,6 +1559,18 @@ class FileIndexingController extends Controller
                     ->where('id', $id)
                     ->update($updatePayload);
 
+                // The file's cadastral cases keep their own copy of title / plot / district / LGA (2026-11-19).
+                $savedIndexing = DB::connection('sqlsrv')->table('file_indexings')->where('id', $id)
+                    ->first(['file_number', 'file_title', 'plot_number', 'district', 'lga']);
+                if ($savedIndexing) {
+                    app(\App\Services\CadastralDept\CadastralCaseSync::class)->sync(
+                        [$savedIndexing->file_number, $existingRecord->file_number],
+                        ['file_title' => $savedIndexing->file_title, 'plot_no' => $savedIndexing->plot_number,
+                         'district' => $savedIndexing->district, 'lga' => $savedIndexing->lga],
+                        (int) $id
+                    );
+                }
+
                 // Capture old/new file numbers once and reuse for all downstream syncs.
                 $oldFileNumber = trim((string) $existingRecord->file_number);
                 $newFileNumber = trim((string) ($validated['file_number'] ?? ''));

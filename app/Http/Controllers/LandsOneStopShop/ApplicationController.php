@@ -984,10 +984,29 @@ class ApplicationController extends Controller
         unset($data['occupancy_permit'], $data['has_occupancy_permit'], $data['op_from_record']);
 
         $data = \App\Support\OpSerial::guard($data, $record->getAttributes());
-        DB::connection('sqlsrv')->transaction(function () use ($record, $data, $request) {
+        $oldApplicant = trim((string) $record->applicant_name);
+        $oldPlanNo = trim((string) $record->plan_no);
+        DB::connection('sqlsrv')->transaction(function () use ($record, $data, $request, $oldApplicant, $oldPlanNo) {
             $record->update($data);
+            // The applicant is the file's title: a renamed file is renamed on its other records too (2026-11-19).
+            $newApplicant = trim((string) ($data['applicant_name'] ?? ''));
+            if ($newApplicant !== '' && $newApplicant !== $oldApplicant) {
+                app(\App\Services\FileTitleSync::class)->apply([(string) ($record->file_no ?? '')], $newApplicant);
+            }
+            // Plan No. is the file's TP No.: a corrected one reaches its other records too (2026-11-19).
+            $newPlanNo = trim((string) ($data['plan_no'] ?? ''));
+            if ($newPlanNo !== '' && $newPlanNo !== $oldPlanNo) {
+                app(\App\Services\FileTpSync::class)->apply([(string) ($record->file_no ?? '')], $newPlanNo);
+            }
             $this->syncOccupancyPermitToPra($request, (string) ($record->file_no ?? ''));
             $this->syncApplicationOpSerial($record, $request, true);
+            // The file's cadastral cases keep their own copy of title / plot / district / LGA (2026-11-19).
+            app(\App\Services\CadastralDept\CadastralCaseSync::class)->sync((string) ($record->file_no ?? ''), [
+                'file_title' => $data['applicant_name'] ?? null,
+                'plot_no' => $data['plot_no'] ?? null,
+                'district' => $data['district'] ?? null,
+                'lga' => $data['lga'] ?? null,
+            ]);
         });
 
         return response()->json([

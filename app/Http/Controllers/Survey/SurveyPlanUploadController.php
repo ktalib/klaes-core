@@ -254,9 +254,13 @@ class SurveyPlanUploadController extends Controller
         }
 
         $ap = \App\Models\Survey\SurveyApplicationPlan::entriesFor($plan);
-        // The QR at the top right (user, 2026-11-17): readable text plus the plan's page in KLAES.
+        // The QR at the top right (user, 2026-11-17): readable text plus the plan's page in KLAES; with the land file's
+        // tracking ID when a file number is given (user, 2026-11-18).
+        $trackingId = $this->trackingIdFor($ap['file_number'] ?? '');
         $qrPayload = collect([
             'KLAES Application Plan',
+            $trackingId ? 'Tracking ID: ' . $trackingId : null,
+            ($ap['file_number'] ?? '') !== '' ? 'File No: ' . $ap['file_number'] : null,
             'Ref: ' . $plan->upload_ref,
             $ap['plan_no'] !== '' ? 'Plan No: ' . $ap['plan_no'] : null,
             $ap['plot_no'] !== '' ? 'Plot No: ' . $ap['plot_no'] : null,
@@ -273,6 +277,21 @@ class SurveyPlanUploadController extends Controller
             'coordSystem' => $plan->coord_system ?: '26332',
             'coordSystemLabel' => $plan->coord_system_label ?: Plan::COORD_SYSTEMS['26332'],
         ]);
+    }
+
+    /** The tracking ID of an indexed file, by its file number (or the temporary number of a (T) file); null if none. */
+    private function trackingIdFor(string $fileNo): ?string
+    {
+        $fileNo = trim($fileNo);
+        if ($fileNo === '') return null;
+
+        $id = \Illuminate\Support\Facades\DB::connection('sqlsrv')->table('file_indexings')
+            ->where(fn ($q) => $q->where('file_number', $fileNo)->orWhere('temp_file_no', $fileNo))
+            ->whereNotNull('tracking_id')->where('tracking_id', '<>', '')
+            ->when(\Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasColumn('file_indexings', 'deleted_at'), fn ($q) => $q->whereNull('deleted_at'))
+            ->orderByDesc('id')->value('tracking_id');
+
+        return $id !== null ? (string) $id : null;
     }
 
     /**

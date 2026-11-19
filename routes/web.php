@@ -1603,6 +1603,8 @@ Route::group(['middleware' => ['auth', 'XSS'], 'prefix' => 'secretariat-file-log
     Route::post('/delete-tracker', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'deleteTracker'])->name('delete-tracker');
     Route::post('/receive', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'receive'])->name('receive');
     Route::post('/forward', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'forward'])->name('forward');
+    // Related files that can go along with a send (user, 2026-11-19).
+    Route::get('/related', [App\Http\Controllers\FileTracking\SecretariatFileLogController::class, 'related'])->name('related');
 });
 
 // Create File Tracker Page Routes

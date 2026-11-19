@@ -183,7 +183,7 @@
                 {{-- ══════════════════════════════════════════════════════ --}}
                 @foreach($displayOpRows as $opRow)
                 @php $opIdx = $loop->index; @endphp
-                <div class="bg-white rounded-2xl border border-blue-200 shadow-sm mb-6" data-card-type="op">
+                <div class="bg-white rounded-2xl border border-blue-200 shadow-sm mb-6" data-card-type="op" data-purpose="{{ trim((string) ($opRow->purpose ?? '')) }}">
                     <div class="px-6 pt-5 pb-3 border-b border-blue-100 flex items-center gap-3">
                         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600 flex-shrink-0">
                             <i data-lucide="file-badge" class="h-4 w-4"></i>
@@ -260,7 +260,12 @@
                                                 elseif (str_contains($luName, 'MIXED'))        $luCode = 'MIX';
                                                 elseif (str_contains($luName, 'INSTITUTION'))  $luCode = 'INS';
                                                 else                                            $luCode = strtoupper(substr($luName, 0, 3));
-                                                $opLandUse = strtoupper($opRow->land_use ?? $record['land_use'] ?? '');
+                                                // The OP may hold the land use as a word ("RESIDENTIAL") and a blank one
+                                                // falls back to the file's; either way it is matched as its code (2026-11-19).
+                                                $opLandUse = strtoupper(trim((string) (($opRow->land_use ?? '') ?: ($record['land_use'] ?? ''))));
+                                                foreach (['RESIDENTIAL' => 'RES', 'COMMERCIAL' => 'COM', 'INDUSTRIAL' => 'IND', 'AGRICULT' => 'AGR', 'MIXED' => 'MIX', 'INSTITUTION' => 'INS'] as $luWord => $luWordCode) {
+                                                    if (str_contains($opLandUse, $luWord)) { $opLandUse = $luWordCode; break; }
+                                                }
                                             @endphp
                                             <option value="{{ $luCode }}" data-id="{{ $lu->id }}"
                                                 {{ $opLandUse === $luCode ? 'selected' : '' }}>{{ $luName }}</option>
@@ -278,7 +283,7 @@
                                     @php
                                         // A saved TP that is not on the list (or differs only in case/spacing)
                                         // opens as "Other" with the value already in the specify box.
-                                        $opTpValue = trim((string) ($opRow->tp_no ?? $record['tp_number'] ?? ''));
+                                        $opTpValue = trim((string) (($opRow->tp_no ?? '') ?: ($record['tp_number'] ?? '')));
                                         $opTpKey = strtoupper(preg_replace('/\s+/', '', $opTpValue));
                                         $opTpListed = $opTpValue === '' ? null : collect($tpNumbers ?? [])->first(
                                             fn ($tp) => strtoupper(preg_replace('/\s+/', '', (string) $tp)) === $opTpKey
@@ -717,7 +722,8 @@
                     .catch(function() {});
             }
             if (landUseEl) {
-                var savedPurpose = @json($record['purpose'] ?? '');
+                // This OP's own purpose first, else the file's (2026-11-19).
+                var savedPurpose = card.getAttribute('data-purpose') || @json($record['purpose'] ?? '');
                 landUseEl.addEventListener('change', function() { loadPurposes(''); });
                 if (landUseEl.value) loadPurposes(savedPurpose);
             }

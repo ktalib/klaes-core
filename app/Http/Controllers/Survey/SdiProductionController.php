@@ -23,6 +23,8 @@ class SdiProductionController extends Controller
         'queue'    => 'Queue',
         'produced' => 'Produced',
         'rejected' => 'Rejected',
+        // Our map interface, as a tab here (user, 2026-11-18): it replaces Geo-informatics > Tools on the sidebar.
+        'map'      => 'Map Tools',
     ];
 
     public function index(Request $r)

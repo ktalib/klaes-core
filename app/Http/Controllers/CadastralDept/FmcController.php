@@ -96,7 +96,9 @@ class FmcController extends Controller
         abort_unless($fmc, 404);
 
         // The edit modal fills a blank card field from the file's records (development standard 5).
-        return view('cadastral_dept.fmc.show', $this->cardData($fmc, $def, $qr) + ['case' => $case, 'recordValues' => $this->cards->backfill($case)]);
+        return view('cadastral_dept.fmc.show', $this->cardData($fmc, $def, $qr) + ['case' => $case, 'recordValues' => $this->cards->backfill($case),
+            // The OP details card beside the FMC: every OP filed under the file, any file type (2026-11-19).
+            'opDetails' => $this->cards->opDetails((string) $fmc->file_number, $fmc->district)]);
     }
 
     public function print(int $case, WorkflowDefinition $def, QrRenderer $qr)

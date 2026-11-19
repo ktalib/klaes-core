@@ -32,10 +32,17 @@
 
 <div class="sdi-nav" style="margin-top:6px;">
     @foreach (SdiProductionController::TABS as $k => $label)
-        <a href="{{ route('survey-module.sdi.production', ['tab' => $k]) }}" class="{{ $tab === $k ? 'on' : '' }}">{{ $label }} <span class="n">{{ number_format($tabCount[$k]) }}</span></a>
+        <a href="{{ route('survey-module.sdi.production', ['tab' => $k]) }}" class="{{ $tab === $k ? 'on' : '' }}">@if ($k === 'map')<i class="fas fa-map-location-dot"></i> @endif{{ $label }}@isset($tabCount[$k]) <span class="n">{{ number_format($tabCount[$k]) }}</span>@endisset</a>
     @endforeach
 </div>
 
+@if ($tab === 'map')
+{{-- Map Tools (user, 2026-11-18): the Survey Plan Check map card, blank, as on Check Survey Plan. Nothing here is saved. --}}
+<div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:20px 22px;display:grid;gap:18px;margin-top:10px;">
+  @include('survey_module.survey_plans._plan_check', ['spcMode' => 'check', 'spcSearchUrl' => route('survey-module.survey-plans.beacons'), 'spcPrefill' => null])
+  @include('survey_module.survey_plans._plan_check_export', ['spcExportNo' => 5])
+</div>
+@else
 <div class="page-header"><div></div>@include('survey_module.partials._records_export', ['endpoint' => route('survey-module.sdi.production.export'), 'title' => 'Production Unit'])</div>
 
 <form method="GET" class="table-toolbar">
@@ -173,4 +180,5 @@
         </form>
     </div>
 </div>
+@endif
 @endsection

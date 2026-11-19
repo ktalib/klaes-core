@@ -8,6 +8,11 @@
     // Surveyed by / Checked by / Passed by: the Survey staff list, or Other (user, 2026-11-18).
     $apPeople = AP::peopleChoices();
 @endphp
+{{-- The file number takes two of the three columns here, not the whole row (user, 2026-11-19). --}}
+<style>
+    #apPicker { grid-column: span 2 !important; }
+    @media (max-width: 640px) { #apPicker { grid-column: 1 / -1 !important; } }
+</style>
 <form method="POST" id="apForm" action="" target="_blank" class="farmer-entry-form"
       data-sv-modal="Application Plan" data-sv-modal-size="lg" data-sv-modal-static>
     @csrf
@@ -17,6 +22,9 @@
     </p>
     <div class="form-grid cols-3">
         <div class="sv-group"><i class="fas fa-user"></i><span>Application</span></div>
+        {{-- The land file, from the file number selector (never typed); the QR carries its tracking ID (user, 2026-11-18). --}}
+        {{-- Name of Applicant comes from the picked file's title (user, 2026-11-19). --}}
+        @include('survey_module.partials._file_picker', ['id' => 'ap', 'name' => 'file_number', 'value' => null, 'label' => 'File Number', 'fill' => ['title' => 'apApplicant']])
         <div class="form-group"><label>Serial No. (Code sur C of B)</label><input type="text" name="serial_no" maxlength="120"></div>
         {{-- Purpose: the four land uses, or Other with the purpose typed (user, 2026-11-17). --}}
         <div class="form-group">
@@ -28,7 +36,14 @@
             </select>
         </div>
         <div class="form-group" id="apPurposeOther"><label>Specify purpose <span class="text-red-500">*</span></label><input type="text" name="purpose_other" maxlength="300"></div>
-        <div class="form-group"><label>Name of Applicant</label><input type="text" name="applicant" maxlength="120"></div>
+        {{-- Filled from the file and locked; the pen opens it for a correction kept on this plan only. Indexing and the
+             other records are not changed from here (user, 2026-11-19). --}}
+        <div class="form-group"><label>Name of Applicant</label>
+            <div style="display:flex;gap:6px;align-items:stretch;">
+                <input type="text" name="applicant" id="apApplicant" maxlength="120" style="flex:1;min-width:0;">
+                <button type="button" id="apApplicantEdit" class="btn btn-outline btn-sm" title="Edit the name on this plan" aria-label="Edit the name on this plan"><i class="fas fa-pen"></i></button>
+            </div>
+        </div>
         <div class="form-group" style="grid-column: span 2;"><label>Address</label><input type="text" name="address" maxlength="300"></div>
 
         <div class="sv-group"><i class="fas fa-map-marker-alt"></i><span>Plot and plan</span></div>
@@ -77,7 +92,10 @@
                 <option value="{{ AP::OTHER }}">Other</option>
             </select></div>
         <div class="form-group" id="apSurveyedByOther"><label>Specify Surveyed by <span class="text-red-500">*</span></label><input type="text" name="surveyed_by_other" maxlength="120"></div>
-        <div class="form-group"><label>Drawn by</label><input type="text" name="drawn_by" maxlength="120"></div>
+        {{-- Drawn by is the surveyor too, as a rule (user, 2026-11-18): filled from Surveyed by and locked while
+             "Same as Surveyed by" is ticked; untick it when someone else drew the plan. --}}
+        <div class="form-group"><label>Drawn by</label><input type="text" name="drawn_by" maxlength="120">
+            <label style="display:flex;gap:6px;align-items:center;font-size:12.5px;font-weight:500;margin-top:4px;"><input type="checkbox" id="apDrawnSame" checked> Same as Surveyed by</label></div>
         <div class="form-group"><label>Checked by</label>
             <select name="checked_by" data-ap-other="apCheckedByOther" data-placeholder="Search name…">
                 <option value="">— Select —</option>
@@ -128,6 +146,32 @@
     form.querySelectorAll('[data-ap-other]').forEach(function (sel) { sel.addEventListener('change', others); });
     if (window.jQuery) jQuery(form).on('change', '[data-ap-other]', others);
     others();
+    // Drawn by follows Surveyed by while "Same as Surveyed by" is ticked (user, 2026-11-18).
+    var surveyedName = function () {
+        var sel = form.querySelector('[name="surveyed_by"]');
+        return sel.value === OTHER ? form.querySelector('[name="surveyed_by_other"]').value.trim() : sel.value;
+    };
+    var drawnSync = function () {
+        var same = document.getElementById('apDrawnSame').checked, drawn = form.querySelector('[name="drawn_by"]');
+        drawn.readOnly = same;
+        drawn.style.background = same ? '#f8fafc' : '';
+        if (same && surveyedName() !== '') drawn.value = surveyedName();
+    };
+    document.getElementById('apDrawnSame').addEventListener('change', drawnSync);
+    form.querySelector('[name="surveyed_by"]').addEventListener('change', drawnSync);
+    form.querySelector('[name="surveyed_by_other"]').addEventListener('input', drawnSync);
+    if (window.jQuery) jQuery(form).on('change', '[name="surveyed_by"]', drawnSync);
+    // The pen: unlock Name of Applicant to correct it. The change is saved on this plan only.
+    var apApplicant = document.getElementById('apApplicant');
+    var apLockApplicant = function (locked) {
+        apApplicant.readOnly = locked;
+        apApplicant.style.background = locked ? 'var(--gray-100)' : '';
+    };
+    document.getElementById('apApplicantEdit').addEventListener('click', function () {
+        apLockApplicant(false);
+        apApplicant.focus();
+        apApplicant.select();
+    });
     // Fill the form from a row: its saved entries, or what the upload already holds. Clears the last row's values.
     window.spOpenApplicationPlan = function (btn) {
         current = btn;
@@ -151,6 +195,18 @@
         });
         lies();
         others();
+        // The applicant follows the plan's file number: its title from the records, locked (user, 2026-11-19).
+        // A name already saved on the plan (perhaps corrected with the pen) is kept, locked; a blank one is looked up.
+        if (window.svFilePicker) {
+            window.svFilePicker.reset('ap');
+            var apNo = (d.file_number || '').trim();
+            if (apNo !== '' && (d.applicant || '').trim() === '') window.svFilePicker.apply('ap', apNo);
+            else apLockApplicant(apNo !== '');
+        }
+        // Same as Surveyed by: ticked unless a different name is already saved.
+        var dv = form.querySelector('[name="drawn_by"]').value.trim().toLowerCase(), sv = surveyedName().toLowerCase();
+        document.getElementById('apDrawnSame').checked = dv === '' || sv === '' || dv === sv;
+        drawnSync();
         window.svModal ? window.svModal.open('apForm') : form.classList.add('open');
     };
     // The printout opens in a new tab; keep what was typed on the row, so reopening shows it, and close the pop-up.

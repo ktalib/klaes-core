@@ -697,17 +697,23 @@
             balance: @json($finalBills)
         };
 
-        let conversionFileMetrics = @json(
-            collect($allFiles ?? [])->mapWithKeys(function ($file) {
+        @php
+            $conversionFileMetrics = collect($allFiles ?? [])->mapWithKeys(function ($file) {
                 $id = (string) ($file['id'] ?? '');
                 return [
                     $id => [
                         'existing_site_area' => $file['existing_site_area'] ?? null,
                         'existing_structure_total' => $file['existing_structure_total'] ?? 0,
+                        'bill_area' => $file['bill_area'] ?? null,
+                        'bill_area_basis' => $file['bill_area_basis'] ?? null,
+                        'applied_land_use' => $file['applied_land_use'] ?? null,
+                        'has_extension' => $file['has_extension'] ?? null,
+                        'extension_site_area' => $file['extension_site_area'] ?? null,
                     ]
                 ];
-            })
-        );
+            });
+        @endphp
+        let conversionFileMetrics = @json($conversionFileMetrics);
 
         // Store current application data for export
         let currentApplication = {
@@ -1168,6 +1174,9 @@
                 } else {
                     // No bill yet — show conversion generation form
                     container.html(getConversionBettermentBillForm());
+                    if ($('#conv-category').val()) {
+                        $('#conv-category').trigger('change');
+                    }
                 }
 
                 // Reinitialize icons
@@ -1552,10 +1561,17 @@
             var optionArea = selectedOption.attr('data-existing-site-area') || selectedOption.data('existingSiteArea');
             var optionStructure = selectedOption.attr('data-existing-structure-total') || selectedOption.data('existingStructureTotal');
 
+            // The area the bill is charged on: the JSI's Recommended area for SLTR / Conversion
+            // (PP, 2026-11-19), the Existing area for Master JSI.
+            var billAreaBasis = (metrics && metrics.bill_area_basis) || 'existing';
+            var billAreaLabel = billAreaBasis === 'recommended'
+                ? 'Recommended Site Measurement Area Covered (m²)'
+                : 'Existing Site Measurement Area Covered (m²)';
+            currentApplication.billAreaLabel = billAreaLabel;
             var resolvedExistingSiteArea = parseFloat(String(
-                (metrics && metrics.existing_site_area !== undefined && metrics.existing_site_area !== null && metrics.existing_site_area !== ''
-                    ? metrics.existing_site_area
-                    : (currentApplication.existingSiteArea ?? optionArea ?? ''))
+                (metrics && metrics.bill_area !== undefined && metrics.bill_area !== null && metrics.bill_area !== ''
+                    ? metrics.bill_area
+                    : (billAreaBasis === 'recommended' ? '' : (currentApplication.existingSiteArea ?? optionArea ?? '')))
             ).replace(/,/g, ''));
             resolvedExistingSiteArea = Number.isFinite(resolvedExistingSiteArea) && resolvedExistingSiteArea > 0
                 ? resolvedExistingSiteArea
@@ -1572,6 +1588,54 @@
 
             currentApplication.existingSiteArea = resolvedExistingSiteArea;
             currentApplication.existingStructureTotal = resolvedExistingStructureTotal;
+            var billAreaMissing = billAreaBasis === 'recommended' && !resolvedExistingSiteArea;
+
+            // Land-use category from the JSI's applied land use (user, 2026-11-19): preselected
+            // only when exactly one category matches; the officer can still change it.
+            var normaliseLandUse = function (value) {
+                return String(value || '').toUpperCase().replace(/[^A-Z]+/g, ' ').trim();
+            };
+            var jsiLandUse = normaliseLandUse(metrics && metrics.applied_land_use);
+            // Coded land uses (COM-Warehouse, AG-Mix farming, RES-Estate, COM-PFS) name the category by prefix.
+            var landUseCodes = { COM: 'COMMERCIAL', RES: 'RESIDENTIAL', AG: 'AGRICULTURAL', AGR: 'AGRICULTURAL', IND: 'INDUSTRIAL' };
+            var codeMatch = String((metrics && metrics.applied_land_use) || '').toUpperCase().match(/^\s*([A-Z]+)\s*-/);
+            var targetCategory = /\bPFS\b|PETROL/.test(jsiLandUse)
+                ? 'PETROL FILLING STATION'
+                : (codeMatch && landUseCodes[codeMatch[1]] ? landUseCodes[codeMatch[1]] : null);
+            var categoryMatches = jsiLandUse === '' ? [] : ($('<select>' + categoryOptions + '</select>').find('option').map(function () {
+                var name = normaliseLandUse($(this).val());
+                if (name === '') {
+                    return null;
+                }
+                if (targetCategory !== null) {
+                    return name === targetCategory ? $(this).val() : null;
+                }
+                // Otherwise the category named as a word ("Commercial", "Residential"); two named = none.
+                return (' ' + jsiLandUse + ' ').indexOf(' ' + name + ' ') !== -1 ? $(this).val() : null;
+            }).get());
+            if (categoryMatches.length === 1) {
+                var matchedValue = categoryMatches[0];
+                categoryOptions = $('<select>' + categoryOptions + '</select>').find('option').each(function () {
+                    if ($(this).val() === matchedValue) {
+                        $(this).attr('selected', 'selected');
+                    }
+                }).end().html();
+            }
+
+            // Extension (user, 2026-11-19): shown for reference; the bill stays on the existing area.
+            var extensionAreaValue = metrics ? parseFloat(metrics.extension_site_area) : NaN;
+            var extensionField = '';
+            if (metrics && metrics.has_extension === true) {
+                extensionField = `
+                                        <div class="space-y-2">
+                                            <label for="conv-extension-area" class="text-xs font-medium block">
+                                                Extension Area Covered (m²) <span class="text-gray-400 font-normal">(not charged)</span>
+                                            </label>
+                                            <input id="conv-extension-area" type="text"
+                                                value="${Number.isFinite(extensionAreaValue) ? extensionAreaValue.toLocaleString('en-US', { maximumFractionDigits: 2 }) : 'Yes'}"
+                                                class="w-full p-2 border border-gray-300 rounded-md text-sm bg-gray-50" readonly>
+                                        </div>`;
+            }
 
             return `
                 <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
@@ -1634,13 +1698,15 @@
                                     <div class="grid grid-cols-1 gap-4">
                                         <div class="space-y-2">
                                             <label for="conv-area" class="text-xs font-medium block">
-                                                Existing Site Measurement Area Covered (m²) <span class="text-red-500">*</span>
+                                                ${billAreaLabel} <span class="text-red-500">*</span>
                                             </label>
                                             <input id="conv-area" name="area" type="number" min="0" step="0.01"
                                                 value="${resolvedExistingSiteArea || ''}"
                                                 placeholder="Area is auto-filled from JSI"
                                                 class="w-full p-2 border border-gray-300 rounded-md text-sm bg-gray-50" readonly required>
+                                            ${billAreaMissing ? '<p class="text-xs text-red-600">The Recommended Site Measurement area is missing on this JSI. Complete the JSI before raising the betterment bill.</p>' : ''}
                                         </div>
+                                        ${extensionField}
                                     </div>
 
                                     <!-- Rate info panel -->
@@ -1650,7 +1716,7 @@
                                         <p class="text-xs text-gray-600">Base Fee: <strong id="conv-info-base-fee">—</strong></p>
                                         <p class="text-xs text-gray-600">Base Area: <strong id="conv-info-base-area">—</strong></p>
                                         <p class="text-xs text-gray-600">Rate per extra m²: <strong id="conv-info-rate">₦5.00</strong></p>
-                                        <p class="text-xs text-gray-400 mt-1">Formula: Total Fee = Base Fee + max(0, (Total Area − Base Area) × Rate)</p>
+                                        <p class="text-xs text-gray-400 mt-1">Formula: Total Fee = Base Fee + max(0, (Total Area − Base Area) × Rate) + Existing Structure Total</p>
                                     </div>
 
                                     <!-- Calculation result & action buttons -->
@@ -1660,7 +1726,7 @@
                                             <p class="text-lg font-bold" id="conv-betterment-amount">₦0.00</p>
                                         </div>
                                         <div class="flex gap-2">
-                                            <button type="button" id="calculate-conv-btn" class="px-3 py-1 text-xs bg-gray-600 text-white rounded-md hover:bg-gray-700">
+                                            <button type="button" id="calculate-conv-btn" class="px-3 py-1 text-xs bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" ${billAreaMissing ? 'disabled' : ''}>
                                                 <i data-lucide="calculator" class="w-3.5 h-3.5 mr-1.5 inline-block"></i>
                                                 Calculate
                                             </button>
@@ -2668,7 +2734,7 @@
                 var area = parseFloat($('#conv-area').val());
 
                 if (!category || !area || area <= 0) {
-                    Swal.fire({ icon: 'warning', title: 'Missing Input', text: 'Please select a category. Area is taken from Existing Site Measurement Area Covered in JSI and must be greater than 0.', confirmButtonColor: '#3b82f6' });
+                    Swal.fire({ icon: 'warning', title: 'Missing Input', text: 'Please select a category. The area is taken from the JSI (' + (currentApplication.billAreaLabel || 'Existing Site Measurement Area Covered (m²)') + ') and must be greater than 0.', confirmButtonColor: '#3b82f6' });
                     return;
                 }
 
@@ -2677,7 +2743,13 @@
                 $.ajax({
                     url: '{{ route("physical-planning.conversion.bills.calculate") }}',
                     method: 'POST',
-                    data: { category: category, area: area, _token: $('meta[name="csrf-token"]').attr('content') },
+                    data: {
+                        category: category,
+                        area: area,
+                        source: window.ppBillSource,
+                        jsi_report_id: currentApplication.fileId,
+                        _token: $('meta[name="csrf-token"]').attr('content')
+                    },
                     dataType: 'json',
                     success: function (resp) {
                         if (resp.success) {
@@ -2697,6 +2769,9 @@
                                     '<p><strong>Base Area:</strong> ' + fmt(d.base_area) + ' m²</p>' +
                                     '<p><strong>Excess Area:</strong> ' + fmt(d.excess_area) + ' m²</p>' +
                                     '<p><strong>Excess Charge:</strong> ₦' + fmt(d.excess_charge) + '</p>' +
+                                    (d.has_existing_structure
+                                        ? '<p><strong>Existing Structure:</strong> ' + d.existing_structure_dimensions + ' × ₦' + fmt(d.existing_structure_rate) + ' = ₦' + fmt(d.existing_structure_charge) + '</p>'
+                                        : '') +
                                     '<hr class="my-2"><p><strong>Total Betterment Charges:</strong> ₦' + fmt(d.total_fee) + '</p>' +
                                     '</div>',
                                 confirmButtonColor: '#10b981'

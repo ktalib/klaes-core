@@ -14,6 +14,8 @@ class SurveyApplicationPlan extends SurveyModel
 
     /** Form entry => label, in the order they appear on the printed form. */
     public const FIELDS = [
+        // The plan's land file (user, 2026-11-18), from the file number selector: its tracking ID goes in the QR.
+        'file_number'         => 'File Number',
         'serial_no'           => 'Serial No.',
         'purpose'             => 'Purpose (For ...)',
         'applicant'           => 'Name of Applicant',
@@ -97,6 +99,10 @@ class SurveyApplicationPlan extends SurveyModel
             'location'  => (string) ($plan->location ?: collect([$plan->district, $plan->lga])->filter()->implode(', ')),
             'map_sheet' => collect([$plan->map_sheet_metric, $plan->map_sheet_imperial])->filter()->implode(' / '),
             'drawn_by'  => (string) $plan->drawn_by,
+            // Plan No. is the TP No. (user, 2026-11-17), now given on the upload (2026-11-18).
+            'plan_no'   => (string) $plan->tp_no,
+            // Surveyed by is the same person as Drawn by, as a rule (user, 2026-11-18); both stay editable.
+            'surveyed_by' => (string) $plan->drawn_by,
         ];
     }
 

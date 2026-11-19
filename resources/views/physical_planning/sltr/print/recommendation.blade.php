@@ -315,6 +315,12 @@
                 <td class="label-col">SITE MEASUREMENTS</td>
                 <td class="data-col large-cell">{{ strtoupper($siteMeasurements ?: 'N/A') }}</td>
             </tr>
+            @if(!empty($extensionSiteMeasurements))
+            <tr>
+                <td class="label-col">EXTENSION SITE MEASUREMENTS</td>
+                <td class="data-col large-cell">{{ strtoupper($extensionSiteMeasurements) }}</td>
+            </tr>
+            @endif
             <tr>
                 <td class="label-col">RECOMMENDED SITE MEASUREMENTS</td>
                 <td class="data-col large-cell">{{ strtoupper($recommendedSiteMeasurements ?: 'N/A') }}</td>

@@ -26,8 +26,14 @@
 
     <div class="grid gap-6 lg:grid-cols-3">
       <div class="lg:col-span-2 space-y-6">
-        <div class="rounded-xl border border-gray-200 bg-white p-5">
-          @include('cadastral_dept.fmc._header')
+        {{-- The OP details card sits beside the FMC when the file has an OP (2026-11-19). --}}
+        <div class="grid gap-6 items-start {{ !empty($opDetails) ? 'xl:grid-cols-2' : '' }}">
+          <div class="rounded-xl border border-gray-200 bg-white p-5">
+            @include('cadastral_dept.fmc._header')
+          </div>
+          @if (!empty($opDetails))
+            @include('cadastral_dept.fmc._op_details')
+          @endif
         </div>
         <div>
           <h3 class="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">Movement log</h3>

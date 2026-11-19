@@ -797,6 +797,7 @@ class JointSiteInspectionEditController extends Controller
             ->table('jsi_lut_reservations')
             ->select('id', 'name')
             ->where('is_active', 1)
+            ->orderByRaw("CASE WHEN UPPER(LTRIM(RTRIM(name))) IN ('OTHER', 'OTHERS') THEN 1 ELSE 0 END") // OTHER last
             ->orderBy('name')
             ->get();
 

@@ -1,0 +1,42 @@
+[
+    {
+        "id": "30",
+        "cadastral_case_id": "40242",
+        "fmc_no": "FMC-2026-00009",
+        "qr_token": "2933b242a013440a55ba75259a72c4fe98bc2af3",
+        "file_number": "RES-2026-1607",
+        "file_title": "EMMANUEL  OZOADINE",
+        "allottee_name": "EMMANUEL  OZOADINE",
+        "plot_no": "1157",
+        "district": "FANISAU",
+        "lga": "Ungogo",
+        "location": "KANO",
+        "block_no": null,
+        "layout_no": "TP\/K\/277B",
+        "commissioned_at": "2026-11-18 11:19:11.230",
+        "commissioned_by": "101718",
+        "print_count": "1",
+        "created_at": "2026-11-18 11:19:11.233",
+        "updated_at": "2026-11-19 15:45:24.493"
+    },
+    {
+        "id": "41",
+        "cadastral_case_id": "40243",
+        "fmc_no": "FMC-2026-00020",
+        "qr_token": "0f9bf554083c60dd1e6be861f4e14fce8105fc34",
+        "file_number": "RES-2026-1601",
+        "file_title": "EMMANUEL  OZOADINE",
+        "allottee_name": "EMMANUEL  OZOADINE",
+        "plot_no": "2179",
+        "district": "BEHINDE AIRPORT",
+        "lga": "Ungogo",
+        "location": "BEHINDE AIRPORT, UNGOGO, KANO",
+        "block_no": null,
+        "layout_no": "TP\/KNUPDA\/358E",
+        "commissioned_at": "2026-11-19 14:16:04.637",
+        "commissioned_by": "101718",
+        "print_count": "0",
+        "created_at": "2026-11-19 14:16:04.640",
+        "updated_at": "2026-11-19 14:16:04.640"
+    }
+]

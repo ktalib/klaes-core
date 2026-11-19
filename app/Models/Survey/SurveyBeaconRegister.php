@@ -29,6 +29,12 @@ class SurveyBeaconRegister extends SurveyModel
     /** Stored value => label. The first choice on the form. Government shows as Public (CR 03112026 item 13); stored values stay. */
     public const LAYOUT_TYPES = ['Government' => 'Public', 'Private' => 'Private'];
 
+    /** CON-RES files are Private layouts, never Public (user, 2026-11-19); the DB check ck_sbr_conres_private holds it too. */
+    public static function mustBePrivate(?string $fileNumber): bool
+    {
+        return (bool) preg_match('/^\s*CON-RES\b/i', (string) $fileNumber);
+    }
+
     public function getLayoutTypeLabelAttribute(): ?string
     {
         return self::LAYOUT_TYPES[$this->layout_type] ?? null;

@@ -423,12 +423,7 @@
                 <div id="reservationDetailsWrapper" class="hidden grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">Existing Reservation <span class="text-red-500">*</span></label>
-                        <select id="conversionRightOfWay" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" data-jsi-validate>
-                            <option value="">Select existing reservation</option>
-                            @foreach($jsiReservations as $reservation)
-                                <option value="{{ $reservation->name }}">{{ $reservation->name }}</option>
-                            @endforeach
-                        </select>
+                        <input type="text" id="conversionRightOfWay" maxlength="1000" autocomplete="off" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" placeholder="Type the existing reservation on site" data-jsi-validate>
                     </div>
 
                     <div>
@@ -439,6 +434,10 @@
                                 <option value="{{ $reservation->name }}">{{ $reservation->name }}</option>
                             @endforeach
                         </select>
+                        <div id="conversionRecommendedReservationOtherWrapper" class="hidden mt-2">
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Recommended Reservation (Specify) <span class="text-red-500">*</span></label>
+                            <input type="text" id="conversionRecommendedReservationOther" maxlength="1000" autocomplete="off" disabled class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" placeholder="Specify recommended reservation">
+                        </div>
                     </div>
 
                     <div>
@@ -512,6 +511,36 @@
                         <div>
                             <label class="block text-[11px] font-medium text-gray-700 mb-1">Total Area Covered (m²)</label>
                             <input type="number" name="recommended_site_area" id="recommendedSiteArea" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" step="0.01" min="0" placeholder="Enter total area">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Extension (copied from Conversion JSI, user 2026-11-19): Yes reveals the extension's own measurement and area. --}}
+            <div class="space-y-3 border border-purple-200 rounded-md p-3 bg-white">
+                <p class="block text-xs font-medium text-gray-700">Is there an extension? <span class="text-red-500">*</span></p>
+                <div class="flex items-center space-x-4" id="hasExtensionRadioGroup">
+                    <label class="inline-flex items-center text-sm text-gray-700">
+                        <input type="radio" name="has_extension" value="1" class="text-purple-600 focus:ring-purple-500">
+                        <span class="ml-2">Yes</span>
+                    </label>
+                    <label class="inline-flex items-center text-sm text-gray-700">
+                        <input type="radio" name="has_extension" value="0" class="text-purple-600 focus:ring-purple-500">
+                        <span class="ml-2">No</span>
+                    </label>
+                </div>
+                <div id="extensionMeasurementWrapper" class="hidden space-y-2">
+                    <p class="text-xs font-medium text-gray-700">Extension Site Measurement</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[11px] font-medium text-gray-700 mb-1">Dimensions (x-separated) <span class="text-red-500">*</span></label>
+                            <input type="text" id="extensionMeasurementInput" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" placeholder="e.g. 20x30" autocomplete="off" disabled>
+                            <input type="hidden" name="extension_site_length" id="extensionSiteLength" disabled>
+                            <input type="hidden" name="extension_site_width" id="extensionSiteWidth" disabled>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-medium text-gray-700 mb-1">Total Area Covered (m²) <span class="text-red-500">*</span></label>
+                            <input type="number" name="extension_site_area" id="extensionSiteArea" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" step="0.01" min="0" placeholder="Enter extension area" disabled>
                         </div>
                     </div>
                 </div>

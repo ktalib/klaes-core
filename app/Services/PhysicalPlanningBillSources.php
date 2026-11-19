@@ -23,18 +23,23 @@ class PhysicalPlanningBillSources
             'billing_source' => 'PP_SLTR_BETTERMENT_BILL',
             'report_table' => 'sltr_joint_site_inspection_reports',
             'has_measurement_entries' => true,
+            // Betterment is charged on the JSI's Recommended area (PP, 2026-11-19).
+            'bill_area' => 'recommended',
         ],
         'pp_conversion' => [
             'label' => 'Conversion',
             'billing_source' => 'PP_BETTERMENT_BILL',
             'report_table' => 'joint_site_inspection_reports',
             'has_measurement_entries' => true,
+            'bill_area' => 'recommended',
         ],
         'pp_master_jsi' => [
             'label' => 'Master JSI (Post CofO)',
             'billing_source' => 'PP_MASTER_JSI_BETTERMENT_BILL',
             'report_table' => 'master_jsi_reports',
             'has_measurement_entries' => false,
+            // Left on the existing area for now (user, 2026-11-19).
+            'bill_area' => 'existing',
         ],
     ];
 
@@ -129,6 +134,24 @@ class PhysicalPlanningBillSources
         return $query->select($this->reportColumns($key));
     }
 
+    /**
+     * The JSI's Recommended Total Area Covered (m²), or recommended length x width when only
+     * two dimensions were entered; null when the JSI has no recommended area.
+     */
+    public static function recommendedArea(object $report): ?float
+    {
+        if (is_numeric($report->recommended_site_area ?? null) && (float) $report->recommended_site_area > 0) {
+            return round((float) $report->recommended_site_area, 2);
+        }
+
+        if (is_numeric($report->recommended_site_length ?? null) && is_numeric($report->recommended_site_width ?? null)) {
+            $area = (float) $report->recommended_site_length * (float) $report->recommended_site_width;
+            return $area > 0 ? round($area, 2) : null;
+        }
+
+        return null;
+    }
+
     public function report(string $key, int $id): ?object
     {
         return $this->reports($key)->where('jsi.id', $id)->first();
@@ -148,6 +171,11 @@ class PhysicalPlanningBillSources
                 DB::raw('NULL as existing_site_length'),
                 DB::raw('NULL as existing_site_width'),
                 DB::raw('NULL as existing_site_measurement_entries'),
+                DB::raw('NULL as recommended_site_area'),
+                DB::raw('NULL as recommended_site_length'),
+                DB::raw('NULL as recommended_site_width'),
+                DB::raw('NULL as has_extension'),
+                DB::raw('NULL as extension_site_area'),
                 'jsi.plot_number',
                 'jsi.location',
             ];
@@ -163,6 +191,11 @@ class PhysicalPlanningBillSources
             'jsi.existing_site_length',
             'jsi.existing_site_width',
             'jsi.existing_site_measurement_entries',
+            'jsi.recommended_site_area',
+            'jsi.recommended_site_length',
+            'jsi.recommended_site_width',
+            'jsi.has_extension',
+            'jsi.extension_site_area',
             'jsi.plot_number',
             'jsi.location',
         ];

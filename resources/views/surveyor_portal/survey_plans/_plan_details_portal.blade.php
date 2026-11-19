@@ -43,6 +43,20 @@
                 <label class="ks-label" for="plot_no">Plot No.</label>
                 <input class="ks-input" id="plot_no" name="plot_no" value="{{ old('plot_no') }}" maxlength="100">
             </div>
+            {{-- TP No. (user, 2026-11-18): the TP list, or Other + specify. --}}
+            @php $spTpNos = \App\Models\Survey\SurveyApplicationPlan::planNoChoices(); $spTpOther = old('tp_no') === 'other'; @endphp
+            <div>
+                <label class="ks-label" for="spTpNo">TP No.</label>
+                <select class="ks-input" id="spTpNo" name="tp_no" onchange="var o = document.getElementById('spTpOther'), on = this.value === 'other'; o.style.display = on ? '' : 'none'; o.disabled = !on; o.required = on; if (on) o.focus();">
+                    <option value="">Select TP No.…</option>
+                    @foreach ($spTpNos as $tp)<option value="{{ $tp }}" @selected(old('tp_no') === $tp)>{{ $tp }}</option>@endforeach
+                    <option value="other" @selected($spTpOther)>Other (specify)</option>
+                </select>
+                <input class="ks-input" type="text" name="tp_no_other" id="spTpOther" maxlength="120" placeholder="Specify the TP No. *" value="{{ old('tp_no_other') }}"
+                       style="margin-top:6px;{{ $spTpOther ? '' : 'display:none;' }}" @disabled(! $spTpOther) @required($spTpOther)>
+                @error('tp_no')<p class="ks-error">{{ $message }}</p>@enderror
+                @error('tp_no_other')<p class="ks-error">{{ $message }}</p>@enderror
+            </div>
             <div>
                 <label class="ks-label" for="spDistrict">District <span class="ks-req">*</span></label>
                 <select class="ks-input ks-searchable" id="spDistrict" name="district" data-placeholder="Search district…" required>

@@ -134,8 +134,9 @@
                             <!-- Action Buttons -->
                         <div class="flex justify-between items-center mb-6">
                             <div class="flex space-x-4">
+                                {{-- Asks "Commission Land File" or "Commission OSS File" first (user, 2026-11-19). --}}
                                 <button 
-                                    onclick="openGeneratorModalMain()"
+                                    onclick="askCommissionKind()"
                                     class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
                                     <i data-lucide="plus" class="w-4 h-4"></i>
                                     <span>Generate New  File Number</span>
@@ -4017,6 +4018,7 @@
         {{-- Draft mode for the Commission New File Number card. This page only:
              mls_js is shared with the OSS commission modal, which has no drafts. --}}
         @include('generate_fileno.partials.commission_draft_js')
+        @include('components.commission-kind-choice', ['here' => 'land', 'openHere' => 'openGeneratorModalMain'])
         @include('generate_fileno.view_batches')
         {{--
             Shared-number check on the applicant phone field. Cache-busted by

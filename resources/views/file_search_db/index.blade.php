@@ -143,6 +143,7 @@
                                                 <th class="px-4 py-3 text-left">Location</th>
                                                 <th class="px-4 py-3 text-left">Comment</th>
                                                 <th class="px-4 py-3 text-left">Created</th>
+                                                <th class="px-4 py-3 text-left">Created By</th>
                                                 @unless($fsReadOnly)
                                                 <th class="px-4 py-3 text-center">Actions</th>
                                                 @endunless
@@ -150,7 +151,7 @@
                                         </thead>
                                         <tbody id="{{ $sectionId }}-tbody" class="divide-y divide-slate-100 text-slate-700">
                                             <tr>
-                                                <td colspan="9" class="px-4 py-10 text-center text-slate-500" id="{{ $sectionId }}-empty">
+                                                <td colspan="10" class="px-4 py-10 text-center text-slate-500" id="{{ $sectionId }}-empty">
                                                     <div class="inline-flex items-center gap-3 text-base">
                                                         <svg class="h-5 w-5 animate-spin text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
                                                         Loading {{ strtolower($typeLabel) }}...

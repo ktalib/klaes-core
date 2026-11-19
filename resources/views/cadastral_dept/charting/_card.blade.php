@@ -2,11 +2,11 @@
 @php $yesNo = fn ($v) => $v === null ? '—' : ($v ? 'Yes' : 'No'); @endphp
 <dl class="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
   <div><dt class="text-xs uppercase text-gray-500">File No.</dt><dd class="font-mono font-semibold">{{ $case->file_number }}</dd></div>
-  <div class="sm:col-span-3"><dt class="text-xs uppercase text-gray-500">File Title</dt><dd>{{ $case->file_title ?: '—' }}</dd></div>
-  <div><dt class="text-xs uppercase text-gray-500">Plot No.</dt><dd>{{ $case->plot_no ?: '—' }}</dd></div>
-  <div><dt class="text-xs uppercase text-gray-500">District</dt><dd>{{ $case->district ?: '—' }}</dd></div>
-  <div><dt class="text-xs uppercase text-gray-500">LGA</dt><dd>{{ $case->lga ?: '—' }}</dd></div>
-  <div><dt class="text-xs uppercase text-gray-500">Location</dt><dd>{{ $case->location ?: '—' }}</dd></div>
+  <div class="sm:col-span-3"><dt class="text-xs uppercase text-gray-500">File Title</dt><dd class="uppercase">{{ $case->file_title ?: '—' }}</dd></div>
+  <div><dt class="text-xs uppercase text-gray-500">Plot No.</dt><dd class="uppercase">{{ $case->plot_no ?: '—' }}</dd></div>
+  <div><dt class="text-xs uppercase text-gray-500">District</dt><dd class="uppercase">{{ $case->district ?: '—' }}</dd></div>
+  <div><dt class="text-xs uppercase text-gray-500">LGA</dt><dd class="uppercase">{{ $case->lga ?: '—' }}</dd></div>
+  <div><dt class="text-xs uppercase text-gray-500">Location</dt><dd class="uppercase">{{ $case->location ?: '—' }}</dd></div>
 
   @if ($card->stage === 'check')
     <div><dt class="text-xs uppercase text-gray-500">Matches the record</dt><dd class="font-semibold">{{ $yesNo($card->matches_record) }}</dd></div>
@@ -24,7 +24,7 @@
 
   <div class="sm:col-span-4"><dt class="text-xs uppercase text-gray-500">Description</dt><dd>{{ $card->description ?: '—' }}</dd></div>
   <div><dt class="text-xs uppercase text-gray-500">Sheet</dt><dd>{{ $card->sheet_type ? ucfirst($card->sheet_type) : '—' }} {{ $card->sheet_no }}</dd></div>
-  <div><dt class="text-xs uppercase text-gray-500">Layout</dt><dd>{{ $card->layout ?: '—' }}</dd></div>
+  <div><dt class="text-xs uppercase text-gray-500">Layout</dt><dd class="uppercase">{{ $card->layout ?: '—' }}</dd></div>
   <div><dt class="text-xs uppercase text-gray-500">Approved plan / TP</dt><dd>{{ $card->plan_no ?: '—' }}</dd></div>
   <div><dt class="text-xs uppercase text-gray-500">Area</dt><dd>{{ $card->area_sqm ? number_format($card->area_sqm, 1) . ' m²' : '—' }}</dd></div>
   <div class="sm:col-span-4"><dt class="text-xs uppercase text-gray-500">Remarks</dt><dd>{{ $card->remarks ?: '—' }}</dd></div>

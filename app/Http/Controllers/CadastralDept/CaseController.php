@@ -395,6 +395,8 @@ class CaseController extends Controller
             'pipeline' => $engine->stepBar($case->workflow, $case->sub_type, $case->movements,
                 $case->isOpen() ? $case->current_step : null, $case->isOpen() ? null : $case->status),
             'fmc' => $fmc,
+            // The file's OPs on the case page too, from registration on, not only once the FMC exists (user, 2026-11-19).
+            'opDetails' => $cards->opDetails((string) $case->file_number, $case->district),
             'fmcBackfill' => $fmcBackfill,
             'fmcFixed' => $fmcFixed,
             'custodyInstalled' => CorrespondenceCustody::installed(),

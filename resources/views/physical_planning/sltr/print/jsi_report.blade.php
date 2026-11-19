@@ -681,6 +681,26 @@
         $boundaryDescriptionDisplay = $boundaryDescriptionRaw !== '' ? $boundaryDescriptionRaw : $defaultBoundaryTemplate;
 
         $defaultMeasurementSummary = 'No recorded dimensions were submitted for this inspection.';
+
+        // Extension (user, 2026-11-19): Yes with its measurement, or No; nothing while unanswered.
+        $extensionSummaryText = null;
+        if (($report->has_extension ?? null) !== null) {
+            if ((bool) $report->has_extension) {
+                $extensionParts = array_filter([
+                    $report->extension_site_length ?? null,
+                    $report->extension_site_width ?? null,
+                ], fn ($value) => $value !== null && $value !== '');
+                $extensionSummaryText = 'Yes';
+                if (!empty($extensionParts)) {
+                    $extensionSummaryText .= ' - ' . implode(' x ', $extensionParts);
+                }
+                if (($report->extension_site_area ?? null) !== null && $report->extension_site_area !== '') {
+                    $extensionSummaryText .= ' | Area: ' . number_format((float) $report->extension_site_area, 2) . ' m²';
+                }
+            } else {
+                $extensionSummaryText = 'No';
+            }
+        }
         $measurementSummaryText = trim((string) ($report->existing_site_measurement_summary ?? ''));
         if ($measurementSummaryText === '') {
             $measurementSummaryText = $defaultMeasurementSummary;
@@ -878,6 +898,9 @@
 
                           <div class="mb-3 border border-gray-200 rounded p-2 bg-gray-50 text-xs space-y-2">
             <div class="flex"><span class="font-semibold mr-2">Existing Road reservation:</span> <span>{{ $report->road_reservation ?? 'Not specified' }}</span></div>
+            @if($isConversionReport && $extensionSummaryText !== null)
+                <div class="flex"><span class="font-semibold mr-2">Extension:</span> <span>{{ $extensionSummaryText }}</span></div>
+            @endif
             @if($isConversionReport && $needForEiaValue)
                 <div class="flex"><span class="font-semibold mr-2">Need for EIA Report:</span> <span class="{{ $needForEiaValue === 'Yes' ? 'text-red-600 font-bold' : '' }}">{{ $needForEiaValue }}</span></div>
             @endif

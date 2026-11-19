@@ -45,6 +45,13 @@ class SurveyPlanUploads
             'unit'           => ['required', Rule::in(array_keys(Plan::UNITS))],
             'plan_type'      => ['required', Rule::in(Plan::TYPES)],
             'plot_no'        => 'nullable|string|max:100',
+            // TP No. (user, 2026-11-18): the TP list (as the Application Plan's Plan No.), or Other + specify.
+            'tp_no'          => ['nullable', 'string', 'max:120', function ($attr, $v, $fail) {
+                if ($v !== self::OTHER && ! in_array(mb_strtoupper(trim((string) $v)), array_map('mb_strtoupper', \App\Models\Survey\SurveyApplicationPlan::planNoChoices()), true)) {
+                    $fail('Choose the TP No. from the list, or Other.');
+                }
+            }],
+            'tp_no_other'    => ['nullable', 'string', 'max:120', Rule::requiredIf(fn () => $r->input('tp_no') === self::OTHER)],
             'district'       => ['required', 'string', 'max:150', Rule::in(array_merge($districts, [self::OTHER]))],
             'district_other' => ['nullable', 'string', 'max:150', Rule::requiredIf(fn () => $r->input('district') === self::OTHER)],
             'lga'            => ['required', Rule::in(CompensationListReader::LGAS)],
@@ -77,6 +84,7 @@ class SurveyPlanUploads
             'district.required'       => 'Choose the district.',
             'district.in'             => 'Choose a district from the list, or Other.',
             'district_other.required' => 'Specify the district.',
+            'tp_no_other.required'    => 'Specify the TP No.',
             'lga.required'            => 'Choose the LGA.',
             'drawn_by.required'       => 'Say who drew the plan.',
             'drawn_by_other.required' => "Type the name of who drew the plan.",
@@ -99,6 +107,14 @@ class SurveyPlanUploads
             $district = $hit;
         }
 
+        // TP No.: a listed number keeps the list's spelling; one typed under Other that is on the list becomes it.
+        $tpNo = null;
+        if (! empty($d['tp_no'])) {
+            $AP = \App\Models\Survey\SurveyApplicationPlan::class;
+            $typed = $d['tp_no'] === self::OTHER ? (string) $one($d['tp_no_other'] ?? null) : (string) $d['tp_no'];
+            $tpNo = $typed === '' ? null : mb_substr($AP::matchChoice($typed, $AP::planNoChoices()), 0, 120);
+        }
+
         $surveyorId = null;
         $drawnBy = $one($d['drawn_by']);
         if ($staff) {
@@ -116,6 +132,7 @@ class SurveyPlanUploads
             'plan_type'         => $d['plan_type'],
             // An identifier: spacing tidied, case kept.
             'plot_no'           => $one($d['plot_no'] ?? null),
+            'tp_no'             => $tpNo,
             'district'          => $district,
             'lga'               => $d['lga'],
             'location'          => AddressBuilder::propertyLocation(['district' => $district, 'lga' => $d['lga'], 'state' => 'Kano']),
@@ -286,6 +303,21 @@ class SurveyPlanUploads
             }
         }
 
+        // Beacons typed on survey plans (not in either list) are offered too, with the X / Y the plan gave (user,
+        // 2026-11-18: "when they enter it like that, it has to be available"). The first plan to type a number wins.
+        if (count($out) < $limit && \Illuminate\Support\Facades\Schema::connection('sqlsrv')->hasTable('survey_plan_reference_beacons')) {
+            $typed = $db->table('survey_plan_reference_beacons')
+                ->whereRaw("REPLACE(UPPER(beacon_no), ' ', '') LIKE ?", [$like])
+                ->whereNotNull('coord_x')->whereNotNull('coord_y')
+                ->orderBy('beacon_no')->orderBy('id')->limit($limit * 3)->get(['beacon_no', 'coord_x', 'coord_y']);
+            foreach ($typed as $t) {
+                $k = strtoupper(str_replace(' ', '', (string) $t->beacon_no));
+                if ($k === '' || isset($out[$k])) continue;
+                $ok = SurveyCoordinates::isEasting((float) $t->coord_x) && SurveyCoordinates::isNorthing((float) $t->coord_y);
+                $out[$k] = ['beacon_no' => (string) $t->beacon_no, 'x' => $ok ? (string) $t->coord_x : null, 'y' => $ok ? (string) $t->coord_y : null, 'source' => 'plan'];
+            }
+        }
+
         $out = array_slice($out, 0, $limit, true);
 
         // X / Y from the Beacon Register (then the Control Point Register) where the beacon has a valid pair:
@@ -358,6 +390,8 @@ class SurveyPlanUploads
                 foreach (array_values($beacons) as $i => $b) {
                     \App\Models\Survey\SurveyPlanReferenceBeacon::create($b + ['survey_plan_upload_id' => $plan->id, 'sort' => $i + 1]);
                 }
+                // Typed beacons go into the Beacon Register (user, 2026-11-18).
+                app(PlanBeaconsToRegister::class)->record($plan, $beacons, $staff?->id);
                 // Digital Plotting: the plotting goes to the checker in the chosen format (2026-11-18). The traverse
                 // sheet is made from the saved plotting when it is opened; any other format is the card's file.
                 if ($checkFormat) {

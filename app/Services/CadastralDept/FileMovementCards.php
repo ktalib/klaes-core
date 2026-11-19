@@ -153,6 +153,79 @@ class FileMovementCards
     public const OP_FILE_TYPE = 'op';
 
     /**
+     * The OPs filed under this file number, for the OP details card beside the FMC (user,
+     * 2026-11-19). Shown whatever the case file type, one card per OP: a merger file carries two
+     * or more OPs and every one is listed. Read from the Deeds OPs (instrument_capture, then the
+     * older pra rows not already captured), so the same OP is not counted twice.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function opDetails(string $fileNumber, ?string $fileDistrict = null): array
+    {
+        try {
+            $ops = app(\App\Services\Survey\OpLookup::class)->forFileNumber($fileNumber, 20);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [];
+        }
+
+        // A blank land use is read from the file number's prefix (user, 2026-11-19: RES = Residential,
+        // IND = Industrial, AG, COM). Shown only, never written back to the OP.
+        return array_map(function (array $op) use ($fileNumber, $fileDistrict) {
+            $op['land_use_from_file'] = false;
+            if (trim((string) ($op['land_use'] ?? '')) === '') {
+                $code = \App\Support\FileNumberLandUse::codeFor($op['file_number'] ?: $fileNumber);
+                $label = \App\Support\FileNumberLandUse::LABELS[$code] ?? null;
+                if ($label !== null) {
+                    $op['land_use'] = strtoupper($label);
+                    $op['land_use_from_file'] = true;
+                }
+            }
+
+            // A blank district is read from the OP's own location ("FANISAU, UNGOGO, KANO STATE"),
+            // else the file's district (user, 2026-11-19). Shown only, never written back.
+            if (trim((string) ($op['district'] ?? '')) === '') {
+                $op['district'] = $this->districtFromLocation($op) ?? (trim((string) $fileDistrict) !== '' ? trim($fileDistrict) : null);
+            }
+
+            return $op;
+        }, $ops);
+    }
+
+    /**
+     * The district named in an OP location, or null. The plot no., the LGA and the state are
+     * dropped; a part on the districts list wins, otherwise the one part left over, if only one is.
+     */
+    private function districtFromLocation(array $op): ?string
+    {
+        $parts = array_values(array_filter(array_map('trim', explode(',', (string) ($op['location'] ?? ''))), 'strlen'));
+        if (!$parts) {
+            return null;
+        }
+        try {
+            $lgas = array_map('mb_strtoupper', LookupController::options('lgas'));
+            $districts = LookupController::options('districts');
+        } catch (\Throwable $e) {
+            report($e);
+            $lgas = $districts = [];
+        }
+        $drop = array_filter([mb_strtoupper(trim((string) ($op['plot_no'] ?? ''))), mb_strtoupper(trim((string) ($op['lga'] ?? ''))), 'KANO', 'KANO STATE']);
+        $left = array_values(array_filter($parts, function ($p) use ($drop, $lgas) {
+            $u = mb_strtoupper($p);
+            return !in_array($u, $drop, true) && !in_array($u, $lgas, true) && !preg_match('/^\d+[A-Z]?$/', $u);
+        }));
+        $byUpper = array_combine(array_map('mb_strtoupper', $districts), $districts) ?: [];
+        foreach ($left as $p) {
+            if (isset($byUpper[mb_strtoupper($p)])) {
+                return mb_strtoupper($byUpper[mb_strtoupper($p)]);
+            }
+        }
+
+        return count($left) === 1 ? mb_strtoupper($left[0]) : null;
+    }
+
+    /**
      * The card's fixed details (Survey Update call, 2026-11-10): OP No., File Type and File No.
      * are shown on the card and never edited from it, nor is the File Title (user, same day);
      * Plot No., District, LGA and Location are (EDIT_FIELDS). The OP No. is only for an OP

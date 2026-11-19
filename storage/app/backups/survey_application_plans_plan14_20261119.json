@@ -1,0 +1,12 @@
+[
+    {
+        "id": "9",
+        "survey_plan_upload_id": "14",
+        "fields": "{\"serial_no\":\"81\",\"purpose\":\"Residential\",\"applicant\":\"Olaniyan Olakunle\",\"address\":\"80 Chukwunwike Edozie Avenue\",\"plot_no\":\"\",\"location\":\"BEIRUTROAD, Fagge, Kano\",\"map_sheet\":\"A1 \\\/ 35SE\",\"scale\":\"1000\",\"plan_no\":\"PL\\\/K\\\/2021\\\/77\",\"ms_no\":\"\",\"reference\":\"\",\"ground_open\":\"Yes\",\"layout_plan_no\":\"\",\"government_item_no\":\"\",\"cofo_no\":\"\",\"application_plan_no\":\"\",\"surveyed_by\":\"\",\"drawn_by\":\"Abdullahi Kura Ahmad\",\"checked_by\":\"\",\"amount_paid\":\"\",\"receipt_no\":\"\",\"passed_by\":\"\",\"rank\":\"\",\"date\":\"\"}",
+        "created_by": "2",
+        "updated_by": "2",
+        "created_at": "2026-11-17 20:41:59.010",
+        "updated_at": "2026-11-17 20:41:59.010",
+        "deleted_at": null
+    }
+]

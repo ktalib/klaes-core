@@ -751,7 +751,7 @@
             </thead>
             <tbody id="brGroups" data-rows-url="{{ route('survey-module.workflow.beacon-register.group-rows', request()->only(['q', 'layout', 'year', 'quarter', 'month', 'status'])) }}" data-open-all="{{ request()->filled('q') ? '1' : '' }}">
                 @forelse ($letterGroups as $g)
-                    {{-- One row per letter group, its first entry in full; a click opens the rest under it, in place. --}}
+                    {{-- One summary row per letter group (letters and range only); a click opens every entry under it, in place. --}}
                     @include('survey_module.partials.sections._beacon_issue_rows', ['entries' => collect(), 'group' => $g, 'groupNo' => $loop->iteration])
                 @empty
                     <tr>

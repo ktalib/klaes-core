@@ -452,8 +452,13 @@ class ProgrammesController extends Controller
             return null;
         };
 
-        $allFiles = $jsiFiles->map(function ($item) use ($parseAreaFromText, $source) {
-            $existingStructureTotal = 0.0;
+        $betterment = app(\App\Services\ConversionBettermentService::class);
+
+        $allFiles = $jsiFiles->map(function ($item) use ($parseAreaFromText, $source, $betterment) {
+            // The same existing-structure charge the bill itself will add (L x B x H x 7.5).
+            $existingStructureTotal = $source['has_measurement_entries']
+                ? (float) $betterment->existingStructureFromEntries($item->existing_site_measurement_entries)['charge']
+                : 0.0;
             $resolvedExistingSiteArea = is_numeric($item->existing_site_area ?? null)
                 ? (float) $item->existing_site_area
                 : null;
@@ -494,35 +499,6 @@ class ProgrammesController extends Controller
                     }
                 }
 
-                $metaEntry = collect($entries)->first(function ($entry) {
-                    return is_array($entry)
-                        && strtolower(trim((string) ($entry['description'] ?? ''))) === '__existing_structure__';
-                });
-
-                if (is_array($metaEntry) && ((int) ($metaEntry['count'] ?? 0)) === 1) {
-                    $dimensions = trim((string) ($metaEntry['measurement_dimension'] ?? ''));
-                    if ($dimensions !== '') {
-                        $parts = collect(preg_split('/[xX×]/', $dimensions))
-                            ->map(function ($part) {
-                                $value = trim((string) $part);
-                                return is_numeric($value) ? (float) $value : null;
-                            })
-                            ->filter(function ($value) {
-                                return $value !== null && $value >= 0;
-                            })
-                            ->values();
-
-                        if ($parts->count() >= 3) {
-                            $volume = $parts->take(3)->reduce(function ($carry, $value) {
-                                return $carry * $value;
-                            }, 1.0);
-
-                            if (is_finite($volume) && $volume > 0) {
-                                $existingStructureTotal = $volume * 7.5;
-                            }
-                        }
-                    }
-                }
             }
 
             return [
@@ -534,6 +510,17 @@ class ProgrammesController extends Controller
                 'unit_type'  => null,
                 'existing_site_area' => ($resolvedExistingSiteArea && $resolvedExistingSiteArea > 0) ? round($resolvedExistingSiteArea, 2) : null,
                 'existing_structure_total' => $existingStructureTotal,
+                // The area the bill is charged on: Recommended for SLTR / Conversion (PP, 2026-11-19),
+                // Existing for Master JSI. Null blocks the bill until the JSI is completed.
+                'bill_area_basis' => $source['bill_area'],
+                'bill_area' => $source['bill_area'] === 'recommended'
+                    ? PhysicalPlanningBillSources::recommendedArea($item)
+                    : (($resolvedExistingSiteArea && $resolvedExistingSiteArea > 0) ? round($resolvedExistingSiteArea, 2) : null),
+                // Preselects the bill's land-use category; the officer can change it.
+                'applied_land_use' => $item->applied_land_use ?? null,
+                // Extension (user, 2026-11-19): shown on the bill screen, not charged.
+                'has_extension' => $item->has_extension === null ? null : (bool) $item->has_extension,
+                'extension_site_area' => is_numeric($item->extension_site_area ?? null) ? round((float) $item->extension_site_area, 2) : null,
             ];
         })->sortBy('fileno');
 
@@ -1758,6 +1745,7 @@ class ProgrammesController extends Controller
             ->table('jsi_lut_reservations')
             ->select('id', 'name')
             ->where('is_active', 1)
+            ->orderByRaw("CASE WHEN UPPER(LTRIM(RTRIM(name))) IN ('OTHER', 'OTHERS') THEN 1 ELSE 0 END") // OTHER last
             ->orderBy('name')
             ->get();
 

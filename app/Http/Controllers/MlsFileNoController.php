@@ -1184,6 +1184,17 @@ class MlsFileNoController extends Controller
             Log::warning('Failed to propagate file name change to file_indexings', ['error' => $e->getMessage()]);
         }
 
+        // The file's cadastral cases and OSS applications keep their own copy of the title (2026-11-19).
+        if ($nameChanged) {
+            app(\App\Services\CadastralDept\CadastralCaseSync::class)->sync($fileNoCandidates, ['file_title' => $newName]);
+            try {
+                $db->table('oss_applications')->whereIn('file_no', $fileNoCandidates)
+                    ->update(['applicant_name' => $newName, 'updated_at' => now()]);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to propagate file name change to oss_applications', ['error' => $e->getMessage()]);
+            }
+        }
+
         try {
             $db->table('customers_staging')
                 ->whereIn('file_number', $fileNoCandidates)
@@ -3334,8 +3345,7 @@ class MlsFileNoController extends Controller
                     $lookupFileNumber = $fullFileNumber;
                 }
 
-                // Try to fetch tracking ID from grouping table if not provided
-                $trackingId = $validated['tracking_id'] ?? null;
+                $trackingId = trim((string) ($validated['tracking_id'] ?? ''));
 
                 // A File Extension ("X AND EXTENSION") is its own file and has no grouping
                 // row: it gets a tracking ID of its own, generated on the fly, never the
@@ -3346,11 +3356,25 @@ class MlsFileNoController extends Controller
                 if ($isOwnExtension) {
                     // The on-the-fly ID the form showed is kept when it is still free, so
                     // the saved ID is the one the officer saw.
-                    $trackingId = \App\Support\FileExtensionTracking::resolveFor($fullFileNumber, $validated['tracking_id'] ?? null);
-                }
+                    $trackingId = \App\Support\FileExtensionTracking::resolveFor($fullFileNumber, $trackingId ?: null);
+                } else {
+                    $groupingTrackingId = $this->tryFetchTrackingIdFromGrouping($lookupFileNumber);
+                    if ($trackingId === '') {
+                        $trackingId = $groupingTrackingId;
+                    }
 
-                if (empty($trackingId)) {
-                    $trackingId = $this->tryFetchTrackingIdFromGrouping($lookupFileNumber);
+                    if ($trackingId !== '' && $this->trackingIdAssignedToDifferentFile($trackingId, $fullFileNumber)) {
+                        if ($groupingTrackingId === null
+                            || $this->trackingIdAssignedToDifferentFile($groupingTrackingId, $fullFileNumber)) {
+                            throw new \RuntimeException(
+                                "Tracking ID {$trackingId} is already assigned to another file. Refresh the tracking ID and try again."
+                            );
+                        }
+
+                        // A retry can submit the previous serial's ID. The exact file's
+                        // grouping row is authoritative when that submitted ID is in use.
+                        $trackingId = $groupingTrackingId;
+                    }
                 }
 
                 // 2. Enforce grouping-table tracking ID policy (no auto-generation here).
@@ -5722,17 +5746,46 @@ class MlsFileNoController extends Controller
                 $poolIndex = 0;
 
                 $groupingUpdates = [];
+                $batchTrackingIds = [];
                 foreach ($validated['location_entries'] as $index => $entry) {
                     $serial = $allocatedSerials[$index];
                     $fullFileNumber = $allFileNumbers[$index];
                     $normalizedKey = strtoupper(preg_replace('/[^A-Z0-9]/i', '', $fullFileNumber));
                     $cached = $groupingCache[$normalizedKey] ?? null;
 
-                    // Priority: 1. Manual, 2. Cached from grouping, 3. New Pool
-                    $trackingId = $entry['tracking_id'] ?? ($cached->tracking_id ?? null);
-                    if (empty($trackingId)) {
-                        $trackingId = $newTrackingIdPool[$poolIndex++];
+                    // Keep the submitted ID unless it is already assigned to another
+                    // file; in that case, use this file's grouping ID if it is available.
+                    $trackingId = trim((string) ($entry['tracking_id'] ?? ''));
+                    $groupingTrackingId = trim((string) ($cached->tracking_id ?? ''));
+                    $trackingIdKey = strtoupper($trackingId);
+                    $trackingIdIsReserved = $trackingId !== ''
+                        && (isset($batchTrackingIds[$trackingIdKey])
+                            || $this->trackingIdAssignedToDifferentFile($trackingId, $fullFileNumber));
+
+                    if ($trackingId === '' || $trackingIdIsReserved) {
+                        $trackingId = $groupingTrackingId;
+                        $trackingIdIsReserved = $trackingId !== ''
+                            && (isset($batchTrackingIds[strtoupper($trackingId)])
+                                || $this->trackingIdAssignedToDifferentFile($trackingId, $fullFileNumber));
                     }
+
+                    if ($trackingIdIsReserved) {
+                        throw new \RuntimeException(
+                            "Tracking ID {$trackingId} is already assigned to another file. Correct the grouping record and try again."
+                        );
+                    }
+
+                    if (empty($trackingId)) {
+                        $trackingId = $newTrackingIdPool[$poolIndex++] ?? $this->getUniqueTrackingId();
+                    }
+                    $trackingIdKey = strtoupper($trackingId);
+                    if (isset($batchTrackingIds[$trackingIdKey])) {
+                        throw new \RuntimeException(
+                            "Tracking ID {$trackingId} is already assigned to another file. Correct the tracking ID and try again."
+                        );
+                    }
+                    $batchTrackingIds[$trackingIdKey] = true;
+                    $this->generatedTrackingIds[$trackingIdKey] = true;
 
                     // Prepare for bulk updates to grouping table later
                     if ($cached) {
@@ -7078,7 +7131,6 @@ class MlsFileNoController extends Controller
      * Property to track generated tracking IDs within a request
      */
     private $generatedTrackingIds = [];
-    //
 
     /**
      * Generate a unique tracking ID
@@ -7090,20 +7142,16 @@ class MlsFileNoController extends Controller
 
         do {
             $candidate = $preferred && $attempts === 0 ? $preferred : $this->generateTrackingId();
+            $candidateKey = strtoupper($candidate);
 
-            if (isset($this->generatedTrackingIds[$candidate])) {
+            if (isset($this->generatedTrackingIds[$candidateKey])) {
                 $preferred = null;
                 $attempts++;
                 continue;
             }
 
-            $exists = DB::connection('sqlsrv')
-                ->table('fileNumber')
-                ->where('tracking_id', $candidate)
-                ->exists();
-
-            if (!$exists) {
-                $this->generatedTrackingIds[$candidate] = true;
+            if (!$this->trackingIdExists($candidate)) {
+                $this->generatedTrackingIds[$candidateKey] = true;
                 return $candidate;
             }
 
@@ -7142,32 +7190,84 @@ class MlsFileNoController extends Controller
         $candidates = array_unique($candidates);
         $candidates = array_slice($candidates, 0, $limit); // Trim back to limit
 
-        // Check against DB in one query
-        $existing = DB::connection('sqlsrv')
-            ->table('fileNumber')
-            ->where(fn ($q) => $this->whereInVarchar($q, 'tracking_id', $candidates))
-            ->pluck('tracking_id')
-            ->toArray();
-
-        $existingMap = array_flip($existing);
+        $existing = [];
+        foreach (['fileNumber', 'mls_file_no', 'file_indexings', 'grouping'] as $table) {
+            $existing = array_merge(
+                $existing,
+                DB::connection('sqlsrv')
+                    ->table($table)
+                    ->where(fn ($q) => $this->whereInVarchar($q, 'tracking_id', $candidates))
+                    ->pluck('tracking_id')
+                    ->toArray()
+            );
+        }
+        $existingMap = array_fill_keys(array_map('strtoupper', $existing), true);
 
         foreach ($candidates as $candidate) {
-            if (!isset($existingMap[$candidate])) {
+            $candidateKey = strtoupper($candidate);
+            if (!isset($existingMap[$candidateKey]) && !isset($this->generatedTrackingIds[$candidateKey])) {
                 $ids[] = $candidate;
+                $this->generatedTrackingIds[$candidateKey] = true;
                 if (count($ids) >= $count) {
                     break;
                 }
             }
         }
 
-        // Extremely rare fallback: if we still don't have enough, generate sequentially with microtime
-        // This avoids any DB hits for the fallback.
         while (count($ids) < $count) {
-            $micro = microtime(true);
-            $ids[] = "TRK-" . date('ymdHis') . "-" . substr(md5($micro . rand()), 0, 6);
+            $ids[] = $this->getUniqueTrackingId();
         }
 
         return $ids;
+    }
+
+    private function trackingIdExists(string $trackingId): bool
+    {
+        foreach (['fileNumber', 'mls_file_no', 'file_indexings', 'grouping'] as $table) {
+            if (DB::connection('sqlsrv')->table($table)->where('tracking_id', $trackingId)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function trackingIdAssignedToDifferentFile(string $trackingId, string $fileNumber): bool
+    {
+        foreach ([
+            ['fileNumber', 'mlsfNo'],
+            ['mls_file_no', 'full_file_number'],
+            ['file_indexings', 'file_number'],
+        ] as [$table, $fileNumberColumn]) {
+            if (DB::connection('sqlsrv')
+                ->table($table)
+                ->where('tracking_id', $trackingId)
+                ->where(function ($query) use ($fileNumberColumn, $fileNumber) {
+                    $query->whereNull($fileNumberColumn)->orWhere($fileNumberColumn, '<>', $fileNumber);
+                })
+                ->exists()) {
+                return true;
+            }
+        }
+
+        $groupingRows = DB::connection('sqlsrv')
+            ->table('grouping')
+            ->where('tracking_id', $trackingId)
+            ->get(['mls_fileno', 'awaiting_fileno']);
+
+        foreach ($groupingRows as $groupingRow) {
+            $groupedFileNumbers = array_filter([
+                trim((string) ($groupingRow->mls_fileno ?? '')),
+                trim((string) ($groupingRow->awaiting_fileno ?? '')),
+            ]);
+
+            if (!$groupedFileNumbers
+                || !collect($groupedFileNumbers)->contains(fn ($number) => strcasecmp($number, $fileNumber) === 0)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
 
@@ -7602,7 +7702,5 @@ class MlsFileNoController extends Controller
         return $mapping[$baseLandUse] ?? $landUse;
     }
 }
-
-
 
 

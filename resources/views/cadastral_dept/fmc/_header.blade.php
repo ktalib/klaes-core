@@ -6,16 +6,16 @@
     <div><dt class="text-xs uppercase text-gray-500">OP Serial No.</dt><dd class="font-mono font-semibold">{{ ($fixed['op_no'] ?? null) ?: '—' }}</dd></div>
   @endif
   <div><dt class="text-xs uppercase text-gray-500">File Type</dt><dd>{{ ($fixed['file_type'] ?? null) ?: '—' }}</dd></div>
-  <div class="sm:col-span-2"><dt class="text-xs uppercase text-gray-500">File Title</dt><dd>{{ $fmc->file_title ?: '—' }}</dd></div>
+  <div class="sm:col-span-2"><dt class="text-xs uppercase text-gray-500">File Title</dt><dd class="uppercase">{{ $fmc->file_title ?: '—' }}</dd></div>
   @if (\App\Services\CadastralDept\FileMovementCards::SHOW_ALLOTTEE && $fmc->allottee_name && $fmc->allottee_name !== $fmc->file_title)
-    <div class="sm:col-span-2"><dt class="text-xs uppercase text-gray-500">Allottee</dt><dd>{{ $fmc->allottee_name }}</dd></div>
+    <div class="sm:col-span-2"><dt class="text-xs uppercase text-gray-500">Allottee</dt><dd class="uppercase">{{ $fmc->allottee_name }}</dd></div>
   @endif
-  <div><dt class="text-xs uppercase text-gray-500">Plot No.</dt><dd>{{ $fmc->plot_no ?: '—' }}</dd></div>
-  <div><dt class="text-xs uppercase text-gray-500">District</dt><dd>{{ $fmc->district ?: '—' }}</dd></div>
-  <div><dt class="text-xs uppercase text-gray-500">LGA</dt><dd>{{ $fmc->lga ?: '—' }}</dd></div>
-  <div><dt class="text-xs uppercase text-gray-500">Location</dt><dd>{{ $fmc->location ?: '—' }}</dd></div>
-  <div><dt class="text-xs uppercase text-gray-500">Block No.</dt><dd>{{ $fmc->block_no ?: '—' }}</dd></div>
-  <div><dt class="text-xs uppercase text-gray-500">Layout No.</dt><dd>{{ $fmc->layout_no ?: '—' }}</dd></div>
+  <div><dt class="text-xs uppercase text-gray-500">Plot No.</dt><dd class="uppercase">{{ $fmc->plot_no ?: '—' }}</dd></div>
+  <div><dt class="text-xs uppercase text-gray-500">District</dt><dd class="uppercase">{{ $fmc->district ?: '—' }}</dd></div>
+  <div><dt class="text-xs uppercase text-gray-500">LGA</dt><dd class="uppercase">{{ $fmc->lga ?: '—' }}</dd></div>
+  <div><dt class="text-xs uppercase text-gray-500">Location</dt><dd class="uppercase">{{ $fmc->location ?: '—' }}</dd></div>
+  <div><dt class="text-xs uppercase text-gray-500">Block No.</dt><dd class="uppercase">{{ $fmc->block_no ?: '—' }}</dd></div>
+  <div><dt class="text-xs uppercase text-gray-500">Layout No.</dt><dd class="uppercase">{{ $fmc->layout_no ?: '—' }}</dd></div>
   <div class="sm:col-span-2"><dt class="text-xs uppercase text-gray-500">Commissioned</dt>
     <dd>{{ $fmc->commissioned_at->format('d M Y H:i') }} · {{ optional($fmc->commissioner)->name }}</dd></div>
 </dl>

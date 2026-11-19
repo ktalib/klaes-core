@@ -51,11 +51,11 @@
     <table class="fields">
         <tr><td class="label">Charting No.</td><td class="value">{{ $card->charting_no }} (v{{ $card->version }}) · {{ $card->stageLabel() }}</td>
             <td class="label">File Number</td><td class="value">{{ $case->file_number }}</td></tr>
-        <tr><td class="label">File Title</td><td class="value" colspan="3">{{ $case->file_title ?: '—' }}</td></tr>
-        <tr><td class="label">Plot No.</td><td class="value">{{ $case->plot_no ?: '—' }}</td>
-            <td class="label">District</td><td class="value">{{ $case->district ?: '—' }}</td></tr>
-        <tr><td class="label">LGA</td><td class="value">{{ $case->lga ?: '—' }}</td>
-            <td class="label">Location</td><td class="value">{{ $case->location ?: '—' }}</td></tr>
+        <tr><td class="label">File Title</td><td class="value" style="text-transform:uppercase" colspan="3">{{ $case->file_title ?: '—' }}</td></tr>
+        <tr><td class="label">Plot No.</td><td class="value" style="text-transform:uppercase">{{ $case->plot_no ?: '—' }}</td>
+            <td class="label">District</td><td class="value" style="text-transform:uppercase">{{ $case->district ?: '—' }}</td></tr>
+        <tr><td class="label">LGA</td><td class="value" style="text-transform:uppercase">{{ $case->lga ?: '—' }}</td>
+            <td class="label">Location</td><td class="value" style="text-transform:uppercase">{{ $case->location ?: '—' }}</td></tr>
         @if ($card->stage === 'check')
             <tr><td class="label">Matches record</td><td class="value">{{ $yesNo($card->matches_record) }}</td>
                 <td class="label">Note</td><td class="value">{{ $card->match_note ?: '—' }}</td></tr>
@@ -71,7 +71,7 @@
         @endif
         <tr><td class="label">Description</td><td class="value" colspan="3">{{ $card->description ?: '—' }}</td></tr>
         <tr><td class="label">Sheet</td><td class="value">{{ $card->sheet_type ? ucfirst($card->sheet_type) : '—' }} {{ $card->sheet_no }}</td>
-            <td class="label">Layout</td><td class="value">{{ $card->layout ?: '—' }}</td></tr>
+            <td class="label">Layout</td><td class="value" style="text-transform:uppercase">{{ $card->layout ?: '—' }}</td></tr>
         <tr><td class="label">Plan / TP No.</td><td class="value">{{ $card->plan_no ?: '—' }}</td>
             <td class="label">Area</td><td class="value">{{ $card->area_sqm ? number_format($card->area_sqm, 1) . ' m²' : '—' }}</td></tr>
         <tr><td class="label">Remarks</td><td class="value" colspan="3">{{ $card->remarks ?: '—' }}</td></tr>

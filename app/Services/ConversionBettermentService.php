@@ -141,16 +141,7 @@ class ConversionBettermentService
     ): array
     {
         try {
-            $calc = $this->calculate($category, $totalArea);
-
-            $existingStructureMeta = $this->resolveExistingStructureCharge($jsiReportId, $reportTable);
-            $calc['base_total_fee'] = (float) $calc['total_fee'];
-            $calc['existing_structure_rate'] = self::EXISTING_STRUCTURE_RATE;
-            $calc['has_existing_structure'] = $existingStructureMeta['has_existing_structure'];
-            $calc['existing_structure_dimensions'] = $existingStructureMeta['dimensions'];
-            $calc['existing_structure_volume'] = $existingStructureMeta['volume'];
-            $calc['existing_structure_charge'] = $existingStructureMeta['charge'];
-            $calc['total_fee'] = (float) $calc['total_fee'] + $existingStructureMeta['charge'];
+            $calc = $this->calculateForReport($category, $totalArea, $jsiReportId, $reportTable);
 
             if (isset($calc['error'])) {
                 return ['success' => false, 'message' => $calc['error']];
@@ -220,17 +211,32 @@ class ConversionBettermentService
         }
     }
 
+    /**
+     * The land-use fee plus the existing-structure charge (L x B x H x 7.5) of one inspection
+     * report: what Calculate shows and what Generate saves, so the estimate equals the bill.
+     */
+    public function calculateForReport(string $category, float $totalArea, ?int $jsiReportId, ?string $reportTable): array
+    {
+        $calc = $this->calculate($category, $totalArea);
+
+        $existingStructureMeta = $jsiReportId
+            ? $this->resolveExistingStructureCharge($jsiReportId, $reportTable)
+            : $this->existingStructureFromEntries(null);
+        $calc['base_total_fee'] = (float) $calc['total_fee'];
+        $calc['existing_structure_rate'] = self::EXISTING_STRUCTURE_RATE;
+        $calc['has_existing_structure'] = $existingStructureMeta['has_existing_structure'];
+        $calc['existing_structure_dimensions'] = $existingStructureMeta['dimensions'];
+        $calc['existing_structure_volume'] = $existingStructureMeta['volume'];
+        $calc['existing_structure_charge'] = $existingStructureMeta['charge'];
+        $calc['total_fee'] = (float) $calc['total_fee'] + $existingStructureMeta['charge'];
+
+        return $calc;
+    }
+
     protected function resolveExistingStructureCharge(int $jsiReportId, ?string $reportTable = 'joint_site_inspection_reports'): array
     {
-        $default = [
-            'has_existing_structure' => false,
-            'dimensions' => null,
-            'volume' => 0.0,
-            'charge' => 0.0,
-        ];
-
         if ($reportTable === null) {
-            return $default;
+            return $this->existingStructureFromEntries(null);
         }
 
         $report = DB::connection('sqlsrv')
@@ -239,11 +245,25 @@ class ConversionBettermentService
             ->where('id', $jsiReportId)
             ->first();
 
-        if (!$report || !isset($report->existing_site_measurement_entries)) {
+        return $this->existingStructureFromEntries($report->existing_site_measurement_entries ?? null);
+    }
+
+    /**
+     * The existing-structure charge recorded in a report's measurement entries (the
+     * __existing_structure__ entry). The bills screen and the bill itself both use this.
+     */
+    public function existingStructureFromEntries($entries): array
+    {
+        $default = [
+            'has_existing_structure' => false,
+            'dimensions' => null,
+            'volume' => 0.0,
+            'charge' => 0.0,
+        ];
+
+        if ($entries === null) {
             return $default;
         }
-
-        $entries = $report->existing_site_measurement_entries;
 
         if (is_string($entries)) {
             $decoded = json_decode($entries, true);
@@ -275,10 +295,12 @@ class ConversionBettermentService
             return $default;
         }
 
-        $parsed = collect(preg_split('/[xX×]/', $dimensions))
+        $parsed = collect(preg_split('/[xX×]/u', $dimensions))
             ->map(function ($part) {
-                $trimmed = trim((string) $part);
-                return is_numeric($trimmed) ? (float) $trimmed : null;
+                // A unit after the number (6m, 3.8 m, 4.5 metres) is allowed.
+                return preg_match('/^\s*(\d+(?:\.\d+)?|\.\d+)\s*(?:m|mtrs?|metres?|meters?)?\.?\s*$/i', (string) $part, $match)
+                    ? (float) $match[1]
+                    : null;
             })
             ->filter(function ($value) {
                 return $value !== null && $value >= 0;

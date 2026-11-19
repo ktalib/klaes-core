@@ -882,6 +882,20 @@ const renderFileInfoFallback = (data) => {
   return true;
 };
 
+// One KANGIS file recertified to several land files: the timeline keeps only the searched
+// file's own recertification, so name the other land files here, e.g.
+// "MLKN 3010 → IND-2018-1, IND-2018-3".
+window.lsShowKangisSiblings = (siblings) => {
+  const row = document.getElementById('kangis-siblings-row');
+  const val = document.getElementById('kangis-siblings-value');
+  if (!row || !val) return;
+  const lines = Object.entries(siblings || {})
+    .filter(([, files]) => Array.isArray(files) && files.length)
+    .map(([kangis, files]) => `${kangis} → ${files.join(', ')}`);
+  val.textContent = lines.join('; ');
+  row.classList.toggle('hidden', !lines.length);
+};
+
 const executeSearchAjax = (filters, searchData) => {
     // Show loading
     searchLoading.classList.remove('hidden');
@@ -947,11 +961,13 @@ const executeSearchAjax = (filters, searchData) => {
         // Lineage (previous/successor files + their commissioning info) — used by the
         // timeline to render the full commissioning chain (mother → split/CoP → child).
         window._lsLineage = data.lineage || null;
+        window.lsShowKangisSiblings && window.lsShowKangisSiblings(data.kangis_siblings);
         // Per-file lifecycle metadata (commissioning/decommissioning/temp flags) for
         // every lifecycle owner surfaced in the result set.
         window._lsLifecycleMeta = data.lifecycle_meta || {};
         // Authoritative block order (Rule 11: transitive ancestors first) from the backend.
         window._lsLifecycleOrder = Array.isArray(data.lifecycle_order) ? data.lifecycle_order : [];
+        window._lsLinkOnlyFiles = Array.isArray(data.link_only_files) ? data.link_only_files : [];
         // Whether the searched file is actually indexed (has its own file_indexings row).
         // When false, the synthetic "File Commissioning" timeline row is suppressed.
         const _apiIsIndexed = (data.is_indexed === true);
@@ -2799,8 +2815,10 @@ const executeSearchAjax = (filters, searchData) => {
         const _fnd = data.file_number_display || null;
         window._lsFileTempNumber = _tf;
         window._lsLineage = data.lineage || null;
+        window.lsShowKangisSiblings && window.lsShowKangisSiblings(data.kangis_siblings);
         window._lsLifecycleMeta = data.lifecycle_meta || {};
         window._lsLifecycleOrder = Array.isArray(data.lifecycle_order) ? data.lifecycle_order : [];
+        window._lsLinkOnlyFiles = Array.isArray(data.link_only_files) ? data.link_only_files : [];
         const _isIndexed = (data.is_indexed === true);
         searchResults.forEach(function (r) {
           r._file_is_indexed = _isIndexed;
@@ -5212,6 +5230,12 @@ const executeSearchAjax = (filters, searchData) => {
 
     // Ensure the primary/main file exists as a group even if it has no transaction rows.
     if (primaryFileNo && !grouped[primaryFileNo]) grouped[primaryFileNo] = [];
+    // Related files whose bare "Related File" row the server dropped still get their
+    // block, i.e. their File Commissioning row (user, 2026-11-19).
+    for (const lf of (window._lsLinkOnlyFiles || [])) {
+      const k = normalizeLifecycleFileNo(lf || '');
+      if (k && !grouped[k]) grouped[k] = [];
+    }
 
     // Add missing commissioning/temp/decommissioning rows, then dedupe so each
     // lifecycle event type appears at most once per file.

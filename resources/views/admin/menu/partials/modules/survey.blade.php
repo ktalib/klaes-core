@@ -312,19 +312,22 @@
         </div>
 
         <div class="pl-4 mt-1 mb-1 space-y-0.5 hidden" data-content="survey-gis">
+          {{-- Tools: now the Map Tools tab of Production Unit (user, 2026-11-18). The route stays.
           <a href="{{ route('survey-module.tools.gis') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.tools.gis') ? 'active' : '' }}">
             <i data-lucide="wrench" class="h-3.5 w-3.5 text-pink-400"></i>
             <span>Tools</span>
           </a>
+          --}}
           <a href="{{ route('survey-module.tools.plot-allocation') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.tools.plot-allocation') ? 'active' : '' }}">
             <i data-lucide="table" class="h-3.5 w-3.5 text-pink-400"></i>
             <span>Resettlement Plots (Production)</span>
           </a>
-          {{-- iii. Basemap (Satellite Imagery): the SDI maps on satellite imagery (user, 2026-11-03). --}}
+          {{-- iii. Basemap (Satellite Imagery), commented out (user, 2026-11-18). The route stays.
           <a href="{{ route('survey-module.sdi.basemap') }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('survey-module.sdi.basemap') ? 'active' : '' }}">
             <i data-lucide="satellite" class="h-3.5 w-3.5 text-pink-400"></i>
             <span>Basemap (Satellite Imagery)</span>
           </a>
+          --}}
           {{-- SDI (ported from ALAES, 2026-10-29): Map Request feeds the Production Unit. Only Production Unit is on
                the sidebar now; Map Request is a button on its page and keeps it lit (user, 2026-11-03). --}}
           <div class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">SDI</div>

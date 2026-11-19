@@ -33,6 +33,7 @@
             indexed: @js(route('secretariat-file-log.indexed')),
             receive: @js(route('secretariat-file-log.receive')),
             forward: @js(route('secretariat-file-log.forward')),
+            related: @js(route('secretariat-file-log.related')),
         },
         userId: @js(auth()->id()),
         canChooseOffice: @js($canChooseOffice),
@@ -619,10 +620,37 @@
                                 <input type="text" x-model="send.notes" class="w-full border border-gray-300 rounded-lg text-sm px-3 py-2">
                             </div>
                         </div>
+                        {{-- Related Files (user, 2026-11-19): ticked files go in the same movement, each on its own tracker. --}}
+                        <div x-show="send.relatedLoading || send.related.length" class="bg-white border border-orange-200 rounded-lg p-3">
+                            <div class="flex items-center justify-between gap-2 mb-2">
+                                <div class="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                                    <i data-lucide="files" class="w-4 h-4 text-orange-600"></i> Related Files — send together
+                                    <span class="text-gray-400 font-normal" x-show="!send.relatedLoading" x-text="'(' + send.related.length + ')'"></span>
+                                </div>
+                                <label x-show="relatedMovable().length > 1" class="text-xs text-gray-600 flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" :checked="send.relatedPicked.length && send.relatedPicked.length === relatedMovable().length"
+                                           @change="toggleAllRelated($event.target.checked)"> Select all
+                                </label>
+                            </div>
+                            <div x-show="send.relatedLoading" class="text-xs text-gray-400">Looking for related files…</div>
+                            <div class="divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                                <template x-for="f in send.related" :key="'rel-' + f.file_number">
+                                    <label class="flex items-start gap-2 py-1.5 text-sm" :class="f.can_move ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'">
+                                        <input type="checkbox" class="mt-0.5" :value="f.file_number" x-model="send.relatedPicked" :disabled="!f.can_move">
+                                        <span class="min-w-0">
+                                            <span class="font-mono font-semibold" x-text="f.file_number"></span>
+                                            <span class="text-gray-600" x-show="f.file_title" x-text="' — ' + nice(f.file_title || '')"></span>
+                                            <span class="block text-xs text-gray-400" x-text="[f.sources.join(', '), f.tracking_id].filter(Boolean).join(' · ')"></span>
+                                            <span class="block text-xs" :class="f.can_move ? 'text-green-700' : 'text-red-700'" x-text="f.note"></span>
+                                        </span>
+                                    </label>
+                                </template>
+                            </div>
+                        </div>
                         <div class="flex gap-2 justify-end">
                             <button type="button" class="px-3 py-2 text-sm text-gray-600" @click="send.row = null">Cancel</button>
                             <button type="button" class="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
-                                    :disabled="busy || !sendValid()" @click="forward()"><i data-lucide="send" class="w-4 h-4"></i> <span x-text="send.in_unit ? 'Send to unit' : 'Track to next office'"></span></button>
+                                    :disabled="busy || !sendValid()" @click="forward()"><i data-lucide="send" class="w-4 h-4"></i> <span x-text="(send.in_unit ? 'Send to unit' : 'Track to next office') + (send.relatedPicked.length ? ' (' + (send.relatedPicked.length + 1) + ' files)' : '')"></span></button>
                         </div>
                     </div>
 
@@ -844,7 +872,7 @@
                                 <label class="block text-xs font-semibold text-gray-600 mb-1">File number *</label>
                                 <div class="relative">
                                     <input type="text" x-ref="indexInput" x-model="manual.indexQ"
-                                           @focus="openIndexed()" @input="manual.file_number = ''; manual.file_title = ''; searchIndexed()"
+                                           @focus="openIndexed()" @input="manual.file_number = ''; manual.file_title = ''; manual.related = []; manual.relatedPicked = []; searchIndexed()"
                                            @keydown.escape="manual.indexOpen = false"
                                            placeholder="— Search indexed file number or title —" autocomplete="off"
                                            class="w-full border rounded-lg text-sm pl-3 pr-8 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
@@ -1153,13 +1181,43 @@
                             </div>
                         </div>
 
+                        {{-- Related Files (user, 2026-11-19): ticked files move with this one, each on its own tracker, in one movement. --}}
+                        <div x-show="manual.entry_type !== 'non_file' && (manual.relatedLoading || manual.related.length)" class="border rounded-lg p-3"
+                             :class="mode === 'out' ? 'border-orange-200 bg-orange-50' : 'border-green-200 bg-green-50'">
+                            <div class="flex items-center justify-between gap-2 mb-2">
+                                <div class="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                                    <i data-lucide="files" class="w-4 h-4" :class="mode === 'out' ? 'text-orange-600' : 'text-green-600'"></i>
+                                    <span x-text="mode === 'out' ? 'Related Files — send together' : 'Related Files — received together'"></span>
+                                    <span class="text-gray-400 font-normal" x-show="!manual.relatedLoading" x-text="'(' + manual.related.length + ')'"></span>
+                                </div>
+                                <label x-show="manual.related.filter(f => manualRelatedOk(f)).length > 1" class="text-xs text-gray-600 flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" :checked="manual.relatedPicked.length && manual.relatedPicked.length === manual.related.filter(f => manualRelatedOk(f)).length"
+                                           @change="toggleAllManualRelated($event.target.checked)"> Select all
+                                </label>
+                            </div>
+                            <div x-show="manual.relatedLoading" class="text-xs text-gray-400">Looking for related files…</div>
+                            <div class="divide-y divide-gray-100 max-h-56 overflow-y-auto bg-white rounded">
+                                <template x-for="f in manual.related" :key="'mrel-' + f.file_number">
+                                    <label class="flex items-start gap-2 px-2 py-1.5 text-sm" :class="manualRelatedOk(f) ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'">
+                                        <input type="checkbox" class="mt-0.5" :value="f.file_number" x-model="manual.relatedPicked" :disabled="!manualRelatedOk(f)">
+                                        <span class="min-w-0">
+                                            <span class="font-mono font-semibold" x-text="f.file_number"></span>
+                                            <span class="text-gray-600" x-show="f.file_title" x-text="' — ' + nice(f.file_title || '')"></span>
+                                            <span class="block text-xs text-gray-400" x-text="[f.sources.join(', '), f.tracking_id].filter(Boolean).join(' · ')"></span>
+                                            <span class="block text-xs" :class="manualRelatedOk(f) ? 'text-green-700' : 'text-red-700'" x-text="manualRelatedNote(f)"></span>
+                                        </span>
+                                    </label>
+                                </template>
+                            </div>
+                        </div>
+
                         <div class="flex justify-end gap-2">
                             <button type="button" class="px-4 py-2 text-sm text-gray-600" @click="manual.open = false">Cancel</button>
                             <button type="button" class="inline-flex items-center gap-2 px-5 py-2 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
                                     :class="mode === 'out' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'"
                                     :disabled="busy || !manualValid()" @click="receiveManual()">
                                 <i data-lucide="check" class="w-4 h-4"></i>
-                                <span x-text="mode === 'out' ? 'Create log & send' : 'Create log & receive'"></span>
+                                <span x-text="(mode === 'out' ? 'Create log & send' : 'Create log & receive') + (manual.relatedPicked.length ? ' (' + (manual.relatedPicked.length + 1) + ' files)' : '')"></span>
                             </button>
                         </div>
                     </div>
@@ -1323,6 +1381,11 @@
                                                 <span x-show="row.legacy" class="px-1.5 rounded bg-gray-100 text-gray-700" title="Logged before File Movement and never received here; counted as held">Legacy log</span>
                                                 <span x-show="row.not_indexed" class="px-1.5 rounded bg-orange-100 text-orange-700">Not indexed</span>
                                                 <span x-show="row.request_type === 'SUBMITTED'" class="px-1.5 rounded bg-purple-100 text-purple-700">Submitted Request</span>
+                                            </div>
+                                            {{-- Sent together with related files: one movement (user, 2026-11-19). --}}
+                                            <div x-show="row.moved_with && row.moved_with.length" class="text-xs mt-0.5 whitespace-normal" style="max-width: 14rem">
+                                                <span class="px-1.5 rounded font-semibold" style="background:#ffedd5;color:#9a3412;" :title="row.movement_group"
+                                                      x-text="'+ ' + (row.moved_with || []).length + ' related: ' + (row.moved_with || []).join(', ')"></span>
                                             </div>
                                             {{-- Log ID (this movement), wrapped: it is longer than the file number. --}}
                                             <div x-show="row.log_id" class="text-xs font-mono text-gray-400 mt-0.5 whitespace-normal" style="max-width: 9rem" title="Log ID" x-text="row.log_id"></div>

@@ -1430,7 +1430,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!Array.isArray(records) || records.length === 0) {
                 const row = document.createElement('tr');
                 const cell = document.createElement('td');
-                cell.colSpan = config.readOnly ? 8 : 9;
+                cell.colSpan = config.readOnly ? 9 : 10;
                 cell.className = 'px-4 py-10 text-center text-slate-500';
                 cell.textContent = `No ${typeLabels[type].toLowerCase()} found for the supplied filters.`;
                 row.appendChild(cell);
@@ -1452,6 +1452,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     displayValue(record.location),
                     displayValue(record.comment_display || record.comment_prefixed || record.comment),
                     displayValue(record.created_at_display || record.created_at),
+                    displayValue(record.created_by_name),
                 ];
 
                 cellValues.forEach((value, index) => {

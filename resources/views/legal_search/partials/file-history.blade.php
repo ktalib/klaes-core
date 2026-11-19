@@ -71,6 +71,11 @@
                 <span class="form-label">File Title:</span>
                 <span class="form-value font-semibold" id="file-title-value"></span>
               </div>
+              {{-- Other land files recertified from the same KANGIS file (not shown in the timeline). --}}
+              <div class="form-row hidden" id="kangis-siblings-row">
+                <span class="form-label">Same KANGIS File Also Recertified To:</span>
+                <span class="form-value text-sm" id="kangis-siblings-value"></span>
+              </div>
               <div class="form-row">
                 <span class="form-label">Plot No:</span>
                 <span class="form-value" id="plot-no-value"></span>

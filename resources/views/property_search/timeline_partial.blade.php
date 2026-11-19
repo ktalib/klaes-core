@@ -243,6 +243,7 @@
                 <div class="flex flex-wrap items-start justify-between gap-2 mb-2">
                     <div class="flex items-center gap-2 flex-wrap">
                         <span class="tl-source-tag ${srcCls}">${e(label)}</span>
+                        ${(t.file_number || t.fileno) ? `<span class="text-xs font-mono font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200" title="File number">${e(t.file_number || t.fileno)}</span>` : ''}
                         <span class="text-sm font-semibold text-gray-800">${e(t.transaction_type)}</span>
                         ${t.root_of_title ? `<span class="tl-rot-tag">RoT: ${e(t.root_of_title)}</span>` : ''}
                         ${regPart}

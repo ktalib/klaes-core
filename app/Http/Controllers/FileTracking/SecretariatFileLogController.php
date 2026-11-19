@@ -5,6 +5,7 @@ namespace App\Http\Controllers\FileTracking;
 use App\Http\Controllers\Controller;
 use App\Services\FileTracking\FileProfileService;
 use App\Services\FileTracking\FileQrResolver;
+use App\Services\FileTracking\RelatedFileMovement;
 use App\Services\FileTracking\SecretariatFileLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -353,6 +354,9 @@ class SecretariatFileLogController extends Controller
             'in_unit_receive'      => 'nullable|boolean',
             'received_unit_id'     => 'nullable|integer',
             'received_unit_other'  => 'nullable|string|max:150',
+            // Log a file manually: related files ticked to move with it (user, 2026-11-19).
+            'related'              => 'nullable|array|max:50',
+            'related.*'            => 'string|max:255',
         ]);
 
         $office = $this->actingOffice($request);
@@ -396,13 +400,28 @@ class SecretariatFileLogController extends Controller
                     // The timeline runs from the send, so it is stamped once, on the forward.
                     $receipt = array_merge($data, ['receiving_officer_id' => $user->id, 'receiving_officer_other' => null, 'timeline_days' => null]);
                     $result = $this->log->receive($office, $receipt, $user);
-                    $tracker = $this->log->forward($office, (int) $result['tracker']->id, $sendTo,
-                        $data['request_purpose_id'] ?? null, $data['receiving_officer_id'] ?? null, null, $user,
+                    $send = [$sendTo,
+                        isset($data['request_purpose_id']) ? (int) $data['request_purpose_id'] : null,
+                        isset($data['receiving_officer_id']) ? (int) $data['receiving_officer_id'] : null, null, $user,
                         $data['request_purpose_other'] ?? null, $data['receiving_officer_other'] ?? null,
                         isset($data['timeline_days']) ? (int) $data['timeline_days'] : null,
-                        isset($data['receiving_unit_id']) ? (int) $data['receiving_unit_id'] : null, $data['receiving_unit_other'] ?? null, $toDepartment);
+                        isset($data['receiving_unit_id']) ? (int) $data['receiving_unit_id'] : null, $data['receiving_unit_other'] ?? null, $toDepartment];
+                    $tracker = $this->log->forward($office, (int) $result['tracker']->id, ...$send);
+                    // Related files ticked on the form go in the same movement.
+                    $group = !empty($data['related']) ? app(RelatedFileMovement::class)->sendAlong($office, $tracker, $data['related'], $send, $user) : null;
 
-                    return ['tracker' => $tracker, 'action' => 'sent'];
+                    return ['tracker' => $tracker, 'action' => 'sent', 'group' => $group];
+                });
+            } elseif (!empty($data['related'])) {
+                // Receiving with related files: all logged in here together, or none.
+                $user = $request->user();
+                $result = \Illuminate\Support\Facades\DB::connection('sqlsrv')->transaction(function () use ($office, $data, $user, $fromUnit, $receivedUnit) {
+                    $result = $this->log->receive($office, $data, $user);
+                    if ($fromUnit) $this->log->stampFromUnit($result['tracker'], $fromUnit, $data['from_department'] ?? null);
+                    if ($receivedUnit) $this->log->stampReceivedUnit($result['tracker'], $receivedUnit);
+                    $result['group'] = app(RelatedFileMovement::class)->receiveAlong($office, $result['tracker']->refresh(), $data['related'], $user);
+
+                    return $result;
                 });
             } else {
                 $result = $this->log->receive($office, $data, $request->user());
@@ -434,8 +453,11 @@ class SecretariatFileLogController extends Controller
         return response()->json([
             'success' => true,
             'action'  => $result['action'],
-            'message' => ($messages[$result['action']] ?? 'Done.') . ' Tracking ID: ' . $result['tracker']->tracking_id,
+            'message' => ($messages[$result['action']] ?? 'Done.') . ' Tracking ID: ' . $result['tracker']->tracking_id
+                . (!empty($result['group']) ? ' With ' . (count($result['group']['files']) - 1) . ' related file(s) in movement ' . $result['group']['group'] . ': ' . implode(', ', array_slice($result['group']['files'], 1)) . '.' : ''),
             'tracker' => $result['tracker']->only(['id', 'tracking_id', 'file_number', 'file_title', 'current_office_name', 'receiving_office_name']),
+            // Came with related files in one movement: the ones still waiting here, offered to receive too.
+            'group_waiting' => $sending ? [] : app(RelatedFileMovement::class)->waitingWith($result['tracker'], $office),
         ]);
     }
 
@@ -454,18 +476,31 @@ class SecretariatFileLogController extends Controller
             'notes'                => 'nullable|string|max:1000',
             'receiving_unit_id'    => 'nullable|integer',
             'receiving_unit_other' => 'nullable|string|max:150',
+            // Related files ticked to go along (user, 2026-11-19), by file number.
+            'related'              => 'nullable|array|max:50',
+            'related.*'            => 'string|max:255',
         ]);
 
         $office = $this->actingOffice($request);
+        $group = null;
 
         try {
-            $tracker = $this->log->forward($office, (int) $data['tracker_id'], $data['to_office'] ?? null,
+            // The same send for the file and each related file: one transaction, so a refusal sends none.
+            $send = [$data['to_office'] ?? null,
                 isset($data['request_purpose_id']) ? (int) $data['request_purpose_id'] : null,
                 isset($data['receiving_officer_id']) ? (int) $data['receiving_officer_id'] : null,
                 $data['notes'] ?? null, $request->user(),
                 $data['request_purpose_other'] ?? null, $data['receiving_officer_other'] ?? null, null,
                 isset($data['receiving_unit_id']) ? (int) $data['receiving_unit_id'] : null, $data['receiving_unit_other'] ?? null,
-                $data['to_department'] ?? null);
+                $data['to_department'] ?? null];
+            $tracker = \Illuminate\Support\Facades\DB::connection('sqlsrv')->transaction(function () use ($office, $data, $send, $request, &$group) {
+                $tracker = $this->log->forward($office, (int) $data['tracker_id'], ...$send);
+                if (!empty($data['related'])) {
+                    $group = app(RelatedFileMovement::class)->sendAlong($office, $tracker, $data['related'], $send, $request->user());
+                }
+
+                return $tracker;
+            });
         } catch (RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Throwable $e) {
@@ -473,13 +508,24 @@ class SecretariatFileLogController extends Controller
             return response()->json(['success' => false, 'message' => 'Could not send the file: ' . $e->getMessage()], 500);
         }
 
+        $many = $group ? count($group['files']) : 1;
+
         return response()->json([
             'success' => true,
-            'message' => 'File sent to ' . $this->sentTo($tracker)
+            'message' => ($many > 1 ? "{$many} files sent together to " : 'File sent to ') . $this->sentTo($tracker)
                 . ($tracker->receiving_officer_name ? ' (' . $tracker->receiving_officer_name . ')' : '')
-                . $this->unitNote($tracker) . '.',
+                . $this->unitNote($tracker) . '.' . ($group ? ' Movement ' . $group['group'] . ': ' . implode(', ', $group['files']) . '.' : ''),
             'tracker' => $tracker->only(['id', 'tracking_id', 'file_number', 'file_title', 'receiving_office_name']),
+            'group'   => $group,
         ]);
+    }
+
+    /** The file's related files, with where each is and whether it can go along from this office. */
+    public function related(Request $request): JsonResponse
+    {
+        $data = $request->validate(['office' => 'nullable|string|max:50', 'file_number' => 'required|string|max:255']);
+
+        return response()->json(['success' => true, 'files' => app(RelatedFileMovement::class)->candidates($data['file_number'], $this->actingOffice($request))]);
     }
 
     /** The office a file was sent to, or for an In-Unit send its unit and department. */

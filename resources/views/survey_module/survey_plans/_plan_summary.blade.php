@@ -50,8 +50,9 @@
 
 <div class="sp-card" style="display:grid;gap:14px;">
   @if ($spTabs)
-    <input type="radio" name="sp_tab" id="spTab1" class="sp-tabin" checked>
-    <input type="radio" name="sp_tab" id="spTab2" class="sp-tabin">
+    {{-- ?tab=beacons opens Plotted Beacons (the Readings link on Surveyor's Report (Private)). --}}
+    <input type="radio" name="sp_tab" id="spTab1" class="sp-tabin" @checked(request('tab') !== 'beacons')>
+    <input type="radio" name="sp_tab" id="spTab2" class="sp-tabin" @checked(request('tab') === 'beacons')>
     <input type="radio" name="sp_tab" id="spTab3" class="sp-tabin">
   @endif
   <div class="sp-track" aria-label="Stages">
@@ -82,6 +83,7 @@
     <div><span>Method</span><strong>{{ $plan->method_label }}</strong></div>
     <div><span>Sent To</span><strong>{{ $plan->unit }}</strong></div>
     <div><span>Plot No.</span><strong>{{ $plan->plot_no ?: '—' }}</strong></div>
+    <div><span>TP No.</span><strong>{{ $plan->tp_no ?: '—' }}</strong></div>
     <div><span>District</span><strong>{{ $plan->district ?: '—' }}</strong></div>
     <div><span>LGA</span><strong>{{ $plan->lga ?: '—' }}</strong></div>
     <div><span>Location</span><strong>{{ $plan->location ?: '—' }}</strong></div>

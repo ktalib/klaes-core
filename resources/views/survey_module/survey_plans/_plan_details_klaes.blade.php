@@ -24,6 +24,19 @@
             <label>Plot No.</label>
             <input type="text" name="plot_no" maxlength="100" value="{{ old('plot_no') }}">
         </div>
+        {{-- TP No. (user, 2026-11-18): the TP list, as the Application Plan's Plan No., or Other + specify. --}}
+        @php $spTpNos = \App\Models\Survey\SurveyApplicationPlan::planNoChoices(); $spTpOther = old('tp_no') === 'other'; @endphp
+        <div class="form-group">
+            <label>TP No.</label>
+            <select name="tp_no" data-placeholder="Search TP No.…" onchange="var o = document.getElementById('spuTpOther'), on = this.value === 'other'; o.style.display = on ? '' : 'none'; o.disabled = !on; o.required = on; if (on) o.focus();">
+                <option value="">— Select TP No. —</option>
+                @foreach ($spTpNos as $tp)<option value="{{ $tp }}" @selected(old('tp_no') === $tp)>{{ $tp }}</option>@endforeach
+                <option value="other" @selected($spTpOther)>Other (specify)</option>
+            </select>
+            <input type="text" name="tp_no_other" id="spuTpOther" maxlength="120" placeholder="Specify the TP No. *" value="{{ old('tp_no_other') }}"
+                   style="margin-top:6px;{{ $spTpOther ? '' : 'display:none;' }}" @disabled(! $spTpOther) @required($spTpOther)>
+            @error('tp_no')<p class="helper-text" style="color:#b91c1c;">{{ $message }}</p>@enderror
+        </div>
         <div class="form-group">
             <label>District <span class="required">*</span></label>
             <select name="district" id="spuDistrict" required>

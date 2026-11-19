@@ -319,6 +319,26 @@
                                     <p class="text-sm font-semibold text-slate-800">{{ data_get($report, 'existing_site_area', 'N/A') }}</p>
                                 </div>
                             </div>
+                            @php
+                                $approvalHasExtension = data_get($report, 'has_extension');
+                                $approvalExtensionDims = trim(implode(' x ', array_filter([data_get($report, 'extension_site_length'), data_get($report, 'extension_site_width')], fn ($value) => $value !== null && $value !== '')));
+                            @endphp
+                            <div class="bg-white border border-slate-200 rounded-lg px-4 py-3 flex items-start gap-3">
+                                <i data-lucide="square-plus" class="h-4 w-4 text-indigo-600 mt-0.5 shrink-0"></i>
+                                <div>
+                                    <p class="text-[11px] text-slate-500 uppercase font-bold tracking-wider">Extension Site Area (m²)</p>
+                                    @if($approvalHasExtension === null)
+                                        <p class="text-sm font-semibold text-slate-400">Not answered</p>
+                                    @elseif(!$approvalHasExtension)
+                                        <p class="text-sm font-semibold text-slate-800">No extension</p>
+                                    @else
+                                        <p class="text-sm font-semibold text-slate-800">{{ data_get($report, 'extension_site_area', 'N/A') }}</p>
+                                        @if($approvalExtensionDims !== '')
+                                            <p class="text-[11px] text-slate-500">{{ $approvalExtensionDims }}</p>
+                                        @endif
+                                    @endif
+                                </div>
+                            </div>
                             <div class="bg-white border border-slate-200 rounded-lg px-4 py-3 flex items-start gap-3">
                                 <i data-lucide="move-diagonal" class="h-4 w-4 text-indigo-600 mt-0.5 shrink-0"></i>
                                 <div>

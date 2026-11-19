@@ -117,9 +117,20 @@ class OpLookup
         $capture = $this->captureQuery()
             ->where(fn ($q) => $q->where('ic.mlsFNo', $fileNumber)->orWhere('ic.temp_fileno', $fileNumber))
             ->orderByDesc('ic.id')->limit($limit)->get();
+        // An OP is often filed under its temporary number, with only the Transfer of Title under the file
+        // number; a merger OP brings several OPs into one file (merger_group_id). Follow the file's own PRA
+        // rows to those temp numbers and merger groups (user, 2026-11-19: RES-2026-3311 holds 2 OPs).
+        $own = DB::connection('sqlsrv')->table('pra')
+            ->where(fn ($q) => $q->where('mlsFNo', $fileNumber)->orWhere('fileno', $fileNumber))
+            ->where(fn ($q) => $q->whereNull('is_deleted')->orWhere('is_deleted', 0))
+            ->limit(50)->get(['temp_fileno', 'merger_group_id']);
+        $temps = $own->pluck('temp_fileno')->map(fn ($v) => trim((string) $v))->filter()->unique()->values()->all();
+        $groups = $own->pluck('merger_group_id')->map(fn ($v) => trim((string) $v))->filter()->unique()->values()->all();
         $pra = $this->praQuery()
             ->where(fn ($q) => $q->where('p.mlsFNo', $fileNumber)->orWhere('p.kangisFileNo', $fileNumber)->orWhere('p.NewKANGISFileno', $fileNumber)
-                ->orWhere('p.fileno', $fileNumber)->orWhere('p.temp_fileno', $fileNumber))
+                ->orWhere('p.fileno', $fileNumber)->orWhere('p.temp_fileno', $fileNumber)
+                ->when($temps, fn ($w) => $w->orWhereIn('p.temp_fileno', $temps))
+                ->when($groups, fn ($w) => $w->orWhereIn('p.merger_group_id', $groups)))
             ->orderByDesc('p.id')->limit($limit)->get();
 
         return $capture->map(fn ($r) => $this->fromCapture($r))
@@ -233,7 +244,7 @@ class OpLookup
             ->where(fn ($q) => $q->whereNull('p.is_deleted')->orWhere('p.is_deleted', 0))
             ->select(['p.id', 'p.op_serial_number', 'p.op_type', 'p.Grantee', 'p.plot_no', 'p.plot_size', 'p.districtName', 'p.lgsaOrCity', 'p.location',
                       'p.property_description', 'p.lpkn_no', 'p.tp_no', 'p.layout', 'p.temp_fileno', 'p.mlsFNo', 'p.kangisFileNo',
-                      'p.NewKANGISFileno', 'p.fileno', 'p.regNo']);   // pra has no np_fileno: asking for it broke every OP search (2026-11-07 to 2026-11-09)
+                      'p.NewKANGISFileno', 'p.fileno', 'p.regNo', 'p.serialNo', 'p.pageNo', 'p.volumeNo']);   // pra has no np_fileno: asking for it broke every OP search (2026-11-07 to 2026-11-09)
     }
 
     private function fromCapture(object $r): array
@@ -281,9 +292,21 @@ class OpLookup
             // The KANGIS / other file numbers pra carries (added 2026-11-07, first put on the capture rows by mistake).
             'file_number' => $this->s($r->mlsFNo) ?? $this->s($r->kangisFileNo) ?? $this->s($r->NewKANGISFileno)
                 ?? $this->s($r->fileno) ?? $this->s($r->temp_fileno),
-            'reg_no'      => $this->s($r->regNo),
+            // Many OPs hold the particulars only as serial / page / volume (195 / 195 / 133); read them as one.
+            'reg_no'      => $this->s($r->regNo) ?? $this->regFromParts($r->serialNo ?? null, $r->pageNo ?? null, $r->volumeNo ?? null),
             'land_use'    => null,
         ];
+    }
+
+    /** "serial/page/volume" when all three are given and not the 0/0/0 placeholder, else null. */
+    private function regFromParts($serial, $page, $volume): ?string
+    {
+        $parts = array_map(fn ($v) => trim((string) $v), [$serial, $page, $volume]);
+        if (in_array('', $parts, true) || $parts === ['0', '0', '0']) {
+            return null;
+        }
+
+        return implode('/', $parts);
     }
 
     /** Trimmed text, or null for blank / placeholder phones. */

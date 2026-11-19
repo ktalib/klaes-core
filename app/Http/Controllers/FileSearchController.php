@@ -113,7 +113,7 @@ class FileSearchController extends Controller
         }
 
         $query = DuplicateFileno::on('sqlsrv')
-            ->select(['id', 'registry', 'file_number', 'file_title', 'plot_number', 'location', 'comment', 'category', 'created_at'])
+            ->select(['id', 'registry', 'file_number', 'file_title', 'plot_number', 'location', 'comment', 'category', 'created_at', 'created_by'])
             ->orderByDesc('created_at')
             ->orderBy('registry')
             ->orderBy('file_number');
@@ -173,8 +173,10 @@ class FileSearchController extends Controller
                 ->all()
         );
 
+        $creatorNames = $this->creatorNames(Collection::make($paginator->items())->pluck('created_by'));
+
         $items = Collection::make($paginator->items())
-            ->map(function ($row, int $index) use ($serialOffset, $timezone, $conditions) {
+            ->map(function ($row, int $index) use ($serialOffset, $timezone, $conditions, $creatorNames) {
                 [$recordType, $note] = $this->splitComment($row->comment);
 
                 $category = $row->category ?? $this->categoryLabel($recordType);
@@ -204,6 +206,7 @@ class FileSearchController extends Controller
                     'comment_display' => $this->commentDisplay($category, $note),
                     'created_at' => $createdAt ? $createdAt->toIso8601String() : null,
                     'created_at_display' => $createdAtDisplay,
+                    'created_by_name' => $creatorNames[(string) $row->created_by] ?? null,
                     'main_file_number' => $conditions[(int) $row->id]['main_file_number'] ?? null,
                     'main_file_title' => $conditions[(int) $row->id]['main_file_title'] ?? null,
                     'condition' => $conditions[(int) $row->id]['condition'] ?? null,
@@ -343,7 +346,7 @@ class FileSearchController extends Controller
             }
 
             $query = DuplicateFileno::on('sqlsrv')
-                ->select(['id', 'registry', 'file_number', 'file_title', 'plot_number', 'location', 'comment', 'category', 'created_at'])
+                ->select(['id', 'registry', 'file_number', 'file_title', 'plot_number', 'location', 'comment', 'category', 'created_at', 'created_by'])
                 ->orderBy('created_at')
                 ->orderBy('id');
 
@@ -394,7 +397,7 @@ class FileSearchController extends Controller
                 : '-all';
             $filename = sprintf('%s-records%s.csv', Str::slug($label), $dateRange);
 
-            $columns = ['SN', 'Registry', 'File Number', 'File Title', 'Plot Number', 'Location', 'Category', 'Comment', 'Created At'];
+            $columns = ['SN', 'Registry', 'File Number', 'File Title', 'Plot Number', 'Location', 'Category', 'Comment', 'Created At', 'Created By'];
             $timezone = config('app.timezone');
             if (!is_string($timezone) || trim($timezone) === '') {
                 $timezone = 'UTC';
@@ -423,6 +426,8 @@ class FileSearchController extends Controller
                 $serial = 1;
 
                 $query->chunk(500, function ($rows) use (&$serial, $handle, $timezone) {
+                    $creatorNames = $this->creatorNames($rows->pluck('created_by'));
+
                     foreach ($rows as $row) {
                         [$recordType, $note] = $this->splitComment($row->comment);
                         $category = $row->category ?? $this->categoryLabel($recordType);
@@ -450,6 +455,7 @@ class FileSearchController extends Controller
                             $category,
                             $note ?? '',
                             $createdAtDisplay,
+                            $creatorNames[(string) $row->created_by] ?? '',
                         ]);
                     }
 
@@ -580,6 +586,24 @@ class FileSearchController extends Controller
                 $builder->where('comment', 'like', $escapedPrefix);
             }
         });
+    }
+
+    /**
+     * Names of the users who created the given rows, keyed by user id.
+     */
+    private function creatorNames(Collection $ids): array
+    {
+        $ids = $ids->filter(fn ($id) => $id !== null && $id !== '')->map(fn ($id) => (int) $id)->unique()->values();
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        return DB::connection('sqlsrv')->table('users')
+            ->whereIn('id', $ids->all())
+            ->get(['id', 'first_name', 'last_name'])
+            ->mapWithKeys(fn ($u) => [(string) $u->id => trim($u->first_name . ' ' . $u->last_name)])
+            ->all();
     }
 
     private function parseDate($value, bool $asEndOfDay = false): ?Carbon

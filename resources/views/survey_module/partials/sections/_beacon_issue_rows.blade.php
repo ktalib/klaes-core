@@ -12,6 +12,22 @@
     $brItem = 'flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 hover:bg-gray-50';
     $userName = fn ($u) => $u ? trim($u->first_name . ' ' . $u->last_name) : null;
 @endphp
+@if ($group)
+    {{-- The group's row is a summary only (user, 2026-11-18): the letters and the range of numbers, never one entry's
+         file number or beacons as if they were the group's. Opening it lists every entry with its details. --}}
+    <tr class="br-group" data-series="{{ $group->letters }}" data-sn="{{ $groupNo }}" tabindex="0" aria-expanded="false"
+        onclick="brGroupToggle(this, event)" onkeydown="if (event.target === this && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); brGroupToggle(this); }">
+        <td style="white-space:nowrap;"><i class="fas fa-chevron-right br-group-icon"></i>{{ $groupNo }}</td>
+        <td style="white-space:nowrap;">{{ \App\Models\Survey\SurveyBeaconRegister::LAYOUT_TYPES[request('layout')] ?? '—' }}</td>
+        <td colspan="2" style="white-space:nowrap;"><strong>{{ $group->letters !== '' ? 'Group ' . $group->letters : 'No letters' }}</strong></td>
+        <td style="white-space:nowrap;">
+            <strong>{{ $group->lowest === $group->highest ? $group->lowest : $group->lowest . ' to ' . $group->highest }}</strong>
+            <span class="br-group-sub">{{ number_format($group->issued) }} {{ (int) $group->issued === 1 ? 'number' : 'numbers' }}</span>
+        </td>
+        <td>{{ number_format($group->issued) }}</td>
+        <td colspan="17" style="color:var(--gray-500);font-size:13px;">{{ number_format($group->entries) }} {{ (int) $group->entries === 1 ? 'entry' : 'entries' }} · click to open</td>
+    </tr>
+@endif
 @foreach ($entries as $row)
                     @php
                         $rowSn = $group ? $groupNo : ($groupNo ? $groupNo . '.' : '') . ($rowStart + $loop->index);

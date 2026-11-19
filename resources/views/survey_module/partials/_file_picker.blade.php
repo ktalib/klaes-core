@@ -86,6 +86,11 @@
                 })
                 .catch(function () { say(id, no + ' selected. Its details could not be loaded; enter them.', true); });
         }
+        // For a form that reopens on another record: drop the last pick's locks, or look up a saved number.
+        window.svFilePicker = {
+            reset: function (id) { (state[id] || []).forEach(function (item) { item.el.readOnly = false; item.el.style.background = ''; }); state[id] = []; },
+            apply: apply,
+        };
         document.addEventListener('click', function (e) {
             var pick = e.target.closest('[data-pick]');
             if (pick) {

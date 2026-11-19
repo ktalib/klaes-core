@@ -26,6 +26,11 @@
             <i data-lucide="library" class="h-4 w-4 text-indigo-500"></i>
             <span>Report &amp; Manual</span>
           </a>
+          {{-- OPs view table, view-only (?url=hc hides the Actions column). --}}
+          <a href="{{ route('ops-dashboard.index', ['url' => 'hc']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('ops-dashboard.index') && request('url') === 'hc' ? 'active' : '' }}">
+            <i data-lucide="file-warning" class="h-4 w-4 text-indigo-500"></i>
+            <span>Occupancy Permits (OPs)</span>
+          </a>
         </div>
 
         {{-- Permanent Secretary: dashboard + document library --}}
@@ -44,6 +49,11 @@
           <a href="{{ route('documents.index', ['url' => 'ps']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('documents.index') && request('url') === 'ps' ? 'active' : '' }}">
             <i data-lucide="library" class="h-4 w-4 text-indigo-500"></i>
             <span>Report &amp; Manual</span>
+          </a>
+          {{-- OPs view table, view-only (?url=ps hides the Actions column). --}}
+          <a href="{{ route('ops-dashboard.index', ['url' => 'ps']) }}" class="sidebar-item flex items-center gap-2 py-2 px-3 rounded-md transition-all duration-200 {{ request()->routeIs('ops-dashboard.index') && request('url') === 'ps' ? 'active' : '' }}">
+            <i data-lucide="file-warning" class="h-4 w-4 text-indigo-500"></i>
+            <span>Occupancy Permits (OPs)</span>
           </a>
           {{-- The PS stage of Master JSI approval; appears once the stage columns exist. --}}
           @if(\App\Models\MasterJsiReport::supportsApprovalStages())

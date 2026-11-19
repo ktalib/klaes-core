@@ -97,6 +97,7 @@ class SltrPlanningRecommendationController extends Controller
             ->table('jsi_lut_reservations')
             ->select('id', 'name')
             ->where('is_active', 1)
+            ->orderByRaw("CASE WHEN UPPER(LTRIM(RTRIM(name))) IN ('OTHER', 'OTHERS') THEN 1 ELSE 0 END") // OTHER last
             ->orderBy('name')
             ->get();
         $user = Auth::user();
@@ -148,6 +149,10 @@ class SltrPlanningRecommendationController extends Controller
                 'jsi.applied_land_use',
                 'jsi.prevailing_land_use',
                 'jsi.existing_site_area',
+                'jsi.has_extension',
+                'jsi.extension_site_length',
+                'jsi.extension_site_width',
+                'jsi.extension_site_area',
                 'jsi.recommended_site_area',
                 'jsi.is_approved',
                 'jsi.approved_by',
@@ -192,6 +197,8 @@ class SltrPlanningRecommendationController extends Controller
                 'jsi.inspection_date',
                 'jsi.inspection_officer',
                 'jsi.existing_site_area',
+                'jsi.has_extension',
+                'jsi.extension_site_area',
                 'jsi.recommended_site_area',
                 'jsi.compliance_status',
                 'jsi.purpose',
@@ -318,6 +325,8 @@ class SltrPlanningRecommendationController extends Controller
                 'inspection_date'       => $file->inspection_date ?? null,
                 'inspection_officer'    => $file->inspection_officer ?? 'N/A',
                 'existing_site_area'    => $file->existing_site_area,
+                'has_extension'         => $file->has_extension === null ? null : (bool) $file->has_extension,
+                'extension_site_area'   => $file->extension_site_area,
                 'recommended_site_area' => $file->recommended_site_area,
                 'compliance_status'     => $file->compliance_status ?? 'N/A',
                 'purpose'               => $file->purpose ?? 'N/A',
@@ -441,8 +450,9 @@ class SltrPlanningRecommendationController extends Controller
             'private_layout_number' => 'required_if:purpose,Private Layout|nullable|string|max:100',
             'conformity' => 'required|boolean',
             'accessibility' => 'required|boolean',
-            'existing_road_reservation' => 'nullable|string|max:255',
-            'recommended_road_reservation' => 'nullable|string|max:255',
+            // Typed / specified text (user, 2026-11-19); columns widened to 1000 like Conversion.
+            'existing_road_reservation' => 'nullable|string|max:1000',
+            'recommended_road_reservation' => 'nullable|string|max:1000',
             'observed_road_category' => 'nullable|string|max:255',
             'recommended_comment_status' => 'nullable|string|max:100',
             'how_many_meters' => 'nullable|string|max:100',
@@ -452,6 +462,11 @@ class SltrPlanningRecommendationController extends Controller
             'existing_site_length' => 'nullable|string',
             'existing_site_width' => 'nullable|string',
             'existing_site_area' => 'nullable|numeric|min:0',
+            // SLTR JSI extension (user, 2026-11-19, as on Conversion): on Yes its dimensions and area are required.
+            'has_extension' => 'nullable|boolean',
+            'extension_site_length' => 'required_if:has_extension,1|nullable|string',
+            'extension_site_width' => 'nullable|string',
+            'extension_site_area' => 'required_if:has_extension,1|nullable|numeric|min:0',
             'recommended_site_length' => 'nullable|string',
             'recommended_site_width' => 'nullable|string',
             'recommended_site_area' => 'nullable|numeric|min:0',
@@ -638,6 +653,11 @@ class SltrPlanningRecommendationController extends Controller
         $report->existing_site_length = $validated['existing_site_length'] ?? null;
         $report->existing_site_width = $validated['existing_site_width'] ?? null;
         $report->existing_site_area = $validated['existing_site_area'] ?? null;
+        $hasExtension = isset($validated['has_extension']) ? (bool) $validated['has_extension'] : null;
+        $report->has_extension = $hasExtension;
+        $report->extension_site_length = $hasExtension ? ($validated['extension_site_length'] ?? null) : null;
+        $report->extension_site_width = $hasExtension ? ($validated['extension_site_width'] ?? null) : null;
+        $report->extension_site_area = $hasExtension ? ($validated['extension_site_area'] ?? null) : null;
         $report->recommended_site_length = $validated['recommended_site_length'] ?? null;
         $report->recommended_site_width = $validated['recommended_site_width'] ?? null;
         $report->recommended_site_area = $validated['recommended_site_area'] ?? null;
@@ -984,6 +1004,22 @@ class SltrPlanningRecommendationController extends Controller
             $existingMeasurement .= ($existingMeasurement !== '' ? ' | ' : '') . 'Area: ' . number_format((float) $report->existing_site_area, 2) . ' m2';
         }
 
+        // Extension (user, 2026-11-19): printed under Site Measurements once the JSI answers it.
+        $extensionMeasurement = null;
+        if (($report->has_extension ?? null) !== null) {
+            if ((bool) $report->has_extension) {
+                $extensionMeasurement = trim(implode(' x ', array_filter([
+                    $report->extension_site_length ?? null,
+                    $report->extension_site_width ?? null,
+                ], fn ($value) => $value !== null && $value !== '')));
+                if (($report->extension_site_area ?? null) !== null && $report->extension_site_area !== '') {
+                    $extensionMeasurement .= ($extensionMeasurement !== '' ? ' | ' : '') . 'Area: ' . number_format((float) $report->extension_site_area, 2) . ' m2';
+                }
+            } else {
+                $extensionMeasurement = 'No';
+            }
+        }
+
         $recommendedMeasurement = trim(implode(' x ', array_filter([
             $report->recommended_site_length ?? null,
             $report->recommended_site_width ?? null,
@@ -1015,6 +1051,7 @@ class SltrPlanningRecommendationController extends Controller
             'location' => $report->location ?? '',
             'purpose' => $resolvedPurpose,
             'siteMeasurements' => $existingMeasurement !== '' ? $existingMeasurement : 'N/A',
+            'extensionSiteMeasurements' => $extensionMeasurement,
             'recommendedSiteMeasurements' => $recommendedMeasurement !== '' ? $recommendedMeasurement : 'N/A',
             'existingRoadReservation' => $resolvedExistingRoadReservation ?? 'N/A',
             'surroundingLandUse' => ($report->prevailing_land_use ?? $detailedLandUseName) ?? 'N/A',

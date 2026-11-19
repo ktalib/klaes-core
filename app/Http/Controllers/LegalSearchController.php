@@ -698,6 +698,13 @@ class LegalSearchController extends Controller
         ]);
         $record->save();
 
+        // The file's cadastral cases keep their own copy of plot / district / LGA (2026-11-19).
+        app(\App\Services\CadastralDept\CadastralCaseSync::class)->sync(
+            $record->file_number,
+            ['plot_no' => $record->plot_number, 'district' => $record->district, 'lga' => $record->lga],
+            (int) $record->id
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'File information updated successfully.',

@@ -890,6 +890,13 @@ class BeaconRegisterController extends Controller
             }
         }
         unset($data['file_numbers']);
+        // CON-RES files are Private layouts, never Public (user, 2026-11-19).
+        $conRes = array_values(array_filter($files, fn ($no) => SurveyBeaconRegister::mustBePrivate($no)));
+        if ($conRes && ($data['layout_type'] ?? null) !== 'Private') {
+            throw ValidationException::withMessages([
+                'layout_type' => 'CON-RES files are Private, not Public: choose Private (' . implode(', ', $conRes) . ').',
+            ]);
+        }
         // The single column keeps the first one, for anything that still reads it.
         $data['file_number'] = $files[0] ?? null;
 

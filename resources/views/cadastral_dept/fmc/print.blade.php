@@ -65,22 +65,22 @@
             @endif
         </tr>
         <tr>
-            <td class="label">File Title</td><td class="value" colspan="3">{{ $fmc->file_title ?: '—' }}</td>
+            <td class="label">File Title</td><td class="value" style="text-transform:uppercase" colspan="3">{{ $fmc->file_title ?: '—' }}</td>
         </tr>
         @if (\App\Services\CadastralDept\FileMovementCards::SHOW_ALLOTTEE && $fmc->allottee_name && $fmc->allottee_name !== $fmc->file_title)
-            <tr><td class="label">Allottee</td><td class="value" colspan="3">{{ $fmc->allottee_name }}</td></tr>
+            <tr><td class="label">Allottee</td><td class="value" style="text-transform:uppercase" colspan="3">{{ $fmc->allottee_name }}</td></tr>
         @endif
         <tr>
-            <td class="label">Plot No.</td><td class="value">{{ $fmc->plot_no ?: '—' }}</td>
-            <td class="label">District</td><td class="value">{{ $fmc->district ?: '—' }}</td>
+            <td class="label">Plot No.</td><td class="value" style="text-transform:uppercase">{{ $fmc->plot_no ?: '—' }}</td>
+            <td class="label">District</td><td class="value" style="text-transform:uppercase">{{ $fmc->district ?: '—' }}</td>
         </tr>
         <tr>
-            <td class="label">LGA</td><td class="value">{{ $fmc->lga ?: '—' }}</td>
-            <td class="label">Location</td><td class="value">{{ $fmc->location ?: '—' }}</td>
+            <td class="label">LGA</td><td class="value" style="text-transform:uppercase">{{ $fmc->lga ?: '—' }}</td>
+            <td class="label">Location</td><td class="value" style="text-transform:uppercase">{{ $fmc->location ?: '—' }}</td>
         </tr>
         <tr>
-            <td class="label">Block No.</td><td class="value">{{ $fmc->block_no ?: '—' }}</td>
-            <td class="label">Layout No.</td><td class="value">{{ $fmc->layout_no ?: '—' }}</td>
+            <td class="label">Block No.</td><td class="value" style="text-transform:uppercase">{{ $fmc->block_no ?: '—' }}</td>
+            <td class="label">Layout No.</td><td class="value" style="text-transform:uppercase">{{ $fmc->layout_no ?: '—' }}</td>
         </tr>
         <tr>
             <td class="label">Commissioned</td>

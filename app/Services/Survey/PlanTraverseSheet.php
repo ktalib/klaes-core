@@ -95,6 +95,26 @@ class PlanTraverseSheet
         return $out;
     }
 
+    /**
+     * A report's own field readings (survey_its_observations) in the shape of lines(), without coordinates: the
+     * Readings pop-up on the Surveyors Report lists (user, 2026-11-19). observed_bearing is a whole-circle bearing.
+     */
+    public function readingLines(iterable $observations): array
+    {
+        $out = [];
+        foreach ($observations as $i => $o) {
+            $az = (float) $o->observed_bearing;
+            $out[] = [
+                'line' => count($out) + 1,
+                'from' => (string) $o->from_station, 'to' => (string) $o->to_station,
+                'bearing' => $this->quadrant($az), 'bearing_wcb' => $this->dms($az),
+                'distance' => number_format((float) $o->observed_distance, 3, '.', ''),
+            ];
+        }
+
+        return $out;
+    }
+
     private function n(float $v): string
     {
         return number_format($v, 3, '.', '');
